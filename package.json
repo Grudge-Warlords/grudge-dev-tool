@@ -22,6 +22,9 @@
     "package:dir": "npm run build && electron-builder --dir",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "upload-pack": "tsx scripts/upload-asset-pack.ts",
+    "scaffold:r3f": "node scripts/scaffold-r3f.mjs",
+    "secret:import": "node scripts/import-secrets.mjs",
+    "secret:set": "node scripts/set-secret.mjs",
     "publish:manual": "node scripts/publish-manual.mjs --bump patch",
     "publish:manual:minor": "node scripts/publish-manual.mjs --bump minor",
     "publish:manual:major": "node scripts/publish-manual.mjs --bump major",
@@ -29,7 +32,6 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.51.1",
-    "build": "^0.1.4",
     "electron-log": "^5.1.7",
     "electron-store": "^10.0.0",
     "electron-updater": "^6.2.1",
