@@ -1,0 +1,141 @@
+{
+  "packId": "classic64",
+  "version": "0.6",
+  "generatedAt": "2026-04-25T06:43:25.989Z",
+  "meta": {
+    "license": "CC0",
+    "author": "Craig Snedeker",
+    "dryRun": true
+  },
+  "count": 872,
+  "entries": [
+    {
+      "grudgeUUID": "texr-oo-0001-014204252026-000001",
+      "path": "asset-packs/classic64/v0.6/Art/Materials/art_vintage_01.jpg",
+      "sourceRelative": "Art/Materials/art_vintage_01.jpg",
+      "category": "Art",
+      "family": "image",
+      "sizeBytes": 15301,
+      "contentType": "image/jpeg",
+      "warnings": [
+        "Image probe skipped (Cannot find module 'sharp'\nRequire stack:\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\src\\main\\ingestion\\sizeVerify.ts\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\scripts\\upload-asset-pack.ts)."
+      ],
+      "errors": []
+    },
+    {
+      "grudgeUUID": "texr-oo-0002-014204252026-000002",
+      "path": "asset-packs/classic64/v0.6/Art/Materials/art_vintage_02.jpg",
+      "sourceRelative": "Art/Materials/art_vintage_02.jpg",
+      "category": "Art",
+      "family": "image",
+      "sizeBytes": 17188,
+      "contentType": "image/jpeg",
+      "warnings": [
+        "Image probe skipped (Cannot find module 'sharp'\nRequire stack:\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\src\\main\\ingestion\\sizeVerify.ts\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\scripts\\upload-asset-pack.ts)."
+      ],
+      "errors": []
+    },
+    {
+      "grudgeUUID": "texr-oo-0003-014204252026-000003",
+      "path": "asset-packs/classic64/v0.6/Art/Materials/art_weird_01.jpg",
+      "sourceRelative": "Art/Materials/art_weird_01.jpg",
+      "category": "Art",
+      "family": "image",
+      "sizeBytes": 62068,
+      "contentType": "image/jpeg",
+      "warnings": [
+        "Image probe skipped (Cannot find module 'sharp'\nRequire stack:\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\src\\main\\ingestion\\sizeVerify.ts\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\scripts\\upload-asset-pack.ts)."
+      ],
+      "errors": []
+    },
+    {
+      "grudgeUUID": "texr-oo-0004-014204252026-000004",
+      "path": "asset-packs/classic64/v0.6/Art/Materials/painting_01.png",
+      "sourceRelative": "Art/Materials/painting_01.png",
+      "category": "Art",
+      "family": "image",
+      "sizeBytes": 43404,
+      "contentType": "image/png",
+      "warnings": [
+        "Image probe skipped (Cannot find module 'sharp'\nRequire stack:\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\src\\main\\ingestion\\sizeVerify.ts\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\scripts\\upload-asset-pack.ts)."
+      ],
+      "errors": []
+    },
+    {
+      "grudgeUUID": "texr-oo-0005-014204252026-000005",
+      "path": "asset-packs/classic64/v0.6/Art/Materials/painting_02.jpg",
+      "sourceRelative": "Art/Materials/painting_02.jpg",
+      "category": "Art",
+      "family": "image",
+      "sizeBytes": 16639,
+      "contentType": "image/jpeg",
+      "warnings": [
+        "Image probe skipped (Cannot find module 'sharp'\nRequire stack:\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\src\\main\\ingestion\\sizeVerify.ts\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\scripts\\upload-asset-pack.ts)."
+      ],
+      "errors": []
+    },
+    {
+      "grudgeUUID": "texr-oo-0006-014204252026-000006",
+      "path": "asset-packs/classic64/v0.6/Art/Materials/painting_03.jpg",
+      "sourceRelative": "Art/Materials/painting_03.jpg",
+      "category": "Art",
+      "family": "image",
+      "sizeBytes": 14614,
+      "contentType": "image/jpeg",
+      "warnings": [
+        "Image probe skipped (Cannot find module 'sharp'\nRequire stack:\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\src\\main\\ingestion\\sizeVerify.ts\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\scripts\\upload-asset-pack.ts)."
+      ],
+      "errors": []
+    },
+    {
+      "grudgeUUID": "texr-oo-0007-014204252026-000007",
+      "path": "asset-packs/classic64/v0.6/Art/Materials/painting_04.jpg",
+      "sourceRelative": "Art/Materials/painting_04.jpg",
+      "category": "Art",
+      "family": "image",
+      "sizeBytes": 15485,
+      "contentType": "image/jpeg",
+      "warnings": [
+        "Image probe skipped (Cannot find module 'sharp'\nRequire stack:\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\src\\main\\ingestion\\sizeVerify.ts\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\scripts\\upload-asset-pack.ts)."
+      ],
+      "errors": []
+    },
+    {
+      "grudgeUUID": "texr-oo-0008-014204252026-000008",
+      "path": "asset-packs/classic64/v0.6/Art/Materials/painting_05.jpg",
+      "sourceRelative": "Art/Materials/painting_05.jpg",
+      "category": "Art",
+      "family": "image",
+      "sizeBytes": 14933,
+      "contentType": "image/jpeg",
+      "warnings": [
+        "Image probe skipped (Cannot find module 'sharp'\nRequire stack:\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\src\\main\\ingestion\\sizeVerify.ts\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\scripts\\upload-asset-pack.ts)."
+      ],
+      "errors": []
+    },
+    {
+      "grudgeUUID": "texr-oo-0009-014204252026-000009",
+      "path": "asset-packs/classic64/v0.6/Art/Materials/poster_infomation.png",
+      "sourceRelative": "Art/Materials/poster_infomation.png",
+      "category": "Art",
+      "family": "image",
+      "sizeBytes": 14178,
+      "contentType": "image/png",
+      "warnings": [
+        "Image probe skipped (Cannot find module 'sharp'\nRequire stack:\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\src\\main\\ingestion\\sizeVerify.ts\n- C:\\Users\\nugye\\Documents\\1111111\\grudge-dev-tool\\scripts\\upload-asset-pack.ts)."
+      ],
+      "errors": []
+    },
+    {
+      "grudgeUUID": "mdlb-oo-0010-014204252026-00000a",
+      "path": "asset-packs/classic64/v0.6/Books/book_black_01.blend",
+      "sourceRelative": "Books/book_black_01.blend",
+      "category": "Books",
+      "family": "model",
+      "sizeBytes": 603868,
+      "contentType": "application/x-blender",
+      "warnings": [],
+      "errors": []
+    }
+  ]
+}

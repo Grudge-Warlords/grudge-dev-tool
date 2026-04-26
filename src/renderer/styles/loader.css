@@ -1,0 +1,176 @@
+/* GrudgeLoader overlay window styles. Loaded only by loader.html. */
+.loader-body {
+  margin: 0;
+  background: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  overflow: hidden;
+}
+
+.loader-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: linear-gradient(180deg, #0c1334 0%, #060a1c 100%);
+  border: 1px solid var(--gold-deep);
+  border-radius: 10px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.loader-titlebar {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border-bottom: 1px solid var(--line);
+}
+.loader-titlebar img { border-radius: 50%; box-shadow: 0 0 0 1px var(--gold-deep); }
+.loader-title {
+  color: var(--gold);
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  font-size: 12px;
+  margin-right: 8px;
+}
+.loader-tab-row { display: flex; gap: 4px; flex: 1; -webkit-app-region: no-drag; }
+.loader-tab-row button {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.loader-tab-row button.active {
+  background: rgba(255, 198, 42, 0.12);
+  color: var(--gold);
+  border-color: var(--gold-deep);
+}
+.loader-close {
+  -webkit-app-region: no-drag;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.loader-close:hover { color: var(--danger); }
+
+.loader-section {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  overflow: hidden;
+}
+.loader-hint { color: var(--muted); font-size: 11px; }
+.loader-bar { display: flex; gap: 4px; }
+.loader-bar input, .loader-filter {
+  background: var(--bg-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 11px;
+  flex: 1;
+  width: 100%;
+}
+.loader-bar select, .loader-bar button, .loader-pin-btn {
+  background: var(--bg-2);
+  color: var(--gold);
+  border: 1px solid var(--gold-deep);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.loader-bar button:hover, .loader-pin-btn:hover { background: rgba(255, 198, 42, 0.12); }
+
+.loader-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.loader-folder-icon { width: 16px; }
+.loader-link {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  flex: 1;
+  text-align: left;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 11px;
+  padding: 4px;
+  border-radius: 3px;
+}
+.loader-link:hover { background: var(--bg-2); color: var(--gold); }
+
+.copy-btn {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  color: var(--gold);
+  border-radius: 3px;
+  padding: 3px 7px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.copy-btn:hover { background: rgba(255, 198, 42, 0.12); }
+.copy-btn.danger { color: var(--danger); }
+
+.loader-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 2px;
+}
+.loader-asset {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px;
+}
+.loader-asset-thumb {
+  width: 32px; height: 32px;
+  background: #000;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.loader-asset-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.loader-asset-glyph { font-size: 16px; }
+.loader-asset-meta { flex: 1; min-width: 0; }
+.loader-asset-name {
+  color: var(--text);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.small { font-size: 10px; }
+
+.loader-drop {
+  border: 2px dashed var(--gold-deep);
+  border-radius: 6px;
+  padding: 18px;
+  text-align: center;
+  color: var(--gold);
+  font-size: 12px;
+  background: rgba(255, 198, 42, 0.04);
+}

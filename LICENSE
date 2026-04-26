@@ -1,0 +1,15 @@
+UNLICENSED — INTERNAL GRUDGE STUDIO SOFTWARE
+
+Copyright © 2026 Grudge Studio. All rights reserved.
+
+This software is proprietary to Grudge Studio and intended for internal team
+use only. No part of this software may be reproduced, distributed, sublicensed,
+or transmitted in any form or by any means, electronic or mechanical,
+without the prior written permission of Grudge Studio.
+
+Third-party dependencies declared in package.json are governed by their own
+licenses (see node_modules/<package>/LICENSE for each). Notably the BlenderKit
+addon (GPL-2.0-or-later) is invoked out-of-process from a separate on-disk
+install and is NOT redistributed by this software.
+
+For licensing inquiries: dev@grudge-studio.com

@@ -1,0 +1,47 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  package:
+    name: typecheck + package (windows)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      - name: Build icons (sanity check)
+        run: npm run build:icons
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Package (NSIS)
+        env:
+          # No code signing in CI for now; signed builds happen on release tag.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run package
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: grudge-dev-tool-setup-${{ github.sha }}
+          path: |
+            release/*Setup*.exe
+            release/latest.yml
+          if-no-files-found: error
+          retention-days: 14

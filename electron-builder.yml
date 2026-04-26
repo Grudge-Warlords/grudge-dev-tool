@@ -1,0 +1,45 @@
+appId: com.grudgestudio.devtool
+productName: Grudge Dev Tool
+copyright: Copyright © 2026 Grudge Studio
+asar: true
+directories:
+  output: release
+  buildResources: resources
+files:
+  - dist/**/*
+  - package.json
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
+  - "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
+extraResources:
+  - from: resources
+    to: .
+    filter:
+      - "tray.png"
+      - "icon-*.png"
+      - "icon.ico"
+      - "brand/**"
+extraMetadata:
+  main: dist/main/main.js
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
+  artifactName: ${productName}-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Grudge Dev Tool
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  uninstallDisplayName: Grudge Dev Tool ${version}
+publish:
+  - provider: github
+    owner: Grudge-Warlords
+    repo: grudge-dev-tool
+    releaseType: release
+    vPrefixedTagName: true

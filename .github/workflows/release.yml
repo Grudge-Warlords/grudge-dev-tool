@@ -1,0 +1,51 @@
+name: Release (Electron)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write    # required for electron-builder to create the GitHub Release
+
+jobs:
+  release:
+    name: package + publish (windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build icons (resources/icon.ico, tray.png, etc.)
+        run: npm run build:icons
+
+      - name: Build & publish to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Uncomment when an EV / OV signing cert is available:
+          # CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          # CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_PASSWORD }}
+        run: npm run package -- --publish always
+
+      - name: Upload release artifacts (CI-side backup)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-${{ github.ref_name }}
+          path: |
+            release/*.exe
+            release/*.exe.blockmap
+            release/latest.yml
+          if-no-files-found: warn

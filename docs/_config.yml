@@ -1,0 +1,30 @@
+title: Grudge Dev Tool
+description: Windows tray app for object-storage browse/search/upload, Grudge UUIDs, and BlenderKit-driven asset ingestion.
+url: "https://grudge-warlords.github.io"
+baseurl: "/grudge-dev-tool"
+remote_theme: just-the-docs/just-the-docs
+markdown: kramdown
+kramdown:
+  syntax_highlighter: rouge
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+  - jekyll-sitemap
+  - jekyll-relative-links
+defaults:
+  - scope: { path: "" }
+    values: { layout: default }
+color_scheme: dark
+search_enabled: true
+heading_anchors: true
+aux_links:
+  "Source": "https://github.com/Grudge-Warlords/grudge-dev-tool"
+  "Releases": "https://github.com/Grudge-Warlords/grudge-dev-tool/releases"
+nav_external_links:
+  - title: "GitHub"
+    url:   "https://github.com/Grudge-Warlords/grudge-dev-tool"
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  - node_modules

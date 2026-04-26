@@ -1,0 +1,57 @@
+{
+  "name": "grudge-dev-tool",
+  "version": "0.1.0",
+  "description": "Grudge Studio dev tool — Windows tray app for object-storage browse / search / upload / request and Grudge UUID utilities.",
+  "private": true,
+  "main": "dist/main/main.js",
+  "author": {
+    "name": "Racalvin The Pirate King",
+    "email": "dev@grudge-studio.com"
+  },
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "concurrently -k -n vite,main \"npm:dev:renderer\" \"npm:dev:main\"",
+    "dev:renderer": "vite",
+    "dev:main": "tsc -p tsconfig.main.json --watch & wait-on tcp:5173 && electron .",
+    "build:icons": "node scripts/build-icons.mjs",
+    "prebuild": "npm run build:icons",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:renderer": "vite build",
+    "build:main": "tsc -p tsconfig.main.json",
+    "package": "npm run build && electron-builder --win nsis",
+    "package:dir": "npm run build && electron-builder --dir",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "upload-pack": "tsx scripts/upload-asset-pack.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.51.1",
+    "electron-log": "^5.1.7",
+    "electron-store": "^10.0.0",
+    "electron-updater": "^6.2.1",
+    "keytar": "^7.9.0",
+    "lucide-react": "^0.408.0",
+    "node-fetch": "^3.3.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sonner": "^1.5.0"
+  },
+  "devDependencies": {
+    "@tanstack/react-query-devtools": "^5.51.1",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "concurrently": "^8.2.2",
+    "electron": "^30.0.9",
+    "electron-builder": "^24.13.3",
+    "png-to-ico": "^2.1.8",
+    "postcss": "^8.4.39",
+    "sharp": "^0.33.4",
+    "tailwindcss": "^3.4.6",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.1",
+    "wait-on": "^7.2.0"
+  }
+}
