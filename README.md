@@ -12,6 +12,8 @@ A Windows tray application for the Grudge Studio team. Browse object storage, se
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>
 📦 **Latest release:** <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest>
+⬇ **Direct download (v0.1.3):** [`Grudge Dev Tool-Setup-0.1.3.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.1.3/Grudge.Dev.Tool-Setup-0.1.3.exe) · 102 MB · Windows x64 · NSIS unsigned
+🔧 **Trouble?** [`docs/troubleshooting.md`](docs/troubleshooting.md) covers every error we've resolved (DOCTYPE, broken logo, CSP "syntax" errors, Actions disabled, BlenderKit not detected, auto-update stuck, and more).
 
 ---
 
@@ -185,6 +187,8 @@ External deps retain their own licenses; **BlenderKit** (GPL-2.0-or-later) is in
 ## Links
 
 - 📚 Docs site — <https://grudge-warlords.github.io/grudge-dev-tool/>
+- ⬇ **Direct .exe (v0.1.3)** — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.1.3/Grudge.Dev.Tool-Setup-0.1.3.exe>
 - 📦 Releases — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases>
+- 🔧 Troubleshooting — [`docs/troubleshooting.md`](docs/troubleshooting.md)
 - 🛠 Issue tracker — <https://github.com/Grudge-Warlords/grudge-dev-tool/issues>
 - 🌐 Backend API — [api.grudge-studio.com](https://api.grudge-studio.com) · Studio — [grudge-studio.com](https://grudge-studio.com) · Game frontend — [grudgewarlords.com](https://grudgewarlords.com)
