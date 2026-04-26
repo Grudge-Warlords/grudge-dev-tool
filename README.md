@@ -140,16 +140,31 @@ See [`docs/object-storage.md`](docs/object-storage.md) for ACL rules and the man
 
 ## Releases
 
-Tag-driven. Pushing a `vX.Y.Z` tag fires `.github/workflows/release.yml` → Windows runner → `electron-builder` builds + publishes a draft GitHub Release with the `.exe`, `.exe.blockmap`, and `latest.yml`.
+Two paths — pick whichever's available.
+
+### Manual (recommended right now)
+
+`npm run publish:manual` does **everything** in one shot: cleans, syncs with origin, bumps `package.json`, inserts a CHANGELOG entry, builds the installer, commits, tags, pushes, and uploads the release with `.exe` + `.exe.blockmap` + `latest.yml` to GitHub Releases via `gh`.
 
 ```pwsh
-# Bump version, commit, tag, push:
-npm version patch -m "release: v%s"
-git push origin main --follow-tags
-# Then in GitHub: edit the draft notes and publish.
+npm run publish:manual                   # patch bump (default)
+npm run publish:manual:minor             # minor bump
+npm run publish:manual:major             # major bump
+npm run publish:manual:dry               # walk through it without touching anything
+# Custom notes / explicit version:
+node scripts/publish-manual.mjs --version 0.5.0 --notes "Big rework."
 ```
 
-Auto-update runs every 4h in production and prompts users to restart when a new release is published. See `.github/workflows/release.yml` and [`src/main/updater.ts`](src/main/updater.ts).
+Auto-update (`electron-updater`) runs every 4h in production and prompts users to restart when a new release lands. See [`src/main/updater.ts`](src/main/updater.ts).
+
+### CI (when GitHub Actions is enabled for the account)
+
+Tag-driven. Pushing a `vX.Y.Z` tag fires `.github/workflows/release.yml` → Windows runner → `electron-builder` builds + publishes a draft GitHub Release with the same artifacts. Use this when ready; until then, `publish:manual` does the equivalent work locally.
+
+```pwsh
+npm version patch -m "release: v%s"
+git push origin main --follow-tags
+```
 
 ## Contributing
 

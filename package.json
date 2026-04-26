@@ -21,7 +21,11 @@
     "package": "npm run build && electron-builder --win nsis",
     "package:dir": "npm run build && electron-builder --dir",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
-    "upload-pack": "tsx scripts/upload-asset-pack.ts"
+    "upload-pack": "tsx scripts/upload-asset-pack.ts",
+    "publish:manual": "node scripts/publish-manual.mjs --bump patch",
+    "publish:manual:minor": "node scripts/publish-manual.mjs --bump minor",
+    "publish:manual:major": "node scripts/publish-manual.mjs --bump major",
+    "publish:manual:dry": "node scripts/publish-manual.mjs --bump patch --dry-run"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.51.1",
