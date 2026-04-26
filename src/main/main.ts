@@ -62,6 +62,33 @@ function createMainWindow() {
     mainWindow.loadFile(RENDERER_PROD_INDEX);
   }
 
+  // Allow window.open() to *.puter.com / puter.site (Puter SDK OAuth popup).
+  // External links go to the default browser; everything else is denied.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      const u = new URL(url);
+      const allowed = /(^|\.)puter\.(com|site)$/i.test(u.hostname);
+      if (allowed) {
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: {
+            width: 520,
+            height: 720,
+            backgroundColor: "#0a0e1a",
+            autoHideMenuBar: true,
+            webPreferences: {
+              contextIsolation: true,
+              sandbox: true,
+              nodeIntegration: false,
+            },
+          },
+        };
+      }
+      shell.openExternal(url).catch(() => { /* ignore */ });
+    } catch { /* not a URL; deny */ }
+    return { action: "deny" };
+  });
+
   // Closing the window only hides it — the app keeps running in the tray.
   mainWindow.on("close", (event) => {
     if (!(app as any).isQuiting) {
