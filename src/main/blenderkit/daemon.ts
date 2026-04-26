@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import keytar from "keytar";
 import { detectBlenderKit } from "../ingestion/toolchain";
@@ -29,6 +29,24 @@ const KEY_NAME = "blenderkit-api-key";
 
 let spawnedProc: ChildProcess | null = null;
 let cachedPort: string | null = null;
+let cachedAddonVersion: string | null = null;
+
+function readAddonVersion(): string {
+  if (cachedAddonVersion) return cachedAddonVersion;
+  const status = detectBlenderKit();
+  if (status.available && status.path) {
+    try {
+      const manifest = readFileSync(join(status.path, "blender_manifest.toml"), "utf8");
+      const m = manifest.match(/version\s*=\s*"([^"]+)"/);
+      if (m) {
+        cachedAddonVersion = m[1];
+        return cachedAddonVersion;
+      }
+    } catch { /* ignore */ }
+  }
+  cachedAddonVersion = "unknown";
+  return cachedAddonVersion;
+}
 
 export async function getApiKey(): Promise<string | null> {
   const stored = await keytar.getPassword(SERVICE, KEY_NAME);
@@ -149,7 +167,7 @@ async function postDaemon<T>(endpoint: string, payload: BkRequestBase & Record<s
   const body = {
     app_id: process.pid,
     api_key: apiKey,
-    addon_version: "3.19.2.260411",
+    addon_version: readAddonVersion(),
     platform_version: process.platform,
     ...payload,
   };

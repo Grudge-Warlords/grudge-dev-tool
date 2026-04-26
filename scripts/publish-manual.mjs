@@ -29,8 +29,27 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 
-const REPO = "Grudge-Warlords/grudge-dev-tool";
-const PRODUCT = "Grudge Dev Tool";
+// ---------------------------------------------------------------------------
+// Derive REPO + PRODUCT from project config — no hardcoded strings.
+// ---------------------------------------------------------------------------
+function loadConfig() {
+  const ebYml = readFileSync(join(ROOT, "electron-builder.yml"), "utf8");
+  const ownerMatch = ebYml.match(/^\s*owner:\s*(\S+)/m);
+  const repoMatch  = ebYml.match(/^\s*repo:\s*(\S+)/m);
+  const productMatch = ebYml.match(/^productName:\s*(.+)$/m);
+  if (!ownerMatch || !repoMatch) {
+    throw new Error("electron-builder.yml is missing publish.owner or publish.repo");
+  }
+  if (!productMatch) {
+    throw new Error("electron-builder.yml is missing productName");
+  }
+  return {
+    REPO: `${ownerMatch[1]}/${repoMatch[1]}`,
+    PRODUCT: productMatch[1].trim(),
+  };
+}
+
+const { REPO, PRODUCT } = loadConfig();
 
 // ---------------------------------------------------------------------------
 // arg parsing
