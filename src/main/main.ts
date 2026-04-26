@@ -13,6 +13,7 @@ import { startConnectivity, stopConnectivity, getConnectivity } from "./connecti
 import { setupAutoUpdater, checkForUpdatesNow, quitAndInstall } from "./updater";
 import { getCfStatus, readCf, writeCf, clearCf } from "./cf/credentials";
 import { workerHealth } from "./cf/objectStoreWorker";
+import { r2Health, resetR2Client } from "./cf/r2Direct";
 import { workersAiChat, workersAiCaption, aiGatewayHealth, aiGatewayProxy } from "./cf/aiGateway";
 import {
   generateGrudgeUUID, parseGrudgeUUID, describeGrudgeUUID, isValidGrudgeUUID,
@@ -188,6 +189,8 @@ function registerIpc() {
   ipcMain.handle("cf:set",             (_e, account: any, value: string) => writeCf(account, value));
   ipcMain.handle("cf:clear",           (_e, account: any) => clearCf(account));
   ipcMain.handle("cf:workerHealth",    () => workerHealth());
+  ipcMain.handle("cf:r2Health",        () => r2Health());
+  ipcMain.handle("cf:resetR2Client",   () => { resetR2Client(); });
   ipcMain.handle("cf:aiHealth",        () => aiGatewayHealth());
   ipcMain.handle("cf:getBackendMode",  () => api.getBackendMode());
   ipcMain.handle("cf:setBackendMode",  (_e, mode: any) => api.setBackendMode(mode));

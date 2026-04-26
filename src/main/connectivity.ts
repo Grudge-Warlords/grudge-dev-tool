@@ -1,6 +1,7 @@
 import { BrowserWindow, net } from "electron";
-import { getApiBaseUrl, getBackendMode } from "./api";
+import { getApiBaseUrl, getBackendMode, resolveBackend } from "./api";
 import { readCf } from "./cf/credentials";
+import { r2Health } from "./cf/r2Direct";
 
 export interface ConnectivityState {
   reachable: boolean;
@@ -53,14 +54,27 @@ function probe(url: string, timeoutMs = 4000): Promise<{ ok: boolean; status: nu
 
 async function tick(broadcast: (s: ConnectivityState) => void) {
   try {
-    // Pick the probe target based on backend mode.
-    const mode = await getBackendMode();
-    const haveWorker = Boolean(await readCf("workerUrl")) && Boolean(await readCf("workerApiKey"));
-    const useCloudflare = mode === "cloudflare" || (mode === "auto" && haveWorker);
+    const backend = await resolveBackend();
+
+    if (backend === "r2-direct") {
+      const endpoint = (await readCf("endpoint")) ?? "";
+      const r = await r2Health();
+      last = {
+        reachable: r.ok,
+        online: net.isOnline(),
+        apiBaseUrl: endpoint,
+        lastCheckedAt: Date.now(),
+        latencyMs: r.latencyMs,
+        status: r.ok ? 200 : null,
+        error: r.error,
+      };
+      broadcast(last);
+      return;
+    }
 
     let apiBase: string;
     let probeUrl: string;
-    if (useCloudflare) {
+    if (backend === "cloudflare-worker") {
       const w = await readCf("workerUrl");
       apiBase = (w ?? "").replace(/\/$/, "");
       probeUrl = `${apiBase}/health`;

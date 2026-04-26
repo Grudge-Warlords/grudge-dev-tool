@@ -1,6 +1,6 @@
 {
   "name": "grudge-dev-tool",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Grudge Studio dev tool — Windows tray app for object-storage browse / search / upload / request and Grudge UUID utilities.",
   "private": true,
   "main": "dist/main/main.js",
@@ -31,6 +31,8 @@
     "publish:manual:dry": "node scripts/publish-manual.mjs --bump patch --dry-run"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.658.1",
+    "@aws-sdk/s3-request-presigner": "^3.658.1",
     "@tanstack/react-query": "^5.51.1",
     "electron-log": "^5.1.7",
     "electron-store": "^10.0.0",

@@ -95,9 +95,11 @@ const api = {
     set:              (account: string, value: string) => ipcRenderer.invoke("cf:set", account, value),
     clear:            (account: string) => ipcRenderer.invoke("cf:clear", account),
     workerHealth:     () => ipcRenderer.invoke("cf:workerHealth"),
+    r2Health:         () => ipcRenderer.invoke("cf:r2Health"),
+    resetR2Client:    () => ipcRenderer.invoke("cf:resetR2Client"),
     aiHealth:         () => ipcRenderer.invoke("cf:aiHealth"),
     getBackendMode:   () => ipcRenderer.invoke("cf:getBackendMode"),
-    setBackendMode:   (mode: "auto" | "grudge" | "cloudflare") => ipcRenderer.invoke("cf:setBackendMode", mode),
+    setBackendMode:   (mode: "auto" | "grudge" | "cloudflare" | "r2-direct" | "cloudflare-worker") => ipcRenderer.invoke("cf:setBackendMode", mode),
   },
   // AI Gateway
   ai: {

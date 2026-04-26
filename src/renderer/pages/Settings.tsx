@@ -13,8 +13,9 @@ export default function Settings() {
   const [autoLaunch, setAutoLaunch] = useState(false);
 
   const [cfStatus, setCfStatus] = useState<any>(null);
-  const [backendMode, setBackendModeState] = useState<"auto" | "grudge" | "cloudflare">("auto");
+  const [backendMode, setBackendModeState] = useState<"auto" | "grudge" | "cloudflare" | "r2-direct" | "cloudflare-worker">("auto");
   const [workerHealthInfo, setWorkerHealthInfo] = useState<any>(null);
+  const [r2HealthInfo, setR2HealthInfo] = useState<any>(null);
   const [aiHealthInfo, setAiHealthInfo] = useState<any>(null);
 
   async function reload() {
@@ -34,12 +35,17 @@ export default function Settings() {
     try { setWorkerHealthInfo(await window.grudge.cf.workerHealth()); }
     catch (e: any) { setWorkerHealthInfo({ ok: false, error: e?.message ?? String(e) }); }
   }
+  async function testR2() {
+    setR2HealthInfo({ phase: "checking" });
+    try { setR2HealthInfo(await window.grudge.cf.r2Health()); }
+    catch (e: any) { setR2HealthInfo({ ok: false, error: e?.message ?? String(e) }); }
+  }
   async function testAi() {
     setAiHealthInfo({ phase: "checking" });
     try { setAiHealthInfo(await window.grudge.cf.aiHealth()); }
     catch (e: any) { setAiHealthInfo({ ok: false, error: e?.message ?? String(e) }); }
   }
-  async function chooseBackend(mode: "auto" | "grudge" | "cloudflare") {
+  async function chooseBackend(mode: "auto" | "grudge" | "cloudflare" | "r2-direct" | "cloudflare-worker") {
     await window.grudge.cf.setBackendMode(mode);
     setBackendModeState(mode);
     toast.success(`Backend mode: ${mode}`);
@@ -169,7 +175,7 @@ export default function Settings() {
         </table>
         <div className="flex flex-wrap gap-2 mt-3 items-center">
           <span className="muted text-xs">Backend:</span>
-          {(["auto", "cloudflare", "grudge"] as const).map((m) => (
+          {(["auto", "r2-direct", "cloudflare-worker", "grudge"] as const).map((m) => (
             <button
               key={m}
               className={"btn ghost " + (backendMode === m ? "text-gold border-gold" : "")}
@@ -179,6 +185,9 @@ export default function Settings() {
             </button>
           ))}
           <span className="flex-1" />
+          <button className="btn ghost flex items-center gap-1" onClick={testR2}>
+            <RefreshCcw size={14} /> Test R2
+          </button>
           <button className="btn ghost flex items-center gap-1" onClick={testWorker}>
             <RefreshCcw size={14} /> Test Worker
           </button>
@@ -186,6 +195,11 @@ export default function Settings() {
             <Bot size={14} /> Test AI
           </button>
         </div>
+        {r2HealthInfo && (
+          <div className="muted text-xs mt-1">
+            R2 (direct): {r2HealthInfo.phase === "checking" ? "…" : (r2HealthInfo.ok ? `OK · ${r2HealthInfo.latencyMs}ms · ${r2HealthInfo.bucket}` : <span className="status-bad">{r2HealthInfo.error}</span>)}
+          </div>
+        )}
         {workerHealthInfo && (
           <div className="muted text-xs mt-1">
             Worker: {workerHealthInfo.phase === "checking" ? "…" : (workerHealthInfo.ok ? `OK · ${workerHealthInfo.latencyMs}ms` : <span className="status-bad">{workerHealthInfo.error}</span>)}

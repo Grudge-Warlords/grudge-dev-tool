@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   FolderTree, Search as SearchIcon, Upload as UploadIcon, Link2,
   Fingerprint, Palette, BookOpen, Settings as SettingsIcon,
+  type LucideIcon,
 } from "lucide-react";
 import Browser from "./pages/Browser";
 import Search from "./pages/Search";
@@ -17,7 +18,7 @@ type Route =
   | "/browser" | "/search" | "/upload" | "/request"
   | "/uuid" | "/library" | "/docs" | "/settings";
 
-const NAV: Array<{ route: Route; label: string; Icon: React.ComponentType<{ size?: number }> }> = [
+const NAV: Array<{ route: Route; label: string; Icon: LucideIcon }> = [
   { route: "/browser",  label: "Browser",     Icon: FolderTree },
   { route: "/search",   label: "Search",      Icon: SearchIcon },
   { route: "/upload",   label: "Upload",      Icon: UploadIcon },
