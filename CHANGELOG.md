@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.1.9] — 2026-04-26
+
+### Changed
+- Login fix - browser-based Puter auth via @heyputer/puter.js Node integration. Sign-in now opens your default browser via getAuthToken (the official supported flow), captures the token through a localhost redirect, and persists the session in keytar. Bypasses every Electron renderer constraint that was blocking the prior popup-SDK approach. Manual token paste remains as backstop. Auto-update will deliver this within 4h.
+
 ## [0.1.8] — 2026-04-26
 
 ### Changed
@@ -87,3 +92,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [0.1.3]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.3
 [0.1.7]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.7
 [0.1.8]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.8
+[0.1.9]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.9
