@@ -11,6 +11,9 @@ import { ingestOne } from "./ingestion";
 import { initLogger, getLogFilePath } from "./logger";
 import { startConnectivity, stopConnectivity, getConnectivity } from "./connectivity";
 import { setupAutoUpdater, checkForUpdatesNow, quitAndInstall } from "./updater";
+import { getCfStatus, readCf, writeCf, clearCf } from "./cf/credentials";
+import { workerHealth } from "./cf/objectStoreWorker";
+import { workersAiChat, workersAiCaption, aiGatewayHealth, aiGatewayProxy } from "./cf/aiGateway";
 import {
   generateGrudgeUUID, parseGrudgeUUID, describeGrudgeUUID, isValidGrudgeUUID,
   SLOT_CODES, TIER_CODES,
@@ -179,6 +182,20 @@ function registerIpc() {
   // Diagnostics
   ipcMain.handle("diag:logFile", () => getLogFilePath());
   ipcMain.handle("diag:openLogFolder", () => shell.openPath(join(app.getPath("userData"), "logs")));
+
+  // Cloudflare backend
+  ipcMain.handle("cf:status",          () => getCfStatus());
+  ipcMain.handle("cf:set",             (_e, account: any, value: string) => writeCf(account, value));
+  ipcMain.handle("cf:clear",           (_e, account: any) => clearCf(account));
+  ipcMain.handle("cf:workerHealth",    () => workerHealth());
+  ipcMain.handle("cf:aiHealth",        () => aiGatewayHealth());
+  ipcMain.handle("cf:getBackendMode",  () => api.getBackendMode());
+  ipcMain.handle("cf:setBackendMode",  (_e, mode: any) => api.setBackendMode(mode));
+
+  // AI Gateway
+  ipcMain.handle("ai:chat",     (_e, opts) => workersAiChat(opts));
+  ipcMain.handle("ai:caption",  (_e, opts) => workersAiCaption(opts));
+  ipcMain.handle("ai:proxy",    (_e, opts) => aiGatewayProxy(opts));
 
   // UUID utilities (local, no network)
   ipcMain.handle("uuid:gen", (_e, args) =>

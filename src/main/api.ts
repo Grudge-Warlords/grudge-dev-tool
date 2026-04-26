@@ -3,9 +3,14 @@ import type {
   ListRequest, ListResponse, SearchRequest, SearchResponse,
   RequestUrlInput, AssetMeta, UUIDGenInput,
 } from "../shared/ipc";
+import {
+  workerList, workerSearch, workerUploadUrl, workerManifestWrite, workerAssetMeta,
+} from "./cf/objectStoreWorker";
+import { readCf } from "./cf/credentials";
 
 const SERVICE = "grudge-dev-tool";
 const ACCOUNT = "default";
+const MODE_ACCOUNT = "backend-mode"; // values: 'auto' | 'grudge' | 'cloudflare'
 
 let cachedBase: string | null = null;
 
@@ -31,6 +36,26 @@ export async function getToken(): Promise<string | null> {
 
 export async function clearToken(): Promise<void> {
   await keytar.deletePassword(SERVICE, ACCOUNT);
+}
+
+export type BackendMode = "auto" | "grudge" | "cloudflare";
+export async function getBackendMode(): Promise<BackendMode> {
+  const v = await keytar.getPassword(SERVICE, MODE_ACCOUNT);
+  if (v === "grudge" || v === "cloudflare" || v === "auto") return v;
+  return "auto";
+}
+export async function setBackendMode(mode: BackendMode): Promise<void> {
+  await keytar.setPassword(SERVICE, MODE_ACCOUNT, mode);
+}
+
+/** Decide which backend handles object-storage calls right now. */
+async function resolveBackend(): Promise<"grudge" | "cloudflare"> {
+  const mode = await getBackendMode();
+  if (mode === "grudge") return "grudge";
+  if (mode === "cloudflare") return "cloudflare";
+  // auto: prefer Cloudflare Worker if both worker URL + key are set
+  const haveWorker = Boolean(await readCf("workerUrl")) && Boolean(await readCf("workerApiKey"));
+  return haveWorker ? "cloudflare" : "grudge";
 }
 
 async function authedFetch(
@@ -62,10 +87,15 @@ async function jsonOrThrow<T>(res: Response): Promise<T> {
 }
 
 // ---------------------------------------------------------------------------
-// Object-storage API
+// Object-storage API — routes through GrudgeBuilder or the Cloudflare Worker
+// based on the backend mode.
 // ---------------------------------------------------------------------------
-export async function listObjects(req: ListRequest): Promise<ListResponse> {
+export async function listObjects(req: ListRequest & { delimiter?: string }): Promise<ListResponse & { folders?: string[] }> {
+  if ((await resolveBackend()) === "cloudflare") {
+    return workerList({ prefix: req.prefix, delimiter: req.delimiter, cursor: req.cursor, limit: req.limit });
+  }
   const params = new URLSearchParams({ prefix: req.prefix });
+  if (req.delimiter) params.set("delimiter", req.delimiter);
   if (req.cursor) params.set("cursor", req.cursor);
   if (req.limit) params.set("limit", String(req.limit));
   const res = await authedFetch(`/api/objectstore/list?${params}`);
@@ -73,6 +103,9 @@ export async function listObjects(req: ListRequest): Promise<ListResponse> {
 }
 
 export async function searchObjects(req: SearchRequest): Promise<SearchResponse> {
+  if ((await resolveBackend()) === "cloudflare") {
+    return workerSearch(req);
+  }
   const params = new URLSearchParams();
   if (req.q) params.set("q", req.q);
   if (req.category) params.set("category", req.category);
@@ -93,6 +126,16 @@ export interface UploadUrlResponse {
 export async function requestUploadUrl(input: {
   path: string; contentType?: string; size?: number; sha256?: string; allowOverwrite?: boolean;
 }): Promise<UploadUrlResponse> {
+  if ((await resolveBackend()) === "cloudflare") {
+    const r = await workerUploadUrl(input);
+    return {
+      uploadURL: r.uploadURL,
+      objectPath: r.objectPath,
+      bucketPath: r.bucketPath ?? "",
+      ttlSeconds: r.ttlSeconds ?? 900,
+      uploadId: r.uploadId ?? "",
+    };
+  }
   const res = await authedFetch("/api/objectstore/upload-url", {
     method: "POST",
     body: JSON.stringify(input),
@@ -103,6 +146,10 @@ export async function requestUploadUrl(input: {
 export async function writeManifest(payload: {
   packId: string; version: string; entries: any[]; meta?: Record<string, any>;
 }): Promise<{ ok: boolean; manifestPath: string; count: number }> {
+  if ((await resolveBackend()) === "cloudflare") {
+    const r = await workerManifestWrite(payload);
+    return { ok: !!r.ok, manifestPath: r.manifestPath ?? "", count: r.count ?? payload.entries.length };
+  }
   const res = await authedFetch("/api/objectstore/manifest", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -111,6 +158,17 @@ export async function writeManifest(payload: {
 }
 
 export async function getAssetMeta(input: RequestUrlInput): Promise<AssetMeta> {
+  if ((await resolveBackend()) === "cloudflare") {
+    const r = await workerAssetMeta(input.objectPath);
+    return {
+      url: r.url,
+      ttlSeconds: r.ttlSeconds,
+      size: r.size,
+      contentType: r.contentType,
+      updated: r.updated,
+      publicCdn: r.publicCdn ?? `https://assets.grudge-studio.com/${input.objectPath.replace(/^\//, "")}`,
+    };
+  }
   const path = input.objectPath.replace(/^\//, "");
   const res = await authedFetch(`/api/objectstore/asset/${path}?format=json`);
   return jsonOrThrow<AssetMeta>(res);

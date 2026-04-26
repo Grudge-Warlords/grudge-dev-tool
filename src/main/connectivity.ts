@@ -1,5 +1,6 @@
 import { BrowserWindow, net } from "electron";
-import { getApiBaseUrl } from "./api";
+import { getApiBaseUrl, getBackendMode } from "./api";
+import { readCf } from "./cf/credentials";
 
 export interface ConnectivityState {
   reachable: boolean;
@@ -52,8 +53,22 @@ function probe(url: string, timeoutMs = 4000): Promise<{ ok: boolean; status: nu
 
 async function tick(broadcast: (s: ConnectivityState) => void) {
   try {
-    const apiBase = await getApiBaseUrl();
-    const probeUrl = `${apiBase.replace(/\/$/, "")}/api/health`;
+    // Pick the probe target based on backend mode.
+    const mode = await getBackendMode();
+    const haveWorker = Boolean(await readCf("workerUrl")) && Boolean(await readCf("workerApiKey"));
+    const useCloudflare = mode === "cloudflare" || (mode === "auto" && haveWorker);
+
+    let apiBase: string;
+    let probeUrl: string;
+    if (useCloudflare) {
+      const w = await readCf("workerUrl");
+      apiBase = (w ?? "").replace(/\/$/, "");
+      probeUrl = `${apiBase}/health`;
+    } else {
+      apiBase = await getApiBaseUrl();
+      probeUrl = `${apiBase.replace(/\/$/, "")}/api/health`;
+    }
+
     const r = await probe(probeUrl);
     last = {
       reachable: r.ok,

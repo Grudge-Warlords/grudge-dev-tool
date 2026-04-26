@@ -89,6 +89,22 @@ const api = {
     logFile: () => ipcRenderer.invoke("diag:logFile"),
     openLogFolder: () => ipcRenderer.invoke("diag:openLogFolder"),
   },
+  // Cloudflare R2 + Worker
+  cf: {
+    status:           () => ipcRenderer.invoke("cf:status"),
+    set:              (account: string, value: string) => ipcRenderer.invoke("cf:set", account, value),
+    clear:            (account: string) => ipcRenderer.invoke("cf:clear", account),
+    workerHealth:     () => ipcRenderer.invoke("cf:workerHealth"),
+    aiHealth:         () => ipcRenderer.invoke("cf:aiHealth"),
+    getBackendMode:   () => ipcRenderer.invoke("cf:getBackendMode"),
+    setBackendMode:   (mode: "auto" | "grudge" | "cloudflare") => ipcRenderer.invoke("cf:setBackendMode", mode),
+  },
+  // AI Gateway
+  ai: {
+    chat:    (opts: any) => ipcRenderer.invoke("ai:chat", opts),
+    caption: (opts: any) => ipcRenderer.invoke("ai:caption", opts),
+    proxy:   (opts: any) => ipcRenderer.invoke("ai:proxy", opts),
+  },
   // Tray-driven nav events
   onNav: (cb: (route: string) => void) => {
     const listener = (_e: any, route: string) => cb(route);
