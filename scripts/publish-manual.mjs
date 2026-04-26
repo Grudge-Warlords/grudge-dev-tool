@@ -83,9 +83,19 @@ function run(cmd, args, opts = {}) {
   const display = `${cmd} ${args.join(" ")}`;
   console.log(`\n$ ${display}`);
   if (opts.dryRun) { console.log("  (dry-run, skipped)"); return { status: 0, stdout: "", stderr: "" }; }
-  const r = spawnSync(cmd, args, { cwd: ROOT, stdio: opts.captureOutput ? "pipe" : "inherit", encoding: "utf8", shell: false });
+  // On Windows, `npm` and `gh` are `.cmd` shims that cannot be spawned without
+  // a shell. `git` is a real .exe and works either way. Default to shell:true
+  // on win32 unless the caller explicitly opts out.
+  const useShell = opts.shell ?? (process.platform === "win32");
+  const r = spawnSync(cmd, args, {
+    cwd: ROOT,
+    stdio: opts.captureOutput ? "pipe" : "inherit",
+    encoding: "utf8",
+    shell: useShell,
+  });
   if (r.status !== 0 && !opts.allowFail) {
     console.error(`\n[publish-manual] command failed (${r.status}): ${display}`);
+    if (r.stderr) console.error(r.stderr);
     process.exit(r.status ?? 1);
   }
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
