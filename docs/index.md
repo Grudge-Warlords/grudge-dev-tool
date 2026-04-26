@@ -34,3 +34,5 @@ A Windows tray app for the Grudge Studio team — object-storage browse / search
 The newest install is always at the [latest release](https://github.com/grudge-studio/grudge-dev-tool/releases/latest). Existing installations auto-update silently and prompt **Restart now / Later** when ready.
 ## Project status
 Pre-release · v0.1.x · Windows x64 · NSIS unsigned. Code-signing (EV cert) and the embedded Puter login flow are next on the roadmap — see the [tracking issues](https://github.com/Grudge-Warlords/grudge-dev-tool/issues).
+
+<!-- Pages deploy ping: 2026-04-26T04:02:43.0999482-05:00 -->
