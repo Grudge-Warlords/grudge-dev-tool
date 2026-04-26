@@ -8,3 +8,16 @@ release/
 .env.local
 .DS_Store
 Thumbs.db
+
+# Secrets — never commit these even if they slip into the working tree
+secret.txt
+secrets.txt
+secret.*.txt
+secrets.*.txt
+*.secret.txt
+*.secrets.txt
+.secrets/
+*.pem
+*.key
+classic64-dry-run.json
+manifest-preview-*.json
