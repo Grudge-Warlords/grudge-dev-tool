@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.1.8] — 2026-04-26
+
+### Changed
+- Login + logo fixes: Puter SDK now loads through CSP, logo image path fixed, main process now allows OAuth popups, manual token-paste fallback in case popup auth fails.
+
 ## [0.1.7] — 2026-04-26
 
 ### Changed
@@ -81,3 +86,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [0.1.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.0
 [0.1.3]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.3
 [0.1.7]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.7
+[0.1.8]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.8
