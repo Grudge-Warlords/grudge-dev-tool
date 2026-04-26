@@ -38,14 +38,3 @@ jobs:
           # CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           # CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_PASSWORD }}
         run: npm run package -- --publish always
-
-      - name: Upload release artifacts (CI-side backup)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-artifacts-${{ github.ref_name }}
-          path: |
-            release/*.exe
-            release/*.exe.blockmap
-            release/latest.yml
-          if-no-files-found: warn
