@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { FolderOpen, RefreshCcw, Power } from "lucide-react";
+import { FolderOpen, RefreshCcw, Power, Cloud, Bot } from "lucide-react";
 import { StatusDot } from "../components/StatusBar";
 
 export default function Settings() {
@@ -12,6 +12,11 @@ export default function Settings() {
   const [conn, setConn] = useState<any>(null);
   const [autoLaunch, setAutoLaunch] = useState(false);
 
+  const [cfStatus, setCfStatus] = useState<any>(null);
+  const [backendMode, setBackendModeState] = useState<"auto" | "grudge" | "cloudflare">("auto");
+  const [workerHealthInfo, setWorkerHealthInfo] = useState<any>(null);
+  const [aiHealthInfo, setAiHealthInfo] = useState<any>(null);
+
   async function reload() {
     const d = await window.grudge.settings.get();
     setData(d);
@@ -20,6 +25,24 @@ export default function Settings() {
     setTools(t);
     try { setConn(await window.grudge.connectivity?.get?.()); } catch { /* */ }
     try { setAutoLaunch(!!(await window.grudge.autoLaunch?.get?.())); } catch { /* */ }
+    try { setCfStatus(await window.grudge.cf?.status?.()); } catch { /* */ }
+    try { setBackendModeState((await window.grudge.cf?.getBackendMode?.()) ?? "auto"); } catch { /* */ }
+  }
+
+  async function testWorker() {
+    setWorkerHealthInfo({ phase: "checking" });
+    try { setWorkerHealthInfo(await window.grudge.cf.workerHealth()); }
+    catch (e: any) { setWorkerHealthInfo({ ok: false, error: e?.message ?? String(e) }); }
+  }
+  async function testAi() {
+    setAiHealthInfo({ phase: "checking" });
+    try { setAiHealthInfo(await window.grudge.cf.aiHealth()); }
+    catch (e: any) { setAiHealthInfo({ ok: false, error: e?.message ?? String(e) }); }
+  }
+  async function chooseBackend(mode: "auto" | "grudge" | "cloudflare") {
+    await window.grudge.cf.setBackendMode(mode);
+    setBackendModeState(mode);
+    toast.success(`Backend mode: ${mode}`);
   }
 
   useEffect(() => {
@@ -128,6 +151,51 @@ export default function Settings() {
             <Power size={14} /> Auto-launch: {autoLaunch ? "ON" : "OFF"}
           </button>
         </div>
+      </div>
+
+      <div className="card">
+        <h3 className="flex items-center gap-2" style={{ margin: "0 0 8px" }}>
+          <Cloud size={16} className="text-gold" /> Cloudflare R2 + AI Gateway
+        </h3>
+        <table>
+          <tbody>
+            <tr><td className="muted">Worker URL</td><td>{cfStatus?.worker?.url ? <span className="status-ok">stored</span> : <span className="status-bad">missing</span>}</td></tr>
+            <tr><td className="muted">Worker API key</td><td>{cfStatus?.worker?.apiKey ? <span className="status-ok">stored</span> : <span className="status-bad">missing</span>}</td></tr>
+            <tr><td className="muted">R2 (S3-compat) creds</td><td>{cfStatus?.direct?.endpoint && cfStatus?.direct?.accessKeyId && cfStatus?.direct?.secret ? <span className="status-ok">complete</span> : <span className="muted">partial / unused</span>}</td></tr>
+            <tr><td className="muted">AI Workers token</td><td>{cfStatus?.ai?.token ? <span className="status-ok">stored</span> : <span className="status-bad">missing</span>}</td></tr>
+            <tr><td className="muted">AI Gateway id</td><td>{cfStatus?.ai?.gatewayId ? <span className="status-ok">stored</span> : <span className="muted">missing</span>}</td></tr>
+            <tr><td className="muted">Public CDN</td><td className="font-mono">{cfStatus?.publicCdn ?? "—"}</td></tr>
+          </tbody>
+        </table>
+        <div className="flex flex-wrap gap-2 mt-3 items-center">
+          <span className="muted text-xs">Backend:</span>
+          {(["auto", "cloudflare", "grudge"] as const).map((m) => (
+            <button
+              key={m}
+              className={"btn ghost " + (backendMode === m ? "text-gold border-gold" : "")}
+              onClick={() => chooseBackend(m)}
+            >
+              {m}
+            </button>
+          ))}
+          <span className="flex-1" />
+          <button className="btn ghost flex items-center gap-1" onClick={testWorker}>
+            <RefreshCcw size={14} /> Test Worker
+          </button>
+          <button className="btn ghost flex items-center gap-1" onClick={testAi}>
+            <Bot size={14} /> Test AI
+          </button>
+        </div>
+        {workerHealthInfo && (
+          <div className="muted text-xs mt-1">
+            Worker: {workerHealthInfo.phase === "checking" ? "…" : (workerHealthInfo.ok ? `OK · ${workerHealthInfo.latencyMs}ms` : <span className="status-bad">{workerHealthInfo.error}</span>)}
+          </div>
+        )}
+        {aiHealthInfo && (
+          <div className="muted text-xs">
+            AI Gateway: {aiHealthInfo.phase === "checking" ? "…" : (aiHealthInfo.ok ? `OK · ${aiHealthInfo.latencyMs}ms` : <span className="status-bad">{aiHealthInfo.error}</span>)}
+          </div>
+        )}
       </div>
 
       <div className="card">
