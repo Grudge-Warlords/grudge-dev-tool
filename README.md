@@ -172,4 +172,4 @@ External deps retain their own licenses; **BlenderKit** (GPL-2.0-or-later) is in
 - 📚 Docs site — <https://grudge-warlords.github.io/grudge-dev-tool/>
 - 📦 Releases — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases>
 - 🛠 Issue tracker — <https://github.com/Grudge-Warlords/grudge-dev-tool/issues>
-- 🌐 Studio — [grudge-studio.com](https://grudge-studio.com) · [grudgewarlords.com](https://grudgewarlords.com)
+- 🌐 Backend API — [api.grudge-studio.com](https://api.grudge-studio.com) · Studio — [grudge-studio.com](https://grudge-studio.com) · Game frontend — [grudgewarlords.com](https://grudgewarlords.com)

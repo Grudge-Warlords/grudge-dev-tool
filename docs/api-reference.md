@@ -4,7 +4,7 @@ title: API Reference
 nav_order: 5
 ---
 # API Reference — `/api/objectstore/*`
-All routes live in `GrudgeBuilder/server/integrations/object_storage/devToolRoutes.ts` and are mounted by `registerDevToolObjectStorageRoutes(app)` in `server/routes.ts`. All non-public routes require a `Bearer` token in the `Authorization` header.
+All routes live in `GrudgeBuilder/server/integrations/object_storage/devToolRoutes.ts` (deployed to `api.grudge-studio.com` — the backend VPS, **not** `grudgewarlords.com` which is the player-facing frontend). All non-public routes require a `Bearer` token in the `Authorization` header.
 ## `GET /api/objectstore/list`
 Paginated listing of objects under a relative prefix.
 **Query params**
@@ -14,7 +14,7 @@ Paginated listing of objects under a relative prefix.
 **Example**
 ```
 curl -H "Authorization: Bearer $T" \
-  "https://grudgewarlords.com/api/objectstore/list?prefix=asset-packs/classic64/&limit=50"
+  "https://api.grudge-studio.com/api/objectstore/list?prefix=asset-packs/classic64/&limit=50"
 ```
 **Response**
 ```json
@@ -27,7 +27,7 @@ Server-side filter against per-pack `manifest.json` catalogs.
 **Example**
 ```
 curl -H "Authorization: Bearer $T" \
-  "https://grudgewarlords.com/api/objectstore/search?q=helmet&pack=classic64"
+  "https://api.grudge-studio.com/api/objectstore/search?q=helmet&pack=classic64"
 ```
 **Response** — `{ count, items: [<entry>, ...] }`
 ## `POST /api/objectstore/upload-url`
@@ -62,7 +62,7 @@ Atomically write `asset-packs/<packId>/manifest.json`.
 **Example**
 ```
 curl -L -H "Authorization: Bearer $T" \
-  "https://grudgewarlords.com/api/objectstore/asset/asset-packs/classic64/v0.6/Books/cover.png?format=json"
+  "https://api.grudge-studio.com/api/objectstore/asset/asset-packs/classic64/v0.6/Books/cover.png?format=json"
 ```
 ## UUID endpoints (existing, mounted by GrudgeBuilder)
 - `GET  /api/uuid/test`           — sanity sample

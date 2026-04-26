@@ -17,7 +17,7 @@ export async function setApiBaseUrl(url: string): Promise<void> {
 export async function getApiBaseUrl(): Promise<string> {
   if (cachedBase) return cachedBase;
   const stored = await keytar.getPassword(SERVICE, `${ACCOUNT}.apiBaseUrl`);
-  cachedBase = (stored || process.env.GRUDGE_API_BASE || "https://grudgewarlords.com").replace(/\/$/, "");
+  cachedBase = (stored || process.env.GRUDGE_API_BASE || "https://api.grudge-studio.com").replace(/\/$/, "");
   return cachedBase;
 }
 

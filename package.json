@@ -1,6 +1,6 @@
 {
   "name": "grudge-dev-tool",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Grudge Studio dev tool — Windows tray app for object-storage browse / search / upload / request and Grudge UUID utilities.",
   "private": true,
   "main": "dist/main/main.js",
@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.51.1",
+    "build": "^0.1.4",
     "electron-log": "^5.1.7",
     "electron-store": "^10.0.0",
     "electron-updater": "^6.2.1",

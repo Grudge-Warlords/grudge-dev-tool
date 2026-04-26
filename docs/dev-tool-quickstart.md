@@ -13,7 +13,7 @@ Download `Grudge Dev Tool-Setup-x.y.z.exe` from the team release feed and run it
 The window stays hidden — only the tray icon appears. Left-click the icon to open the window; right-click for the context menu.
 ## 3. Settings
 Open **Settings** in the sidebar. You must:
-1. Set **API base URL** (default `https://grudgewarlords.com`).
+1. Set **API base URL** (default `https://api.grudge-studio.com`).
 2. Paste a **Grudge bearer token**. Mint one at `id.grudge-studio.com`. The token is stored in Windows Credential Vault via `keytar`; nothing on disk in plaintext.
 3. Optional: paste a **BlenderKit API key** to enable the Asset Library page and the `enrich` ingestion stage.
 4. Check the **Toolchain** table. Each tool shows green/red:
