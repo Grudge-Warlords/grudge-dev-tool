@@ -10,6 +10,12 @@ files:
   - package.json
   - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
   - "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
+# @heyputer/puter.js uses readFileSync + vm.runInNewContext on its bundled
+# dist/puter.cjs and the `open` package may need to spawn platform binaries.
+# Both fail under asar packing, so we unpack them.
+asarUnpack:
+  - "node_modules/@heyputer/puter.js/**"
+  - "node_modules/open/**"
 extraResources:
   - from: resources
     to: .

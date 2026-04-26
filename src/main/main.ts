@@ -16,6 +16,7 @@ import { workerHealth } from "./cf/objectStoreWorker";
 import { r2Health, resetR2Client } from "./cf/r2Direct";
 import { workersAiChat, workersAiCaption, aiGatewayHealth, aiGatewayProxy } from "./cf/aiGateway";
 import * as puterAuth from "./auth/puterSession";
+import { puterLoginViaBrowser } from "./auth/puterLogin";
 import {
   generateGrudgeUUID, parseGrudgeUUID, describeGrudgeUUID, isValidGrudgeUUID,
   SLOT_CODES, TIER_CODES,
@@ -222,6 +223,13 @@ function registerIpc() {
   ipcMain.handle("auth:clearSession", () => puterAuth.clearSession());
   ipcMain.handle("auth:wipeIdentity", () => puterAuth.wipeIdentity());
   ipcMain.handle("auth:getPuterToken", () => puterAuth.getPuterToken());
+  // Browser-based Puter login (opens default browser via getAuthToken).
+  // Returns { grudgeId, user } so the renderer can refresh its session.
+  ipcMain.handle("auth:puterLogin", async () => {
+    const { token, user } = await puterLoginViaBrowser();
+    const r = await puterAuth.setSession(token, user);
+    return { grudgeId: r.grudgeId, user };
+  });
 
   // Cloudflare backend
   ipcMain.handle("cf:status",          () => getCfStatus());

@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
 import { LogIn, ShieldCheck, Loader2, KeyRound, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
-import { puterSignIn } from "../lib/puter";
 
 interface Props {
   onSignedIn: () => void;
@@ -18,15 +17,20 @@ export default function Login({ onSignedIn }: Props) {
   async function signIn() {
     setBusy("signin"); setErr(null);
     try {
-      const { token, user } = await puterSignIn();
-      const r = await window.grudge.auth.setSession(token, user);
-      toast.success(`Signed in as ${user.username} \u00b7 ${r.grudgeId}`);
+      // Browser-based auth: main process spawns a localhost server and opens
+      // the user's default browser to puter.com. We just wait.
+      toast.info("Opening your browser to sign in to Puter\u2026", {
+        description: "Complete sign-in in the browser window. Return here when done.",
+        duration: 6000,
+      });
+      const r = await window.grudge.auth.puterLogin();
+      toast.success(`Signed in as ${r.user.username} \u00b7 ${r.grudgeId}`);
       onSignedIn();
     } catch (e: any) {
       const msg = e?.message ?? String(e);
       setErr(msg);
       toast.error("Sign-in failed", { description: msg });
-      setShowManual(true);  // surface the manual fallback when popup auth fails
+      setShowManual(true);  // surface the manual fallback when browser auth fails
     } finally {
       setBusy("idle");
     }
@@ -76,7 +80,7 @@ export default function Login({ onSignedIn }: Props) {
         />
         <h1 className="page-title" style={{ marginBottom: 4 }}>Sign in to Grudge</h1>
         <p className="muted text-sm" style={{ marginBottom: 18 }}>
-          Your Grudge ID is created from your Puter account. Save data, ships, characters, and uploads sync to your Puter cloud.
+          Click sign in and complete authentication in your default browser. Your Grudge ID is derived from your Puter account; save data, ships, characters, and uploads sync to your Puter cloud.
         </p>
 
         <button

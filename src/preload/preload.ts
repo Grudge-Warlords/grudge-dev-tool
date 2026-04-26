@@ -101,6 +101,8 @@ const api = {
     clearSession:  () => ipcRenderer.invoke("auth:clearSession"),
     wipeIdentity:  () => ipcRenderer.invoke("auth:wipeIdentity"),
     getPuterToken: () => ipcRenderer.invoke("auth:getPuterToken"),
+    /** Browser-based Puter sign-in via @heyputer/puter.js (opens default browser, returns once user signs in). */
+    puterLogin:    () => ipcRenderer.invoke("auth:puterLogin"),
   },
   // Cloudflare R2 + Worker
   cf: {
