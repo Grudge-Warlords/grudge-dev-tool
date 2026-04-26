@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-04-26
+
+### Changed
+- Industry-standard hardening: error boundary at app root + per-page so render errors do not blank the window, window state persists across relaunches, security hardening in main (will-navigate allowlist + permission deny + webSecurity), local crash reporter, lazy-loaded routes for faster first paint, keyboard shortcuts (Ctrl+R reload, Ctrl+Shift+I devtools, F11 fullscreen). No regressions to login or upload paths from v0.1.9. Auto-update will deliver this within 4h.
+
 ## [0.1.9] — 2026-04-26
 
 ### Changed
@@ -93,3 +98,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [0.1.7]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.7
 [0.1.8]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.8
 [0.1.9]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.9
+[0.2.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.2.0
