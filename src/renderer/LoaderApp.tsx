@@ -120,7 +120,21 @@ export default function LoaderApp() {
   return (
     <div className="loader-shell">
       <div className="loader-titlebar">
-        <img src="/logo-256.png" width={20} height={20} alt="Grudge" />
+        <img
+          src="./logo-256.png"
+          width={22}
+          height={22}
+          alt="Grudge"
+          className="loader-titlebar-emblem"
+          onError={(e) => {
+            // Fallback if the file isn't shipped: try favicon.ico, then a transparent pixel
+            const img = e.currentTarget;
+            if (!img.dataset.fallback) {
+              img.dataset.fallback = "1";
+              img.src = "./favicon.ico";
+            }
+          }}
+        />
         <span className="loader-title">GrudgeLoader</span>
         <StatusBar compact />
         <div className="loader-tab-row ml-auto">

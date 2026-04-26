@@ -104,9 +104,9 @@ if (!gotLock) {
   });
 }
 
-app.on("window-all-closed", (e: Event) => {
-  // Keep the app alive in the tray on all platforms.
-  e.preventDefault?.();
+app.on("window-all-closed", () => {
+  // Registering this listener (even empty) prevents the default "quit"
+  // behavior, keeping the app alive in the tray on all platforms.
 });
 
 app.on("before-quit", () => {

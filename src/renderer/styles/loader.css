@@ -28,7 +28,14 @@
   background: rgba(0, 0, 0, 0.35);
   border-bottom: 1px solid var(--line);
 }
-.loader-titlebar img { border-radius: 50%; box-shadow: 0 0 0 1px var(--gold-deep); }
+.loader-titlebar-emblem,
+.loader-titlebar img {
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--gold-deep), 0 0 6px rgba(255, 198, 42, 0.35);
+  background: #000;
+  object-fit: cover;
+  flex-shrink: 0;
+}
 .loader-title {
   color: var(--gold);
   font-weight: 700;
