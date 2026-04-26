@@ -6,16 +6,19 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import Browser from "./pages/Browser";
-import Search from "./pages/Search";
-import Upload from "./pages/Upload";
-import Request from "./pages/Request";
-import UUID from "./pages/UUID";
-import Library from "./pages/AssetLibrary";
-import Docs from "./pages/Docs";
-import Settings from "./pages/Settings";
-import Login from "./pages/Login";
+// Lazy-loaded pages — keeps first-paint fast (the user only ever opens 1
+// page at a time, so loading 8 chunks up-front is wasted work).
+const Browser  = React.lazy(() => import("./pages/Browser"));
+const Search   = React.lazy(() => import("./pages/Search"));
+const Upload   = React.lazy(() => import("./pages/Upload"));
+const Request  = React.lazy(() => import("./pages/Request"));
+const UUID     = React.lazy(() => import("./pages/UUID"));
+const Library  = React.lazy(() => import("./pages/AssetLibrary"));
+const Docs     = React.lazy(() => import("./pages/Docs"));
+const Settings = React.lazy(() => import("./pages/Settings"));
+import Login from "./pages/Login";    // not lazy — always rendered first
 import StatusBar from "./components/StatusBar";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 type Route =
   | "/browser" | "/search" | "/upload" | "/request"
@@ -141,14 +144,20 @@ export default function App() {
       </aside>
       <main className="content flex flex-col">
         <div className="flex-1 overflow-auto">
-          {route === "/browser" && <Browser />}
-          {route === "/search" && <Search />}
-          {route === "/upload" && <Upload />}
-          {route === "/request" && <Request />}
-          {route === "/uuid" && <UUID />}
-          {route === "/library" && <Library />}
-          {route === "/docs" && <Docs />}
-          {route === "/settings" && <Settings />}
+          {/* Per-page boundary so a buggy page doesn't kill the shell.
+              Suspense fallback handles the lazy chunk-load gap. */}
+          <ErrorBoundary>
+            <React.Suspense fallback={<div className="flex items-center justify-center h-full text-muted gap-2"><Loader2 size={20} className="animate-spin text-gold" /><span className="text-xs">Loading…</span></div>}>
+              {route === "/browser" && <Browser />}
+              {route === "/search" && <Search />}
+              {route === "/upload" && <Upload />}
+              {route === "/request" && <Request />}
+              {route === "/uuid" && <UUID />}
+              {route === "/library" && <Library />}
+              {route === "/docs" && <Docs />}
+              {route === "/settings" && <Settings />}
+            </React.Suspense>
+          </ErrorBoundary>
         </div>
         <StatusBar />
       </main>

@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, shell, nativeImage } from "electron";
+import { app, BrowserWindow, ipcMain, shell, nativeImage, session, crashReporter, globalShortcut } from "electron";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import * as windowState from "./windowState";
 import { createTray, disposeTray } from "./tray";
 import { showLoader, hideLoader, toggleLoader, getLoaderWindow, disposeLoader } from "./loader";
 import * as api from "./api";
@@ -24,6 +25,19 @@ import {
 
 initLogger();
 
+// ---------------------------------------------------------------------------
+// Crash reporter — local-only (no remote endpoint). Dumps go to
+// %APPDATA%/Grudge Dev Tool/Crashpad/. Useful for postmortems on the user's
+// machine without shipping any data anywhere.
+// ---------------------------------------------------------------------------
+crashReporter.start({
+  productName: "Grudge Dev Tool",
+  companyName: "Grudge Studio",
+  submitURL: "",
+  uploadToServer: false,
+  ignoreSystemCrashHandler: false,
+});
+
 let mainWindow: BrowserWindow | null = null;
 
 const RENDERER_DEV_URL = "http://localhost:5173";
@@ -39,11 +53,16 @@ function windowIconPath(): string {
   return candidates[candidates.length - 1];
 }
 
-function createMainWindow() {
+async function createMainWindow() {
   if (mainWindow) return;
+  const state = await windowState.loadWindowState();
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 720,
+    x: state.x,
+    y: state.y,
+    width: state.width,
+    height: state.height,
+    minWidth: 720,
+    minHeight: 540,
     show: false, // start hidden — only the tray is visible
     backgroundColor: "#0a0e1a",
     icon: nativeImage.createFromPath(windowIconPath()),
@@ -53,8 +72,36 @@ function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      experimentalFeatures: false,
     },
   });
+  if (state.maximized) mainWindow.maximize();
+  windowState.track(mainWindow);
+
+  // ---------------- Security hardening ----------------
+  // Refuse navigation to anything outside the app shell, OAuth domains, and
+  // the renderer dev server. Anchor links to the studio, the docs site, etc.
+  // open in the user's default browser via shell.openExternal.
+  const ALLOWED_NAV_HOSTS = /(^|\.)(puter\.com|puter\.site|grudge-studio\.com|grudgewarlords\.com|grudge-warlords\.github\.io)$/i;
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    try {
+      const u = new URL(url);
+      if (u.protocol === "file:" && url.endsWith("index.html")) return;       // app reload
+      if (u.protocol === "http:" && u.hostname === "localhost") return;        // dev server
+      if (ALLOWED_NAV_HOSTS.test(u.hostname)) return;                          // OAuth
+      event.preventDefault();
+      shell.openExternal(url).catch(() => { /* ignore */ });
+    } catch {
+      event.preventDefault();
+    }
+  });
+  // Deny every permission request by default — we don't need camera/mic/etc.
+  // and the principle of least privilege is the right default for a dev tool.
+  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  // Block remote-resource attacks via attached sub-frames the same way.
+  mainWindow.webContents.on("did-attach-webview", (event) => event.preventDefault());
 
   if (!app.isPackaged) {
     mainWindow.loadURL(RENDERER_DEV_URL);
@@ -111,10 +158,27 @@ if (!gotLock) {
     }
   });
 
-  app.whenReady().then(() => {
-    createMainWindow();
+  app.whenReady().then(async () => {
+    await createMainWindow();
     createTray(() => mainWindow);
     registerIpc();
+    // Window-scoped shortcuts (registered while the main window has focus).
+    // We don't use globalShortcut here on purpose — those would steal Ctrl+R
+    // from any other app system-wide.
+    if (mainWindow) {
+      mainWindow.webContents.on("before-input-event", (event, input) => {
+        if (input.type !== "keyDown") return;
+        const k = input.key.toLowerCase();
+        const ctrlOrCmd = input.control || input.meta;
+        if (ctrlOrCmd && k === "r")                       { mainWindow!.webContents.reload();           event.preventDefault(); }
+        if (ctrlOrCmd && input.shift && k === "i")        { mainWindow!.webContents.toggleDevTools();   event.preventDefault(); }
+        if (k === "f11")                                  {
+          mainWindow!.setFullScreen(!mainWindow!.isFullScreen());
+          event.preventDefault();
+        }
+        if (k === "escape" && mainWindow!.isFullScreen()) { mainWindow!.setFullScreen(false);          event.preventDefault(); }
+      });
+    }
     // Broadcast upload progress to BOTH windows (main + GrudgeLoader).
     const allWindows = (): BrowserWindow[] => {
       const out: BrowserWindow[] = [];
