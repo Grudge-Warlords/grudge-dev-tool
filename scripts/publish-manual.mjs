@@ -91,7 +91,21 @@ function run(cmd, args, opts = {}) {
   // incorrect.".
   const useShell = opts.shell
     ?? (process.platform === "win32" && cmd !== "git");
-  const r = spawnSync(cmd, args, {
+  // When shell is true on Windows, spawnSync joins args into a single string
+  // and lets cmd.exe re-split on whitespace. Args containing spaces, &, |, ^,
+  // or quotes need explicit quoting; otherwise an arg like
+  // `C:\path\Grudge Dev Tool-Setup.exe` gets split into three.
+  const finalArgs = useShell
+    ? args.map((a) => {
+        const s = String(a);
+        if (/[\s&|^<>"'`]/.test(s)) {
+          // Escape embedded double quotes by doubling them (cmd.exe convention)
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      })
+    : args;
+  const r = spawnSync(cmd, finalArgs, {
     cwd: ROOT,
     stdio: opts.captureOutput ? "pipe" : "inherit",
     encoding: "utf8",
