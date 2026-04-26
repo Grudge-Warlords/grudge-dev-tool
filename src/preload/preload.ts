@@ -89,6 +89,19 @@ const api = {
     logFile: () => ipcRenderer.invoke("diag:logFile"),
     openLogFolder: () => ipcRenderer.invoke("diag:openLogFolder"),
   },
+  // App lifecycle
+  app: {
+    quit: () => ipcRenderer.invoke("app:quit"),
+    hide: () => ipcRenderer.invoke("app:hide"),
+  },
+  // Auth (Puter ↔ Grudge ID)
+  auth: {
+    getSession:    () => ipcRenderer.invoke("auth:getSession"),
+    setSession:    (token: string, user: any) => ipcRenderer.invoke("auth:setSession", token, user),
+    clearSession:  () => ipcRenderer.invoke("auth:clearSession"),
+    wipeIdentity:  () => ipcRenderer.invoke("auth:wipeIdentity"),
+    getPuterToken: () => ipcRenderer.invoke("auth:getPuterToken"),
+  },
   // Cloudflare R2 + Worker
   cf: {
     status:           () => ipcRenderer.invoke("cf:status"),

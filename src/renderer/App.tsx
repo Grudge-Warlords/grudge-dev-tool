@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   FolderTree, Search as SearchIcon, Upload as UploadIcon, Link2,
   Fingerprint, Palette, BookOpen, Settings as SettingsIcon,
+  Power, Minimize2,
   type LucideIcon,
 } from "lucide-react";
 import Browser from "./pages/Browser";
@@ -63,8 +64,20 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-footer">
-          <span className="version">v0.1.0</span>
+        <div className="sidebar-footer flex items-center gap-2">
+          <span className="version flex-1">v0.1.6</span>
+          <button
+            title="Hide to tray"
+            className="text-muted hover:text-gold"
+            onClick={() => window.grudge?.app?.hide?.()}
+          ><Minimize2 size={14} /></button>
+          <button
+            title="Quit Grudge Dev Tool"
+            className="text-muted hover:text-danger"
+            onClick={() => {
+              if (confirm("Quit Grudge Dev Tool?")) window.grudge?.app?.quit?.();
+            }}
+          ><Power size={14} /></button>
         </div>
       </aside>
       <main className="content flex flex-col">

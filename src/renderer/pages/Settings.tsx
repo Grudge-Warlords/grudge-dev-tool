@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { FolderOpen, RefreshCcw, Power, Cloud, Bot } from "lucide-react";
+import { FolderOpen, RefreshCcw, Power, Cloud, Bot, User, LogIn, LogOut, KeyRound } from "lucide-react";
 import { StatusDot } from "../components/StatusBar";
+import { puterSignIn, puterSignOut } from "../lib/puter";
 
 export default function Settings() {
   const [data, setData] = useState<any>(null);
@@ -12,6 +13,8 @@ export default function Settings() {
   const [conn, setConn] = useState<any>(null);
   const [autoLaunch, setAutoLaunch] = useState(false);
 
+  const [session, setSession] = useState<any>(null);
+  const [signingIn, setSigningIn] = useState(false);
   const [cfStatus, setCfStatus] = useState<any>(null);
   const [backendMode, setBackendModeState] = useState<"auto" | "grudge" | "cloudflare" | "r2-direct" | "cloudflare-worker">("auto");
   const [workerHealthInfo, setWorkerHealthInfo] = useState<any>(null);
@@ -28,6 +31,25 @@ export default function Settings() {
     try { setAutoLaunch(!!(await window.grudge.autoLaunch?.get?.())); } catch { /* */ }
     try { setCfStatus(await window.grudge.cf?.status?.()); } catch { /* */ }
     try { setBackendModeState((await window.grudge.cf?.getBackendMode?.()) ?? "auto"); } catch { /* */ }
+    try { setSession(await window.grudge.auth?.getSession?.()); } catch { /* */ }
+  }
+
+  async function signInWithPuter() {
+    setSigningIn(true);
+    try {
+      const { token, user } = await puterSignIn();
+      const r = await window.grudge.auth.setSession(token, user);
+      toast.success(`Signed in as ${user.username} · ${r.grudgeId}`);
+      reload();
+    } catch (e: any) {
+      toast.error("Sign-in failed", { description: e?.message ?? String(e) });
+    } finally { setSigningIn(false); }
+  }
+  async function signOutLocal() {
+    await window.grudge.auth.clearSession();
+    await puterSignOut();
+    toast.success("Signed out");
+    reload();
   }
 
   async function testWorker() {
@@ -96,20 +118,42 @@ export default function Settings() {
       <p className="page-sub">All secrets stored in Windows Credential Vault via <span className="kbd">keytar</span>.</p>
 
       <div className="card">
-        <h3 style={{ margin: "0 0 8px" }}>Grudge backend</h3>
-        <label className="muted">API base URL</label>
-        <div className="row">
-          <input value={apiBase} onChange={(e) => setApiBase(e.target.value)} />
-          <button className="btn" onClick={saveApiBase}>Save</button>
-        </div>
+        <h3 className="flex items-center gap-2" style={{ margin: "0 0 8px" }}>
+          <User size={16} className="text-gold" /> Grudge identity
+        </h3>
+        {session?.signedIn ? (
+          <>
+            <table>
+              <tbody>
+                <tr><td className="muted">Grudge ID</td><td className="font-mono text-gold">{session.grudgeId}</td></tr>
+                <tr><td className="muted">Puter username</td><td className="font-mono">{session.puterUser?.username}</td></tr>
+                <tr><td className="muted">Puter UUID</td><td className="font-mono">{session.puterUser?.uuid}</td></tr>
+                {session.puterUser?.email && (
+                  <tr><td className="muted">Email</td><td>{session.puterUser.email} {session.puterUser.email_verified ? <span className="status-ok">✓</span> : <span className="muted">(unverified)</span>}</td></tr>
+                )}
+              </tbody>
+            </table>
+            <div className="flex gap-2 mt-3">
+              <button className="btn ghost danger flex items-center gap-1" onClick={signOutLocal}>
+                <LogOut size={14} /> Sign out
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="muted text-sm mb-3">Sign in with Puter to mint a Grudge ID. Saves and uploads sync to your Puter cloud.</p>
+            <button className="btn flex items-center gap-2" onClick={signInWithPuter} disabled={signingIn}>
+              <LogIn size={14} />
+              {signingIn ? "Signing in…" : "Sign in / Create Grudge account"}
+            </button>
+          </>
+        )}
         <div style={{ marginTop: 12 }}>
-          <label className="muted">Grudge bearer token (paste once)</label>
-          <div className="row">
-            <input type="password" placeholder="paste token" value={token} onChange={(e) => setToken(e.target.value)} />
-            <button className="btn" onClick={saveToken}>Save token</button>
-            {data?.hasToken && <button className="btn ghost danger" onClick={clearToken}>Clear</button>}
+          <label className="muted text-xs flex items-center gap-1"><KeyRound size={12} /> Grudge backend API base (optional override)</label>
+          <div className="row" style={{ marginTop: 4 }}>
+            <input value={apiBase} onChange={(e) => setApiBase(e.target.value)} />
+            <button className="btn ghost" onClick={saveApiBase}>Save</button>
           </div>
-          <div className="muted" style={{ marginTop: 4 }}>{data?.hasToken ? "✓ token stored" : "no token stored"}</div>
         </div>
       </div>
 

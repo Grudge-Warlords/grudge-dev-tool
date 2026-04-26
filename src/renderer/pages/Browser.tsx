@@ -13,7 +13,8 @@ interface ListResp {
   prefix: string;
 }
 
-const ROOT_PREFIX = "asset-packs/";
+const BUCKET_ROOT = ""; // empty string = list every top-level prefix in the bucket
+const ROOT_PREFIX = ""; // start at the bucket root by default
 
 function fileIcon(contentType: string) {
   if (contentType.startsWith("image/")) return <ImageIcon size={14} className="text-gold" />;
@@ -38,6 +39,9 @@ interface TreeNodeProps {
 
 function TreeNode({ prefix, depth, selected, onSelect }: TreeNodeProps) {
   const [open, setOpen] = useState(depth === 0);
+  const display = prefix === ""
+    ? "(bucket root)"
+    : (depth === 0 ? prefix : basename(prefix));
   const { data, isLoading, error } = useQuery({
     queryKey: ["os.list.folders", prefix],
     queryFn: async (): Promise<ListResp> =>
@@ -55,7 +59,7 @@ function TreeNode({ prefix, depth, selected, onSelect }: TreeNodeProps) {
       >
         {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         {open ? <FolderOpen size={14} className="text-gold" /> : <Folder size={14} className="text-muted" />}
-        <span className="text-xs truncate">{depth === 0 ? prefix : basename(prefix)}</span>
+        <span className="text-xs truncate">{display}</span>
       </button>
       {open && (
         <div>
@@ -145,10 +149,8 @@ export default function Browser() {
 
       <div className="flex flex-1 gap-3 min-h-0">
         <aside className="w-64 shrink-0 border border-line rounded-md bg-bg-1 overflow-y-auto p-1">
-          <TreeNode prefix={ROOT_PREFIX} depth={0} selected={selected} onSelect={setSelected} />
-          <TreeNode prefix="user-uploads/" depth={0} selected={selected} onSelect={setSelected} />
-          <TreeNode prefix="shared/" depth={0} selected={selected} onSelect={setSelected} />
-          <TreeNode prefix="dev/" depth={0} selected={selected} onSelect={setSelected} />
+          {/* Bucket root — lists whatever top-level prefixes actually exist. */}
+          <TreeNode prefix={BUCKET_ROOT} depth={0} selected={selected} onSelect={setSelected} />
         </aside>
 
         <section className="flex-1 flex flex-col min-w-0 border border-line rounded-md bg-bg-1">

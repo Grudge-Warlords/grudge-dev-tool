@@ -15,6 +15,7 @@ import { getCfStatus, readCf, writeCf, clearCf } from "./cf/credentials";
 import { workerHealth } from "./cf/objectStoreWorker";
 import { r2Health, resetR2Client } from "./cf/r2Direct";
 import { workersAiChat, workersAiCaption, aiGatewayHealth, aiGatewayProxy } from "./cf/aiGateway";
+import * as puterAuth from "./auth/puterSession";
 import {
   generateGrudgeUUID, parseGrudgeUUID, describeGrudgeUUID, isValidGrudgeUUID,
   SLOT_CODES, TIER_CODES,
@@ -183,6 +184,17 @@ function registerIpc() {
   // Diagnostics
   ipcMain.handle("diag:logFile", () => getLogFilePath());
   ipcMain.handle("diag:openLogFolder", () => shell.openPath(join(app.getPath("userData"), "logs")));
+
+  // App lifecycle (so the renderer can offer a real Quit)
+  ipcMain.handle("app:quit", () => { (app as any).isQuiting = true; app.quit(); });
+  ipcMain.handle("app:hide", () => { mainWindow?.hide(); });
+
+  // Puter auth + Grudge identity
+  ipcMain.handle("auth:getSession",   () => puterAuth.getSession());
+  ipcMain.handle("auth:setSession",   (_e, token: string, user: any) => puterAuth.setSession(token, user));
+  ipcMain.handle("auth:clearSession", () => puterAuth.clearSession());
+  ipcMain.handle("auth:wipeIdentity", () => puterAuth.wipeIdentity());
+  ipcMain.handle("auth:getPuterToken", () => puterAuth.getPuterToken());
 
   // Cloudflare backend
   ipcMain.handle("cf:status",          () => getCfStatus());

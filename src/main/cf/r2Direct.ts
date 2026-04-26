@@ -35,7 +35,13 @@ async function getClient(): Promise<{ s3: S3Client; bucket: string }> {
     endpoint,
     credentials: { accessKeyId, secretAccessKey },
     forcePathStyle: true,
-  });
+    // R2 rejects the AWS-SDK auto-injected x-amz-checksum-* headers (see
+    // https://developers.cloudflare.com/r2/api/s3/api/ — "Unsupported
+    // header: x-amz-checksum-crc32"). Force the SDK to only add a checksum
+    // when the operation actually requires one.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  } as any);
   cachedBucket = bucket;
   return { s3: cachedClient, bucket };
 }
