@@ -84,9 +84,13 @@ function run(cmd, args, opts = {}) {
   console.log(`\n$ ${display}`);
   if (opts.dryRun) { console.log("  (dry-run, skipped)"); return { status: 0, stdout: "", stderr: "" }; }
   // On Windows, `npm` and `gh` are `.cmd` shims that cannot be spawned without
-  // a shell. `git` is a real .exe and works either way. Default to shell:true
-  // on win32 unless the caller explicitly opts out.
-  const useShell = opts.shell ?? (process.platform === "win32");
+  // a shell. `git` is a real .exe and works either way — and crucially MUST
+  // NOT use shell on win32, otherwise commit messages containing < > (the
+  // canonical Co-Authored-By <email> form) get parsed as redirect operators
+  // by cmd.exe and the commit fails with "The syntax of the command is
+  // incorrect.".
+  const useShell = opts.shell
+    ?? (process.platform === "win32" && cmd !== "git");
   const r = spawnSync(cmd, args, {
     cwd: ROOT,
     stdio: opts.captureOutput ? "pipe" : "inherit",

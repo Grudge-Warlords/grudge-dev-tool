@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.1.7] — 2026-04-26
+
+### Changed
+- Login gating + Upload backend selector. App now requires Puter sign-in before showing any features (Browser/Search/Upload/etc). Login flow uses the embedded Puter SDK popup which supports Google/GitHub/username; on success a Grudge ID is derived deterministically and stored in Windows Credential Vault. Sidebar shows the signed-in user; sign-out is one click. The Upload page now displays the actual destination of the next upload (Cloudflare Worker AI / R2 direct / GrudgeBuilder) with a backend selector dropdown so you can route on demand. Auto-update will deliver this within ~4h to existing installs.
+
 ### Added
 - **`docs/troubleshooting.md`** — every error we've encountered with the exact resolution: tray-icon-missing, DOCTYPE warning, broken `/logo-256.png` under `file://`, CSP "syntax error" misnomer, `API unreachable` yellow dot, `ENOENT: dist/main/api.js`, missing `elevate.exe`, corrupted `package.json`, `command failed (null)` (Windows shell shim), TS strict-mode hits, the Actions-account-flag block, missing `latest.yml` for auto-update, and BlenderKit detection paths.
 - **Direct download links** in `README.md` and `docs/index.md` pointing at the v0.1.3 installer so the GrudaChain code can be grabbed in one click without hunting through the releases tree.
@@ -75,3 +80,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [0.1.1]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.1
 [0.1.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.0
 [0.1.3]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.3
+[0.1.7]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.7
