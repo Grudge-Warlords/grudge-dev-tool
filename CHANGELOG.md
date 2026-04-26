@@ -4,6 +4,13 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-04-26
+
+### Fixed
+- **Broken logo / "white dot" in GrudgeLoader title bar and main sidebar** — image src was the absolute path `/logo-256.png`, which fails under the `file://` protocol used by packaged Electron renderers. Switched to the relative `./logo-256.png`. The gold-helm emblem now renders correctly next to the GrudgeLoader title.
+- **"DOCTYPE not valid" warning** — swapped lowercase `<!doctype html>` for canonical uppercase `<!DOCTYPE html>` in both renderer entry HTML files. HTML5 spec allows both, but several validators/DevTools flag the lowercase form.
+- Added an `onError` fallback on the loader title image: if `logo-256.png` is missing for any reason, it now falls back to `favicon.ico` instead of showing a broken-image placeholder.
+
 ## [0.1.1] — 2026-04-26
 
 ### Fixed
@@ -28,6 +35,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - Tailwind CSS, lucide-react icons, sonner toasts, TanStack Query data layer.
 - Full icon set generation (`scripts/build-icons.mjs`) from the brand emblem source.
 
-[Unreleased]: https://github.com/Grudge-Warlords/grudge-dev-tool/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Grudge-Warlords/grudge-dev-tool/compare/v0.1.2...HEAD
+[0.1.2]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.2
 [0.1.1]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.1
 [0.1.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.0

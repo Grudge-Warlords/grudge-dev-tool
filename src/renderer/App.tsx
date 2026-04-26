@@ -42,7 +42,7 @@ export default function App() {
     <div className="app">
       <aside className="sidebar">
         <div className="brand">
-          <img src="/logo-256.png" alt="Grudge" width={36} height={36} />
+          <img src="./logo-256.png" alt="Grudge" width={36} height={36} />
           <div>
             <div className="brand-title">Grudge Dev Tool</div>
             <div className="brand-sub">Object Storage · UUID · BlenderKit</div>
