@@ -4,6 +4,8 @@ export interface ListRequest {
   prefix: string;
   cursor?: string;
   limit?: number;
+  /** When set to '/', the listing returns folders separately from files. */
+  delimiter?: string;
 }
 
 export interface ListItem {
@@ -11,7 +13,8 @@ export interface ListItem {
   size: number;
   contentType: string;
   updated: string | null;
-  md5Hash: string | null;
+  /** Optional — not every backend exposes md5 (e.g. Cloudflare R2 returns sha256). */
+  md5Hash?: string | null;
 }
 
 export interface ListResponse {
@@ -19,6 +22,8 @@ export interface ListResponse {
   nextCursor: string | null;
   prefix: string;
   count: number;
+  /** Folder prefixes when the request was made with delimiter='/'. */
+  folders?: string[];
 }
 
 export interface SearchRequest {

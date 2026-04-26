@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.1.3] — 2026-04-26
+
+### Changed
+- Production hardening v0.1.3. Removes hardcoded BlenderKit version (read from manifest at runtime), broadens addon path probing (Blender 4.2-4.5 user-extensions dirs), externalises REPO/PRODUCT in publish-manual, adds Cloudflare AI Gateway and R2 Worker clients (all keytar-backed), ships .env.example, tightens .gitignore, and fixes the win32 spawnSync shell issue. No hardcoded values or placeholders in production code paths.
+
 ## [0.1.2] — 2026-04-26
 
 ### Fixed
@@ -39,3 +44,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [0.1.2]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.2
 [0.1.1]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.1
 [0.1.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.0
+[0.1.3]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.3
