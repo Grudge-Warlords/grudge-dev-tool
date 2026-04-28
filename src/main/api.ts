@@ -16,6 +16,7 @@ const ACCOUNT = "default";
 const MODE_ACCOUNT = "backend-mode"; // values: 'auto' | 'grudge' | 'cloudflare'
 
 let cachedBase: string | null = null;
+let cachedAssetsBase: string | null = null;
 
 export async function setApiBaseUrl(url: string): Promise<void> {
   cachedBase = url.replace(/\/$/, "");
@@ -27,6 +28,44 @@ export async function getApiBaseUrl(): Promise<string> {
   const stored = await keytar.getPassword(SERVICE, `${ACCOUNT}.apiBaseUrl`);
   cachedBase = (stored || process.env.GRUDGE_API_BASE || "https://api.grudge-studio.com").replace(/\/$/, "");
   return cachedBase;
+}
+
+/**
+ * Asset-service base URL.
+ *
+ * The canonical production backend (Grudge-Warlords/grudge-studio-backend) splits
+ * the HTTP surface across services:
+ *   • api.grudge-studio.com           → game-api      (characters, missions, etc.)
+ *   • assets-api.grudge-studio.com    → asset-service (upload-url, manifest, asset-meta, conversions, ObjectStore sync)
+ *
+ * Resolution order:
+ *   1. keytar `default.assetsApiBaseUrl`   — explicit override
+ *   2. process.env.GRUDGE_ASSETS_API_BASE   — build/run-time override
+ *   3. keytar `default.apiBaseUrl`          — legacy fall-through (single-domain installs)
+ *   4. https://assets-api.grudge-studio.com — canonical default
+ */
+export async function setAssetsApiBaseUrl(url: string): Promise<void> {
+  cachedAssetsBase = url.replace(/\/$/, "");
+  await keytar.setPassword(SERVICE, `${ACCOUNT}.assetsApiBaseUrl`, cachedAssetsBase);
+}
+
+export async function getAssetsApiBaseUrl(): Promise<string> {
+  if (cachedAssetsBase) return cachedAssetsBase;
+  const stored = await keytar.getPassword(SERVICE, `${ACCOUNT}.assetsApiBaseUrl`);
+  if (stored) {
+    cachedAssetsBase = stored.replace(/\/$/, "");
+    return cachedAssetsBase;
+  }
+  const envOverride = process.env.GRUDGE_ASSETS_API_BASE;
+  if (envOverride) {
+    cachedAssetsBase = envOverride.replace(/\/$/, "");
+    return cachedAssetsBase;
+  }
+  // No explicit setting — prefer the canonical asset-service host. We do NOT
+  // automatically fall back to apiBaseUrl when both are unset, because the
+  // canonical backend deliberately keeps these routes off api.grudge-studio.com.
+  cachedAssetsBase = "https://assets-api.grudge-studio.com";
+  return cachedAssetsBase;
 }
 
 export async function setToken(token: string): Promise<void> {
@@ -89,6 +128,21 @@ async function authedFetch(
   return fetch(`${base}${path}`, { ...init, headers });
 }
 
+/** Same as authedFetch but routes to asset-service (assets-api.grudge-studio.com). */
+async function authedFetchAssets(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const base = await getAssetsApiBaseUrl();
+  const token = await getToken();
+  const headers = new Headers(init.headers);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (!headers.has("Content-Type") && init.body) {
+    headers.set("Content-Type", "application/json");
+  }
+  return fetch(`${base}${path}`, { ...init, headers });
+}
+
 async function jsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let detail = "";
@@ -119,7 +173,7 @@ export async function listObjects(req: ListRequest & { delimiter?: string }): Pr
   if (req.delimiter) params.set("delimiter", req.delimiter);
   if (req.cursor) params.set("cursor", req.cursor);
   if (req.limit) params.set("limit", String(req.limit));
-  const res = await authedFetch(`/api/objectstore/list?${params}`);
+  const res = await authedFetchAssets(`/api/objectstore/list?${params}`);
   return jsonOrThrow<ListResponse>(res);
 }
 
@@ -150,7 +204,7 @@ export async function searchObjects(req: SearchRequest): Promise<SearchResponse>
   if (req.category) params.set("category", req.category);
   if (req.pack) params.set("pack", req.pack);
   if (req.limit) params.set("limit", String(req.limit));
-  const res = await authedFetch(`/api/objectstore/search?${params}`);
+  const res = await authedFetchAssets(`/api/objectstore/search?${params}`);
   return jsonOrThrow<SearchResponse>(res);
 }
 
@@ -186,7 +240,7 @@ export async function requestUploadUrl(input: {
       uploadId: r.uploadId ?? "",
     };
   }
-  const res = await authedFetch("/api/objectstore/upload-url", {
+  const res = await authedFetchAssets("/api/objectstore/upload-url", {
     method: "POST",
     body: JSON.stringify(input),
   });
@@ -220,7 +274,7 @@ export async function writeManifest(payload: {
     const r = await workerManifestWrite(payload);
     return { ok: !!r.ok, manifestPath: r.manifestPath ?? "", count: r.count ?? payload.entries.length };
   }
-  const res = await authedFetch("/api/objectstore/manifest", {
+  const res = await authedFetchAssets("/api/objectstore/manifest", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -256,7 +310,7 @@ export async function getAssetMeta(input: RequestUrlInput): Promise<AssetMeta> {
       publicCdn: r.publicCdn ?? `https://assets.grudge-studio.com/${path}`,
     };
   }
-  const res = await authedFetch(`/api/objectstore/asset/${path}?format=json`);
+  const res = await authedFetchAssets(`/api/objectstore/asset/${path}?format=json`);
   return jsonOrThrow<AssetMeta>(res);
 }
 

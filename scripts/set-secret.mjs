@@ -26,9 +26,10 @@ const KEY_TO_ACCOUNT = {
   CF_R2_BUCKET:         "cf-r2-bucket",
   CF_ACCOUNT_ID:        "cf-account-id",
   CF_AI_GATEWAY_ID:     "cf-ai-gateway-id",
-  GRUDGE_API_BASE:      "default.apiBaseUrl",
-  GRUDGE_TOKEN:         "default",
-  BLENDERKIT_API_KEY:   "blenderkit-api-key",
+  GRUDGE_API_BASE:        "default.apiBaseUrl",
+  GRUDGE_ASSETS_API_BASE: "default.assetsApiBaseUrl",
+  GRUDGE_TOKEN:           "default",
+  BLENDERKIT_API_KEY:     "blenderkit-api-key",
 };
 
 async function main() {

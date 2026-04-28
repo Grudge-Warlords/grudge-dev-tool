@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import {
   FolderTree, Search as SearchIcon, Upload as UploadIcon, Link2,
   Fingerprint, Palette, BookOpen, Settings as SettingsIcon,
-  Power, Minimize2, LogOut, Loader2,
+  Power, Minimize2, LogOut, Loader2, Hammer,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -16,13 +16,14 @@ const UUID     = React.lazy(() => import("./pages/UUID"));
 const Library  = React.lazy(() => import("./pages/AssetLibrary"));
 const Docs     = React.lazy(() => import("./pages/Docs"));
 const Settings = React.lazy(() => import("./pages/Settings"));
+const Forge3D  = React.lazy(() => import("./pages/Forge3D"));
 import Login from "./pages/Login";    // not lazy — always rendered first
 import StatusBar from "./components/StatusBar";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 type Route =
   | "/browser" | "/search" | "/upload" | "/request"
-  | "/uuid" | "/library" | "/docs" | "/settings";
+  | "/uuid" | "/library" | "/forge" | "/docs" | "/settings";
 
 const NAV: Array<{ route: Route; label: string; Icon: LucideIcon }> = [
   { route: "/browser",  label: "Browser",     Icon: FolderTree },
@@ -31,6 +32,7 @@ const NAV: Array<{ route: Route; label: string; Icon: LucideIcon }> = [
   { route: "/request",  label: "Request URL", Icon: Link2 },
   { route: "/uuid",     label: "UUID",        Icon: Fingerprint },
   { route: "/library",  label: "BlenderKit",  Icon: Palette },
+  { route: "/forge",    label: "Forge 3D",    Icon: Hammer },
   { route: "/docs",     label: "Docs",        Icon: BookOpen },
   { route: "/settings", label: "Settings",    Icon: SettingsIcon },
 ];
@@ -154,6 +156,7 @@ export default function App() {
               {route === "/request" && <Request />}
               {route === "/uuid" && <UUID />}
               {route === "/library" && <Library />}
+              {route === "/forge" && <Forge3D />}
               {route === "/docs" && <Docs />}
               {route === "/settings" && <Settings />}
             </React.Suspense>

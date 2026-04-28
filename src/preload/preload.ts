@@ -115,6 +115,25 @@ const api = {
     aiHealth:         () => ipcRenderer.invoke("cf:aiHealth"),
     getBackendMode:   () => ipcRenderer.invoke("cf:getBackendMode"),
     setBackendMode:   (mode: "auto" | "grudge" | "cloudflare" | "r2-direct" | "cloudflare-worker") => ipcRenderer.invoke("cf:setBackendMode", mode),
+    // Direct R2 ops used by Forge3D for converting + uploading models.
+    r2SignedUpload:   (args: { key: string; contentType?: string; ttlSeconds?: number }) => ipcRenderer.invoke("cf:r2SignedUpload", args),
+    r2SignedDownload: (args: { key: string; ttlSeconds?: number }) => ipcRenderer.invoke("cf:r2SignedDownload", args),
+    r2List:           (req: any) => ipcRenderer.invoke("cf:r2List", req),
+    r2Head:           (key: string) => ipcRenderer.invoke("cf:r2Head", key),
+    r2PublicUrl:      (key: string) => ipcRenderer.invoke("cf:r2PublicUrl", key),
+  },
+  // Forge3D editor / Windows 3D viewer
+  forge: {
+    /** Returns the path captured from argv before the renderer mounted (or null). */
+    consumeInitialFile: () => ipcRenderer.invoke("forge:consumeInitialFile"),
+    /** Read a file from disk and hand the bytes back to the renderer. */
+    readFile: (path: string) => ipcRenderer.invoke("forge:readFile", path),
+    /** Listener for second-instance "Open with..." events. */
+    onOpenFile: (cb: (info: { path: string; name: string }) => void) => {
+      const listener = (_e: any, info: { path: string; name: string }) => cb(info);
+      ipcRenderer.on("forge:openFile", listener);
+      return () => ipcRenderer.removeListener("forge:openFile", listener);
+    },
   },
   // AI Gateway
   ai: {

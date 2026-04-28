@@ -123,10 +123,25 @@ export async function r2Health(): Promise<{ ok: boolean; latencyMs: number; erro
   }
 }
 
-/** Compose the public CDN URL for a key. Returns null if no public URL is configured. */
-export async function r2PublicUrl(key: string): Promise<string | null> {
+/**
+ * Compose the public CDN URL for a key.
+ *
+ * Resolution order (matches canonical grudge-studio-backend wiring):
+ *   1. keytar `cf-r2-public-url`        — user override (custom CNAME)
+ *   2. keytar `cf-r2-public-r2-url`     — r2.dev fallback when no custom domain
+ *   3. process.env.OBJECT_STORAGE_PUBLIC_URL
+ *   4. https://assets.grudge-studio.com — canonical Grudge Studio production CDN
+ *
+ * Always returns a URL now (never null) so the Forge3D upload toast always
+ * has something to copy to the clipboard. Production points at the Cloudflare
+ * Worker fronting the `grudge-assets` R2 bucket.
+ */
+export async function r2PublicUrl(key: string): Promise<string> {
   const baseR2 = await readCf("publicR2Url");
-  const base = (await readCf("publicUrl")) ?? baseR2;
-  if (!base) return null;
+  const base =
+    (await readCf("publicUrl")) ??
+    baseR2 ??
+    process.env.OBJECT_STORAGE_PUBLIC_URL ??
+    "https://assets.grudge-studio.com";
   return `${base.replace(/\/$/, "")}/${key.replace(/^\//, "")}`;
 }

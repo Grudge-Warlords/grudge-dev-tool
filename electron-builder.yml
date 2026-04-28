@@ -26,6 +26,56 @@ extraResources:
       - "brand/**"
 extraMetadata:
   main: dist/main/main.js
+# Register Grudge Dev Tool as a Windows file handler so users can
+# right-click → Open With → Grudge Dev Tool on any supported 3D model file,
+# or set us as the default 3D viewer for the listed extensions.
+fileAssociations:
+  - ext: glb
+    name: glTF Binary Model
+    description: glTF Binary Model
+    role: Viewer
+    mimeType: model/gltf-binary
+    icon: resources/icon.ico
+  - ext: gltf
+    name: glTF JSON Model
+    description: glTF JSON Model
+    role: Viewer
+    mimeType: model/gltf+json
+    icon: resources/icon.ico
+  - ext: fbx
+    name: FBX 3D Model
+    description: FBX 3D Model
+    role: Viewer
+    icon: resources/icon.ico
+  - ext: obj
+    name: Wavefront OBJ
+    description: Wavefront OBJ
+    role: Viewer
+    mimeType: model/obj
+    icon: resources/icon.ico
+  - ext: stl
+    name: STL 3D Model
+    description: STL 3D Model
+    role: Viewer
+    mimeType: model/stl
+    icon: resources/icon.ico
+  - ext: ply
+    name: PLY 3D Model
+    description: PLY 3D Model
+    role: Viewer
+    icon: resources/icon.ico
+  - ext: dae
+    name: Collada DAE
+    description: Collada DAE
+    role: Viewer
+    mimeType: model/vnd.collada+xml
+    icon: resources/icon.ico
+  - ext: 3mf
+    name: 3MF 3D Model
+    description: 3MF 3D Model
+    role: Viewer
+    mimeType: model/3mf
+    icon: resources/icon.ico
 win:
   target:
     - target: nsis

@@ -14,7 +14,8 @@ import { startConnectivity, stopConnectivity, getConnectivity } from "./connecti
 import { setupAutoUpdater, checkForUpdatesNow, quitAndInstall } from "./updater";
 import { getCfStatus, readCf, writeCf, clearCf } from "./cf/credentials";
 import { workerHealth } from "./cf/objectStoreWorker";
-import { r2Health, resetR2Client } from "./cf/r2Direct";
+import { r2Health, resetR2Client, r2GetSignedUploadUrl, r2GetSignedDownloadUrl, r2List, r2PublicUrl, r2Head } from "./cf/r2Direct";
+import * as forge from "./forge";
 import { workersAiChat, workersAiCaption, aiGatewayHealth, aiGatewayProxy } from "./cf/aiGateway";
 import * as puterAuth from "./auth/puterSession";
 import { puterLoginViaBrowser } from "./auth/puterLogin";
@@ -24,6 +25,7 @@ import {
 } from "../shared/grudgeUUID";
 
 initLogger();
+forge.captureInitialArgv();
 
 // ---------------------------------------------------------------------------
 // Crash reporter — local-only (no remote endpoint). Dumps go to
@@ -151,17 +153,20 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
+  app.on("second-instance", (_event, argv) => {
     if (mainWindow) {
       if (!mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
     }
+    forge.captureSecondInstanceArgv(argv, mainWindow);
   });
 
   app.whenReady().then(async () => {
     await createMainWindow();
     createTray(() => mainWindow);
     registerIpc();
+    // If we were launched with a file, push it to the renderer once loaded.
+    if (mainWindow) forge.flushPendingTo(mainWindow);
     // Window-scoped shortcuts (registered while the main window has focus).
     // We don't use globalShortcut here on purpose — those would steal Ctrl+R
     // from any other app system-wide.
@@ -305,6 +310,31 @@ function registerIpc() {
   ipcMain.handle("cf:aiHealth",        () => aiGatewayHealth());
   ipcMain.handle("cf:getBackendMode",  () => api.getBackendMode());
   ipcMain.handle("cf:setBackendMode",  (_e, mode: any) => api.setBackendMode(mode));
+
+  // Direct R2 ops used by Forge3D (signed PUT/GET, list, head, public URL).
+  ipcMain.handle("cf:r2SignedUpload", async (_e, args: { key: string; contentType?: string; ttlSeconds?: number }) => {
+    try {
+      const url = await r2GetSignedUploadUrl(args.key, args.contentType, args.ttlSeconds ?? 900);
+      return { ok: true, url };
+    } catch (err: any) {
+      return { ok: false, error: err?.message ?? String(err) };
+    }
+  });
+  ipcMain.handle("cf:r2SignedDownload", async (_e, args: { key: string; ttlSeconds?: number }) => {
+    try {
+      const url = await r2GetSignedDownloadUrl(args.key, args.ttlSeconds ?? 600);
+      return { ok: true, url };
+    } catch (err: any) {
+      return { ok: false, error: err?.message ?? String(err) };
+    }
+  });
+  ipcMain.handle("cf:r2List",       (_e, req) => r2List(req));
+  ipcMain.handle("cf:r2Head",       (_e, key: string) => r2Head(key));
+  ipcMain.handle("cf:r2PublicUrl",  (_e, key: string) => r2PublicUrl(key));
+
+  // Forge3D — "Open with..." + read file from disk for renderer.
+  ipcMain.handle("forge:consumeInitialFile", () => forge.consumeInitialFile());
+  ipcMain.handle("forge:readFile", async (_e, path: string) => forge.readModelFile(path));
 
   // AI Gateway
   ipcMain.handle("ai:chat",     (_e, opts) => workersAiChat(opts));

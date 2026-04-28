@@ -40,6 +40,7 @@ const KEY_TO_ACCOUNT = {
   CF_R2_TOKEN:                  "cf-r2-token",
   // Grudge backend / BlenderKit
   GRUDGE_API_BASE:              "default.apiBaseUrl",
+  GRUDGE_ASSETS_API_BASE:       "default.assetsApiBaseUrl",  // assets-api.grudge-studio.com (asset-service)
   GRUDGE_TOKEN:                 "default",
   BLENDERKIT_API_KEY:           "blenderkit-api-key",
 };

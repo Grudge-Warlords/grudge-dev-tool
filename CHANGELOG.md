@@ -4,6 +4,25 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Added
+- **Forge 3D editor + Windows 3D viewer.** New `Forge 3D` page mounted at `/forge` in the sidebar. Built on Three.js (no React-Three-Fiber dependency — keeps React 18 compatibility) with full-fat studio lighting (warm key + cool fill + IBL via `RoomEnvironment`), shadow-mapped directional key, OrbitControls, TransformControls (translate / rotate / scale), grid + axes helpers, ACES Filmic tone mapping, sRGB color space.
+- **Multi-format model loaders:** GLB, glTF, OBJ, FBX, STL, PLY (mesh + point cloud), DAE (Collada), 3MF. Drag-drop a file anywhere on the window or click `Open`. Each file is parsed, framed, and added to the scene hierarchy with triangle / vertex / bone counts and (for GLB) full binary container inspection (magic, version, JSON & BIN chunk sizes, used extensions including Draco / Meshopt / KHR_texture_basisu, generator string).
+- **Animation playback.** All animation clips that ride along with FBX / GLB / GLTF / DAE files are listed in the inspector with per-clip Play / Pause / Stop controls and clip duration; one `THREE.AnimationMixer` per object updates from the engine's `clock`.
+- **GLB convert + export.** Any loaded model can be re-exported as GLB via three's `GLTFExporter` (`Export GLB` button on selected, `Scene GLB` button to flatten the entire scene into one file). Shows post-export size, triangle count, and serialization time.
+- **Direct R2 upload from the viewer.** `Convert → GLB → Upload` in the Inspector mints a presigned PUT URL (`cf:r2SignedUpload`) using the existing R2 credentials in the Windows Credential Vault, PUTs the GLB straight to the bucket under a configurable prefix, then resolves the public CDN URL via `cf:r2PublicUrl` and copies it to the clipboard.
+- **Windows file associations.** `electron-builder.yml` now registers `Grudge Dev Tool` as a Windows Open-With handler for `.glb` / `.gltf` / `.fbx` / `.obj` / `.stl` / `.ply` / `.dae` / `.3mf`. The user can right-click any model in Explorer → Open With → Grudge Dev Tool, or set us as the *default* 3D viewer for any of those extensions in the OS settings.
+- **CLI / argv handling for cold-start file open.** `src/main/forge.ts` captures the model path from `process.argv` at boot (Explorer double-click) and from `app.on("second-instance")` (drag onto the running app icon). The renderer pulls the path through `forge:consumeInitialFile` on first mount, calls `forge:readFile` to get bytes via Node `fs.promises`, and the file is loaded into the Forge viewport — no temp files, no protocol handlers needed. The main process also auto-navigates to `/forge` when an open-file is delivered.
+- **New IPC surface:** `cf.r2SignedUpload`, `cf.r2SignedDownload`, `cf.r2List`, `cf.r2Head`, `cf.r2PublicUrl` and the entire `forge.*` namespace (`consumeInitialFile`, `readFile`, `onOpenFile`).
+
+### Changed
+- **CSP** now allows `blob:` workers / scripts / connect (required by Three.js loaders that internally spin up workers, and by `URL.createObjectURL` for in-memory model bytes). Added `media-src 'self' data: blob:` and `worker-src 'self' blob:`.
+- **Sidebar nav** grew an 8th entry: `Forge 3D` (hammer icon) sits between BlenderKit and Docs.
+- **Production wiring aligned to canonical `Grudge-Warlords/grudge-studio-backend`.** That repo is now the single source of truth for Grudge Studio identity, game APIs, asset service, and Cloudflare/Puter integration; the previous PostgreSQL/Drizzle prototype is retired (server-side DB is **MySQL 8 + Redis 7**, never Postgres). The dev tool is a desktop client and does not embed any DB credentials — it talks HTTP only.
+- **Asset-service base URL.** The canonical backend routes `upload-url`, `manifest`, `asset-meta`, listing, and search to a separate `assets-api.grudge-studio.com` (asset-service, port 3008) rather than the game-api at `api.grudge-studio.com`. Added `getAssetsApiBaseUrl()` / `setAssetsApiBaseUrl()` and a `GRUDGE_ASSETS_API_BASE` override (env var + keytar account `default.assetsApiBaseUrl`). All `/api/objectstore/*` calls now route through `authedFetchAssets` instead of `authedFetch`. Default = `https://assets-api.grudge-studio.com`.
+- **Public CDN fallback.** `r2PublicUrl()` now always returns a URL (was nullable) — falls back to `process.env.OBJECT_STORAGE_PUBLIC_URL` then `https://assets.grudge-studio.com` (the canonical Cloudflare Worker fronting the `grudge-assets` R2 bucket). Forge3D's "Convert → GLB → Upload" toast now always shows a clickable Public URL after a fresh install, even before the user configures a CNAME.
+- **`.env.example` documents the canonical R2 block** (`OBJECT_STORAGE_ENDPOINT`, `_BUCKET`, `_KEY`, `_SECRET`, `_REGION=auto`, `_PUBLIC_URL=https://assets.grudge-studio.com`, `_PUBLIC_R2_URL`) so the team can paste their backend `.env` block and run `npm run secret:import` to ingest into Windows Credential Vault.
+- `scripts/import-secrets.mjs` and `scripts/set-secret.mjs` map `GRUDGE_ASSETS_API_BASE` → keytar `default.assetsApiBaseUrl`.
+
 ## [0.2.0] — 2026-04-26
 
 ### Changed

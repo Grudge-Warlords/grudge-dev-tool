@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/license-internal-lightgrey.svg)](#license)
 [![Electron](https://img.shields.io/badge/electron-30.x-47848f.svg)](https://www.electronjs.org/)
 
-A Windows tray application for the Grudge Studio team. Browse object storage, search the asset catalog, mass-upload through a mandatory ingestion pipeline, generate Grudge UUIDs, and pull from BlenderKit — all from a single tray icon plus a small always-on-top **GrudgeLoader** overlay.
+A Windows tray application for the Grudge Studio team. Browse object storage, search the asset catalog, mass-upload through a mandatory ingestion pipeline, generate Grudge UUIDs, pull from BlenderKit, and **author / preview / convert / upload 3D models** with the built-in **Forge 3D** editor — all from a single tray icon plus a small always-on-top **GrudgeLoader** overlay. Also doubles as a Windows default 3D viewer for `.glb` / `.gltf` / `.fbx` / `.obj` / `.stl` / `.ply` / `.dae` / `.3mf`.
 
 > **Status:** v0.1.x · pre-release · Windows x64 · unsigned NSIS installer
 
@@ -22,7 +22,8 @@ A Windows tray application for the Grudge Studio team. Browse object storage, se
 | Surface | What it does |
 |---|---|
 | **Tray icon** | Gold-helm emblem in the Windows notification area. Left-click → toggles GrudgeLoader. Double-click → opens main window. Right-click → full menu. |
-| **Main window** | 8 pages — Browser · Search · Upload · Request URL · UUID · BlenderKit Library · Docs · Settings — with bottom status bar showing live API connectivity, log link, and update progress. |
+| **Main window** | 9 pages — Browser · Search · Upload · Request URL · UUID · BlenderKit Library · **Forge 3D** · Docs · Settings — with bottom status bar showing live API connectivity, log link, and update progress. |
+| **Forge 3D** | Built-in Three.js editor + viewer for `.glb`, `.gltf`, `.fbx`, `.obj`, `.stl`, `.ply`, `.dae`, `.3mf`. Drag-drop a file, the GLB binary container is decoded (magic, version, chunk sizes, extensions, generator), the model is loaded with full PBR / IBL / shadow-mapped key + cool fill, transform gizmo (W/E/R), animation clips with Play/Pause/Stop, scene-tree hierarchy, screenshot, and one-click `Convert → GLB → Upload to R2` that mints a presigned PUT and copies the public CDN URL to the clipboard. Registered with Windows as a default opener for those extensions, so right-click → Open With → Grudge Dev Tool just works. |
 | **GrudgeLoader** | Frameless 360 × 520 always-on-top mini-overlay. Pinned folders, prefix browse with thumbnails, drag-drop bulk upload, **per-asset copy buttons** (path / cdn URL / `curl` / `wget` / Node `assetUrl()` snippet). |
 | **Ingestion pipeline** | Mandatory for every uploaded file: `size-verify → convert → enrich → rig → hash → UUID → upload → manifest`. Shared between the tray-app Upload page and the `upload-asset-pack` CLI. |
 | **BlenderKit** | Local daemon HTTP integration for asset search/download; in-Blender Python scripts for autothumb + scene enrichment. Uses your existing on-disk install (`F:\blenderkit-v3.19.2.260411\` by default). License-clean — addon files are never bundled. |
