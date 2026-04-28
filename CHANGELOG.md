@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-04-28
+
+### Changed
+- Manual release.
+
 ### Added
 - **Forge 3D editor + Windows 3D viewer.** New `Forge 3D` page mounted at `/forge` in the sidebar. Built on Three.js (no React-Three-Fiber dependency — keeps React 18 compatibility) with full-fat studio lighting (warm key + cool fill + IBL via `RoomEnvironment`), shadow-mapped directional key, OrbitControls, TransformControls (translate / rotate / scale), grid + axes helpers, ACES Filmic tone mapping, sRGB color space.
 - **Multi-format model loaders:** GLB, glTF, OBJ, FBX, STL, PLY (mesh + point cloud), DAE (Collada), 3MF. Drag-drop a file anywhere on the window or click `Open`. Each file is parsed, framed, and added to the scene hierarchy with triangle / vertex / bone counts and (for GLB) full binary container inspection (magic, version, JSON & BIN chunk sizes, used extensions including Draco / Meshopt / KHR_texture_basisu, generator string).
@@ -118,3 +123,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [0.1.8]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.8
 [0.1.9]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.9
 [0.2.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.2.0
+[0.3.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.0
