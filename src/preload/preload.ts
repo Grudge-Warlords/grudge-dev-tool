@@ -5,6 +5,7 @@ const api = {
   settings: {
     get: () => ipcRenderer.invoke("settings:get"),
     setApiBase: (url: string) => ipcRenderer.invoke("settings:setApiBase", url),
+    setAssetsApiBase: (url: string) => ipcRenderer.invoke("settings:setAssetsApiBase", url),
     setToken: (token: string) => ipcRenderer.invoke("settings:setToken", token),
     clearToken: () => ipcRenderer.invoke("settings:clearToken"),
     setBlenderKitKey: (key: string) => ipcRenderer.invoke("settings:setBlenderKitKey", key),

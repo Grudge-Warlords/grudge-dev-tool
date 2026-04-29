@@ -10,6 +10,7 @@ export default function Settings() {
   const [token, setToken] = useState("");
   const [bkKey, setBkKey] = useState("");
   const [apiBase, setApiBase] = useState("");
+  const [assetsApiBase, setAssetsApiBase] = useState("");
   const [conn, setConn] = useState<any>(null);
   const [autoLaunch, setAutoLaunch] = useState(false);
 
@@ -25,6 +26,7 @@ export default function Settings() {
     const d = await window.grudge.settings.get();
     setData(d);
     setApiBase(d.apiBaseUrl);
+    setAssetsApiBase(d.assetsApiBaseUrl ?? "");
     const t = await window.grudge.settings.toolchain();
     setTools(t);
     try { setConn(await window.grudge.connectivity?.get?.()); } catch { /* */ }
@@ -97,6 +99,10 @@ export default function Settings() {
     await window.grudge.settings.setApiBase(apiBase);
     reload();
   }
+  async function saveAssetsApiBase() {
+    await window.grudge.settings.setAssetsApiBase(assetsApiBase);
+    reload();
+  }
   async function saveToken() {
     if (!token) return;
     await window.grudge.settings.setToken(token);
@@ -149,10 +155,20 @@ export default function Settings() {
           </>
         )}
         <div style={{ marginTop: 12 }}>
-          <label className="muted text-xs flex items-center gap-1"><KeyRound size={12} /> Grudge backend API base (optional override)</label>
+          <label className="muted text-xs flex items-center gap-1"><KeyRound size={12} /> game-api base URL (optional override)</label>
           <div className="row" style={{ marginTop: 4 }}>
-            <input value={apiBase} onChange={(e) => setApiBase(e.target.value)} />
+            <input value={apiBase} onChange={(e) => setApiBase(e.target.value)} placeholder="https://api.grudge-studio.com" />
             <button className="btn ghost" onClick={saveApiBase}>Save</button>
+          </div>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <label className="muted text-xs flex items-center gap-1"><KeyRound size={12} /> asset-service base URL (optional override)</label>
+          <div className="row" style={{ marginTop: 4 }}>
+            <input value={assetsApiBase} onChange={(e) => setAssetsApiBase(e.target.value)} placeholder="https://assets-api.grudge-studio.com" />
+            <button className="btn ghost" onClick={saveAssetsApiBase}>Save</button>
+          </div>
+          <div className="muted text-[10px] mt-1">
+            Single-domain dev installs that proxy /api/objectstore/* through game-api can point this at the same value.
           </div>
         </div>
       </div>
@@ -175,13 +191,24 @@ export default function Settings() {
         </h3>
         <table>
           <tbody>
-            <tr><td className="muted">API base</td><td className="font-mono">{conn?.apiBaseUrl ?? "—"}</td></tr>
+            <tr><td className="muted">game-api</td><td className="font-mono">{conn?.apiBaseUrl ?? "—"}</td></tr>
             <tr>
               <td className="muted">Reachable</td>
               <td className={conn?.reachable ? "status-ok" : "status-bad"}>
                 {conn?.reachable ? `yes · ${conn.latencyMs ?? 0}ms` : `no${conn?.error ? ` · ${conn.error}` : ""}`}
               </td>
             </tr>
+            {conn?.assets && (
+              <>
+                <tr><td className="muted">asset-service</td><td className="font-mono">{conn.assets.apiBaseUrl}</td></tr>
+                <tr>
+                  <td className="muted">Reachable</td>
+                  <td className={conn.assets.reachable ? "status-ok" : "status-bad"}>
+                    {conn.assets.reachable ? `yes · ${conn.assets.latencyMs ?? 0}ms` : `no${conn.assets.error ? ` · ${conn.assets.error}` : ""}`}
+                  </td>
+                </tr>
+              </>
+            )}
             <tr><td className="muted">OS network</td><td>{conn?.online ? "online" : "offline"}</td></tr>
             <tr><td className="muted">Last checked</td><td className="muted">{conn?.lastCheckedAt ? new Date(conn.lastCheckedAt).toLocaleTimeString() : "—"}</td></tr>
           </tbody>

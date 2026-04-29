@@ -4,6 +4,20 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Added
+- **Settings: asset-service base URL input** (REVIEW.md F1). New input row in the Grudge identity card lets you point the dev tool at any `assets-api.*` host. Backed by `settings:setAssetsApiBase` IPC + `settings:get` now returns `assetsApiBaseUrl`. Single-domain dev installs that proxy `/api/objectstore/*` through game-api can paste their game-api URL here.
+- **Connectivity probes both services** (REVIEW.md F2). When the resolved backend is `grudge`, the 30-second tick now probes `api.grudge-studio.com/api/health` AND `assets-api.grudge-studio.com/api/health` in parallel. Overall `reachable` is the AND; the Settings Diagnostics card shows both rows separately. Status bar no longer lies green when game-api is up but asset-service is down.
+
+### Changed
+- **Renderer no longer hardcodes the public CDN host** (REVIEW.md F3). `LoaderApp.tsx` and `Browser.tsx` now resolve the CDN base once on mount via `cf.r2PublicUrl("")` and cache it; URL templates are rebuilt against the resolved value. A private deploy pointing at a different domain Just Works without a code change.
+- **Docs link fixed** (REVIEW.md F4). The Docs page now links to the actual published Jekyll site (`https://grudge-warlords.github.io/grudge-dev-tool/`) instead of the placeholder `docs.grudge-studio.com/dev-tool` subdomain that was never deployed.
+- **AI Gateway model defaults are env-overridable** (REVIEW.md F6). `workersAiChat` reads `CF_AI_DEFAULT_MODEL`, `workersAiCaption` reads `CF_AI_VISION_MODEL`, both before falling back to the documented Workers AI defaults. Per-call `opts.model` still wins.
+- **BlenderKit `apiPrefix()` derives from the addon manifest** (REVIEW.md F7). The hardcoded `"v1.8"` constant is replaced with a function that reads `blender_manifest.toml` (already cached by `readAddonVersion`), strips to `v<major>.<minor>`, and falls back to `v1.8` only when manifest read fails. All four call sites updated.
+- **LoaderApp default pinned shortcuts** (REVIEW.md F8). Dropped the version-specific `asset-packs/classic64/v0.6/` pin so first-run users without that pack don't see a broken shortcut. Defaults are now `asset-packs/`, `user-uploads/`, `shared/` — prefixes that exist for every tenant.
+
+### Removed
+- **`node-fetch` runtime dependency** (REVIEW.md F5). Node 20 (Electron 41 baseline) has global `fetch`; we never imported `node-fetch` from any source file. Removed from `package.json`; reinstall removed 6 transitive packages from the lock file.
+
 ## [0.3.2] — 2026-04-29
 
 ### Changed

@@ -63,7 +63,9 @@ export async function workersAiChat(opts: {
   temperature?: number;
   stream?: false;  // streaming not exposed yet
 }): Promise<{ result: { response: string }; success: boolean }> {
-  const model = opts.model ?? "@cf/meta/llama-3.1-8b-instruct";
+  // Default model can be overridden via env var so the dev tool tracks
+  // upstream Workers AI rotation without a code release.
+  const model = opts.model ?? process.env.CF_AI_DEFAULT_MODEL ?? "@cf/meta/llama-3.1-8b-instruct";
   return aiGatewayProxy({
     provider: "workers-ai",
     path: model,
@@ -78,7 +80,8 @@ export async function workersAiChat(opts: {
 
 /** Convenience: Workers AI image-to-text (captioning). Useful for asset auto-tagging. */
 export async function workersAiCaption(opts: { imageBytes: Uint8Array | number[]; model?: string }): Promise<{ result: { description: string }; success: boolean }> {
-  const model = opts.model ?? "@cf/llava-hf/llava-1.5-7b-hf";
+  // Vision model is env-overridable for the same reason as the chat model above.
+  const model = opts.model ?? process.env.CF_AI_VISION_MODEL ?? "@cf/llava-hf/llava-1.5-7b-hf";
   const arr = opts.imageBytes instanceof Uint8Array ? Array.from(opts.imageBytes) : opts.imageBytes;
   return aiGatewayProxy({
     provider: "workers-ai",

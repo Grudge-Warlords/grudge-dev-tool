@@ -226,11 +226,13 @@ function registerIpc() {
   // Settings
   ipcMain.handle("settings:get", async () => ({
     apiBaseUrl: await api.getApiBaseUrl(),
+    assetsApiBaseUrl: await api.getAssetsApiBaseUrl(),
     cdnBaseUrl: "https://assets.grudge-studio.com",
     hasToken: Boolean(await api.getToken()),
     hasBlenderKitKey: Boolean(await bk.getApiKey()),
   }));
   ipcMain.handle("settings:setApiBase", (_e, url: string) => api.setApiBaseUrl(url));
+  ipcMain.handle("settings:setAssetsApiBase", (_e, url: string) => api.setAssetsApiBaseUrl(url));
   ipcMain.handle("settings:setToken", (_e, token: string) => api.setToken(token));
   ipcMain.handle("settings:clearToken", () => api.clearToken());
   ipcMain.handle("settings:setBlenderKitKey", (_e, key: string) => bk.setApiKey(key));

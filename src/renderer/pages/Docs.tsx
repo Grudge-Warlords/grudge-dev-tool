@@ -23,8 +23,12 @@ export default function Docs() {
       <div className="card">
         <p className="muted">
           Tip: open the file directly in your editor — they are plain Markdown so they
-          render in any IDE preview. Online copies will be mirrored at
-          <span className="kbd"> https://docs.grudge-studio.com/dev-tool</span>.
+          render in any IDE preview. The published Jekyll site lives at
+          {" "}<a
+            href="#"
+            onClick={(e) => { e.preventDefault(); window.grudge?.os?.openExternal?.("https://grudge-warlords.github.io/grudge-dev-tool/"); }}
+            className="text-gold"
+          >grudge-warlords.github.io/grudge-dev-tool</a>.
         </p>
       </div>
     </div>

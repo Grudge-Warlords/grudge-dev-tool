@@ -20,9 +20,19 @@ import { detectBlenderKit } from "../ingestion/toolchain";
 
 // Same defaults BlenderKit uses; first one is the canonical port.
 const DEFAULT_PORTS = ["62485", "65425", "55428", "49452", "35452", "25152", "5152", "1234"];
-// API path prefix; client_lib.get_api_version() drops the trailing patch.
-// 1.8.x → "v1.8". Hardcoded for the bundled version we detected.
-const API_PREFIX = "v1.8";
+
+// API path prefix; client_lib.get_api_version() drops the trailing patch (1.8.x → "v1.8").
+// Derived from the on-disk addon manifest so we track BlenderKit upgrades
+// automatically; falls back to v1.8 when the manifest read fails.
+const FALLBACK_API_PREFIX = "v1.8";
+function apiPrefix(): string {
+  const v = readAddonVersion();
+  if (v && v !== "unknown") {
+    const m = v.match(/^(\d+)\.(\d+)/);
+    if (m) return `v${m[1]}.${m[2]}`;
+  }
+  return FALLBACK_API_PREFIX;
+}
 
 const SERVICE = "grudge-dev-tool";
 const KEY_NAME = "blenderkit-api-key";
@@ -94,7 +104,7 @@ function findDaemonBinary(): string | null {
 
 async function isDaemonOn(port: string): Promise<boolean> {
   try {
-    const resp = await fetch(`http://127.0.0.1:${port}/${API_PREFIX}/report`, {
+    const resp = await fetch(`http://127.0.0.1:${port}/${apiPrefix()}/report`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       signal: AbortSignal.timeout(400),
@@ -172,7 +182,7 @@ async function postDaemon<T>(endpoint: string, payload: BkRequestBase & Record<s
     ...payload,
   };
 
-  const url = `http://127.0.0.1:${ready.port}/${API_PREFIX}${endpoint}`;
+  const url = `http://127.0.0.1:${ready.port}/${apiPrefix()}${endpoint}`;
   const resp = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -243,7 +253,7 @@ export async function getReport(): Promise<any> {
   const ready = await ensureDaemon();
   if (!ready) throw new Error("daemon not available");
   const apiKey = await getApiKey();
-  const resp = await fetch(`http://127.0.0.1:${ready.port}/${API_PREFIX}/report`, {
+  const resp = await fetch(`http://127.0.0.1:${ready.port}/${apiPrefix()}/report`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ app_id: process.pid, api_key: apiKey || "" }),

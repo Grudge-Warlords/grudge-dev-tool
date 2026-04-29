@@ -1,5 +1,5 @@
 import { BrowserWindow, net } from "electron";
-import { getApiBaseUrl, getBackendMode, resolveBackend } from "./api";
+import { getApiBaseUrl, getAssetsApiBaseUrl, resolveBackend } from "./api";
 import { readCf } from "./cf/credentials";
 import { r2Health } from "./cf/r2Direct";
 
@@ -11,6 +11,21 @@ export interface ConnectivityState {
   latencyMs: number | null;
   status: number | null;
   error: string | null;
+  /**
+   * Asset-service health when the resolved backend is `grudge`. The dev tool
+   * routes object-storage calls (list / search / upload-url / manifest /
+   * asset-meta) to assets-api.grudge-studio.com (port 3008 in the canonical
+   * backend), so the bottom status bar lying about overall reachability when
+   * game-api is up but asset-service is down was a real risk. Optional so
+   * R2-direct and worker modes can leave it null.
+   */
+  assets?: {
+    apiBaseUrl: string;
+    reachable: boolean;
+    latencyMs: number | null;
+    status: number | null;
+    error: string | null;
+  } | null;
 }
 
 let timer: NodeJS.Timeout | null = null;
@@ -22,6 +37,7 @@ let last: ConnectivityState = {
   latencyMs: null,
   status: null,
   error: null,
+  assets: null,
 };
 
 function probe(url: string, timeoutMs = 4000): Promise<{ ok: boolean; status: number | null; latencyMs: number; error: string | null }> {
@@ -67,6 +83,7 @@ async function tick(broadcast: (s: ConnectivityState) => void) {
         latencyMs: r.latencyMs,
         status: r.ok ? 200 : null,
         error: r.error,
+        assets: null,
       };
       broadcast(last);
       return;
@@ -83,15 +100,35 @@ async function tick(broadcast: (s: ConnectivityState) => void) {
       probeUrl = `${apiBase.replace(/\/$/, "")}/api/health`;
     }
 
-    const r = await probe(probeUrl);
+    // When backend is `grudge`, also probe the asset-service so the status
+    // bar can distinguish "game-api up, asset-service down" (where uploads
+    // would still fail despite a green dot for game-api).
+    const probeAssets = backend === "grudge";
+    const assetsBase = probeAssets ? (await getAssetsApiBaseUrl()).replace(/\/$/, "") : null;
+    const [gameProbe, assetsProbe] = await Promise.all([
+      probe(probeUrl),
+      probeAssets && assetsBase ? probe(`${assetsBase}/api/health`) : Promise.resolve(null),
+    ]);
+
     last = {
-      reachable: r.ok,
+      reachable: gameProbe.ok && (assetsProbe == null || assetsProbe.ok),
       online: net.isOnline(),
       apiBaseUrl: apiBase,
       lastCheckedAt: Date.now(),
-      latencyMs: r.latencyMs,
-      status: r.status,
-      error: r.error,
+      latencyMs: gameProbe.latencyMs,
+      status: gameProbe.status,
+      error: gameProbe.ok
+        ? (assetsProbe && !assetsProbe.ok ? `assets-api: ${assetsProbe.error}` : null)
+        : gameProbe.error,
+      assets: assetsProbe && assetsBase
+        ? {
+            apiBaseUrl: assetsBase,
+            reachable: assetsProbe.ok,
+            latencyMs: assetsProbe.latencyMs,
+            status: assetsProbe.status,
+            error: assetsProbe.error,
+          }
+        : null,
     };
     broadcast(last);
   } catch (err: any) {

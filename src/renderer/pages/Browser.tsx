@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -133,7 +133,19 @@ export default function Browser() {
     return files.filter((it) => it.name.toLowerCase().includes(f));
   }, [files, filter, isServerSearch]);
 
-  const cdnUrl = (path: string) => `https://assets.grudge-studio.com/${path}`;
+  // CDN base resolved at runtime via cf.r2PublicUrl("") so a private deploy
+  // pointing at a different domain Just Works. Defaults to the canonical
+  // assets.grudge-studio.com until the IPC resolves.
+  const [cdnBase, setCdnBase] = useState("https://assets.grudge-studio.com");
+  useEffect(() => {
+    (async () => {
+      try {
+        const url: string = await (window as any).grudge?.cf?.r2PublicUrl?.("");
+        if (url) setCdnBase(url.replace(/\/$/, ""));
+      } catch { /* keep default */ }
+    })();
+  }, []);
+  const cdnUrl = (path: string) => `${cdnBase}/${path}`;
   const copy = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => toast.success(`Copied ${label}`));
   };

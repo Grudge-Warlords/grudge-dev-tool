@@ -7,21 +7,27 @@ declare global { interface Window { grudge: any } }
 
 type Tab = "pinned" | "browse" | "upload";
 
+// Pinned defaults that always exist for any tenant: top-level prefixes only.
+// Removed the version-specific `asset-packs/classic64/v0.6/` shortcut
+// — first-run users without that pack saw "Empty." with no recourse.
 const DEFAULT_PINNED = [
   "asset-packs/",
-  "asset-packs/classic64/v0.6/",
   "user-uploads/",
   "shared/",
 ];
 
-const CMD_FORMATS = [
-  { id: "path",   label: "path",   tpl: (p: string) => p },
-  { id: "cdn",    label: "cdn",    tpl: (p: string) => `https://assets.grudge-studio.com/${p}` },
-  { id: "curl",   label: "curl",   tpl: (p: string) => `curl -L https://assets.grudge-studio.com/${p} -O` },
-  { id: "wget",   label: "wget",   tpl: (p: string) => `wget https://assets.grudge-studio.com/${p}` },
-  { id: "node",   label: "node",   tpl: (p: string) => `assetUrl(\"${p.startsWith("/") ? p : "/" + p}\")` },
-] as const;
-type CmdFormat = (typeof CMD_FORMATS)[number]["id"];
+/** Build the CMD_FORMATS table given the runtime-resolved CDN base. */
+function buildCmdFormats(cdnBase: string) {
+  const base = cdnBase.replace(/\/$/, "");
+  return [
+    { id: "path", label: "path", tpl: (p: string) => p },
+    { id: "cdn",  label: "cdn",  tpl: (p: string) => `${base}/${p}` },
+    { id: "curl", label: "curl", tpl: (p: string) => `curl -L ${base}/${p} -O` },
+    { id: "wget", label: "wget", tpl: (p: string) => `wget ${base}/${p}` },
+    { id: "node", label: "node", tpl: (p: string) => `assetUrl(\"${p.startsWith("/") ? p : "/" + p}\")` },
+  ] as const;
+}
+type CmdFormat = "path" | "cdn" | "curl" | "wget" | "node";
 
 interface UploadStatus {
   filePath: string;
@@ -38,6 +44,11 @@ export default function LoaderApp() {
   const [filter, setFilter] = useState("");
   const [cmdFormat, setCmdFormat] = useState<CmdFormat>("curl");
   const [pinned, setPinned] = useState<string[]>(DEFAULT_PINNED);
+  // Resolved at runtime via the cf.r2PublicUrl IPC (canonical CDN base, defaults
+  // to https://assets.grudge-studio.com when no override is configured). Cached
+  // once on mount so we don't IPC-round-trip per row.
+  const [cdnBase, setCdnBase] = useState("https://assets.grudge-studio.com");
+  const cmdFormatsList = useMemo(() => buildCmdFormats(cdnBase), [cdnBase]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -64,6 +75,16 @@ export default function LoaderApp() {
       setUploadQueue((q) => ({ ...q, [p.filePath]: p }));
     });
     return () => off?.();
+  }, []);
+
+  // Resolve the CDN base once on mount via the canonical IPC.
+  useEffect(() => {
+    (async () => {
+      try {
+        const url: string = await window.grudge?.cf?.r2PublicUrl?.("");
+        if (url) setCdnBase(url.replace(/\/$/, ""));
+      } catch { /* keep default */ }
+    })();
   }, []);
 
   async function browse(p: string) {
@@ -169,7 +190,7 @@ export default function LoaderApp() {
             <input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="prefix" />
             <button onClick={() => browse(prefix)}>Go</button>
             <select value={cmdFormat} onChange={(e) => setCmdFormat(e.target.value as CmdFormat)}>
-              {CMD_FORMATS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+              {cmdFormatsList.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
           </div>
           <input
@@ -182,10 +203,10 @@ export default function LoaderApp() {
           {error && <div className="status-bad small">{error}</div>}
           <div className="loader-list">
             {filtered.map((it: any) => {
-              const fmt = CMD_FORMATS.find((c) => c.id === cmdFormat)!;
+              const fmt = cmdFormatsList.find((c) => c.id === cmdFormat)!;
               const cmd = fmt.tpl(it.name);
               const isImg = (it.contentType || "").startsWith("image/");
-              const cdnThumb = `https://assets.grudge-studio.com/${it.name}`;
+              const cdnThumb = `${cdnBase}/${it.name}`;
               return (
                 <div className="loader-asset" key={it.name}>
                   <div className="loader-asset-thumb">
