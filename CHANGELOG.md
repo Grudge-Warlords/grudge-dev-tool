@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.3.3] — 2026-04-29
+
+### Changed
+- Hygiene pass resolving all 8 REVIEW.md audit findings (F1-F8): Settings exposes asset-service URL, connectivity probes both services, renderer uses cf.r2PublicUrl IPC instead of hardcoded CDN host, Docs link fixed, node-fetch dropped, AI Gateway models env-overridable, BlenderKit apiPrefix derived from manifest, LoaderApp default pins simplified. Auto-update delivers within 4h.
+
 ### Added
 - **Settings: asset-service base URL input** (REVIEW.md F1). New input row in the Grudge identity card lets you point the dev tool at any `assets-api.*` host. Backed by `settings:setAssetsApiBase` IPC + `settings:get` now returns `assetsApiBaseUrl`. Single-domain dev installs that proxy `/api/objectstore/*` through game-api can paste their game-api URL here.
 - **Connectivity probes both services** (REVIEW.md F2). When the resolved backend is `grudge`, the 30-second tick now probes `api.grudge-studio.com/api/health` AND `assets-api.grudge-studio.com/api/health` in parallel. Overall `reachable` is the AND; the Settings Diagnostics card shows both rows separately. Status bar no longer lies green when game-api is up but asset-service is down.
@@ -156,3 +161,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [0.3.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.0
 [0.3.1]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.1
 [0.3.2]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.2
+[0.3.3]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.3
