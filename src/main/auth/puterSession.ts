@@ -1,7 +1,7 @@
-import keytar from "keytar";
 import { createHash } from "node:crypto";
+import log from "../logger";
+import { setSecret, getSecret, deleteSecret } from "./secretStore";
 
-const SERVICE = "grudge-dev-tool";
 const ACCOUNT_TOKEN = "puter-token";
 const ACCOUNT_USER  = "puter-user";   // JSON stringified
 const ACCOUNT_GID   = "grudge-id";
@@ -32,8 +32,10 @@ export function deriveGrudgeId(puterUuid: string, firstSeenAtMs: number): string
 }
 
 export async function setSession(puterToken: string, user: PuterUser): Promise<{ grudgeId: string }> {
+  log.info(`[auth] setSession: tokenChars=${puterToken.length} userUuid=${user.uuid} username=${user.username}`);
+
   // Reuse existing Grudge ID if one was minted before for this user.
-  const existingRaw = await keytar.getPassword(SERVICE, ACCOUNT_GID);
+  const existingRaw = await getSecret(ACCOUNT_GID);
   let grudgeId: string;
   if (existingRaw) {
     try {
@@ -46,16 +48,22 @@ export async function setSession(puterToken: string, user: PuterUser): Promise<{
     grudgeId = deriveGrudgeId(user.uuid, Date.now());
   }
 
-  await keytar.setPassword(SERVICE, ACCOUNT_TOKEN, puterToken);
-  await keytar.setPassword(SERVICE, ACCOUNT_USER,  JSON.stringify(user));
-  await keytar.setPassword(SERVICE, ACCOUNT_GID,   JSON.stringify({ grudgeId, puterUuid: user.uuid, firstSeenAt: Date.now() }));
+  // Use the hybrid secret store — keytar first, with safeStorage-encrypted
+  // file fallback for values that exceed the Win32 Credential Manager 2.5 KB
+  // limit. Modern Puter tokens are JWTs that routinely exceed that, which is
+  // what was producing the "The stub received bad data" sign-in failure on
+  // v0.3.0 and earlier.
+  const tokenStore = await setSecret(ACCOUNT_TOKEN, puterToken);
+  const userStore  = await setSecret(ACCOUNT_USER,  JSON.stringify(user));
+  const gidStore   = await setSecret(ACCOUNT_GID,   JSON.stringify({ grudgeId, puterUuid: user.uuid, firstSeenAt: Date.now() }));
+  log.info(`[auth] setSession persisted: token=${tokenStore.via} user=${userStore.via} gid=${gidStore.via}`);
   return { grudgeId };
 }
 
 export async function getSession(): Promise<GrudgeSession> {
-  const token = await keytar.getPassword(SERVICE, ACCOUNT_TOKEN);
-  const userRaw = await keytar.getPassword(SERVICE, ACCOUNT_USER);
-  const gidRaw  = await keytar.getPassword(SERVICE, ACCOUNT_GID);
+  const token = await getSecret(ACCOUNT_TOKEN);
+  const userRaw = await getSecret(ACCOUNT_USER);
+  const gidRaw  = await getSecret(ACCOUNT_GID);
   if (!token || !userRaw) {
     return { signedIn: false, grudgeId: null, puterUser: null, hasToken: false };
   }
@@ -67,17 +75,17 @@ export async function getSession(): Promise<GrudgeSession> {
 }
 
 export async function getPuterToken(): Promise<string | null> {
-  return keytar.getPassword(SERVICE, ACCOUNT_TOKEN);
+  return getSecret(ACCOUNT_TOKEN);
 }
 
 export async function clearSession(): Promise<void> {
-  await keytar.deletePassword(SERVICE, ACCOUNT_TOKEN);
-  await keytar.deletePassword(SERVICE, ACCOUNT_USER);
+  await deleteSecret(ACCOUNT_TOKEN);
+  await deleteSecret(ACCOUNT_USER);
   // Keep the Grudge ID across sign-outs so the user can sign back in and
   // recover the same identity. Pass `wipeIdentity=true` to nuke it.
 }
 
 export async function wipeIdentity(): Promise<void> {
   await clearSession();
-  await keytar.deletePassword(SERVICE, ACCOUNT_GID);
+  await deleteSecret(ACCOUNT_GID);
 }
