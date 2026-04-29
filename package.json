@@ -1,6 +1,6 @@
 {
   "name": "grudge-dev-tool",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Grudge Studio dev tool — Windows tray app for object-storage browse / search / upload / request and Grudge UUID utilities.",
   "private": true,
   "main": "dist/main/main.js",

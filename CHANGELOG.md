@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-04-29
+
+### Changed
+- Fix sign-in failure: 'The stub received bad data.' Modern Puter JWT tokens exceed Win32 Credential Manager's 2.5 KB blob limit; auth now falls back to Electron safeStorage (DPAPI) for oversized secrets. Existing v0.3.0 installs auto-update within 4h.
+
 ### Fixed
 - **Sign-in failure: "The stub received bad data."** Modern Puter tokens are signed JWTs that exceed the ~2.5 KB credential-blob size limit imposed by the Win32 Credential Manager (`RPC_X_BAD_STUB_DATA / 0x800706F7`), which `keytar.setPassword` would surface as exactly that error message. `auth:puterLogin` now goes through a new hybrid `secretStore` (`src/main/auth/secretStore.ts`) that tries keytar first and falls back to an Electron `safeStorage`-encrypted file under `%APPDATA%\Grudge Dev Tool\secrets\<account>.bin` (DPAPI-bound to the OS user) when keytar refuses the write. Reads check keytar first for back-compat with v0.3.0 installs that wrote small values, then the file. `puterSession.setSession` / `getSession` / `getPuterToken` / `clearSession` / `wipeIdentity` all use the hybrid store now, and a one-shot log line records whether the token landed in keytar or safeStorage so we can confirm the diagnosis on future support requests.
 
@@ -127,3 +132,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [0.1.9]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.9
 [0.2.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.2.0
 [0.3.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.0
+[0.3.1]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.1
