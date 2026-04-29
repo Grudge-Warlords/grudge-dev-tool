@@ -22,6 +22,13 @@ export class SceneEngine {
   readonly renderer: THREE.WebGLRenderer;
   readonly controls: OrbitControls;
   readonly transform: TransformControls;
+  /**
+   * Three.js r169 split TransformControls: the controller no longer IS an
+   * Object3D, it owns one (`getHelper()`). The visual gizmo lives on this
+   * helper; we add it to the scene instead of the controller itself.
+   * Keeping the helper as a separate field so `dispose()` can remove it.
+   */
+  private readonly transformHelper: THREE.Object3D;
   readonly clock = new THREE.Clock();
   readonly mixers: THREE.AnimationMixer[] = [];
 
@@ -96,7 +103,16 @@ export class SceneEngine {
     this.transform.addEventListener("dragging-changed", (e: any) => {
       this.controls.enabled = !e.value;
     });
-    this.scene.add(this.transform as unknown as THREE.Object3D);
+    // r169+: TransformControls is NOT an Object3D — add its helper instead.
+    // Older code paths that did `scene.add(transformControls)` would land a
+    // non-Object3D in scene.children, so any later scene.traverse() / Box3.
+    // setFromObject() crashed with "this.traverse is not a function".
+    // getHelper() returns the actual visual gizmo (Object3D) we want rendered.
+    const getHelper = (this.transform as unknown as { getHelper?: () => THREE.Object3D }).getHelper;
+    this.transformHelper = typeof getHelper === "function"
+      ? getHelper.call(this.transform)
+      : (this.transform as unknown as THREE.Object3D); // legacy fallback for pre-r169 stubs
+    this.scene.add(this.transformHelper);
 
     if (typeof ResizeObserver !== "undefined") {
       this.resizeObserver = new ResizeObserver(() => this.onResize());
@@ -190,7 +206,17 @@ export class SceneEngine {
     cancelAnimationFrame(this.rafHandle);
     this.resizeObserver?.disconnect();
     window.removeEventListener("resize", this.onResize);
-    this.transform.dispose();
+    // Detach + remove the helper BEFORE traversing the scene, so the
+    // graph contains only Object3D nodes when we walk it for resource
+    // cleanup.
+    try { this.transform.detach(); } catch { /* ignore */ }
+    try {
+      const removeHelper = (this.transform as unknown as { dispose?: () => void; getHelper?: () => THREE.Object3D });
+      if (this.transformHelper.parent) {
+        this.transformHelper.parent.remove(this.transformHelper);
+      }
+      removeHelper.dispose?.();
+    } catch { /* ignore */ }
     this.controls.dispose();
     this.scene.traverse((node) => {
       const m = node as THREE.Mesh;

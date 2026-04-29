@@ -4,6 +4,9 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Fixed
+- **Forge 3D render crash: `this.traverse is not a function`.** Three.js r169 (the version we ship) refactored `TransformControls` so the controller no longer extends `Object3D` — it now extends `Controls` (an `EventDispatcher`). `SceneEngine` was doing `scene.add(transformControls)`, which landed a non-`Object3D` in `scene.children`; the next `scene.traverse(…)` / `Box3.setFromObject(…)` (anything that recursively walked the graph) blew up because three's traversal calls `child.traverse(callback)` on each child. Fix: add `transformControls.getHelper()` (the actual visual gizmo `Object3D`) to the scene instead, keep a reference to the helper for `dispose()` removal, and detach + remove the helper before walking the scene for resource cleanup. The Forge 3D viewport now mounts cleanly on first paint.
+
 ## [0.3.1] — 2026-04-29
 
 ### Changed
