@@ -16,6 +16,7 @@ import { getCfStatus, readCf, writeCf, clearCf } from "./cf/credentials";
 import { workerHealth } from "./cf/objectStoreWorker";
 import { r2Health, resetR2Client, r2GetSignedUploadUrl, r2GetSignedDownloadUrl, r2List, r2PublicUrl, r2Head } from "./cf/r2Direct";
 import * as forge from "./forge";
+import * as coder from "./coder";
 import { workersAiChat, workersAiCaption, aiGatewayHealth, aiGatewayProxy } from "./cf/aiGateway";
 import * as puterAuth from "./auth/puterSession";
 import { puterLoginViaBrowser } from "./auth/puterLogin";
@@ -217,6 +218,7 @@ app.on("before-quit", () => {
   disposeTray();
   disposeLoader();
   bk.shutdownSpawned();
+  coder.shutdownCoder();
 });
 
 // ---------------------------------------------------------------------------
@@ -297,9 +299,15 @@ function registerIpc() {
   // Browser-based Puter login (opens default browser via getAuthToken).
   // Returns { grudgeId, user } so the renderer can refresh its session.
   ipcMain.handle("auth:puterLogin", async () => {
-    const { token, user } = await puterLoginViaBrowser();
-    const r = await puterAuth.setSession(token, user);
-    return { grudgeId: r.grudgeId, user };
+    try {
+      const { token, user } = await puterLoginViaBrowser();
+      const r = await puterAuth.setSession(token, user);
+      return { grudgeId: r.grudgeId, user: { uuid: user.uuid, username: user.username, email: user.email } };
+    } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      console.error("[auth:puterLogin] FAILED:", msg);
+      throw new Error(`Sign-in failed: ${msg}`);
+    }
   });
 
   // Cloudflare backend
@@ -342,6 +350,12 @@ function registerIpc() {
   ipcMain.handle("ai:chat",     (_e, opts) => workersAiChat(opts));
   ipcMain.handle("ai:caption",  (_e, opts) => workersAiCaption(opts));
   ipcMain.handle("ai:proxy",    (_e, opts) => aiGatewayProxy(opts));
+
+  // Coder (local GrudachainCode IDE)
+  ipcMain.handle("coder:launch", (_e, opts) => coder.launch(opts));
+  ipcMain.handle("coder:stop",   () => coder.stop());
+  ipcMain.handle("coder:status", () => coder.getStatus());
+  ipcMain.handle("coder:open",   () => { coder.openInBrowser(); });
 
   // UUID utilities (local, no network)
   ipcMain.handle("uuid:gen", (_e, args) =>

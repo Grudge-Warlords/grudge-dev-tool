@@ -1,5 +1,5 @@
-appId: com.grudgestudio.devtool
-productName: Grudge Dev Tool
+appId: com.grudgestudio.forge
+productName: Grudge Studio Forge
 copyright: Copyright © 2026 Grudge Studio
 asar: true
 directories:
@@ -89,10 +89,10 @@ nsis:
   perMachine: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Grudge Dev Tool
+  shortcutName: Grudge Studio Forge
   installerIcon: resources/icon.ico
   uninstallerIcon: resources/icon.ico
-  uninstallDisplayName: Grudge Dev Tool ${version}
+  uninstallDisplayName: Grudge Studio Forge ${version}
 publish:
   - provider: github
     owner: Grudge-Warlords

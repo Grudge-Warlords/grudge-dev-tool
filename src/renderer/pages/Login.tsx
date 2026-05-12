@@ -78,7 +78,7 @@ export default function Login({ onSignedIn }: Props) {
             }
           }}
         />
-        <h1 className="page-title" style={{ marginBottom: 4 }}>Sign in to Grudge</h1>
+        <h1 className="page-title" style={{ marginBottom: 4 }}>Sign in to Grudge Studio</h1>
         <p className="muted text-sm" style={{ marginBottom: 18 }}>
           Click sign in and complete authentication in your default browser. Your Grudge ID is derived from your Puter account; save data, ships, characters, and uploads sync to your Puter cloud.
         </p>

@@ -1,24 +1,16 @@
 // src/main/auth/puterLogin.ts
 //
-// Browser-based Puter authentication using the official @heyputer/puter.js
-// Node integration. Runs entirely in the Electron main process — bypasses
-// every renderer-side blocker (CSP, file:// origin, postMessage, sandboxed
-// window.open, popup-blocker policies).
+// Browser-based Puter authentication. Runs in the Electron main process.
 //
 // Flow:
-//   1. getAuthToken() starts a localhost HTTP server on a random port.
-//   2. Opens the user's default browser to
-//      https://puter.com/?action=authme&redirectURL=http://localhost:PORT.
-//   3. User authenticates (Google / GitHub / username / new account).
-//   4. Puter redirects to the localhost URL with ?token=<token>.
-//   5. Our server captures it, resolves the promise.
-//   6. We init the SDK with that token and fetch the user info.
-//
-// Reference: https://developer.puter.com/blog/browser-based-auth-puter-js-node/
+//   1. getAuthToken() (from @heyputer/puter.js) starts a localhost HTTP server.
+//   2. Opens the user's default browser to puter.com with a redirect URL.
+//   3. User authenticates, Puter redirects back with ?token=<token>.
+//   4. We fetch user info via direct HTTP to avoid the SDK's vm.runInNewContext
+//      which silently fails inside Electron's Node.js runtime.
 
-// The package exposes a CJS entry that uses vm.runInNewContext + readFileSync
-// to load dist/puter.cjs. We require it lazily so a missing optional dep
-// doesn't crash app boot.
+import { net } from "electron";
+
 type PuterUser = {
   uuid: string;
   username: string;
@@ -31,64 +23,80 @@ export interface PuterLoginResult {
   user: PuterUser;
 }
 
-let cachedModule: { init: (t?: string) => any; getAuthToken: (origin?: string) => Promise<string> } | null = null;
+let cachedGetAuthToken: ((origin?: string) => Promise<string>) | null = null;
 
-function loadPuterModule(): { init: (t?: string) => any; getAuthToken: (origin?: string) => Promise<string> } {
-  if (cachedModule) return cachedModule;
+function loadGetAuthToken(): (origin?: string) => Promise<string> {
+  if (cachedGetAuthToken) return cachedGetAuthToken;
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const mod = require("@heyputer/puter.js/src/init.cjs");
-  if (!mod || typeof mod.getAuthToken !== "function" || typeof mod.init !== "function") {
+  if (!mod || typeof mod.getAuthToken !== "function") {
     throw new Error(
-      "@heyputer/puter.js/src/init.cjs missing init/getAuthToken — package may be the wrong version. Run `npm install @heyputer/puter.js@latest --legacy-peer-deps`.",
+      "@heyputer/puter.js/src/init.cjs missing getAuthToken. Run `npm install @heyputer/puter.js@latest --legacy-peer-deps`.",
     );
   }
-  cachedModule = mod;
-  return mod;
+  cachedGetAuthToken = mod.getAuthToken;
+  return mod.getAuthToken;
+}
+
+/**
+ * Fetch user info directly from the Puter API using an auth token.
+ * This bypasses the SDK's `init()` which uses vm.runInNewContext and
+ * breaks silently in Electron's Node.js context.
+ */
+async function fetchPuterUser(token: string): Promise<PuterUser> {
+  const res = await net.fetch("https://api.puter.com/auth/user", {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Puter API /auth/user returned ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const data = await res.json() as any;
+  // Puter may return the user directly or nested under a key
+  const user = data?.user ?? data;
+  if (!user?.uuid || !user?.username) {
+    throw new Error(`Puter user response missing uuid/username: ${JSON.stringify(data).slice(0, 200)}`);
+  }
+  return {
+    uuid: user.uuid,
+    username: user.username,
+    email: user.email ?? undefined,
+    email_verified: user.email_verified ?? undefined,
+  };
 }
 
 /**
  * Run the full browser-based Puter sign-in. Resolves with the token + user
- * once the user completes auth. The localhost server inside getAuthToken
- * stays alive until the redirect arrives — there's no cancel API; if the user
- * closes the browser without finishing, this never resolves.
- *
- * The optional `timeoutMs` arg lets us racing-reject after N seconds so the
- * IPC call can return a useful error to the renderer.
+ * once the user completes auth.
  */
 export async function puterLoginViaBrowser(
   timeoutMs: number = 5 * 60 * 1000,
 ): Promise<PuterLoginResult> {
-  const { init, getAuthToken } = loadPuterModule();
+  let log: { info: (...a: any[]) => void; error: (...a: any[]) => void };
+  try { log = require("../logger").default; } catch { log = console; }
+
+  log.info("[puterLogin] starting browser-based auth flow");
+  const getAuthToken = loadGetAuthToken();
 
   const tokenPromise = getAuthToken("https://puter.com");
-
-  // Race: token | timeout. Don't unref the timer; we want the wait to happen.
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error(
       `Puter sign-in timed out after ${Math.round(timeoutMs / 1000)}s. Open Login again to retry.`,
     )), timeoutMs);
   });
 
+  log.info("[puterLogin] waiting for browser redirect");
   const token = await Promise.race([tokenPromise, timeoutPromise]);
   if (!token || typeof token !== "string") {
     throw new Error("Puter sign-in returned no token (browser closed before auth completed?)");
   }
+  log.info(`[puterLogin] token received (${token.length} chars)`);
 
-  // Hydrate the SDK with the token and fetch the canonical user info.
-  const puter = init(token);
-  if (!puter || !puter.auth || typeof puter.auth.getUser !== "function") {
-    throw new Error("Puter SDK initialised but auth.getUser is unavailable.");
-  }
-
-  let user: PuterUser;
-  try {
-    user = await puter.auth.getUser();
-  } catch (err: any) {
-    throw new Error(`Failed to fetch Puter user after sign-in: ${err?.message ?? String(err)}`);
-  }
-  if (!user || !user.uuid || !user.username) {
-    throw new Error("Puter user record missing uuid/username — sign-in did not complete cleanly.");
-  }
+  // Fetch user via direct HTTP — avoids the SDK's broken vm.runInNewContext.
+  log.info("[puterLogin] fetching user via direct API call");
+  const user = await fetchPuterUser(token);
+  log.info(`[puterLogin] user resolved: uuid=${user.uuid} username=${user.username}`);
 
   return { token, user };
 }

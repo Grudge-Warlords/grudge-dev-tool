@@ -142,6 +142,13 @@ const api = {
     caption: (opts: any) => ipcRenderer.invoke("ai:caption", opts),
     proxy:   (opts: any) => ipcRenderer.invoke("ai:proxy", opts),
   },
+  // Coder (local GrudachainCode IDE)
+  coder: {
+    launch: (opts?: any) => ipcRenderer.invoke("coder:launch", opts),
+    stop:   () => ipcRenderer.invoke("coder:stop"),
+    status: () => ipcRenderer.invoke("coder:status"),
+    open:   () => ipcRenderer.invoke("coder:open"),
+  },
   // Tray-driven nav events
   onNav: (cb: (route: string) => void) => {
     const listener = (_e: any, route: string) => cb(route);

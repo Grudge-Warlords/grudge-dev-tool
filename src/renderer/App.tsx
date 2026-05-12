@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import {
   FolderTree, Search as SearchIcon, Upload as UploadIcon, Link2,
   Fingerprint, Palette, BookOpen, Settings as SettingsIcon,
-  Power, Minimize2, LogOut, Loader2, Hammer,
+  Power, Minimize2, LogOut, Loader2, Hammer, Code2, Gamepad2,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -17,13 +17,15 @@ const Library  = React.lazy(() => import("./pages/AssetLibrary"));
 const Docs     = React.lazy(() => import("./pages/Docs"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const Forge3D  = React.lazy(() => import("./pages/Forge3D"));
+const Coder    = React.lazy(() => import("./pages/Coder"));
+const GameModes = React.lazy(() => import("./pages/GameModes"));
 import Login from "./pages/Login";    // not lazy — always rendered first
 import StatusBar from "./components/StatusBar";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 type Route =
   | "/browser" | "/search" | "/upload" | "/request"
-  | "/uuid" | "/library" | "/forge" | "/docs" | "/settings";
+  | "/uuid" | "/library" | "/forge" | "/coder" | "/games" | "/docs" | "/settings";
 
 const NAV: Array<{ route: Route; label: string; Icon: LucideIcon }> = [
   { route: "/browser",  label: "Browser",     Icon: FolderTree },
@@ -33,6 +35,8 @@ const NAV: Array<{ route: Route; label: string; Icon: LucideIcon }> = [
   { route: "/uuid",     label: "UUID",        Icon: Fingerprint },
   { route: "/library",  label: "BlenderKit",  Icon: Palette },
   { route: "/forge",    label: "Forge 3D",    Icon: Hammer },
+  { route: "/coder",    label: "Coder",       Icon: Code2 },
+  { route: "/games",    label: "Games",       Icon: Gamepad2 },
   { route: "/docs",     label: "Docs",        Icon: BookOpen },
   { route: "/settings", label: "Settings",    Icon: SettingsIcon },
 ];
@@ -101,8 +105,8 @@ export default function App() {
         <div className="brand">
           <img src="./logo-256.png" alt="Grudge" width={36} height={36} />
           <div>
-            <div className="brand-title">Grudge Dev Tool</div>
-            <div className="brand-sub">Object Storage · UUID · BlenderKit</div>
+          <div className="brand-title">Grudge Studio Forge</div>
+            <div className="brand-sub">Admin · Forge 3D · Coder · Assets</div>
           </div>
         </div>
         <div className="px-3 py-2 mb-2 text-xs border border-line rounded bg-bg-2/40" title={session.grudgeId ?? ""}>
@@ -157,6 +161,8 @@ export default function App() {
               {route === "/uuid" && <UUID />}
               {route === "/library" && <Library />}
               {route === "/forge" && <Forge3D />}
+              {route === "/coder" && <Coder />}
+              {route === "/games" && <GameModes />}
               {route === "/docs" && <Docs />}
               {route === "/settings" && <Settings />}
             </React.Suspense>

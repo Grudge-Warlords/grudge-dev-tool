@@ -34,6 +34,15 @@ export function deriveGrudgeId(puterUuid: string, firstSeenAtMs: number): string
 export async function setSession(puterToken: string, user: PuterUser): Promise<{ grudgeId: string }> {
   log.info(`[auth] setSession: tokenChars=${puterToken.length} userUuid=${user.uuid} username=${user.username}`);
 
+  // Strip user to only the fields we need — Puter's getUser() can return
+  // >11 KB of profile data, which blows past keytar's Win32 credential limit.
+  const minimalUser: PuterUser = {
+    uuid: user.uuid,
+    username: user.username,
+    ...(user.email ? { email: user.email } : {}),
+    ...(user.email_verified != null ? { email_verified: user.email_verified } : {}),
+  };
+
   // Reuse existing Grudge ID if one was minted before for this user.
   const existingRaw = await getSecret(ACCOUNT_GID);
   let grudgeId: string;
@@ -48,15 +57,13 @@ export async function setSession(puterToken: string, user: PuterUser): Promise<{
     grudgeId = deriveGrudgeId(user.uuid, Date.now());
   }
 
-  // Use the hybrid secret store — keytar first, with safeStorage-encrypted
-  // file fallback for values that exceed the Win32 Credential Manager 2.5 KB
-  // limit. Modern Puter tokens are JWTs that routinely exceed that, which is
-  // what was producing the "The stub received bad data" sign-in failure on
-  // v0.3.0 and earlier.
+  // Persist via the hybrid secret store. setSecret skips keytar automatically
+  // for values > 2 KB and goes straight to safeStorage (DPAPI) to avoid the
+  // Win32 RPC_X_BAD_STUB_DATA crash.
   const tokenStore = await setSecret(ACCOUNT_TOKEN, puterToken);
-  const userStore  = await setSecret(ACCOUNT_USER,  JSON.stringify(user));
+  const userStore  = await setSecret(ACCOUNT_USER,  JSON.stringify(minimalUser));
   const gidStore   = await setSecret(ACCOUNT_GID,   JSON.stringify({ grudgeId, puterUuid: user.uuid, firstSeenAt: Date.now() }));
-  log.info(`[auth] setSession persisted: token=${tokenStore.via} user=${userStore.via} gid=${gidStore.via}`);
+  log.info(`[auth] setSession persisted: token=${tokenStore.via} user=${userStore.via} gid=${gidStore.via} grudgeId=${grudgeId}`);
   return { grudgeId };
 }
 

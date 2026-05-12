@@ -50,6 +50,15 @@ async function ensureDir(): Promise<void> {
 }
 
 /**
+ * Win32 Credential Manager rejects blobs > ~2500 bytes with the cryptic
+ * RPC_X_BAD_STUB_DATA ("The stub received bad data"). Modern Puter JWTs
+ * and the full getUser() response comfortably exceed that. Rather than
+ * letting the native crash sometimes bypass the JS try/catch, we skip
+ * keytar entirely for values above a safe threshold.
+ */
+const KEYTAR_SAFE_LIMIT = 2000;
+
+/**
  * Store a secret. Returns a `via` indicator describing which backend won so
  * callers can log it for diagnostics.
  */
@@ -57,6 +66,16 @@ export async function setSecret(
   account: string,
   value: string,
 ): Promise<{ via: "keytar" | "safeStorage" }> {
+  // Fast-path: skip keytar entirely for large values that would hit the Win32
+  // Credential Manager blob cap. This avoids a native RPC crash that can
+  // bypass the JS try/catch on some builds.
+  if (value.length > KEYTAR_SAFE_LIMIT) {
+    log.info(
+      `[secretStore] value for ${account} is ${value.length} chars — skipping keytar, using safeStorage directly.`,
+    );
+    return writeSafeStorage(account, value);
+  }
+
   try {
     await keytar.setPassword(SERVICE, account, value);
     // keytar succeeded — clean up any stale file from a previous fallback.
@@ -68,19 +87,26 @@ export async function setSecret(
       `(${value.length} chars): ${err?.message ?? String(err)} ` +
       `— falling back to safeStorage-encrypted file.`,
     );
-    if (!safeStorage.isEncryptionAvailable()) {
-      throw new Error(
-        `keytar rejected the secret and safeStorage encryption is not available on this platform. ` +
-        `Underlying error: ${err?.message ?? String(err)}`,
-      );
-    }
-    await ensureDir();
-    const encrypted = safeStorage.encryptString(value);
-    await fs.writeFile(pathFor(account), encrypted, { mode: 0o600 });
-    // Clear any partial keytar entry so subsequent reads see the fresh file value.
-    await keytar.deletePassword(SERVICE, account).catch(() => { /* ignore */ });
-    return { via: "safeStorage" };
+    return writeSafeStorage(account, value);
   }
+}
+
+/** Internal: write via Electron safeStorage (DPAPI on Windows). */
+async function writeSafeStorage(
+  account: string,
+  value: string,
+): Promise<{ via: "safeStorage" }> {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error(
+      `safeStorage encryption is not available on this platform. Cannot persist account=${account}.`,
+    );
+  }
+  await ensureDir();
+  const encrypted = safeStorage.encryptString(value);
+  await fs.writeFile(pathFor(account), encrypted);
+  // Clear any stale keytar entry so subsequent reads see the file value.
+  await keytar.deletePassword(SERVICE, account).catch(() => { /* ignore */ });
+  return { via: "safeStorage" };
 }
 
 /** Read a secret. keytar first (back-compat), then the safeStorage file. */
