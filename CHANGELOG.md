@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.3.4] — 2026-05-15
+
+### Changed
+- 3D model pipeline: gltf-transform model inspector (scene graph with parent/child, meshes, materials, skins, animations), fflate zip extraction, expanded file types (.stl/.ply/.3ds/.dae/.bin/.mtl/.zip + archive family).
+
 ## [0.3.3] — 2026-04-29
 
 ### Changed
@@ -162,3 +167,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [0.3.1]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.1
 [0.3.2]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.2
 [0.3.3]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.3
+[0.3.4]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.4
