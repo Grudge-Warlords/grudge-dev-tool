@@ -65,6 +65,7 @@ const SLOT_BY_FAMILY: Record<string, string> = {
   scene: "Item",
   json: "Item",
   doc: "Item",
+  archive: "Other",
   other: "Other",
 };
 
@@ -75,17 +76,26 @@ const CONTENT_TYPE: Record<string, string> = {
   ".webp": "image/webp",
   ".tga": "image/x-tga",
   ".bmp": "image/bmp",
+  ".svg": "image/svg+xml",
+  ".gif": "image/gif",
   ".glb": "model/gltf-binary",
   ".gltf": "model/gltf+json",
+  ".bin": "application/octet-stream",
   ".fbx": "application/octet-stream",
   ".blend": "application/x-blender",
   ".obj": "model/obj",
+  ".mtl": "text/plain",
+  ".stl": "model/stl",
+  ".ply": "application/x-ply",
+  ".3ds": "application/x-3ds",
+  ".dae": "model/vnd.collada+xml",
   ".ogg": "audio/ogg",
   ".wav": "audio/wav",
   ".mp3": "audio/mpeg",
   ".json": "application/json",
   ".md": "text/markdown",
   ".txt": "text/plain",
+  ".zip": "application/zip",
 };
 
 function contentTypeFor(p: string): string {

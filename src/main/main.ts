@@ -9,6 +9,8 @@ import { uploader } from "./uploader";
 import * as bk from "./blenderkit/daemon";
 import { detectAll } from "./ingestion/toolchain";
 import { ingestOne } from "./ingestion";
+import { inspectModel } from "./ingestion/modelInspect";
+import { extractZip } from "./ingestion/archive";
 import { initLogger, getLogFilePath } from "./logger";
 import { startConnectivity, stopConnectivity, getConnectivity } from "./connectivity";
 import { setupAutoUpdater, checkForUpdatesNow, quitAndInstall } from "./updater";
@@ -356,6 +358,12 @@ function registerIpc() {
   ipcMain.handle("coder:stop",   () => coder.stop());
   ipcMain.handle("coder:status", () => coder.getStatus());
   ipcMain.handle("coder:open",   () => { coder.openInBrowser(); });
+
+  // Model inspection (gltf-transform scene graph — parent/child tree, meshes, materials, skins, animations)
+  ipcMain.handle("model:inspect", (_e, path: string) => inspectModel(path));
+
+  // Archive extraction (fflate unzip — for asset pack imports and Sketchfab downloads)
+  ipcMain.handle("archive:unzip", (_e, path: string, destDir?: string) => extractZip(path, destDir));
 
   // UUID utilities (local, no network)
   ipcMain.handle("uuid:gen", (_e, args) =>

@@ -9,6 +9,7 @@ export type AssetFamily =
   | "scene"
   | "json"
   | "doc"
+  | "archive"
   | "other";
 
 export interface SizeVerifyResult {
@@ -24,9 +25,10 @@ export interface SizeVerifyResult {
   };
 }
 
-const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".webp", ".tga", ".bmp"]);
-const MODEL_EXTS = new Set([".glb", ".gltf", ".fbx", ".blend", ".obj"]);
+const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".webp", ".tga", ".bmp", ".svg", ".gif"]);
+const MODEL_EXTS = new Set([".glb", ".gltf", ".fbx", ".blend", ".obj", ".stl", ".ply", ".3ds", ".dae"]);
 const AUDIO_EXTS = new Set([".ogg", ".wav", ".mp3"]);
+const ARCHIVE_EXTS = new Set([".zip", ".tar", ".gz", ".tgz", ".7z", ".rar"]);
 const SCENE_EXTS = new Set([".scene.json"]); // sentinel — checked by full filename
 const DOC_EXTS = new Set([".md", ".txt"]);
 
@@ -47,6 +49,7 @@ function familyFor(filename: string): AssetFamily {
   }
   if (MODEL_EXTS.has(ext)) return "model";
   if (AUDIO_EXTS.has(ext)) return "audio";
+  if (ARCHIVE_EXTS.has(ext)) return "archive";
   if (ext === ".json") return "json";
   if (DOC_EXTS.has(ext)) return "doc";
   return "other";
@@ -122,6 +125,13 @@ export async function verifyFile(absPath: string, opts: { category?: string } = 
     case "scene": {
       if (sizeBytes > MAX_JSON_BYTES) {
         result.errors.push(`JSON exceeds ${MAX_JSON_BYTES} bytes (${sizeBytes}).`);
+      }
+      break;
+    }
+    case "archive": {
+      const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024;
+      if (sizeBytes > MAX_ARCHIVE_BYTES) {
+        result.errors.push(`Archive exceeds ${MAX_ARCHIVE_BYTES} bytes (${sizeBytes}).`);
       }
       break;
     }
