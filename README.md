@@ -10,13 +10,14 @@
 
 A Windows tray application for the Grudge Studio team. Browse object storage, search the asset catalog, mass-upload through a mandatory ingestion pipeline, generate Grudge UUIDs, pull from BlenderKit, and **author / preview / convert / upload 3D models** with the built-in **Forge 3D** editor — all from a single tray icon plus a small always-on-top **GrudgeLoader** overlay. Also doubles as a Windows default 3D viewer for `.glb` / `.gltf` / `.fbx` / `.obj` / `.stl` / `.ply` / `.dae` / `.3mf`.
 
-> **Status:** v0.3.2 · Windows x64 · Authenticode-signed NSIS installer · auto-updating
+> **Status:** v0.3.5 · Windows x64 · Authenticode-signed NSIS installer · auto-updating
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>
 📦 **Latest release:** <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest>
-⬇ **Direct download (v0.3.2):** [`Grudge Dev Tool-Setup-0.3.2.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.3.2/Grudge.Dev.Tool-Setup-0.3.2.exe) · ~107 MB · Windows x64 · NSIS
+⬇ **Direct download (v0.3.5):** [`Grudge Studio Forge-Setup-0.3.5.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.3.5/Grudge.Studio.Forge-Setup-0.3.5.exe) · Windows x64 · NSIS
 📝 **Audit notes:** [`REVIEW.md`](REVIEW.md) — production-wiring + dependency review against the canonical `Grudge-Warlords/grudge-studio-backend`.
-🔧 **Trouble?** [`docs/troubleshooting.md`](docs/troubleshooting.md) covers every error we've resolved (DOCTYPE, broken logo, CSP "syntax" errors, Actions disabled, BlenderKit not detected, auto-update stuck, sign-in stub-data, Forge3D `traverse` crash, and more).
+🔧 **Trouble?** [`docs/troubleshooting.md`](docs/troubleshooting.md) covers every error we've resolved.
+⚙ **Production setup:** [`docs/production-config.md`](docs/production-config.md) — credential reference, R2 endpoint setup, backend mode guide, verification scripts.
 
 ---
 
@@ -28,7 +29,9 @@ A Windows tray application for the Grudge Studio team. Browse object storage, se
 | **Main window** | 9 pages — Browser · Search · Upload · Request URL · UUID · BlenderKit Library · **Forge 3D** · Docs · Settings — with bottom status bar showing live API connectivity, log link, and update progress. |
 | **Forge 3D** | Built-in Three.js (r169) editor + viewer for `.glb`, `.gltf`, `.fbx`, `.obj`, `.stl`, `.ply`, `.dae`, `.3mf`. Drag-drop a file, the GLB binary container is decoded (magic, version, chunk sizes, extensions, generator), the model loads with full PBR / IBL / shadow-mapped key + cool fill, TransformControls gizmo (W/E/R) via the `getHelper()` API, animation clips with Play/Pause/Stop, scene-tree hierarchy, screenshot, and one-click `Convert → GLB → Upload to R2` that mints a presigned PUT and copies the public CDN URL to the clipboard. Registered with Windows as a default opener for those extensions, so right-click → Open With → Grudge Dev Tool just works. |
 | **GrudgeLoader** | Frameless 360 × 520 always-on-top mini-overlay. Pinned folders, prefix browse with thumbnails, drag-drop bulk upload, **per-asset copy buttons** (path / cdn URL / `curl` / `wget` / Node `assetUrl()` snippet). |
-| **Ingestion pipeline** | Mandatory for every uploaded file: `size-verify → convert → enrich → rig → hash → UUID → upload → manifest`. Shared between the tray-app Upload page and the `upload-asset-pack` CLI. |
+| **Model Inspector** | `model:inspect` IPC parses GLB/GLTF via `@gltf-transform/core` + `ALL_EXTENSIONS` and returns the full scene graph: node hierarchy (parent/child tree), mesh vertex/triangle counts, PBR materials, skeleton joints, animation clips with durations. Powers the editor scene tree. |
+| **Archive Extraction** | `archive:unzip` IPC extracts `.zip` files via `fflate` (pure-JS, zero native deps) to a temp dir with file listing and content types. For importing Sketchfab downloads and asset pack zips. |
+| **Ingestion pipeline** | Mandatory for every uploaded file: `size-verify → convert → enrich → rig → hash → UUID → upload → manifest`. Supports 20+ file types including `.glb`, `.gltf`, `.fbx`, `.obj`, `.stl`, `.ply`, `.3ds`, `.dae`, `.zip`, `.bin`, `.mtl`. |
 | **BlenderKit** | Local daemon HTTP integration for asset search/download; in-Blender Python scripts for autothumb + scene enrichment. Uses your existing on-disk install (`F:\blenderkit-v3.19.2.260411\` by default). License-clean — addon files are never bundled. |
 | **Auth** | Browser-based Puter sign-in via `@heyputer/puter.js` Node integration (main-process `getAuthToken()` flow). Token + user + Grudge ID stored in a hybrid secret store: keytar first (Windows Credential Vault), with automatic fallback to an Electron `safeStorage`-encrypted file (DPAPI) when the value exceeds the 2.5 KB credential-blob cap. Manual-paste fallback always available. |
 | **Object storage** | Three resolved backends: **R2 direct** (S3-compatible, presigned PUT/GET), **Cloudflare Worker** (`/list`, `/upload-url`, `/manifest`, `/asset`, `/search`), and **GrudgeBuilder asset-service** (`assets-api.grudge-studio.com`). Auto-resolution picks R2 direct when full creds are present, otherwise Worker, otherwise asset-service. Backend mode override in Settings + Upload page. |
@@ -66,6 +69,8 @@ npm run dev                  # hot-reload Vite + Electron
 - **Tailwind CSS 3.4** layered on existing CSS variables; **lucide-react** icons; **sonner** toasts
 - **TanStack Query 5** for the data layer (retries, cache, no refetch-on-focus)
 - **AWS SDK v3 (`@aws-sdk/client-s3`)** for the R2 S3-compatible client (`forcePathStyle:true`, `WHEN_REQUIRED` checksum — required by R2)
+- **`@gltf-transform/core` + `/extensions` + `/functions`** for model inspection (scene graph, rig fingerprinting, mesh stats) — powers `model:inspect` IPC
+- **`fflate`** (pure-JS) for `.zip` extraction — powers `archive:unzip` IPC
 - **`@heyputer/puter.js`** Node integration for browser-based Puter sign-in (asar-unpacked because it uses `vm.runInNewContext` on its bundled CJS at runtime)
 - **keytar + Electron `safeStorage`** hybrid secret store (Windows Credential Vault → DPAPI-encrypted file fallback for values > 2.5 KB)
 - **electron-store** for window state; **electron-log** + **electron-updater** for diagnostics & auto-update
@@ -96,10 +101,12 @@ grudge-dev-tool/
         objectStoreWorker.ts       # Cloudflare Worker client
         aiGateway.ts               # Workers AI / AI Gateway proxy
       ingestion/                   # Mandatory pipeline
-        sizeVerify.ts
+        sizeVerify.ts              # File type detection + size limits (20+ formats)
         convert.ts                 # Blender headless · sharp · ffmpeg
         rig.ts                     # gltf-transform skeleton inspection
         enrich.ts                  # BlenderKit-driven scene enrichment
+        modelInspect.ts            # GLB/GLTF scene graph inspector (nodes, meshes, materials, skins, animations)
+        archive.ts                 # fflate-based .zip extraction
         toolchain.ts               # Auto-detects Blender / ffmpeg / sharp / BlenderKit
         index.ts                   # Pipeline orchestrator
       blenderkit/
@@ -124,6 +131,7 @@ grudge-dev-tool/
     build-icons.mjs                # Emits the full PNG/ICO icon set from the brand emblem
     upload-asset-pack.ts           # CLI runner of the ingestion pipeline + uploader
   docs/                            # Jekyll site (deployed to GitHub Pages)
+    production-config.md           # Credential setup, verification, troubleshooting
   resources/                       # Icons + brand source
   electron-builder.yml             # NSIS config + GitHub publish target
   .github/workflows/
@@ -210,7 +218,7 @@ External deps retain their own licenses; **BlenderKit** (GPL-2.0-or-later) is in
 ## Links
 
 - 📚 Docs site — <https://grudge-warlords.github.io/grudge-dev-tool/>
-- ⬇ **Direct .exe (v0.3.2)** — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.3.2/Grudge.Dev.Tool-Setup-0.3.2.exe>
+- ⬇ **Direct .exe (v0.3.5)** — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.3.5/Grudge.Studio.Forge-Setup-0.3.5.exe>
 - 📦 Releases — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases>
 - 📝 Audit notes — [`REVIEW.md`](REVIEW.md)
 - 🔧 Troubleshooting — [`docs/troubleshooting.md`](docs/troubleshooting.md)
