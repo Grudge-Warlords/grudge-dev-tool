@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.3.5] — 2026-05-16
+
+### Changed
+- README updated for v0.3.5: model inspector (gltf-transform scene graph), archive extraction (fflate unzip), production config docs, expanded file type support (20+ formats), stale version references fixed.
+
 ## [0.3.4] — 2026-05-15
 
 ### Changed
@@ -168,3 +173,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [0.3.2]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.2
 [0.3.3]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.3
 [0.3.4]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.4
+[0.3.5]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.5
