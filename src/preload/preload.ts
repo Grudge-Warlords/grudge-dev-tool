@@ -57,8 +57,8 @@ const api = {
   },
   // GrudgeLoader window control
   loader: {
-    show:   () => ipcRenderer.invoke("loader:show"),
-    hide:   () => ipcRenderer.invoke("loader:hide"),
+    show: () => ipcRenderer.invoke("loader:show"),
+    hide: () => ipcRenderer.invoke("loader:hide"),
     toggle: () => ipcRenderer.invoke("loader:toggle"),
   },
   // Connectivity
@@ -97,31 +97,31 @@ const api = {
   },
   // Auth (Puter ↔ Grudge ID)
   auth: {
-    getSession:    () => ipcRenderer.invoke("auth:getSession"),
-    setSession:    (token: string, user: any) => ipcRenderer.invoke("auth:setSession", token, user),
-    clearSession:  () => ipcRenderer.invoke("auth:clearSession"),
-    wipeIdentity:  () => ipcRenderer.invoke("auth:wipeIdentity"),
+    getSession: () => ipcRenderer.invoke("auth:getSession"),
+    setSession: (token: string, user: any) => ipcRenderer.invoke("auth:setSession", token, user),
+    clearSession: () => ipcRenderer.invoke("auth:clearSession"),
+    wipeIdentity: () => ipcRenderer.invoke("auth:wipeIdentity"),
     getPuterToken: () => ipcRenderer.invoke("auth:getPuterToken"),
     /** Browser-based Puter sign-in via @heyputer/puter.js (opens default browser, returns once user signs in). */
-    puterLogin:    () => ipcRenderer.invoke("auth:puterLogin"),
+    puterLogin: () => ipcRenderer.invoke("auth:puterLogin"),
   },
   // Cloudflare R2 + Worker
   cf: {
-    status:           () => ipcRenderer.invoke("cf:status"),
-    set:              (account: string, value: string) => ipcRenderer.invoke("cf:set", account, value),
-    clear:            (account: string) => ipcRenderer.invoke("cf:clear", account),
-    workerHealth:     () => ipcRenderer.invoke("cf:workerHealth"),
-    r2Health:         () => ipcRenderer.invoke("cf:r2Health"),
-    resetR2Client:    () => ipcRenderer.invoke("cf:resetR2Client"),
-    aiHealth:         () => ipcRenderer.invoke("cf:aiHealth"),
-    getBackendMode:   () => ipcRenderer.invoke("cf:getBackendMode"),
-    setBackendMode:   (mode: "auto" | "grudge" | "cloudflare" | "r2-direct" | "cloudflare-worker") => ipcRenderer.invoke("cf:setBackendMode", mode),
+    status: () => ipcRenderer.invoke("cf:status"),
+    set: (account: string, value: string) => ipcRenderer.invoke("cf:set", account, value),
+    clear: (account: string) => ipcRenderer.invoke("cf:clear", account),
+    workerHealth: () => ipcRenderer.invoke("cf:workerHealth"),
+    r2Health: () => ipcRenderer.invoke("cf:r2Health"),
+    resetR2Client: () => ipcRenderer.invoke("cf:resetR2Client"),
+    aiHealth: () => ipcRenderer.invoke("cf:aiHealth"),
+    getBackendMode: () => ipcRenderer.invoke("cf:getBackendMode"),
+    setBackendMode: (mode: "auto" | "grudge" | "cloudflare" | "r2-direct" | "cloudflare-worker") => ipcRenderer.invoke("cf:setBackendMode", mode),
     // Direct R2 ops used by Forge3D for converting + uploading models.
-    r2SignedUpload:   (args: { key: string; contentType?: string; ttlSeconds?: number }) => ipcRenderer.invoke("cf:r2SignedUpload", args),
+    r2SignedUpload: (args: { key: string; contentType?: string; ttlSeconds?: number }) => ipcRenderer.invoke("cf:r2SignedUpload", args),
     r2SignedDownload: (args: { key: string; ttlSeconds?: number }) => ipcRenderer.invoke("cf:r2SignedDownload", args),
-    r2List:           (req: any) => ipcRenderer.invoke("cf:r2List", req),
-    r2Head:           (key: string) => ipcRenderer.invoke("cf:r2Head", key),
-    r2PublicUrl:      (key: string) => ipcRenderer.invoke("cf:r2PublicUrl", key),
+    r2List: (req: any) => ipcRenderer.invoke("cf:r2List", req),
+    r2Head: (key: string) => ipcRenderer.invoke("cf:r2Head", key),
+    r2PublicUrl: (key: string) => ipcRenderer.invoke("cf:r2PublicUrl", key),
   },
   // Forge3D editor / Windows 3D viewer
   forge: {
@@ -138,16 +138,23 @@ const api = {
   },
   // AI Gateway
   ai: {
-    chat:    (opts: any) => ipcRenderer.invoke("ai:chat", opts),
+    chat: (opts: any) => ipcRenderer.invoke("ai:chat", opts),
     caption: (opts: any) => ipcRenderer.invoke("ai:caption", opts),
-    proxy:   (opts: any) => ipcRenderer.invoke("ai:proxy", opts),
+    proxy: (opts: any) => ipcRenderer.invoke("ai:proxy", opts),
+  },
+  // Internal Preview tab — sandboxed <webview> for running .html files locally.
+  preview: {
+    /** Open a native file picker for .html/.htm and return its file:// URL. */
+    openHtmlDialog: () => ipcRenderer.invoke("preview:openHtmlDialog") as Promise<{ canceled: boolean; url: string | null; path: string | null }>,
+    /** Convert an absolute path to a file:// URL (used by drag-drop). */
+    fileUrl: (absPath: string) => ipcRenderer.invoke("preview:fileUrl", absPath) as Promise<string>,
   },
   // Coder (local GrudachainCode IDE)
   coder: {
     launch: (opts?: any) => ipcRenderer.invoke("coder:launch", opts),
-    stop:   () => ipcRenderer.invoke("coder:stop"),
+    stop: () => ipcRenderer.invoke("coder:stop"),
     status: () => ipcRenderer.invoke("coder:status"),
-    open:   () => ipcRenderer.invoke("coder:open"),
+    open: () => ipcRenderer.invoke("coder:open"),
   },
   // Tray-driven nav events
   onNav: (cb: (route: string) => void) => {

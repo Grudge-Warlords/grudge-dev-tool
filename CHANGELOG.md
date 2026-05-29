@@ -4,26 +4,47 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.3.6] — 2026-05-29
+
+### Added
+
+- **Internal HTML previewer** at `/preview` (admin-only nav entry). Sandboxed Electron `<webview>` with URL bar, back / forward / reload / stop, "open local `.html`…" file picker, devtools toggle, and "open in default browser" button. Pages run in a persistent partition (`persist:grudge-preview`) so cookies and localStorage stay between visits. New `preview:openHtmlDialog` and `preview:fileUrl` IPC handlers exposed on `window.grudge.preview`.
+- **Admin gating layer** (`src/renderer/lib/admin.ts`). `isAdmin(session)` resolves admin state from two build-time env vars (`VITE_ADMIN_GRUDGE_IDS`, `VITE_ADMIN_USERNAMES`) with a `localStorage["grudge:admin-override"]` runtime override for dev/support. When neither env var is set the build runs in "open mode" and every signed-in user is treated as admin (intended for local dev only — the public NSIS build will ship with the allowlist baked in). Admin is a UX gate; the backend / Cloudflare Worker still enforces real permissions on every privileged call.
+- **`ADMIN` status-bar pill + sidebar badge**. The brand sub-line in the sidebar now shows a gold `ShieldCheck · Admin` chip when the session is admin, the user card carries a small `ADMIN` pill next to the username, and the bottom status bar grows a matching pill so admin state is visible from any page. Open-mode builds surface a discreet `open-mode build` hint under the user card.
+- `.env.example` documents the two new `VITE_ADMIN_*` variables and the open-mode fallback rules.
+
+### Changed
+
+- **`<webview>` lockdown**. `webPreferences.webviewTag` is now `true` in the main window so the Preview page can mount, but `will-attach-webview` aggressively strips every guest's `preload`, forces `nodeIntegration=false`, `nodeIntegrationInSubFrames=false`, `contextIsolation=true`, `sandbox=true`, `webSecurity=true`, `allowRunningInsecureContent=false`, `experimentalFeatures=false` before the guest WebContents is created. No renderer-supplied prefs can escape this filter.
+- **`AppSettings` IPC contract** (`src/shared/ipc.ts`) now matches what `settings:get` actually returns — `assetsApiBaseUrl` and `hasBlenderKitKey` are first-class fields. Fixes type drift introduced in v0.3.3.
+- **Admin-only sidebar entries**. `Upload`, `Request URL`, `Forge 3D`, `Coder`, `Games`, `Preview`, and `Settings` are now flagged `adminOnly` and hidden from non-admin sessions; if the active route loses admin status (e.g. the allowlist changes mid-session) the renderer micro-bounces to the first visible route instead of leaving a blank page.
+- Sidebar version label corrected to `v0.3.5` → `v0.3.6` (was stuck on `v0.1.6`).
+
 ## [0.3.5] — 2026-05-16
 
 ### Changed
+
 - README updated for v0.3.5: model inspector (gltf-transform scene graph), archive extraction (fflate unzip), production config docs, expanded file type support (20+ formats), stale version references fixed.
 
 ## [0.3.4] — 2026-05-15
 
 ### Changed
+
 - 3D model pipeline: gltf-transform model inspector (scene graph with parent/child, meshes, materials, skins, animations), fflate zip extraction, expanded file types (.stl/.ply/.3ds/.dae/.bin/.mtl/.zip + archive family).
 
 ## [0.3.3] — 2026-04-29
 
 ### Changed
+
 - Hygiene pass resolving all 8 REVIEW.md audit findings (F1-F8): Settings exposes asset-service URL, connectivity probes both services, renderer uses cf.r2PublicUrl IPC instead of hardcoded CDN host, Docs link fixed, node-fetch dropped, AI Gateway models env-overridable, BlenderKit apiPrefix derived from manifest, LoaderApp default pins simplified. Auto-update delivers within 4h.
 
 ### Added
+
 - **Settings: asset-service base URL input** (REVIEW.md F1). New input row in the Grudge identity card lets you point the dev tool at any `assets-api.*` host. Backed by `settings:setAssetsApiBase` IPC + `settings:get` now returns `assetsApiBaseUrl`. Single-domain dev installs that proxy `/api/objectstore/*` through game-api can paste their game-api URL here.
 - **Connectivity probes both services** (REVIEW.md F2). When the resolved backend is `grudge`, the 30-second tick now probes `api.grudge-studio.com/api/health` AND `assets-api.grudge-studio.com/api/health` in parallel. Overall `reachable` is the AND; the Settings Diagnostics card shows both rows separately. Status bar no longer lies green when game-api is up but asset-service is down.
 
 ### Changed
+
 - **Renderer no longer hardcodes the public CDN host** (REVIEW.md F3). `LoaderApp.tsx` and `Browser.tsx` now resolve the CDN base once on mount via `cf.r2PublicUrl("")` and cache it; URL templates are rebuilt against the resolved value. A private deploy pointing at a different domain Just Works without a code change.
 - **Docs link fixed** (REVIEW.md F4). The Docs page now links to the actual published Jekyll site (`https://grudge-warlords.github.io/grudge-dev-tool/`) instead of the placeholder `docs.grudge-studio.com/dev-tool` subdomain that was never deployed.
 - **AI Gateway model defaults are env-overridable** (REVIEW.md F6). `workersAiChat` reads `CF_AI_DEFAULT_MODEL`, `workersAiCaption` reads `CF_AI_VISION_MODEL`, both before falling back to the documented Workers AI defaults. Per-call `opts.model` still wins.
@@ -31,30 +52,37 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - **LoaderApp default pinned shortcuts** (REVIEW.md F8). Dropped the version-specific `asset-packs/classic64/v0.6/` pin so first-run users without that pack don't see a broken shortcut. Defaults are now `asset-packs/`, `user-uploads/`, `shared/` — prefixes that exist for every tenant.
 
 ### Removed
+
 - **`node-fetch` runtime dependency** (REVIEW.md F5). Node 20 (Electron 41 baseline) has global `fetch`; we never imported `node-fetch` from any source file. Removed from `package.json`; reinstall removed 6 transitive packages from the lock file.
 
 ## [0.3.2] — 2026-04-29
 
 ### Changed
+
 - Fix Forge 3D render crash: 'this.traverse is not a function'. Three.js r169 refactored TransformControls to no longer extend Object3D; SceneEngine now adds transformControls.getHelper() to the scene as the documented r169+ API requires. Forge 3D viewport now mounts cleanly. Auto-update delivers within 4h.
 
 ### Fixed
+
 - **Forge 3D render crash: `this.traverse is not a function`.** Three.js r169 (the version we ship) refactored `TransformControls` so the controller no longer extends `Object3D` — it now extends `Controls` (an `EventDispatcher`). `SceneEngine` was doing `scene.add(transformControls)`, which landed a non-`Object3D` in `scene.children`; the next `scene.traverse(…)` / `Box3.setFromObject(…)` (anything that recursively walked the graph) blew up because three's traversal calls `child.traverse(callback)` on each child. Fix: add `transformControls.getHelper()` (the actual visual gizmo `Object3D`) to the scene instead, keep a reference to the helper for `dispose()` removal, and detach + remove the helper before walking the scene for resource cleanup. The Forge 3D viewport now mounts cleanly on first paint.
 
 ## [0.3.1] — 2026-04-29
 
 ### Changed
+
 - Fix sign-in failure: 'The stub received bad data.' Modern Puter JWT tokens exceed Win32 Credential Manager's 2.5 KB blob limit; auth now falls back to Electron safeStorage (DPAPI) for oversized secrets. Existing v0.3.0 installs auto-update within 4h.
 
 ### Fixed
+
 - **Sign-in failure: "The stub received bad data."** Modern Puter tokens are signed JWTs that exceed the ~2.5 KB credential-blob size limit imposed by the Win32 Credential Manager (`RPC_X_BAD_STUB_DATA / 0x800706F7`), which `keytar.setPassword` would surface as exactly that error message. `auth:puterLogin` now goes through a new hybrid `secretStore` (`src/main/auth/secretStore.ts`) that tries keytar first and falls back to an Electron `safeStorage`-encrypted file under `%APPDATA%\Grudge Dev Tool\secrets\<account>.bin` (DPAPI-bound to the OS user) when keytar refuses the write. Reads check keytar first for back-compat with v0.3.0 installs that wrote small values, then the file. `puterSession.setSession` / `getSession` / `getPuterToken` / `clearSession` / `wipeIdentity` all use the hybrid store now, and a one-shot log line records whether the token landed in keytar or safeStorage so we can confirm the diagnosis on future support requests.
 
 ## [0.3.0] — 2026-04-28
 
 ### Changed
+
 - Manual release.
 
 ### Added
+
 - **Forge 3D editor + Windows 3D viewer.** New `Forge 3D` page mounted at `/forge` in the sidebar. Built on Three.js (no React-Three-Fiber dependency — keeps React 18 compatibility) with full-fat studio lighting (warm key + cool fill + IBL via `RoomEnvironment`), shadow-mapped directional key, OrbitControls, TransformControls (translate / rotate / scale), grid + axes helpers, ACES Filmic tone mapping, sRGB color space.
 - **Multi-format model loaders:** GLB, glTF, OBJ, FBX, STL, PLY (mesh + point cloud), DAE (Collada), 3MF. Drag-drop a file anywhere on the window or click `Open`. Each file is parsed, framed, and added to the scene hierarchy with triangle / vertex / bone counts and (for GLB) full binary container inspection (magic, version, JSON & BIN chunk sizes, used extensions including Draco / Meshopt / KHR_texture_basisu, generator string).
 - **Animation playback.** All animation clips that ride along with FBX / GLB / GLTF / DAE files are listed in the inspector with per-clip Play / Pause / Stop controls and clip duration; one `THREE.AnimationMixer` per object updates from the engine's `clock`.
@@ -65,6 +93,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - **New IPC surface:** `cf.r2SignedUpload`, `cf.r2SignedDownload`, `cf.r2List`, `cf.r2Head`, `cf.r2PublicUrl` and the entire `forge.*` namespace (`consumeInitialFile`, `readFile`, `onOpenFile`).
 
 ### Changed
+
 - **CSP** now allows `blob:` workers / scripts / connect (required by Three.js loaders that internally spin up workers, and by `URL.createObjectURL` for in-memory model bytes). Added `media-src 'self' data: blob:` and `worker-src 'self' blob:`.
 - **Sidebar nav** grew an 8th entry: `Forge 3D` (hammer icon) sits between BlenderKit and Docs.
 - **Production wiring aligned to canonical `Grudge-Warlords/grudge-studio-backend`.** That repo is now the single source of truth for Grudge Studio identity, game APIs, asset service, and Cloudflare/Puter integration; the previous PostgreSQL/Drizzle prototype is retired (server-side DB is **MySQL 8 + Redis 7**, never Postgres). The dev tool is a desktop client and does not embed any DB credentials — it talks HTTP only.
@@ -76,33 +105,40 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 ## [0.2.0] — 2026-04-26
 
 ### Changed
+
 - Industry-standard hardening: error boundary at app root + per-page so render errors do not blank the window, window state persists across relaunches, security hardening in main (will-navigate allowlist + permission deny + webSecurity), local crash reporter, lazy-loaded routes for faster first paint, keyboard shortcuts (Ctrl+R reload, Ctrl+Shift+I devtools, F11 fullscreen). No regressions to login or upload paths from v0.1.9. Auto-update will deliver this within 4h.
 
 ## [0.1.9] — 2026-04-26
 
 ### Changed
+
 - Login fix - browser-based Puter auth via @heyputer/puter.js Node integration. Sign-in now opens your default browser via getAuthToken (the official supported flow), captures the token through a localhost redirect, and persists the session in keytar. Bypasses every Electron renderer constraint that was blocking the prior popup-SDK approach. Manual token paste remains as backstop. Auto-update will deliver this within 4h.
 
 ## [0.1.8] — 2026-04-26
 
 ### Changed
+
 - Login + logo fixes: Puter SDK now loads through CSP, logo image path fixed, main process now allows OAuth popups, manual token-paste fallback in case popup auth fails.
 
 ## [0.1.7] — 2026-04-26
 
 ### Changed
+
 - Login gating + Upload backend selector. App now requires Puter sign-in before showing any features (Browser/Search/Upload/etc). Login flow uses the embedded Puter SDK popup which supports Google/GitHub/username; on success a Grudge ID is derived deterministically and stored in Windows Credential Vault. Sidebar shows the signed-in user; sign-out is one click. The Upload page now displays the actual destination of the next upload (Cloudflare Worker AI / R2 direct / GrudgeBuilder) with a backend selector dropdown so you can route on demand. Auto-update will deliver this within ~4h to existing installs.
 
 ### Added
+
 - **`docs/troubleshooting.md`** — every error we've encountered with the exact resolution: tray-icon-missing, DOCTYPE warning, broken `/logo-256.png` under `file://`, CSP "syntax error" misnomer, `API unreachable` yellow dot, `ENOENT: dist/main/api.js`, missing `elevate.exe`, corrupted `package.json`, `command failed (null)` (Windows shell shim), TS strict-mode hits, the Actions-account-flag block, missing `latest.yml` for auto-update, and BlenderKit detection paths.
 - **Direct download links** in `README.md` and `docs/index.md` pointing at the v0.1.3 installer so the GrudaChain code can be grabbed in one click without hunting through the releases tree.
 
 ### Changed
+
 - `docs/index.md` front page now leads with a download section; `README.md` includes the direct `.exe` URL and a link to the troubleshooting page.
 
 ## [0.1.3] — 2026-04-26
 
 ### Fixed
+
 - BlenderKit `addon_version` now read from `blender_manifest.toml` at runtime (was hardcoded `"3.19.2.260411"`).
 - `publish-manual.mjs` runs npm/gh through a shell on Windows so the `.cmd` shims resolve (was `command failed (null)`).
 - `package.json` repaired: orphan `publish:manual:*` entries restored to the `scripts` block, stray `"build": "^0.1.4"` dep removed.
@@ -110,6 +146,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - `electron-builder` cache cleanup recipe documented for `Cannot find file: elevate.exe` failures.
 
 ### Added
+
 - `src/main/cf/{credentials, aiGateway, objectStoreWorker}.ts` — keytar-backed Cloudflare AI Gateway and R2 worker clients (no inline credentials).
 - Backend-mode resolver in `api.ts`: `auto` picks Cloudflare when both Worker URL and key are present, otherwise routes to GrudgeBuilder.
 - `scripts/{import-secrets, set-secret}.mjs` — import or set individual env-var-style secrets into Windows Credential Vault.
@@ -117,6 +154,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - `templates/r3f-boilerplate/` scaffold (R3F starter for downstream projects).
 
 ### Changed
+
 - Toolchain probes `BLENDERKIT_PATH` env, then `%APPDATA%\Blender Foundation\Blender\<4.2-4.5>\extensions\user_default\blenderkit` (and the legacy `scripts/addons/blenderkit` layout), then the dev fallback (suppressed entirely by `BLENDERKIT_NO_PINNED=1`).
 - `publish-manual.mjs` derives `REPO` and `PRODUCT` from `electron-builder.yml` so renames are a single config change.
 - `ListRequest` gains `delimiter`; `ListResponse` gains optional `folders[]`; `ListItem.md5Hash` is now optional. Worker and direct backends share one canonical IPC type.
@@ -125,11 +163,13 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 ## [0.1.2] — 2026-04-26
 
 ### Changed
+
 - Production hardening v0.1.3. Removes hardcoded BlenderKit version (read from manifest at runtime), broadens addon path probing (Blender 4.2-4.5 user-extensions dirs), externalises REPO/PRODUCT in publish-manual, adds Cloudflare AI Gateway and R2 Worker clients (all keytar-backed), ships .env.example, tightens .gitignore, and fixes the win32 spawnSync shell issue. No hardcoded values or placeholders in production code paths.
 
 ## [0.1.2] — 2026-04-26
 
 ### Fixed
+
 - **Broken logo / "white dot" in GrudgeLoader title bar and main sidebar** — image src was the absolute path `/logo-256.png`, which fails under the `file://` protocol used by packaged Electron renderers. Switched to the relative `./logo-256.png`. The gold-helm emblem now renders correctly next to the GrudgeLoader title.
 - **"DOCTYPE not valid" warning** — swapped lowercase `<!doctype html>` for canonical uppercase `<!DOCTYPE html>` in both renderer entry HTML files. HTML5 spec allows both, but several validators/DevTools flag the lowercase form.
 - Added an `onError` fallback on the loader title image: if `logo-256.png` is missing for any reason, it now falls back to `favicon.ico` instead of showing a broken-image placeholder.
@@ -137,20 +177,24 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 ## [0.1.1] — 2026-04-26
 
 ### Fixed
+
 - **API base default** — was pointing at `https://grudgewarlords.com` (game frontend); now correctly defaults to `https://api.grudge-studio.com` (backend VPS).
 - **Renderer CSP** — `connect-src` now whitelists `api.grudge-studio.com`, `*.grudge-studio.com`, and `js.puter.com`. Previously the locked-down policy refused connections to the real backend, which surfaced as a Content-Security-Policy violation in the deployed app.
 
 ### Changed
+
 - README · docs · quickstart now correctly distinguish backend (`api.grudge-studio.com`) from game frontend (`grudgewarlords.com`).
 
 ## [0.1.0] — 2026-04-25
 
 ### Added
+
 - Comprehensive `README.md` with badges, project layout, and release flow.
 - Jekyll docs site under `docs/` (`just-the-docs` theme), deployed to GitHub Pages via `.github/workflows/pages.yml`.
 - `.github/workflows/release.yml` — tag-triggered Windows build that publishes the NSIS installer + `latest.yml` to GitHub Releases via electron-builder.
 
 ### Added (continued from 0.1.0)
+
 - Initial Electron tray application: gold-helm tray icon, main window with 8 pages, frameless always-on-top **GrudgeLoader** overlay.
 - Mandatory ingestion pipeline: `size-verify → convert → enrich → rig → hash → UUID → upload → manifest`.
 - BlenderKit integration (out-of-process daemon + in-Blender Python scripts).
@@ -158,12 +202,12 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - Tailwind CSS, lucide-react icons, sonner toasts, TanStack Query data layer.
 - Full icon set generation (`scripts/build-icons.mjs`) from the brand emblem source.
 
-[Unreleased]: https://github.com/Grudge-Warlords/grudge-dev-tool/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/Grudge-Warlords/grudge-dev-tool/compare/v0.3.6...HEAD
+[0.3.6]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.6
 [0.1.3]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.3
 [0.1.2]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.2
 [0.1.1]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.1
 [0.1.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.0
-[0.1.3]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.3
 [0.1.7]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.7
 [0.1.8]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.8
 [0.1.9]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.9

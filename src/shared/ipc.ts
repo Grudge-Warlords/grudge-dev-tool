@@ -104,9 +104,14 @@ export interface UUIDGenInput {
 }
 
 export interface AppSettings {
+  /** Game-api base URL (e.g. https://api.grudge-studio.com). */
   apiBaseUrl: string;
+  /** Asset-service base URL (e.g. https://assets-api.grudge-studio.com). */
+  assetsApiBaseUrl: string;
   /** Optional override for the public CDN host shown in the UI. */
   cdnBaseUrl: string;
   /** Stored separately in keytar; this flag just tells the UI a token is set. */
   hasToken: boolean;
+  /** True when a BlenderKit API key is present in keytar. */
+  hasBlenderKitKey: boolean;
 }

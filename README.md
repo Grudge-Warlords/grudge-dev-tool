@@ -10,11 +10,11 @@
 
 A Windows tray application for the Grudge Studio team. Browse object storage, search the asset catalog, mass-upload through a mandatory ingestion pipeline, generate Grudge UUIDs, pull from BlenderKit, and **author / preview / convert / upload 3D models** with the built-in **Forge 3D** editor — all from a single tray icon plus a small always-on-top **GrudgeLoader** overlay. Also doubles as a Windows default 3D viewer for `.glb` / `.gltf` / `.fbx` / `.obj` / `.stl` / `.ply` / `.dae` / `.3mf`.
 
-> **Status:** v0.3.5 · Windows x64 · Authenticode-signed NSIS installer · auto-updating
+> **Status:** v0.3.6 · Windows x64 · Authenticode-signed NSIS installer · auto-updating
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>
 📦 **Latest release:** <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest>
-⬇ **Direct download (v0.3.5):** [`Grudge Studio Forge-Setup-0.3.5.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.3.5/Grudge.Studio.Forge-Setup-0.3.5.exe) · Windows x64 · NSIS
+⬇ **Direct download (v0.3.6):** [`Grudge Studio Forge-Setup-0.3.6.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.3.6/Grudge.Studio.Forge-Setup-0.3.6.exe) · Windows x64 · NSIS
 📝 **Audit notes:** [`REVIEW.md`](REVIEW.md) — production-wiring + dependency review against the canonical `Grudge-Warlords/grudge-studio-backend`.
 🔧 **Trouble?** [`docs/troubleshooting.md`](docs/troubleshooting.md) covers every error we've resolved.
 ⚙ **Production setup:** [`docs/production-config.md`](docs/production-config.md) — credential reference, R2 endpoint setup, backend mode guide, verification scripts.
@@ -26,7 +26,9 @@ A Windows tray application for the Grudge Studio team. Browse object storage, se
 | Surface | What it does |
 |---|---|
 | **Tray icon** | Gold-helm emblem in the Windows notification area. Left-click → toggles GrudgeLoader. Double-click → opens main window. Right-click → full menu. |
-| **Main window** | 9 pages — Browser · Search · Upload · Request URL · UUID · BlenderKit Library · **Forge 3D** · Docs · Settings — with bottom status bar showing live API connectivity, log link, and update progress. |
+| **Main window** | 10 pages — Browser · Search · Upload · Request URL · UUID · BlenderKit Library · **Forge 3D** · Coder · **Preview** · Settings — with bottom status bar showing live API connectivity, admin pill, log link, and update progress. |
+| **Internal HTML previewer** (admin-only) | Sandboxed Electron `<webview>` page at `/preview` with URL bar, back / forward / reload / stop, "open local `.html`…" file picker, devtools toggle, and "open in default browser" button. Persistent partition keeps cookies/localStorage between visits. Every guest WebContents is locked down via `will-attach-webview` — `nodeIntegration=false`, `contextIsolation=true`, `sandbox=true`, no preload, `webSecurity=true`. |
+| **Admin gating** | `src/renderer/lib/admin.ts` resolves admin state from `VITE_ADMIN_GRUDGE_IDS` + `VITE_ADMIN_USERNAMES` (build-time allowlist) with a `localStorage["grudge:admin-override"]` runtime override for dev/support. Admin-only entries (Upload · Request URL · Forge 3D · Coder · Games · Preview · Settings) are hidden from non-admins; sidebar + status bar surface an `ADMIN` pill when active. Admin is a UX gate — backend / Worker still enforces real permissions server-side. |
 | **Forge 3D** | Built-in Three.js (r169) editor + viewer for `.glb`, `.gltf`, `.fbx`, `.obj`, `.stl`, `.ply`, `.dae`, `.3mf`. Drag-drop a file, the GLB binary container is decoded (magic, version, chunk sizes, extensions, generator), the model loads with full PBR / IBL / shadow-mapped key + cool fill, TransformControls gizmo (W/E/R) via the `getHelper()` API, animation clips with Play/Pause/Stop, scene-tree hierarchy, screenshot, and one-click `Convert → GLB → Upload to R2` that mints a presigned PUT and copies the public CDN URL to the clipboard. Registered with Windows as a default opener for those extensions, so right-click → Open With → Grudge Dev Tool just works. |
 | **GrudgeLoader** | Frameless 360 × 520 always-on-top mini-overlay. Pinned folders, prefix browse with thumbnails, drag-drop bulk upload, **per-asset copy buttons** (path / cdn URL / `curl` / `wget` / Node `assetUrl()` snippet). |
 | **Model Inspector** | `model:inspect` IPC parses GLB/GLTF via `@gltf-transform/core` + `ALL_EXTENSIONS` and returns the full scene graph: node hierarchy (parent/child tree), mesh vertex/triangle counts, PBR materials, skeleton joints, animation clips with durations. Powers the editor scene tree. |
@@ -42,9 +44,11 @@ A Windows tray application for the Grudge Studio team. Browse object storage, se
 ## Install
 
 ### From release (recommended)
+
 Download the latest `.exe` from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) and run it.
 
 ### From source
+
 ```pwsh
 git clone https://github.com/Grudge-Warlords/grudge-dev-tool.git
 cd grudge-dev-tool
@@ -54,6 +58,7 @@ npm run dev                  # hot-reload Vite + Electron
 ```
 
 ### First-run setup
+
 1. Find the gold-helm icon in your Windows notification area (bottom-right). Left-click toggles the GrudgeLoader; double-click opens the main window.
 2. Click **Sign in / Create Grudge account** on the login screen — this opens your default browser to `puter.com`, captures the auth token via a localhost redirect, mints a deterministic Grudge ID from your Puter UUID, and persists everything via the hybrid secret store.
 3. Sidebar → **Settings** → **Cloudflare R2 + AI Gateway** card. Use `npm run secret:import <path-to-secrets.txt>` (or paste each individually) to ingest your R2 + Worker + AI Gateway credentials. Canonical names: `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET=grudge-assets`, `OBJECT_STORAGE_KEY`, `OBJECT_STORAGE_SECRET`, `OBJECT_STORAGE_REGION=auto`, `OBJECT_STORAGE_PUBLIC_URL=https://assets.grudge-studio.com`.
@@ -204,6 +209,7 @@ git push origin main --follow-tags
 This is internal Grudge Studio software. PRs welcome from team members; commits should target `main` and follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, `release:`).
 
 Before opening a PR:
+
 ```pwsh
 npm run typecheck
 npm run package          # full build sanity check
@@ -218,7 +224,7 @@ External deps retain their own licenses; **BlenderKit** (GPL-2.0-or-later) is in
 ## Links
 
 - 📚 Docs site — <https://grudge-warlords.github.io/grudge-dev-tool/>
-- ⬇ **Direct .exe (v0.3.5)** — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.3.5/Grudge.Studio.Forge-Setup-0.3.5.exe>
+- ⬇ **Direct .exe (v0.3.6)** — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.3.6/Grudge.Studio.Forge-Setup-0.3.6.exe>
 - 📦 Releases — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases>
 - 📝 Audit notes — [`REVIEW.md`](REVIEW.md)
 - 🔧 Troubleshooting — [`docs/troubleshooting.md`](docs/troubleshooting.md)

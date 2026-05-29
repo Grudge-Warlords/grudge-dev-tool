@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, shell, nativeImage, session, crashReporter, globalShortcut } from "electron";
+import { app, BrowserWindow, ipcMain, shell, nativeImage, session, crashReporter, dialog } from "electron";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
 import * as windowState from "./windowState";
 import { createTray, disposeTray } from "./tray";
@@ -80,6 +81,9 @@ async function createMainWindow() {
       webSecurity: true,
       allowRunningInsecureContent: false,
       experimentalFeatures: false,
+      // Required for the internal Preview page (renderer uses <webview>).
+      // Locked down in did-attach-webview below.
+      webviewTag: true,
     },
   });
   if (state.maximized) mainWindow.maximize();
@@ -105,8 +109,22 @@ async function createMainWindow() {
   // Deny every permission request by default — we don't need camera/mic/etc.
   // and the principle of least privilege is the right default for a dev tool.
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
-  // Block remote-resource attacks via attached sub-frames the same way.
-  mainWindow.webContents.on("did-attach-webview", (event) => event.preventDefault());
+  // Lock down every <webview> the renderer attaches: no preload, no node,
+  // sandboxed, context-isolated. We don't prevent attach (the Preview page
+  // needs it) but we force-strip anything risky the renderer could request.
+  // `will-attach-webview` fires before the guest is created, so this is the
+  // only event where mutating webPreferences actually does anything.
+  mainWindow.webContents.on("will-attach-webview", (_event, webPreferences) => {
+    delete webPreferences.preload;
+    delete (webPreferences as { preloadURL?: string }).preloadURL;
+    webPreferences.nodeIntegration = false;
+    webPreferences.nodeIntegrationInSubFrames = false;
+    webPreferences.contextIsolation = true;
+    webPreferences.sandbox = true;
+    webPreferences.webSecurity = true;
+    webPreferences.allowRunningInsecureContent = false;
+    webPreferences.experimentalFeatures = false;
+  });
 
   if (!app.isPackaged) {
     mainWindow.loadURL(RENDERER_DEV_URL);
@@ -178,13 +196,13 @@ if (!gotLock) {
         if (input.type !== "keyDown") return;
         const k = input.key.toLowerCase();
         const ctrlOrCmd = input.control || input.meta;
-        if (ctrlOrCmd && k === "r")                       { mainWindow!.webContents.reload();           event.preventDefault(); }
-        if (ctrlOrCmd && input.shift && k === "i")        { mainWindow!.webContents.toggleDevTools();   event.preventDefault(); }
-        if (k === "f11")                                  {
+        if (ctrlOrCmd && k === "r") { mainWindow!.webContents.reload(); event.preventDefault(); }
+        if (ctrlOrCmd && input.shift && k === "i") { mainWindow!.webContents.toggleDevTools(); event.preventDefault(); }
+        if (k === "f11") {
           mainWindow!.setFullScreen(!mainWindow!.isFullScreen());
           event.preventDefault();
         }
-        if (k === "escape" && mainWindow!.isFullScreen()) { mainWindow!.setFullScreen(false);          event.preventDefault(); }
+        if (k === "escape" && mainWindow!.isFullScreen()) { mainWindow!.setFullScreen(false); event.preventDefault(); }
       });
     }
     // Broadcast upload progress to BOTH windows (main + GrudgeLoader).
@@ -266,15 +284,15 @@ function registerIpc() {
   ipcMain.handle("bk:ensure", () => bk.ensureDaemon());
 
   // GrudgeLoader window control
-  ipcMain.handle("loader:show",   () => { showLoader(); });
-  ipcMain.handle("loader:hide",   () => { hideLoader(); });
+  ipcMain.handle("loader:show", () => { showLoader(); });
+  ipcMain.handle("loader:hide", () => { hideLoader(); });
   ipcMain.handle("loader:toggle", () => { toggleLoader(); });
 
   // Connectivity
   ipcMain.handle("connectivity:get", () => getConnectivity());
 
   // Updater
-  ipcMain.handle("updater:check",   () => checkForUpdatesNow());
+  ipcMain.handle("updater:check", () => checkForUpdatesNow());
   ipcMain.handle("updater:install", () => { quitAndInstall(); });
 
   // Auto-launch on Windows startup
@@ -293,8 +311,8 @@ function registerIpc() {
   ipcMain.handle("app:hide", () => { mainWindow?.hide(); });
 
   // Puter auth + Grudge identity
-  ipcMain.handle("auth:getSession",   () => puterAuth.getSession());
-  ipcMain.handle("auth:setSession",   (_e, token: string, user: any) => puterAuth.setSession(token, user));
+  ipcMain.handle("auth:getSession", () => puterAuth.getSession());
+  ipcMain.handle("auth:setSession", (_e, token: string, user: any) => puterAuth.setSession(token, user));
   ipcMain.handle("auth:clearSession", () => puterAuth.clearSession());
   ipcMain.handle("auth:wipeIdentity", () => puterAuth.wipeIdentity());
   ipcMain.handle("auth:getPuterToken", () => puterAuth.getPuterToken());
@@ -313,15 +331,15 @@ function registerIpc() {
   });
 
   // Cloudflare backend
-  ipcMain.handle("cf:status",          () => getCfStatus());
-  ipcMain.handle("cf:set",             (_e, account: any, value: string) => writeCf(account, value));
-  ipcMain.handle("cf:clear",           (_e, account: any) => clearCf(account));
-  ipcMain.handle("cf:workerHealth",    () => workerHealth());
-  ipcMain.handle("cf:r2Health",        () => r2Health());
-  ipcMain.handle("cf:resetR2Client",   () => { resetR2Client(); });
-  ipcMain.handle("cf:aiHealth",        () => aiGatewayHealth());
-  ipcMain.handle("cf:getBackendMode",  () => api.getBackendMode());
-  ipcMain.handle("cf:setBackendMode",  (_e, mode: any) => api.setBackendMode(mode));
+  ipcMain.handle("cf:status", () => getCfStatus());
+  ipcMain.handle("cf:set", (_e, account: any, value: string) => writeCf(account, value));
+  ipcMain.handle("cf:clear", (_e, account: any) => clearCf(account));
+  ipcMain.handle("cf:workerHealth", () => workerHealth());
+  ipcMain.handle("cf:r2Health", () => r2Health());
+  ipcMain.handle("cf:resetR2Client", () => { resetR2Client(); });
+  ipcMain.handle("cf:aiHealth", () => aiGatewayHealth());
+  ipcMain.handle("cf:getBackendMode", () => api.getBackendMode());
+  ipcMain.handle("cf:setBackendMode", (_e, mode: any) => api.setBackendMode(mode));
 
   // Direct R2 ops used by Forge3D (signed PUT/GET, list, head, public URL).
   ipcMain.handle("cf:r2SignedUpload", async (_e, args: { key: string; contentType?: string; ttlSeconds?: number }) => {
@@ -340,30 +358,49 @@ function registerIpc() {
       return { ok: false, error: err?.message ?? String(err) };
     }
   });
-  ipcMain.handle("cf:r2List",       (_e, req) => r2List(req));
-  ipcMain.handle("cf:r2Head",       (_e, key: string) => r2Head(key));
-  ipcMain.handle("cf:r2PublicUrl",  (_e, key: string) => r2PublicUrl(key));
+  ipcMain.handle("cf:r2List", (_e, req) => r2List(req));
+  ipcMain.handle("cf:r2Head", (_e, key: string) => r2Head(key));
+  ipcMain.handle("cf:r2PublicUrl", (_e, key: string) => r2PublicUrl(key));
 
   // Forge3D — "Open with..." + read file from disk for renderer.
   ipcMain.handle("forge:consumeInitialFile", () => forge.consumeInitialFile());
   ipcMain.handle("forge:readFile", async (_e, path: string) => forge.readModelFile(path));
 
   // AI Gateway
-  ipcMain.handle("ai:chat",     (_e, opts) => workersAiChat(opts));
-  ipcMain.handle("ai:caption",  (_e, opts) => workersAiCaption(opts));
-  ipcMain.handle("ai:proxy",    (_e, opts) => aiGatewayProxy(opts));
+  ipcMain.handle("ai:chat", (_e, opts) => workersAiChat(opts));
+  ipcMain.handle("ai:caption", (_e, opts) => workersAiCaption(opts));
+  ipcMain.handle("ai:proxy", (_e, opts) => aiGatewayProxy(opts));
 
   // Coder (local GrudachainCode IDE)
   ipcMain.handle("coder:launch", (_e, opts) => coder.launch(opts));
-  ipcMain.handle("coder:stop",   () => coder.stop());
+  ipcMain.handle("coder:stop", () => coder.stop());
   ipcMain.handle("coder:status", () => coder.getStatus());
-  ipcMain.handle("coder:open",   () => { coder.openInBrowser(); });
+  ipcMain.handle("coder:open", () => { coder.openInBrowser(); });
 
   // Model inspection (gltf-transform scene graph — parent/child tree, meshes, materials, skins, animations)
   ipcMain.handle("model:inspect", (_e, path: string) => inspectModel(path));
 
   // Archive extraction (fflate unzip — for asset pack imports and Sketchfab downloads)
   ipcMain.handle("archive:unzip", (_e, path: string, destDir?: string) => extractZip(path, destDir));
+
+  // Internal Preview tab — pick a local .html/.htm file and hand its file:// URL
+  // back to the renderer, which loads it into a sandboxed <webview>.
+  ipcMain.handle("preview:openHtmlDialog", async () => {
+    if (!mainWindow) return { canceled: true, url: null, path: null };
+    const r = await dialog.showOpenDialog(mainWindow, {
+      title: "Open local HTML file",
+      properties: ["openFile"],
+      filters: [
+        { name: "HTML", extensions: ["html", "htm", "xhtml"] },
+        { name: "All files", extensions: ["*"] },
+      ],
+    });
+    if (r.canceled || r.filePaths.length === 0) return { canceled: true, url: null, path: null };
+    const p = r.filePaths[0];
+    return { canceled: false, url: pathToFileURL(p).toString(), path: p };
+  });
+  // Convert an absolute path → file:// URL (used by drag-drop in the Preview page).
+  ipcMain.handle("preview:fileUrl", (_e, absPath: string) => pathToFileURL(absPath).toString());
 
   // UUID utilities (local, no network)
   ipcMain.handle("uuid:gen", (_e, args) =>
