@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, nativeImage } from "electron";
+import { app, BrowserWindow, screen, nativeImage, shell } from "electron";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 
@@ -58,6 +58,34 @@ export function createLoaderWindow(): BrowserWindow {
   });
   loaderWindow.setAlwaysOnTop(true, "screen-saver");
   loaderWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+  // Security lockdown for navigation
+  const ALLOWED_NAV_HOSTS = /(^|\.)(puter\.com|puter\.site|grudge-studio\.com|grudgewarlords\.com|grudge-warlords\.github\.io)$/i;
+  loaderWindow.webContents.on("will-navigate", (event, url) => {
+    try {
+      const u = new URL(url);
+      if (u.protocol === "file:" && url.endsWith("loader.html")) return;
+      if (u.protocol === "http:" && u.hostname === "localhost") return;
+      if (ALLOWED_NAV_HOSTS.test(u.hostname)) return;
+    } catch { /* ignore */ }
+    event.preventDefault();
+  });
+  loaderWindow.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      const u = new URL(url);
+      const allowed = /(^|\.)puter\.(com|site)$/i.test(u.hostname);
+      if (allowed) {
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: { autoHideMenuBar: true },
+        };
+      }
+      if (u.protocol === "https:" || u.protocol === "http:") {
+        shell.openExternal(url);
+      }
+    } catch { /* ignore */ }
+    return { action: "deny" };
+  });
 
   if (!app.isPackaged) {
     loaderWindow.loadURL(loaderHtmlUrl());
