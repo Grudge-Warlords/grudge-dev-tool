@@ -30,6 +30,9 @@ const KEY_TO_ACCOUNT = {
   GRUDGE_ASSETS_API_BASE: "default.assetsApiBaseUrl",
   GRUDGE_TOKEN:           "default",
   BLENDERKIT_API_KEY:     "blenderkit-api-key",
+  GRUDGE_AI_KEY:          "legion.fleetApiKey",
+  GRUDGE_LEGION_HUB:      "legion.hubUrl",
+  GRUDGE_GRUDA_AGENT:     "legion.grudaAgentUrl",
 };
 
 async function main() {

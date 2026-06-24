@@ -129,6 +129,8 @@ const api = {
     consumeInitialFile: () => ipcRenderer.invoke("forge:consumeInitialFile"),
     /** Read a file from disk and hand the bytes back to the renderer. */
     readFile: (path: string) => ipcRenderer.invoke("forge:readFile", path),
+    /** Pop out the 3D viewport to a separate window. */
+    popOut: () => ipcRenderer.invoke("forge:popOut"),
     /** Listener for second-instance "Open with..." events. */
     onOpenFile: (cb: (info: { path: string; name: string }) => void) => {
       const listener = (_e: any, info: { path: string; name: string }) => cb(info);
@@ -141,6 +143,43 @@ const api = {
     chat: (opts: any) => ipcRenderer.invoke("ai:chat", opts),
     caption: (opts: any) => ipcRenderer.invoke("ai:caption", opts),
     proxy: (opts: any) => ipcRenderer.invoke("ai:proxy", opts),
+  },
+  // Legion orchestrator (hub + GRUDA Agent + whisper)
+  legion: {
+    health: () => ipcRenderer.invoke("legion:health"),
+    agents: () => ipcRenderer.invoke("legion:agents"),
+    chat: (opts: any) => ipcRenderer.invoke("legion:chat", opts),
+    models: () => ipcRenderer.invoke("legion:models"),
+    getHubUrl: () => ipcRenderer.invoke("legion:getHubUrl"),
+    setHubUrl: (url: string) => ipcRenderer.invoke("legion:setHubUrl", url),
+    getAgentUrl: () => ipcRenderer.invoke("legion:getAgentUrl"),
+    setAgentUrl: (url: string) => ipcRenderer.invoke("legion:setAgentUrl", url),
+    getFleetKey: () => ipcRenderer.invoke("legion:getFleetKey"),
+    setFleetKey: (key: string) => ipcRenderer.invoke("legion:setFleetKey", key),
+    clearFleetKey: () => ipcRenderer.invoke("legion:clearFleetKey"),
+    transcribe: (opts: { audioBase64: string; model?: string }) =>
+      ipcRenderer.invoke("legion:transcribe", opts),
+    whisperHealth: () => ipcRenderer.invoke("legion:whisperHealth"),
+  },
+  // Fleet games launcher + store
+  fleet: {
+    games: () => ipcRenderer.invoke("fleet:games"),
+    endpoints: () => ipcRenderer.invoke("fleet:endpoints"),
+    storeCategories: () => ipcRenderer.invoke("fleet:storeCategories"),
+    objectStore: (path: string) => ipcRenderer.invoke("fleet:objectStore", path),
+  },
+  // Ollama (local AI)
+  ollama: {
+    health: () => ipcRenderer.invoke("ollama:health"),
+    models: () => ipcRenderer.invoke("ollama:models"),
+    chat: (opts: any) => ipcRenderer.invoke("ollama:chat", opts),
+    generate: (opts: any) => ipcRenderer.invoke("ollama:generate", opts),
+    getHost: () => ipcRenderer.invoke("ollama:getHost") as Promise<string>,
+    setHost: (host: string) => ipcRenderer.invoke("ollama:setHost", host),
+    getModel: () => ipcRenderer.invoke("ollama:getModel") as Promise<string>,
+    setModel: (model: string) => ipcRenderer.invoke("ollama:setModel", model),
+    getAiPref: () => ipcRenderer.invoke("ollama:getAiPref") as Promise<string>,
+    setAiPref: (pref: string) => ipcRenderer.invoke("ollama:setAiPref", pref),
   },
   // Internal Preview tab — sandboxed <webview> for running .html files locally.
   preview: {
@@ -155,6 +194,15 @@ const api = {
     stop: () => ipcRenderer.invoke("coder:stop"),
     status: () => ipcRenderer.invoke("coder:status"),
     open: () => ipcRenderer.invoke("coder:open"),
+  },
+  // Workspace memory (electron-store + localStorage mirror in renderer)
+  workspace: {
+    get: () => ipcRenderer.invoke("workspace:get"),
+    patch: (patch: Record<string, unknown>) => ipcRenderer.invoke("workspace:patch", patch),
+    export: () => ipcRenderer.invoke("workspace:export") as Promise<string>,
+    import: (raw: string) => ipcRenderer.invoke("workspace:import", raw),
+    reset: () => ipcRenderer.invoke("workspace:reset"),
+    clearCaches: () => ipcRenderer.invoke("workspace:clearCaches") as Promise<string[]>,
   },
   // Tray-driven nav events
   onNav: (cb: (route: string) => void) => {

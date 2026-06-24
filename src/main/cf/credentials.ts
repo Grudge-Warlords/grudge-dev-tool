@@ -25,8 +25,30 @@ export const CF_ACCOUNTS = {
 
 export type CfAccount = keyof typeof CF_ACCOUNTS;
 
+/** Env-var fallbacks when keytar entry is missing (dev / CI). */
+const ENV_FALLBACK: Partial<Record<CfAccount, string>> = {
+  workerUrl: "OBJECTSTORE_WORKER_URL",
+  workerApiKey: "OBJECTSTORE_API_KEY",
+  endpoint: "OBJECT_STORAGE_ENDPOINT",
+  bucket: "OBJECT_STORAGE_BUCKET",
+  bucketAssets: "R2_BUCKET_ASSETS",
+  bucketStore: "R2_BUCKET_OBJECTSTORE",
+  accessKeyId: "OBJECT_STORAGE_KEY",
+  secret: "OBJECT_STORAGE_SECRET",
+  region: "OBJECT_STORAGE_REGION",
+  publicUrl: "OBJECT_STORAGE_PUBLIC_URL",
+  publicR2Url: "OBJECT_STORAGE_PUBLIC_R2_URL",
+  aiWorkersApi: "CF_AI_WORKERS_API",
+  accountId: "CF_ACCOUNT_ID",
+  aiGatewayId: "CF_AI_GATEWAY_ID",
+};
+
 export async function readCf(account: CfAccount): Promise<string | null> {
-  return keytar.getPassword(SERVICE, CF_ACCOUNTS[account]);
+  const fromVault = await keytar.getPassword(SERVICE, CF_ACCOUNTS[account]);
+  if (fromVault) return fromVault;
+  const envKey = ENV_FALLBACK[account];
+  if (envKey && process.env[envKey]) return process.env[envKey]!;
+  return null;
 }
 
 export async function writeCf(account: CfAccount, value: string): Promise<void> {

@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
   FolderTree, Search as SearchIcon, Upload as UploadIcon, Link2,
-  Fingerprint, Palette, BookOpen, Settings as SettingsIcon,
-  Power, Minimize2, LogOut, Loader2, Hammer, Code2, Gamepad2, Globe, ShieldCheck,
+  Fingerprint, Store, BookOpen, Settings as SettingsIcon,
+  Power, Minimize2, LogOut, Loader2, Hammer, Code2, Gamepad2, Globe, ShieldCheck, Bot,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -13,21 +13,24 @@ const Search = React.lazy(() => import("./pages/Search"));
 const Upload = React.lazy(() => import("./pages/Upload"));
 const Request = React.lazy(() => import("./pages/Request"));
 const UUID = React.lazy(() => import("./pages/UUID"));
-const Library = React.lazy(() => import("./pages/AssetLibrary"));
+const Library = React.lazy(() => import("./pages/GrudgeStore"));
+const FleetLauncher = React.lazy(() => import("./pages/FleetLauncher"));
+const Legion = React.lazy(() => import("./pages/Legion"));
 const Docs = React.lazy(() => import("./pages/Docs"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const Forge3D = React.lazy(() => import("./pages/Forge3D"));
 const Coder = React.lazy(() => import("./pages/Coder"));
-const GameModes = React.lazy(() => import("./pages/GameModes"));
+
 const Preview = React.lazy(() => import("./pages/Preview"));
 import Login from "./pages/Login";    // not lazy — always rendered first
 import StatusBar from "./components/StatusBar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { isAdmin, isOpenMode } from "./lib/admin";
+import { hydrateFromMain, persistRoute, readMirror } from "./lib/workspace";
 
 type Route =
   | "/browser" | "/search" | "/upload" | "/request"
-  | "/uuid" | "/library" | "/forge" | "/coder" | "/games"
+  | "/uuid" | "/library" | "/forge" | "/coder" | "/games" | "/legion"
   | "/preview" | "/docs" | "/settings";
 
 interface NavEntry {
@@ -44,10 +47,11 @@ const NAV: NavEntry[] = [
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true },
   { route: "/request", label: "Request URL", Icon: Link2, adminOnly: true },
   { route: "/uuid", label: "UUID", Icon: Fingerprint },
-  { route: "/library", label: "BlenderKit", Icon: Palette },
+  { route: "/library", label: "Store", Icon: Store },
+  { route: "/games", label: "Games", Icon: Gamepad2 },
+  { route: "/legion", label: "Legion", Icon: Bot },
   { route: "/forge", label: "Forge 3D", Icon: Hammer, adminOnly: true },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
-  { route: "/games", label: "Games", Icon: Gamepad2, adminOnly: true },
   { route: "/preview", label: "Preview", Icon: Globe, adminOnly: true },
   { route: "/docs", label: "Docs", Icon: BookOpen },
   { route: "/settings", label: "Settings", Icon: SettingsIcon, adminOnly: true },
@@ -62,8 +66,16 @@ interface Session {
   hasToken: boolean;
 }
 
+const VALID_ROUTES = new Set<string>([
+  "/browser", "/search", "/upload", "/request", "/uuid", "/library", "/forge",
+  "/coder", "/games", "/legion", "/preview", "/docs", "/settings",
+]);
+
 export default function App() {
-  const [route, setRoute] = useState<Route>("/browser");
+  const [route, setRoute] = useState<Route>(() => {
+    const saved = readMirror().route;
+    return (saved && VALID_ROUTES.has(saved) ? saved : "/browser") as Route;
+  });
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -81,9 +93,18 @@ export default function App() {
 
   useEffect(() => {
     refreshSession();
+    hydrateFromMain().then((snap) => {
+      if (snap?.route && VALID_ROUTES.has(snap.route)) {
+        setRoute(snap.route as Route);
+      }
+    });
     const off = window.grudge?.onNav?.((r: Route) => setRoute(r));
     return () => off?.();
   }, [refreshSession]);
+
+  useEffect(() => {
+    persistRoute(route);
+  }, [route]);
 
   async function signOut() {
     if (!confirm("Sign out of Grudge?")) return;
@@ -179,7 +200,7 @@ export default function App() {
 }
 </nav>
   < div className = "sidebar-footer flex items-center gap-2" >
-    <span className="version flex-1" > v0.3.5 </span>
+    <span className="version flex-1" > v0.4.0 </span>
       < button
 title = "Sign out"
 className = "text-muted hover:text-gold"
@@ -213,7 +234,8 @@ onClick = {() => {
 { route === "/library" && <Library /> }
 { route === "/forge" && <Forge3D /> }
 { route === "/coder" && <Coder /> }
-{ route === "/games" && <GameModes /> }
+{ route === "/games" && <FleetLauncher /> }
+{ route === "/legion" && <Legion /> }
 { route === "/preview" && <Preview /> }
 { route === "/docs" && <Docs /> }
 { route === "/settings" && <Settings /> }

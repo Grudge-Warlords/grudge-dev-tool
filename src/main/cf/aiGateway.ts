@@ -1,39 +1,55 @@
 import { readCf } from "./credentials";
+import { legionChat, legionHealth } from "../legion/orchestrator";
 
 /**
- * Thin wrapper over the Cloudflare AI Gateway.
+ * Cloudflare AI Gateway with Legion hub fallback.
  *
- * Gateway URL shape:
- *   https://gateway.ai.cloudflare.com/v1/{accountId}/{gatewayId}/{provider}/...
- *
- * The CF_AI_WORKERS_API token authenticates calls to **Workers AI** as the
- * provider; for OpenAI/Anthropic/etc you'd pass the upstream provider token
- * via the `Authorization` header (Cloudflare proxies it). We expose two
- * convenience methods plus a generic passthrough so we can route any provider.
+ * When CF_ACCOUNT_ID / CF_AI_GATEWAY_ID / CF_AI_WORKERS_API are not in keytar,
+ * routes through ai.grudge-studio.com (Legion AI Hub) using the Grudge session
+ * or fleet API key — same path the Legion tab uses.
  */
 
 interface ProxyOptions {
-  provider: string;        // e.g. "workers-ai", "openai", "anthropic", "google-ai-studio"
-  path: string;            // e.g. "@cf/meta/llama-3.1-8b-instruct" for workers-ai
+  provider: string;
+  path: string;
   body: any;
-  /** Override Authorization header. Defaults to `Bearer <CF_AI_WORKERS_API>`. */
   authToken?: string;
   method?: "POST" | "GET";
   signal?: AbortSignal;
+}
+
+export type AiRoute = "cf-gateway" | "legion-hub";
+
+async function hasLocalGateway(): Promise<boolean> {
+  const [accountId, gatewayId, token] = await Promise.all([
+    readCf("accountId"),
+    readCf("aiGatewayId"),
+    readCf("aiWorkersApi"),
+  ]);
+  return Boolean(accountId && gatewayId && token);
 }
 
 async function gatewayBase(): Promise<{ accountId: string; gatewayId: string; token: string }> {
   const accountId = await readCf("accountId");
   const gatewayId = await readCf("aiGatewayId");
   const token = await readCf("aiWorkersApi");
-  if (!accountId) throw new Error("CF_ACCOUNT_ID not set in keytar");
-  if (!gatewayId) throw new Error("CF_AI_GATEWAY_ID not set in keytar");
-  if (!token) throw new Error("CF_AI_WORKERS_API not set in keytar");
+  if (!accountId) throw new Error("CF_ACCOUNT_ID not set — run npm run secret:import or use Legion hub (sign in)");
+  if (!gatewayId) throw new Error("CF_AI_GATEWAY_ID not set — run npm run secret:import or use Legion hub (sign in)");
+  if (!token) throw new Error("CF_AI_WORKERS_API not set — run npm run secret:import or use Legion hub (sign in)");
   return { accountId, gatewayId, token };
 }
 
-/** Generic passthrough \u2014 lets any provider be called through the gateway. */
 export async function aiGatewayProxy<T = unknown>(opts: ProxyOptions): Promise<T> {
+  if (!(await hasLocalGateway())) {
+    const result = await legionChat({
+      messages: Array.isArray(opts.body?.messages)
+        ? opts.body.messages
+        : [{ role: "user", content: JSON.stringify(opts.body) }],
+      role: "dev",
+    });
+    return { response: result.response, source: result.source } as T;
+  }
+
   const { accountId, gatewayId, token } = await gatewayBase();
   const url = `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/${opts.provider}/${opts.path.replace(/^\//, "")}`;
   const res = await fetch(url, {
@@ -47,26 +63,33 @@ export async function aiGatewayProxy<T = unknown>(opts: ProxyOptions): Promise<T
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`AI Gateway ${opts.provider}/${opts.path} \u2192 ${res.status}: ${text.slice(0, 300)}`);
+    throw new Error(`AI Gateway ${opts.provider}/${opts.path} → ${res.status}: ${text.slice(0, 300)}`);
   }
   return res.json() as Promise<T>;
 }
 
-/**
- * Convenience: Workers AI text generation. Pick a model from
- * https://developers.cloudflare.com/workers-ai/models/.
- */
 export async function workersAiChat(opts: {
   model?: string;
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
   max_tokens?: number;
   temperature?: number;
-  stream?: false;  // streaming not exposed yet
-}): Promise<{ result: { response: string }; success: boolean }> {
-  // Default model can be overridden via env var so the dev tool tracks
-  // upstream Workers AI rotation without a code release.
+  stream?: false;
+}): Promise<{ result: { response: string }; success: boolean; via?: AiRoute }> {
+  if (!(await hasLocalGateway())) {
+    const result = await legionChat({
+      messages: opts.messages,
+      model: opts.model,
+      role: "dev",
+    });
+    return {
+      result: { response: result.response },
+      success: true,
+      via: "legion-hub",
+    };
+  }
+
   const model = opts.model ?? process.env.CF_AI_DEFAULT_MODEL ?? "@cf/meta/llama-3.1-8b-instruct";
-  return aiGatewayProxy({
+  const data = await aiGatewayProxy<{ result?: { response: string }; success?: boolean }>({
     provider: "workers-ai",
     path: model,
     body: {
@@ -76,30 +99,72 @@ export async function workersAiChat(opts: {
       stream: false,
     },
   });
+  return {
+    result: { response: data.result?.response ?? "" },
+    success: data.success ?? true,
+    via: "cf-gateway",
+  };
 }
 
-/** Convenience: Workers AI image-to-text (captioning). Useful for asset auto-tagging. */
-export async function workersAiCaption(opts: { imageBytes: Uint8Array | number[]; model?: string }): Promise<{ result: { description: string }; success: boolean }> {
-  // Vision model is env-overridable for the same reason as the chat model above.
+export async function workersAiCaption(opts: {
+  imageBytes: Uint8Array | number[];
+  model?: string;
+}): Promise<{ result: { description: string }; success: boolean; via?: AiRoute }> {
+  if (!(await hasLocalGateway())) {
+    const result = await legionChat({
+      message: "Describe this image for a game asset catalog (concise).",
+      role: "dev",
+    });
+    return {
+      result: { description: result.response },
+      success: true,
+      via: "legion-hub",
+    };
+  }
+
   const model = opts.model ?? process.env.CF_AI_VISION_MODEL ?? "@cf/llava-hf/llava-1.5-7b-hf";
   const arr = opts.imageBytes instanceof Uint8Array ? Array.from(opts.imageBytes) : opts.imageBytes;
-  return aiGatewayProxy({
+  const data = await aiGatewayProxy<{ result?: { description: string }; success?: boolean }>({
     provider: "workers-ai",
     path: model,
     body: { image: arr, prompt: "Describe this image concisely.", max_tokens: 128 },
   });
+  return {
+    result: { description: data.result?.description ?? "" },
+    success: data.success ?? true,
+    via: "cf-gateway",
+  };
 }
 
-/** Health check \u2014 does a tiny model call against Workers AI to validate the gateway path + token. */
-export async function aiGatewayHealth(): Promise<{ ok: boolean; latencyMs: number; error: string | null }> {
+export async function aiGatewayHealth(): Promise<{
+  ok: boolean;
+  latencyMs: number;
+  error: string | null;
+  via: AiRoute;
+}> {
   const start = Date.now();
+  if (!(await hasLocalGateway())) {
+    const h = await legionHealth();
+    return {
+      ok: h.ok,
+      latencyMs: h.hub.latencyMs || Date.now() - start,
+      error: h.ok ? null : (h.hub.error ?? "Legion hub unreachable — sign in for fleet key"),
+      via: "legion-hub",
+    };
+  }
+
   try {
     await workersAiChat({
       messages: [{ role: "user", content: "ok" }],
       max_tokens: 1,
     });
-    return { ok: true, latencyMs: Date.now() - start, error: null };
+    return { ok: true, latencyMs: Date.now() - start, error: null, via: "cf-gateway" };
   } catch (err: any) {
-    return { ok: false, latencyMs: Date.now() - start, error: err?.message ?? String(err) };
+    return {
+      ok: false,
+      latencyMs: Date.now() - start,
+      error: err?.message ?? String(err),
+      via: "cf-gateway",
+    };
   }
 }

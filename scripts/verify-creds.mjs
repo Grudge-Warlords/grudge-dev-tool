@@ -35,6 +35,10 @@ const REQUIRED = [
   ["Grudge ID record",  "grudge-id",            false],
   // BlenderKit (optional)
   ["BlenderKit key",    "blenderkit-api-key",   false],
+  // Legion orchestrator
+  ["Legion hub URL",    "legion.hubUrl",        false],
+  ["GRUDA Agent URL",   "legion.grudaAgentUrl", false],
+  ["Fleet AI key",      "legion.fleetApiKey",   false],
 ];
 
 async function main() {

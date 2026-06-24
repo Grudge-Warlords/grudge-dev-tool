@@ -21,6 +21,12 @@ import { r2Health, resetR2Client, r2GetSignedUploadUrl, r2GetSignedDownloadUrl, 
 import * as forge from "./forge";
 import * as coder from "./coder";
 import { workersAiChat, workersAiCaption, aiGatewayHealth, aiGatewayProxy } from "./cf/aiGateway";
+import * as ollama from "./ollama";
+import * as legion from "./legion/orchestrator";
+import * as whisper from "./legion/whisper";
+import { FLEET_GAMES, STORE_CATEGORIES } from "../shared/fleetGames";
+import { FLEET_ENDPOINTS } from "../shared/fleetConnections";
+import * as workspaceStore from "./workspaceStore";
 import * as puterAuth from "./auth/puterSession";
 import { puterLoginViaBrowser } from "./auth/puterLogin";
 import {
@@ -106,9 +112,11 @@ async function createMainWindow() {
       event.preventDefault();
     }
   });
-  // Deny every permission request by default — we don't need camera/mic/etc.
-  // and the principle of least privilege is the right default for a dev tool.
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  // Deny camera/mic by default; allow media only for Legion voice (Dist2 orb).
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    if (permission === "media") callback(true);
+    else callback(false);
+  });
   // Lock down every <webview> the renderer attaches: no preload, no node,
   // sandboxed, context-isolated. We don't prevent attach (the Preview page
   // needs it) but we force-strip anything risky the renderer could request.
@@ -366,6 +374,41 @@ function registerIpc() {
   ipcMain.handle("forge:consumeInitialFile", () => forge.consumeInitialFile());
   ipcMain.handle("forge:readFile", async (_e, path: string) => forge.readModelFile(path));
 
+  // Forge3D pop-out canvas — creates a detached borderless viewport window.
+  let popOutWin: BrowserWindow | null = null;
+  ipcMain.handle("forge:popOut", () => {
+    if (popOutWin && !popOutWin.isDestroyed()) {
+      popOutWin.focus();
+      return { ok: true, alreadyOpen: true };
+    }
+    popOutWin = new BrowserWindow({
+      width: 1280,
+      height: 800,
+      minWidth: 640,
+      minHeight: 480,
+      frame: false,
+      transparent: false,
+      backgroundColor: "#0a0e1a",
+      alwaysOnTop: false,
+      icon: nativeImage.createFromPath(windowIconPath()),
+      title: "Forge 3D — Pop-out Canvas",
+      webPreferences: {
+        preload: join(__dirname, "..", "preload", "preload.js"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+    // Load the same renderer but with a hash route hint
+    if (!app.isPackaged) {
+      popOutWin.loadURL(`${RENDERER_DEV_URL}#/forge-popout`);
+    } else {
+      popOutWin.loadFile(RENDERER_PROD_INDEX, { hash: "/forge-popout" });
+    }
+    popOutWin.on("closed", () => { popOutWin = null; });
+    return { ok: true, alreadyOpen: false };
+  });
+
   // AI Gateway
   ipcMain.handle("ai:chat", (_e, opts) => workersAiChat(opts));
   ipcMain.handle("ai:caption", (_e, opts) => workersAiCaption(opts));
@@ -401,6 +444,56 @@ function registerIpc() {
   });
   // Convert an absolute path → file:// URL (used by drag-drop in the Preview page).
   ipcMain.handle("preview:fileUrl", (_e, absPath: string) => pathToFileURL(absPath).toString());
+
+  // Workspace persistence (route, Legion chat, forge state)
+  ipcMain.handle("workspace:get", () => workspaceStore.loadWorkspace());
+  ipcMain.handle("workspace:patch", (_e, patch: Partial<workspaceStore.WorkspaceSnapshot>) =>
+    workspaceStore.saveWorkspace(patch));
+  ipcMain.handle("workspace:export", () => workspaceStore.exportWorkspaceJson());
+  ipcMain.handle("workspace:import", (_e, raw: string) => workspaceStore.importWorkspaceJson(raw));
+  ipcMain.handle("workspace:reset", () => workspaceStore.resetWorkspace());
+  ipcMain.handle("workspace:clearCaches", () => workspaceStore.clearAppCaches());
+
+  // Legion orchestrator (ai.grudge-studio.com + GRUDA Agent)
+  ipcMain.handle("legion:health", () => legion.legionHealth());
+  ipcMain.handle("legion:agents", () => legion.listAgents());
+  ipcMain.handle("legion:chat", (_e, opts) => legion.legionChat(opts));
+  ipcMain.handle("legion:models", () => legion.grudaAgentModels());
+  ipcMain.handle("legion:getHubUrl", () => legion.getLegionHubUrl());
+  ipcMain.handle("legion:setHubUrl", (_e, url: string) => legion.setLegionHubUrl(url));
+  ipcMain.handle("legion:getAgentUrl", () => legion.getGrudaAgentUrl());
+  ipcMain.handle("legion:setAgentUrl", (_e, url: string) => legion.setGrudaAgentUrl(url));
+  ipcMain.handle("legion:getFleetKey", async () => Boolean(await legion.getFleetApiKey()));
+  ipcMain.handle("legion:setFleetKey", (_e, key: string) => legion.setFleetApiKey(key));
+  ipcMain.handle("legion:clearFleetKey", () => legion.clearFleetApiKey());
+  ipcMain.handle("legion:transcribe", (_e, opts: { audioBase64: string; model?: string }) =>
+    whisper.transcribeAudio(opts));
+  ipcMain.handle("legion:whisperHealth", () => whisper.whisperHealth());
+
+  // Fleet games + store catalog
+  ipcMain.handle("fleet:games", async () => {
+    try {
+      const live = await legion.fetchGrudgedotGames();
+      return { static: FLEET_GAMES, live, merged: FLEET_GAMES };
+    } catch {
+      return { static: FLEET_GAMES, live: [], merged: FLEET_GAMES };
+    }
+  });
+  ipcMain.handle("fleet:endpoints", () => FLEET_ENDPOINTS);
+  ipcMain.handle("fleet:storeCategories", () => STORE_CATEGORIES);
+  ipcMain.handle("fleet:objectStore", (_e, path: string) => legion.fetchObjectStoreCatalog(path));
+
+  // Ollama (local AI)
+  ipcMain.handle("ollama:health", () => ollama.ollamaHealth());
+  ipcMain.handle("ollama:models", () => ollama.ollamaModels());
+  ipcMain.handle("ollama:chat", (_e, opts) => ollama.ollamaChat(opts));
+  ipcMain.handle("ollama:generate", (_e, opts) => ollama.ollamaGenerate(opts));
+  ipcMain.handle("ollama:getHost", () => ollama.getOllamaHost());
+  ipcMain.handle("ollama:setHost", (_e, host: string) => { ollama.setOllamaHost(host); });
+  ipcMain.handle("ollama:getModel", () => ollama.getPreferredModel());
+  ipcMain.handle("ollama:setModel", (_e, model: string) => { ollama.setPreferredModel(model); });
+  ipcMain.handle("ollama:getAiPref", () => ollama.getAiPreference());
+  ipcMain.handle("ollama:setAiPref", (_e, pref: any) => { ollama.setAiPreference(pref); });
 
   // UUID utilities (local, no network)
   ipcMain.handle("uuid:gen", (_e, args) =>
