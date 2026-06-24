@@ -372,7 +372,7 @@ function registerIpc() {
 
   // Forge3D — "Open with..." + read file from disk for renderer.
   ipcMain.handle("forge:consumeInitialFile", () => forge.consumeInitialFile());
-  ipcMain.handle("forge:readFile", async (_e, path: string) => forge.readModelFile(path));
+  ipcMain.handle("forge:readFile", async (_e, pathOrObj: unknown) => forge.readModelFile(pathOrObj));
 
   // Forge3D pop-out canvas — creates a detached borderless viewport window.
   let popOutWin: BrowserWindow | null = null;

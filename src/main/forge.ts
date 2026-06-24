@@ -83,7 +83,18 @@ const MIME_BY_EXT: Record<string, string> = {
   ".3mf": "model/3mf",
 };
 
-export async function readModelFile(path: string): Promise<ReadFileResult> {
+/** Accept a path string or `{ path }` from older renderer builds. */
+export function resolveModelPath(input: unknown): string {
+  if (typeof input === "string" && input.trim()) return input.trim();
+  if (input && typeof input === "object" && "path" in input) {
+    const p = (input as { path?: unknown }).path;
+    if (typeof p === "string" && p.trim()) return p.trim();
+  }
+  throw new Error("forge:readFile requires a file path string");
+}
+
+export async function readModelFile(pathOrObj: unknown): Promise<ReadFileResult> {
+  const path = resolveModelPath(pathOrObj);
   const ext = extname(path).toLowerCase();
   if (!SUPPORTED_EXTS.has(ext)) throw new Error(`Unsupported extension: ${ext}`);
   const data = await fs.readFile(path);
