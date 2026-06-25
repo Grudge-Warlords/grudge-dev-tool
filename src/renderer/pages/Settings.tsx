@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { FolderOpen, RefreshCcw, Power, Cloud, Bot, User, LogIn, LogOut, KeyRound, Save, Trash2, Download, Upload } from "lucide-react";
+import { FolderOpen, RefreshCcw, Power, Cloud, Bot, User, LogIn, LogOut, KeyRound, Save, Trash2, Download, Upload, Link2 } from "lucide-react";
+import { FLEET_CLIENT_URL } from "../../shared/fleet";
 import { clearMirror } from "../lib/workspace";
 import { StatusDot } from "../components/StatusBar";
 import { puterSignIn, puterSignOut } from "../lib/puter";
@@ -171,7 +172,19 @@ export default function Settings() {
     reload();
   }
   async function saveAssetsApiBase() {
-    await window.grudge.settings.setAssetsApiBase(assetsApiBase);
+    if (!assetsApiBase.trim()) {
+      await window.grudge.settings.clearAssetsApiBase();
+    } else {
+      await window.grudge.settings.setAssetsApiBase(assetsApiBase);
+    }
+    reload();
+  }
+  async function applyOneTruthPreset() {
+    await window.grudge.settings.setApiBase(FLEET_CLIENT_URL);
+    await window.grudge.settings.clearAssetsApiBase();
+    setApiBase(FLEET_CLIENT_URL);
+    setAssetsApiBase("");
+    toast.success("ONE TRUTH preset applied", { description: FLEET_CLIENT_URL });
     reload();
   }
   async function saveToken() {
@@ -226,22 +239,28 @@ export default function Settings() {
           </>
         )}
         <div style={{ marginTop: 12 }}>
-          <label className="muted text-xs flex items-center gap-1"><KeyRound size={12} /> game-api base URL (optional override)</label>
+          <label className="muted text-xs flex items-center gap-1"><Link2 size={12} /> Fleet client URL</label>
           <div className="row" style={{ marginTop: 4 }}>
-            <input value={apiBase} onChange={(e) => setApiBase(e.target.value)} placeholder="https://api.grudge-studio.com" />
+            <input value={apiBase} onChange={(e) => setApiBase(e.target.value)} placeholder={FLEET_CLIENT_URL} />
             <button className="btn ghost" onClick={saveApiBase}>Save</button>
+            <button className="btn ghost text-gold" onClick={applyOneTruthPreset} title="Set client.grudge-studio.com and clear legacy split-host overrides">
+              ONE TRUTH
+            </button>
+          </div>
+          <div className="muted text-[10px] mt-1">
+            One URL for fleet manifest, auth, objectstore JSON, and uploads via Vercel rewrites. Matches <span className="kbd">grudge-dev doctor</span>.
           </div>
         </div>
-        <div style={{ marginTop: 8 }}>
-          <label className="muted text-xs flex items-center gap-1"><KeyRound size={12} /> asset-service base URL (optional override)</label>
+        <details style={{ marginTop: 8 }}>
+          <summary className="muted text-xs cursor-pointer">Legacy split-host override (optional)</summary>
           <div className="row" style={{ marginTop: 4 }}>
-            <input value={assetsApiBase} onChange={(e) => setAssetsApiBase(e.target.value)} placeholder="https://assets-api.grudge-studio.com" />
+            <input value={assetsApiBase} onChange={(e) => setAssetsApiBase(e.target.value)} placeholder="same as fleet client (default)" />
             <button className="btn ghost" onClick={saveAssetsApiBase}>Save</button>
           </div>
           <div className="muted text-[10px] mt-1">
-            Single-domain dev installs that proxy /api/objectstore/* through game-api can point this at the same value.
+            Leave empty for ONE TRUTH. Set only when objectstore routes to a separate host (e.g. <span className="font-mono">assets-api.grudge-studio.com</span>).
           </div>
-        </div>
+        </details>
       </div>
 
       <div className="card">
@@ -262,24 +281,25 @@ export default function Settings() {
         </h3>
         <table>
           <tbody>
-            <tr><td className="muted">game-api</td><td className="font-mono">{conn?.apiBaseUrl ?? "—"}</td></tr>
+            <tr><td className="muted">Fleet client</td><td className="font-mono">{conn?.apiBaseUrl ?? "—"}</td></tr>
             <tr>
-              <td className="muted">Reachable</td>
+              <td className="muted">ONE TRUTH</td>
               <td className={conn?.reachable ? "status-ok" : "status-bad"}>
-                {conn?.reachable ? `yes · ${conn.latencyMs ?? 0}ms` : `no${conn?.error ? ` · ${conn.error}` : ""}`}
+                {conn?.truthScore != null
+                  ? `${conn.truthScore}%${conn.reachable ? " · healthy" : " · degraded"}`
+                  : conn?.reachable ? `reachable · ${conn.latencyMs ?? 0}ms` : `unreachable${conn?.error ? ` · ${conn.error}` : ""}`}
               </td>
             </tr>
-            {conn?.assets && (
-              <>
-                <tr><td className="muted">asset-service</td><td className="font-mono">{conn.assets.apiBaseUrl}</td></tr>
-                <tr>
-                  <td className="muted">Reachable</td>
-                  <td className={conn.assets.reachable ? "status-ok" : "status-bad"}>
-                    {conn.assets.reachable ? `yes · ${conn.assets.latencyMs ?? 0}ms` : `no${conn.assets.error ? ` · ${conn.assets.error}` : ""}`}
+            {conn?.probes?.length ? (
+              conn.probes.map((p: any) => (
+                <tr key={p.id}>
+                  <td className="muted pl-2">{p.label}</td>
+                  <td className={p.ok ? "status-ok" : "status-bad"}>
+                    {p.ok ? `✓ ${p.status ?? "OK"} · ${p.latencyMs ?? 0}ms` : `✗ ${p.detail ?? p.status ?? "fail"}`}
                   </td>
                 </tr>
-              </>
-            )}
+              ))
+            ) : null}
             <tr><td className="muted">OS network</td><td>{conn?.online ? "online" : "offline"}</td></tr>
             <tr><td className="muted">Last checked</td><td className="muted">{conn?.lastCheckedAt ? new Date(conn.lastCheckedAt).toLocaleTimeString() : "—"}</td></tr>
           </tbody>

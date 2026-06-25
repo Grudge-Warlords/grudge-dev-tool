@@ -51,10 +51,12 @@ export default function StatusBar({ compact = false, admin = false }: { compact?
         : conn.reachable ? "ok"
           : "warn";
 
+  const truthScore = (conn as any)?.truthScore as number | null | undefined;
   const label = !conn ? "checking…"
     : !conn.online ? "offline"
-      : conn.reachable ? `online · ${conn.latencyMs ?? 0}ms`
-        : "API unreachable";
+      : conn.reachable
+        ? truthScore != null ? `ONE TRUTH ${truthScore}% · ${conn.latencyMs ?? 0}ms` : `online · ${conn.latencyMs ?? 0}ms`
+        : truthScore != null ? `ONE TRUTH ${truthScore}%` : "fleet unreachable";
 
   if (compact) {
     return (

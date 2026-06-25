@@ -59,8 +59,8 @@ never in files, environment variables, or the app's config directory.
 
 | Env Var Name | Keytar Account | Description | Default |
 |---|---|---|---|
-| `GRUDGE_API_BASE` | `default.apiBaseUrl` | Game API base URL | `https://api.grudge-studio.com` |
-| `GRUDGE_ASSETS_API_BASE` | `default.assetsApiBaseUrl` | Asset service base URL | `https://assets-api.grudge-studio.com` |
+| `GRUDGE_API_BASE` | `default.apiBaseUrl` | Fleet client URL (ONE TRUTH) | `https://client.grudge-studio.com` |
+| `GRUDGE_ASSETS_API_BASE` | `default.assetsApiBaseUrl` | Legacy objectstore host override (optional) | *(falls through to fleet client)* |
 
 ### Optional — Cloudflare AI Gateway
 

@@ -11,10 +11,13 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - **`cli/` package** — `grudge-dev` v0.5.0 autonomous developer CLI: `setup`, `doctor`, `login`, `fleet`, `upload-pack`, `search`, `status`.
 - **ONE TRUTH probes** in `grudge-dev doctor` — validates `client.grudge-studio.com` rewrites (fleet manifest, auth verify, objectstore JSON, icons, supabase health).
 - **GitHub Pages docs:** [CLI quickstart](docs/cli-quickstart.md), [ONE TRUTH wiring](docs/one-truth.md).
+- **Forge tray ONE TRUTH connectivity** — 30s tick runs the same six fleet probes as `grudge-dev doctor`; status bar shows `ONE TRUTH N%`.
+- **Settings ONE TRUTH preset** — one-click `client.grudge-studio.com` + clears legacy `assets-api` override.
 
 ### Changed
 
-- Docs home updated for v0.5.0 CLI + v0.3.6 Forge tray download.
+- **Forge tray v0.5.0** — default fleet client URL is `https://client.grudge-studio.com`; objectstore routes through the same host unless a legacy override is set.
+- Docs home + download section updated for v0.5.0 Forge tray (simple ONE TRUTH connection story).
 - API reference examples use `client.grudge-studio.com` as canonical base.
 - Tray quickstart Settings default → `client.grudge-studio.com`.
 

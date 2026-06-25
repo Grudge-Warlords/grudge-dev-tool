@@ -1,31 +1,21 @@
 import { BrowserWindow, net } from "electron";
-import { getApiBaseUrl, getAssetsApiBaseUrl, resolveBackend } from "./api";
+import { getApiBaseUrl, resolveBackend } from "./api";
 import { readCf } from "./cf/credentials";
 import { r2Health } from "./cf/r2Direct";
+import { runTruthAudit, TRUTH_HEALTH_THRESHOLD, type TruthProbe } from "../shared/fleet";
 
 export interface ConnectivityState {
   reachable: boolean;
-  online: boolean;          // OS-level reachability
+  online: boolean;
   apiBaseUrl: string;
   lastCheckedAt: number;
   latencyMs: number | null;
   status: number | null;
   error: string | null;
-  /**
-   * Asset-service health when the resolved backend is `grudge`. The dev tool
-   * routes object-storage calls (list / search / upload-url / manifest /
-   * asset-meta) to assets-api.grudge-studio.com (port 3008 in the canonical
-   * backend), so the bottom status bar lying about overall reachability when
-   * game-api is up but asset-service is down was a real risk. Optional so
-   * R2-direct and worker modes can leave it null.
-   */
-  assets?: {
-    apiBaseUrl: string;
-    reachable: boolean;
-    latencyMs: number | null;
-    status: number | null;
-    error: string | null;
-  } | null;
+  /** ONE TRUTH audit score (0–100) when probing the fleet client. */
+  truthScore?: number | null;
+  /** Individual probe rows for Settings diagnostics. */
+  probes?: TruthProbe[];
 }
 
 let timer: NodeJS.Timeout | null = null;
@@ -37,7 +27,8 @@ let last: ConnectivityState = {
   latencyMs: null,
   status: null,
   error: null,
-  assets: null,
+  truthScore: null,
+  probes: [],
 };
 
 function probe(url: string, timeoutMs = 4000): Promise<{ ok: boolean; status: number | null; latencyMs: number; error: string | null }> {
@@ -50,12 +41,9 @@ function probe(url: string, timeoutMs = 4000): Promise<{ ok: boolean; status: nu
     }, timeoutMs);
     req.on("response", (res: any) => {
       clearTimeout(t);
-      // Drain to free socket
       res.on("data", () => { /* ignore */ });
       res.on("end", () => {
         const status = res.statusCode ?? null;
-        // 2xx or 4xx (auth-required) both indicate the host is reachable;
-        // 5xx and network errors do not.
         const ok = !!status && status < 500;
         resolve({ ok, status, latencyMs: Date.now() - start, error: ok ? null : `HTTP ${status}` });
       });
@@ -83,56 +71,63 @@ async function tick(broadcast: (s: ConnectivityState) => void) {
         latencyMs: r.latencyMs,
         status: r.ok ? 200 : null,
         error: r.error,
-        assets: null,
+        truthScore: null,
+        probes: [],
       };
       broadcast(last);
       return;
     }
 
-    let apiBase: string;
-    let probeUrl: string;
     if (backend === "cloudflare-worker") {
       const w = await readCf("workerUrl");
-      apiBase = (w ?? "").replace(/\/$/, "");
-      probeUrl = `${apiBase}/health`;
-    } else {
-      apiBase = await getApiBaseUrl();
-      probeUrl = `${apiBase.replace(/\/$/, "")}/api/health`;
+      const apiBase = (w ?? "").replace(/\/$/, "");
+      const probeUrl = `${apiBase}/health`;
+      const workerProbe = await probe(probeUrl);
+      last = {
+        reachable: workerProbe.ok,
+        online: net.isOnline(),
+        apiBaseUrl: apiBase,
+        lastCheckedAt: Date.now(),
+        latencyMs: workerProbe.latencyMs,
+        status: workerProbe.status,
+        error: workerProbe.error,
+        truthScore: null,
+        probes: [],
+      };
+      broadcast(last);
+      return;
     }
 
-    // When backend is `grudge`, also probe the asset-service so the status
-    // bar can distinguish "game-api up, asset-service down" (where uploads
-    // would still fail despite a green dot for game-api).
-    const probeAssets = backend === "grudge";
-    const assetsBase = probeAssets ? (await getAssetsApiBaseUrl()).replace(/\/$/, "") : null;
-    const [gameProbe, assetsProbe] = await Promise.all([
-      probe(probeUrl),
-      probeAssets && assetsBase ? probe(`${assetsBase}/api/health`) : Promise.resolve(null),
-    ]);
+    // ONE TRUTH: probe fleet client rewrites (same checks as `grudge-dev doctor`).
+    const apiBase = await getApiBaseUrl();
+    const audit = await runTruthAudit(apiBase);
+    const failed = audit.probes.filter((p) => !p.ok);
+    const avgLatency = audit.probes.length
+      ? Math.round(audit.probes.reduce((sum, p) => sum + (p.latencyMs ?? 0), 0) / audit.probes.length)
+      : null;
 
     last = {
-      reachable: gameProbe.ok && (assetsProbe == null || assetsProbe.ok),
+      reachable: audit.score >= TRUTH_HEALTH_THRESHOLD,
       online: net.isOnline(),
       apiBaseUrl: apiBase,
       lastCheckedAt: Date.now(),
-      latencyMs: gameProbe.latencyMs,
-      status: gameProbe.status,
-      error: gameProbe.ok
-        ? (assetsProbe && !assetsProbe.ok ? `assets-api: ${assetsProbe.error}` : null)
-        : gameProbe.error,
-      assets: assetsProbe && assetsBase
-        ? {
-            apiBaseUrl: assetsBase,
-            reachable: assetsProbe.ok,
-            latencyMs: assetsProbe.latencyMs,
-            status: assetsProbe.status,
-            error: assetsProbe.error,
-          }
+      latencyMs: avgLatency,
+      status: audit.probes.find((p) => p.id === "fleet-manifest")?.status ?? null,
+      error: failed.length
+        ? `ONE TRUTH ${audit.score}% — ${failed.map((p) => p.label).join(", ")}`
         : null,
+      truthScore: audit.score,
+      probes: audit.probes,
     };
     broadcast(last);
   } catch (err: any) {
-    last = { ...last, reachable: false, online: net.isOnline(), error: err?.message ?? String(err), lastCheckedAt: Date.now() };
+    last = {
+      ...last,
+      reachable: false,
+      online: net.isOnline(),
+      error: err?.message ?? String(err),
+      lastCheckedAt: Date.now(),
+    };
     broadcast(last);
   }
 }
@@ -144,7 +139,6 @@ export function startConnectivity(getWindows: () => BrowserWindow[], intervalMs 
       if (!win.isDestroyed()) win.webContents.send("connectivity:changed", s);
     }
   };
-  // First probe immediately, then on interval
   tick(broadcast);
   timer = setInterval(() => tick(broadcast), intervalMs);
 }

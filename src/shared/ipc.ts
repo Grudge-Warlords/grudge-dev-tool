@@ -104,9 +104,9 @@ export interface UUIDGenInput {
 }
 
 export interface AppSettings {
-  /** Game-api base URL (e.g. https://api.grudge-studio.com). */
+  /** Fleet client URL (ONE TRUTH default: https://client.grudge-studio.com). */
   apiBaseUrl: string;
-  /** Asset-service base URL (e.g. https://assets-api.grudge-studio.com). */
+  /** Legacy objectstore host override; empty when using ONE TRUTH fall-through. */
   assetsApiBaseUrl: string;
   /** Optional override for the public CDN host shown in the UI. */
   cdnBaseUrl: string;

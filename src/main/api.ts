@@ -10,6 +10,7 @@ import {
   r2List, r2Head, r2GetSignedDownloadUrl, r2GetSignedUploadUrl, r2PublicUrl,
 } from "./cf/r2Direct";
 import { readCf } from "./cf/credentials";
+import { FLEET_CLIENT_URL } from "../shared/fleet";
 
 const SERVICE = "grudge-dev-tool";
 const ACCOUNT = "default";
@@ -26,27 +27,32 @@ export async function setApiBaseUrl(url: string): Promise<void> {
 export async function getApiBaseUrl(): Promise<string> {
   if (cachedBase) return cachedBase;
   const stored = await keytar.getPassword(SERVICE, `${ACCOUNT}.apiBaseUrl`);
-  cachedBase = (stored || process.env.GRUDGE_API_BASE || "https://api.grudge-studio.com").replace(/\/$/, "");
+  cachedBase = (stored || process.env.GRUDGE_API_BASE || FLEET_CLIENT_URL).replace(/\/$/, "");
   return cachedBase;
 }
 
 /**
- * Asset-service base URL.
+ * Objectstore / asset-service base URL.
  *
- * The canonical production backend (Grudge-Warlords/grudge-studio-backend) splits
- * the HTTP surface across services:
- *   • api.grudge-studio.com           → game-api      (characters, missions, etc.)
- *   • assets-api.grudge-studio.com    → asset-service (upload-url, manifest, asset-meta, conversions, ObjectStore sync)
+ * ONE TRUTH (v0.5+): a single fleet client host (`client.grudge-studio.com`) serves
+ * `/api/objectstore/*` via Vercel rewrites — same URL as `getApiBaseUrl()` unless
+ * you explicitly override for legacy split-host installs.
  *
  * Resolution order:
  *   1. keytar `default.assetsApiBaseUrl`   — explicit override
  *   2. process.env.GRUDGE_ASSETS_API_BASE   — build/run-time override
- *   3. keytar `default.apiBaseUrl`          — legacy fall-through (single-domain installs)
- *   4. https://assets-api.grudge-studio.com — canonical default
+ *   3. `getApiBaseUrl()`                      — ONE TRUTH fall-through (default)
  */
 export async function setAssetsApiBaseUrl(url: string): Promise<void> {
   cachedAssetsBase = url.replace(/\/$/, "");
   await keytar.setPassword(SERVICE, `${ACCOUNT}.assetsApiBaseUrl`, cachedAssetsBase);
+}
+
+export async function clearAssetsApiBaseUrl(): Promise<void> {
+  cachedAssetsBase = null;
+  try {
+    await keytar.deletePassword(SERVICE, `${ACCOUNT}.assetsApiBaseUrl`);
+  } catch { /* not stored */ }
 }
 
 export async function getAssetsApiBaseUrl(): Promise<string> {
@@ -61,11 +67,7 @@ export async function getAssetsApiBaseUrl(): Promise<string> {
     cachedAssetsBase = envOverride.replace(/\/$/, "");
     return cachedAssetsBase;
   }
-  // No explicit setting — prefer the canonical asset-service host. We do NOT
-  // automatically fall back to apiBaseUrl when both are unset, because the
-  // canonical backend deliberately keeps these routes off api.grudge-studio.com.
-  cachedAssetsBase = "https://assets-api.grudge-studio.com";
-  return cachedAssetsBase;
+  return getApiBaseUrl();
 }
 
 export async function setToken(token: string): Promise<void> {

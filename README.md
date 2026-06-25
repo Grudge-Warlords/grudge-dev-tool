@@ -10,11 +10,11 @@
 
 A Windows tray application for the Grudge Studio team. Browse object storage, search the asset catalog, mass-upload through a mandatory ingestion pipeline, generate Grudge UUIDs, pull from BlenderKit, and **author / preview / convert / upload 3D models** with the built-in **Forge 3D** editor — all from a single tray icon plus a small always-on-top **GrudgeLoader** overlay. Also doubles as a Windows default 3D viewer for `.glb` / `.gltf` / `.fbx` / `.obj` / `.stl` / `.ply` / `.dae` / `.3mf`.
 
-> **Status:** CLI **v0.5.0** (`cli/` — `grudge-dev setup` / `doctor` / `upload-pack`) · Forge tray **v0.3.6** · Windows x64 NSIS · auto-updating
+> **Status:** CLI **v0.5.0** (`cli/` — `grudge-dev setup` / `doctor` / `upload-pack`) · Forge tray **v0.5.0** (ONE TRUTH) · Windows x64 NSIS · auto-updating
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/> — [CLI quickstart](docs/cli-quickstart.md) · [ONE TRUTH](docs/one-truth.md)
 📦 **Latest release:** <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest>
-⬇ **Direct download (v0.3.6):** [`Grudge Studio Forge-Setup-0.3.6.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.3.6/Grudge.Studio.Forge-Setup-0.3.6.exe) · Windows x64 · NSIS
+⬇ **Direct download (v0.5.0):** [`Grudge Studio Forge-Setup-0.5.0.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.5.0/Grudge.Studio.Forge-Setup-0.5.0.exe) · Windows x64 · NSIS
 📝 **Audit notes:** [`REVIEW.md`](REVIEW.md) — production-wiring + dependency review against the canonical `Grudge-Warlords/grudge-studio-backend`.
 🔧 **Trouble?** [`docs/troubleshooting.md`](docs/troubleshooting.md) covers every error we've resolved.
 ⚙ **Production setup:** [`docs/production-config.md`](docs/production-config.md) — credential reference, R2 endpoint setup, backend mode guide, verification scripts.
@@ -36,9 +36,9 @@ A Windows tray application for the Grudge Studio team. Browse object storage, se
 | **Ingestion pipeline** | Mandatory for every uploaded file: `size-verify → convert → enrich → rig → hash → UUID → upload → manifest`. Supports 20+ file types including `.glb`, `.gltf`, `.fbx`, `.obj`, `.stl`, `.ply`, `.3ds`, `.dae`, `.zip`, `.bin`, `.mtl`. |
 | **BlenderKit** | Local daemon HTTP integration for asset search/download; in-Blender Python scripts for autothumb + scene enrichment. Uses your existing on-disk install (`F:\blenderkit-v3.19.2.260411\` by default). License-clean — addon files are never bundled. |
 | **Auth** | Browser-based Puter sign-in via `@heyputer/puter.js` Node integration (main-process `getAuthToken()` flow). Token + user + Grudge ID stored in a hybrid secret store: keytar first (Windows Credential Vault), with automatic fallback to an Electron `safeStorage`-encrypted file (DPAPI) when the value exceeds the 2.5 KB credential-blob cap. Manual-paste fallback always available. |
-| **Object storage** | Three resolved backends: **R2 direct** (S3-compatible, presigned PUT/GET), **Cloudflare Worker** (`/list`, `/upload-url`, `/manifest`, `/asset`, `/search`), and **GrudgeBuilder asset-service** (`assets-api.grudge-studio.com`). Auto-resolution picks R2 direct when full creds are present, otherwise Worker, otherwise asset-service. Backend mode override in Settings + Upload page. |
+| **Object storage** | Three resolved backends: **R2 direct** (S3-compatible, presigned PUT/GET), **Cloudflare Worker** (`/list`, `/upload-url`, `/manifest`, `/asset`, `/search`), and **GrudgeBuilder fleet client** (`client.grudge-studio.com` — ONE TRUTH default). Auto-resolution picks R2 direct when full creds are present, otherwise Worker, otherwise fleet client. Backend mode override in Settings + Upload page. |
 | **Auto-update** | `electron-updater` checks the GitHub release feed every 4h. Silent download → "Restart now / Later" prompt. Authenticode-signed `.exe` and `latest.yml` shipped per release. |
-| **Network listener** | Main process probes `${apiBase}/api/health` every 30s; results broadcast over IPC to all windows; status dot in main window + GrudgeLoader title bar. |
+| **Network listener** | Main process runs ONE TRUTH fleet probes (same six checks as `grudge-dev doctor`) every 30s when backend is `grudge`; status bar shows `ONE TRUTH N%`. |
 | **Logging** | `electron-log` writes to `%APPDATA%\Grudge Dev Tool\logs\main.log`. *Logs* link in the bottom status bar opens the folder. |
 
 ## Install
@@ -172,7 +172,7 @@ dev/<scratch>                                               # admin-write
 
 - **R2 bucket:** `grudge-assets` · **Region:** `auto` · **Endpoint:** `https://<account-id>.r2.cloudflarestorage.com`
 - **Public CDN:** `https://assets.grudge-studio.com/<key>` (Cloudflare Worker fronting the bucket)
-- **Asset-service HTTP routes:** `https://assets-api.grudge-studio.com/api/objectstore/{list, search, upload-url, manifest, asset/<key>}`
+- **Fleet client objectstore routes (ONE TRUTH):** `https://client.grudge-studio.com/api/objectstore/{list, search, upload-url, manifest, asset/<key>}`
 
 See [`docs/object-storage.md`](docs/object-storage.md) for ACL rules and the manifest schema, and [`REVIEW.md`](REVIEW.md) for current production-wiring audit notes (canonical hosts vs. dev-tool defaults, dependency review, hygiene findings).
 
@@ -224,10 +224,10 @@ External deps retain their own licenses; **BlenderKit** (GPL-2.0-or-later) is in
 ## Links
 
 - 📚 Docs site — <https://grudge-warlords.github.io/grudge-dev-tool/>
-- ⬇ **Direct .exe (v0.3.6)** — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.3.6/Grudge.Studio.Forge-Setup-0.3.6.exe>
+- ⬇ **Direct .exe (v0.5.0)** — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.5.0/Grudge.Studio.Forge-Setup-0.5.0.exe>
 - 📦 Releases — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases>
 - 📝 Audit notes — [`REVIEW.md`](REVIEW.md)
 - 🔧 Troubleshooting — [`docs/troubleshooting.md`](docs/troubleshooting.md)
 - 🛠 Issue tracker — <https://github.com/Grudge-Warlords/grudge-dev-tool/issues>
-- 🌐 Game-api — [api.grudge-studio.com](https://api.grudge-studio.com) · Asset-service — [assets-api.grudge-studio.com](https://assets-api.grudge-studio.com) · Identity — [id.grudge-studio.com](https://id.grudge-studio.com) · Public CDN — [assets.grudge-studio.com](https://assets.grudge-studio.com) · Studio — [grudge-studio.com](https://grudge-studio.com) · Game frontend — [grudgewarlords.com](https://grudgewarlords.com)
+- 🌐 Fleet client (ONE TRUTH) — [client.grudge-studio.com](https://client.grudge-studio.com) · Identity — [id.grudge-studio.com](https://id.grudge-studio.com) · Public CDN — [assets.grudge-studio.com](https://assets.grudge-studio.com) · Studio — [grudge-studio.com](https://grudge-studio.com) · Game frontend — [grudgewarlords.com](https://grudgewarlords.com)
 - 🔗 Canonical backend — [Grudge-Warlords/grudge-studio-backend](https://github.com/Grudge-Warlords/grudge-studio-backend) (MySQL 8 + Redis 7 + Cloudflare Tunnel)

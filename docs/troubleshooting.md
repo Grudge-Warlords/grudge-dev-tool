@@ -29,9 +29,9 @@ By design. The window starts hidden. Left-click the tray icon to toggle the **Gr
 ### Mysterious "syntax error" / red text in DevTools console
 **Cause.** It's almost never a JavaScript SyntaxError. It's a **Content-Security-Policy violation** message that reads similarly. Check for `Refused to connect to '<url>' because it violates the following Content Security Policy directive`.
 **Fix.** Resolved in **v0.1.1** — `connect-src` whitelist now includes `https://api.grudge-studio.com`, `https://*.grudge-studio.com`, `https://js.puter.com`, and `http://127.0.0.1:*` (BlenderKit daemon). If you've added a new backend host, edit the CSP in `src/renderer/index.html` and `loader.html`.
-### "API unreachable" yellow dot in the status bar
-**Cause.** The connectivity probe hits `${apiBase}/api/health` every 30s. If `apiBase` is `https://grudgewarlords.com` (the **frontend**, not the backend), `/api/health` 404s.
-**Fix.** Default API base is now `https://api.grudge-studio.com`. If you've already set a custom value in Settings, clear it (it overrides the default; stored in Windows Credential Vault under service `grudge-dev-tool` account `default.apiBaseUrl`).
+### "ONE TRUTH degraded" or yellow dot in the status bar
+**Cause.** v0.5+ runs six fleet probes (same as `grudge-dev doctor`) every 30s. A score below 85% means a rewrite is broken or `apiBase` points at the wrong host (e.g. `grudgewarlords.com` frontend instead of `client.grudge-studio.com`).
+**Fix.** Settings → **ONE TRUTH** preset (sets `https://client.grudge-studio.com` and clears legacy `assets-api` override). Confirm with `grudge-dev doctor`. Overrides live in Windows Credential Vault under `grudge-dev-tool` / `default.apiBaseUrl`.
 ### "DEFAULT (white) icon" instead of branded helm
 Missing `resources/icon.ico`. Run `npm run build:icons` in dev, or reinstall the official release `.exe`.
 ---

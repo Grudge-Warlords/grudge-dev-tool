@@ -263,6 +263,7 @@ function registerIpc() {
   }));
   ipcMain.handle("settings:setApiBase", (_e, url: string) => api.setApiBaseUrl(url));
   ipcMain.handle("settings:setAssetsApiBase", (_e, url: string) => api.setAssetsApiBaseUrl(url));
+  ipcMain.handle("settings:clearAssetsApiBase", () => api.clearAssetsApiBaseUrl());
   ipcMain.handle("settings:setToken", (_e, token: string) => api.setToken(token));
   ipcMain.handle("settings:clearToken", () => api.clearToken());
   ipcMain.handle("settings:setBlenderKitKey", (_e, key: string) => bk.setApiKey(key));
