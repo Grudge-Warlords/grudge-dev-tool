@@ -4,23 +4,19 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-06-25
+
 ### Fixed
 
-- **Puter sign-in firewall hang** — OAuth now runs in an in-app BrowserWindow instead of the system browser + `getAuthToken()` localhost callback (Windows Firewall often blocked the redirect, leaving sign-in stuck until timeout). Settings identity sign-in uses the same main-process flow as Login.
-- **Puter sign-in 404 after token** — user lookup now calls `GET /whoami` (Puter.js canonical endpoint); `/auth/user` does not exist on `api.puter.com`.
+- **Puter sign-in (all installs)** — in-app OAuth window (no Windows Firewall localhost block) + user lookup via `GET /whoami` (fixes 404 on removed `/auth/user`). Settings and Login share one main-process flow; Grudge ID mints after successful `/whoami`.
+- **GrudgeLoader** — folder browse, `>server` search, sandbox-safe upload paths, connectivity objectstore probe, dynamic CDN base.
+- **Forge “Open with…”** — `forge:readFile` accepts `{ path }` objects from second-instance file open (fixes `path must be string` on v0.4.x).
+- **CI build** — `package:ci` uses `--publish never` so PR builds produce installers without hitting GitHub Releases 403.
 
 ### Added
 
-- **GrudgeLoader** — folder browse (`delimiter: /`), breadcrumbs, pagination, `>server` search, sandbox-safe drag-drop upload (`webUtils.getPathForFile`), Pick files IPC, upload progress toasts, compact demo banner.
-- **`forge:openRemote`** — download public CDN models into Forge 3D from GrudgeLoader (`.glb`, `.gltf`, etc.).
-- **`src/shared/mediaTypes.ts`** — content-type inference for R2-direct listings and Loader thumbnails.
-
-### Changed
-
-- README rewritten for v0.5.0 ONE TRUTH (CLI + Forge); badges aligned (Node 22.x).
-- Root and `cli/` `package.json` metadata updated; Upload page backend labels fixed.
-- Connectivity probe now smoke-tests `objectstore/list` so Loader status is not falsely “live”.
-- `settings:get.cdnBaseUrl` resolves dynamically via `resolvePublicCdnBase()`.
+- **`forge:openRemote`** — open CDN models directly in Forge 3D from GrudgeLoader.
+- **`src/shared/mediaTypes.ts`** — R2 content-type inference for thumbnails.
 
 ## [0.5.0] — 2026-06-25
 
@@ -237,7 +233,8 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - Tailwind CSS, lucide-react icons, sonner toasts, TanStack Query data layer.
 - Full icon set generation (`scripts/build-icons.mjs`) from the brand emblem source.
 
-[Unreleased]: https://github.com/Grudge-Warlords/grudge-dev-tool/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Grudge-Warlords/grudge-dev-tool/compare/v0.5.1...HEAD
+[0.5.1]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.5.1
 [0.5.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.5.0
 [0.3.6]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.6
 [0.1.3]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.3

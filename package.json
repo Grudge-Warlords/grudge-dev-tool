@@ -1,6 +1,6 @@
 {
   "name": "grudge-dev-tool",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Grudge Studio developer tooling — grudge-dev CLI (ONE TRUTH doctor, upload-pack) and Windows Forge tray app (object storage, Forge 3D, BlenderKit).",
   "private": true,
   "homepage": "https://grudge-warlords.github.io/grudge-dev-tool/",
@@ -31,6 +31,7 @@
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
     "package": "npm run build && electron-builder --win nsis",
+    "package:ci": "npm run build && electron-builder --win nsis --publish never",
     "package:dir": "npm run build && electron-builder --dir",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "upload-pack": "tsx scripts/upload-asset-pack.ts",

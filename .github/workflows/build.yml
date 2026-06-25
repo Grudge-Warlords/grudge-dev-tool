@@ -32,7 +32,7 @@ jobs:
         env:
           # No code signing in CI for now; signed builds happen on release tag.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run package
+        run: npm run package:ci
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4

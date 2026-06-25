@@ -12,7 +12,7 @@ import { detectAll } from "./ingestion/toolchain";
 import { ingestOne } from "./ingestion";
 import { inspectModel } from "./ingestion/modelInspect";
 import { extractZip } from "./ingestion/archive";
-import { initLogger, getLogFilePath } from "./logger";
+import log, { initLogger, getLogFilePath } from "./logger";
 import { startConnectivity, stopConnectivity, getConnectivity } from "./connectivity";
 import { setupAutoUpdater, checkForUpdatesNow, quitAndInstall } from "./updater";
 import { getCfStatus, readCf, writeCf, clearCf, resolvePublicCdnBase } from "./cf/credentials";
@@ -351,10 +351,11 @@ function registerIpc() {
     try {
       const { token, user } = await puterLoginViaBrowser();
       const r = await puterAuth.setSession(token, user);
+      log.info(`[auth:puterLogin] OK username=${user.username} grudgeId=${r.grudgeId}`);
       return { grudgeId: r.grudgeId, user: { uuid: user.uuid, username: user.username, email: user.email } };
     } catch (err: any) {
       const msg = err?.message ?? String(err);
-      console.error("[auth:puterLogin] FAILED:", msg);
+      log.error("[auth:puterLogin] FAILED:", msg);
       throw new Error(`Sign-in failed: ${msg}`);
     }
   });
