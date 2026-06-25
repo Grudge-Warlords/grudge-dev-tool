@@ -20,8 +20,14 @@
     "setup": "node dist/cli.js setup"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Grudge-Warlords/grudge-dev-tool.git",
+    "directory": "cli"
+  },
+  "homepage": "https://grudge-warlords.github.io/grudge-dev-tool/cli-quickstart.html",
   "dependencies": {
     "commander": "^13.1.0"
   },

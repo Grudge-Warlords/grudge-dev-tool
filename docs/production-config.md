@@ -26,8 +26,8 @@ never in files, environment variables, or the app's config directory.
 └─────────┼─────────────────┼──────────────────────┼──────────────┘
           │                 │                      │
           ▼                 ▼                      ▼
-   R2 S3 API          api.grudge-studio.com    puter.com
-   (direct)            (Railway)              (browser auth)
+   R2 S3 API     client.grudge-studio.com    puter.com
+   (direct)         (ONE TRUTH fleet)       (browser auth)
           │
           ▼
    grudge-assets bucket
@@ -91,7 +91,7 @@ OBJECT_STORAGE_SECRET=your-64-char-secret
 OBJECT_STORAGE_REGION=auto
 OBJECT_STORAGE_PUBLIC_URL=https://assets.grudge-studio.com
 CF_ACCOUNT_ID=ee475864561b02d4588180b8b9acf694
-GRUDGE_API_BASE=https://api.grudge-studio.com
+GRUDGE_API_BASE=https://client.grudge-studio.com
 ```
 
 Then run:
@@ -123,7 +123,7 @@ The dev tool supports three object-storage backends. Set via **Settings → Back
 |---|---|---|
 | `r2-direct` | AWS SDK S3 calls to `<account-id>.r2.cloudflarestorage.com` | **Production default.** Most reliable. |
 | `cloudflare-worker` | JSON fetch to `objectstore.grudge-studio.com/list` etc. | Only if Worker API routes are deployed. |
-| `grudge` | JSON fetch to `api.grudge-studio.com/api/objectstore/*` | Only if backend proxies objectstore. |
+| `grudge` | JSON fetch to `client.grudge-studio.com/api/objectstore/*` (ONE TRUTH) | Default when R2/Worker creds absent. |
 | `auto` | Tries r2-direct → worker → grudge in order | Safe fallback. |
 
 ### ⚠ Common Pitfall: Wrong Endpoint
@@ -233,10 +233,10 @@ const { S3Client, HeadBucketCommand } = require('@aws-sdk/client-s3');
 **Cause:** `cf-r2-endpoint` is set to a Worker URL or CDN URL instead of the R2 S3 endpoint.
 **Fix:** Set it to `https://<account-id>.r2.cloudflarestorage.com`. See the pitfall section above.
 
-### `API unreachable` (yellow dot in status bar)
+### `ONE TRUTH degraded` (yellow dot in status bar)
 
-**Cause:** `apiBaseUrl` points at the wrong host.
-**Fix:** Verify it's set to `https://api.grudge-studio.com`, not `https://grudgewarlords.com` (the game frontend).
+**Cause:** Fleet client URL wrong or a Vercel rewrite is broken.
+**Fix:** Settings → **ONE TRUTH** preset (`https://client.grudge-studio.com`). Confirm with `grudge-dev doctor`. Do not use `grudgewarlords.com` (game frontend).
 
 ### Browser shows "Empty" for all folders
 
@@ -262,8 +262,8 @@ node -e "require('keytar').setPassword('grudge-dev-tool','backend-mode','r2-dire
 These are the canonical production values for Grudge Studio (non-secret fields only):
 
 ```
-GRUDGE_API_BASE=https://api.grudge-studio.com
-GRUDGE_ASSETS_API_BASE=https://assets-api.grudge-studio.com
+GRUDGE_API_BASE=https://client.grudge-studio.com
+# GRUDGE_ASSETS_API_BASE=   # unset for ONE TRUTH (objectstore uses fleet client)
 OBJECT_STORAGE_ENDPOINT=https://ee475864561b02d4588180b8b9acf694.r2.cloudflarestorage.com
 OBJECT_STORAGE_BUCKET=grudge-assets
 OBJECT_STORAGE_REGION=auto

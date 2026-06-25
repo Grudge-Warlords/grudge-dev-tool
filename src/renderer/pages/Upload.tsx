@@ -54,10 +54,11 @@ export default function Upload() {
         ? { id: "worker", label: "Cloudflare Worker (AI / objectstore)", Icon: Cloud, tone: "ok" }
         : { id: "none",   label: "Cloudflare selected but no worker creds set", Icon: CloudOff, tone: "bad" };
     if (mode === "grudge")
-      return { id: "grudge", label: "GrudgeBuilder API (api.grudge-studio.com)", Icon: Server, tone: "ok" };
+      return { id: "grudge", label: "Fleet client (client.grudge-studio.com)", Icon: Server, tone: "ok" };
     // auto
+    if (haveDirect) return { id: "r2", label: "Cloudflare R2 (direct S3)  · auto", Icon: Database, tone: "ok" };
     if (haveWorker) return { id: "worker", label: "Cloudflare Worker (AI / objectstore)  · auto", Icon: Cloud, tone: "ok" };
-    return { id: "grudge", label: "GrudgeBuilder API  · auto", Icon: Server, tone: "warn" };
+    return { id: "grudge", label: "Fleet client (ONE TRUTH)  · auto", Icon: Server, tone: "ok" };
   }
 
   function onDrop(e: React.DragEvent) {

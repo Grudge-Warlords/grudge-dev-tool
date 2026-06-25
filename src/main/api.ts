@@ -130,7 +130,7 @@ async function authedFetch(
   return fetch(`${base}${path}`, { ...init, headers });
 }
 
-/** Same as authedFetch but routes to asset-service (assets-api.grudge-studio.com). */
+/** Same as authedFetch but routes to objectstore host (fleet client by default). */
 async function authedFetchAssets(
   path: string,
   init: RequestInit = {},

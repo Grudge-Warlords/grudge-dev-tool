@@ -1,8 +1,16 @@
 {
   "name": "grudge-dev-tool",
   "version": "0.5.0",
-  "description": "Grudge Studio dev tool — Windows tray app for object-storage browse / search / upload / request and Grudge UUID utilities.",
+  "description": "Grudge Studio developer tooling — grudge-dev CLI (ONE TRUTH doctor, upload-pack) and Windows Forge tray app (object storage, Forge 3D, BlenderKit).",
   "private": true,
+  "homepage": "https://grudge-warlords.github.io/grudge-dev-tool/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Grudge-Warlords/grudge-dev-tool.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Grudge-Warlords/grudge-dev-tool/issues"
+  },
   "main": "dist/main/main.js",
   "engines": {
     "node": ">=22.0.0",

@@ -66,7 +66,7 @@ Atomically write `asset-packs/<packId>/manifest.json`.
 **Example**
 ```
 curl -L -H "Authorization: Bearer $T" \
-  "https://api.grudge-studio.com/api/objectstore/asset/asset-packs/classic64/v0.6/Books/cover.png?format=json"
+  "https://client.grudge-studio.com/api/objectstore/asset/asset-packs/classic64/v0.6/Books/cover.png?format=json"
 ```
 ## UUID endpoints (existing, mounted by GrudgeBuilder)
 - `GET  /api/uuid/test`           — sanity sample

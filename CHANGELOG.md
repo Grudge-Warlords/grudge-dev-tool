@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Changed
+
+- README rewritten for v0.5.0 ONE TRUTH (CLI + Forge); badges aligned (Node 22.x).
+- Root and `cli/` `package.json` metadata updated; Upload page backend labels fixed.
+
 ## [0.5.0] — 2026-06-25
 
 ### Added
@@ -219,7 +224,8 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - Tailwind CSS, lucide-react icons, sonner toasts, TanStack Query data layer.
 - Full icon set generation (`scripts/build-icons.mjs`) from the brand emblem source.
 
-[Unreleased]: https://github.com/Grudge-Warlords/grudge-dev-tool/compare/v0.3.6...HEAD
+[Unreleased]: https://github.com/Grudge-Warlords/grudge-dev-tool/compare/v0.5.0...HEAD
+[0.5.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.5.0
 [0.3.6]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.6
 [0.1.3]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.3
 [0.1.2]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.1.2
