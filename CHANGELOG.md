@@ -4,6 +4,19 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-06-25
+
+### Fixed
+
+- **Puter sign-in (v0.5.1 regression)** — OAuth IdP redirects (Google, GitHub, Microsoft, Apple) are no longer blocked in the in-app auth window. Token capture listens on `will-redirect`, `did-navigate`, and hash fragments.
+- **Automatic fallback** — primary sign-in tries the in-app window, then retries via the system browser (`getAuthToken`) if the window closes or times out.
+- **User resolution** — after token capture, account lookup uses `GET /whoami` (Bearer, token, and `puter` header styles) with JWT decode fallback.
+
+### Added
+
+- **Sign in with system browser** — explicit button on Login and Settings for machines where the in-app window is unreliable.
+- **`auth:setSessionFromToken`** — paste a Puter token only; uuid/username resolved automatically.
+
 ## [0.5.1] — 2026-06-25
 
 ### Fixed

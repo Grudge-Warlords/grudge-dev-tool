@@ -28,7 +28,7 @@ import { FLEET_GAMES, STORE_CATEGORIES } from "../shared/fleetGames";
 import { FLEET_ENDPOINTS } from "../shared/fleetConnections";
 import * as workspaceStore from "./workspaceStore";
 import * as puterAuth from "./auth/puterSession";
-import { puterLoginViaBrowser } from "./auth/puterLogin";
+import { puterLoginAuto, puterLoginViaExternalBrowser, resolvePuterUserFromToken } from "./auth/puterLogin";
 import {
   generateGrudgeUUID, parseGrudgeUUID, describeGrudgeUUID, isValidGrudgeUUID,
   SLOT_CODES, TIER_CODES,
@@ -345,19 +345,34 @@ function registerIpc() {
   ipcMain.handle("auth:clearSession", () => puterAuth.clearSession());
   ipcMain.handle("auth:wipeIdentity", () => puterAuth.wipeIdentity());
   ipcMain.handle("auth:getPuterToken", () => puterAuth.getPuterToken());
-  // Browser-based Puter login (opens default browser via getAuthToken).
-  // Returns { grudgeId, user } so the renderer can refresh its session.
-  ipcMain.handle("auth:puterLogin", async () => {
+  async function finishPuterLogin(
+    login: () => Promise<{ token: string; user: { uuid: string; username: string; email?: string } }>,
+    label: string,
+  ) {
     try {
-      const { token, user } = await puterLoginViaBrowser();
+      const { token, user } = await login();
       const r = await puterAuth.setSession(token, user);
-      log.info(`[auth:puterLogin] OK username=${user.username} grudgeId=${r.grudgeId}`);
+      log.info(`[${label}] OK username=${user.username} grudgeId=${r.grudgeId}`);
       return { grudgeId: r.grudgeId, user: { uuid: user.uuid, username: user.username, email: user.email } };
     } catch (err: any) {
       const msg = err?.message ?? String(err);
-      log.error("[auth:puterLogin] FAILED:", msg);
+      log.error(`[${label}] FAILED:`, msg);
       throw new Error(`Sign-in failed: ${msg}`);
     }
+  }
+
+  // In-app OAuth first; falls back to system browser if the window closes or times out.
+  ipcMain.handle("auth:puterLogin", () => finishPuterLogin(() => puterLoginAuto(), "auth:puterLogin"));
+  ipcMain.handle("auth:puterLoginExternal", () =>
+    finishPuterLogin(() => puterLoginViaExternalBrowser(), "auth:puterLoginExternal"),
+  );
+  ipcMain.handle("auth:setSessionFromToken", async (_e, token: string) => {
+    const trimmed = String(token ?? "").trim();
+    if (!trimmed) throw new Error("Token is required");
+    const user = await resolvePuterUserFromToken(trimmed);
+    const r = await puterAuth.setSession(trimmed, user);
+    log.info(`[auth:setSessionFromToken] OK username=${user.username} grudgeId=${r.grudgeId}`);
+    return { grudgeId: r.grudgeId, user: { uuid: user.uuid, username: user.username, email: user.email } };
   });
 
   // Cloudflare backend

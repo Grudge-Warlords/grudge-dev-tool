@@ -108,11 +108,13 @@ export default function Settings() {
     toast.success("Workspace memory reset");
   }
 
-  async function signInWithPuter() {
+  async function signInWithPuter(external = false) {
     setSigningIn(true);
     try {
-      toast.info("Opening Puter sign-in window…", { duration: 4000 });
-      const r = await window.grudge.auth.puterLogin();
+      toast.info(external ? "Opening system browser…" : "Opening Puter sign-in…", { duration: 5000 });
+      const r = external
+        ? await window.grudge.auth.puterLoginExternal()
+        : await window.grudge.auth.puterLogin();
       toast.success(`Signed in as ${r.user.username} · ${r.grudgeId}`);
       reload();
     } catch (e: any) {
@@ -231,9 +233,12 @@ export default function Settings() {
         ) : (
           <>
             <p className="muted text-sm mb-3">Sign in with Puter to mint a Grudge ID. Saves and uploads sync to your Puter cloud.</p>
-            <button className="btn flex items-center gap-2" onClick={signInWithPuter} disabled={signingIn}>
+            <button className="btn flex items-center gap-2" onClick={() => signInWithPuter(false)} disabled={signingIn}>
               <LogIn size={14} />
               {signingIn ? "Signing in…" : "Sign in / Create Grudge account"}
+            </button>
+            <button className="btn ghost flex items-center gap-2 mt-2" onClick={() => signInWithPuter(true)} disabled={signingIn}>
+              Sign in with system browser
             </button>
           </>
         )}

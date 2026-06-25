@@ -7,7 +7,7 @@ interface Props {
 }
 
 export default function Login({ onSignedIn }: Props) {
-  const [busy, setBusy] = useState<"idle" | "signin" | "manual">("idle");
+  const [busy, setBusy] = useState<"idle" | "signin" | "external" | "manual">("idle");
   const [err, setErr] = useState<string | null>(null);
   const [showManual, setShowManual] = useState(false);
   const [manualToken, setManualToken] = useState("");
@@ -17,9 +17,8 @@ export default function Login({ onSignedIn }: Props) {
   async function signIn() {
     setBusy("signin"); setErr(null);
     try {
-      // In-app Puter OAuth window (avoids Windows Firewall blocking external-browser localhost callbacks).
-      toast.info("Opening Puter sign-in window\u2026", {
-        description: "Sign in inside the Forge window. Your Grudge ID is minted automatically after Puter auth.",
+      toast.info("Opening Puter sign-in\u2026", {
+        description: "Sign in in the Forge window. If that fails, we retry in your default browser.",
         duration: 6000,
       });
       const r = await window.grudge.auth.puterLogin();
@@ -29,22 +28,48 @@ export default function Login({ onSignedIn }: Props) {
       const msg = e?.message ?? String(e);
       setErr(msg);
       toast.error("Sign-in failed", { description: msg });
-      setShowManual(true);  // surface the manual fallback when browser auth fails
+      setShowManual(true);
+    } finally {
+      setBusy("idle");
+    }
+  }
+
+  async function signInExternal() {
+    setBusy("external"); setErr(null);
+    try {
+      toast.info("Opening system browser for Puter sign-in\u2026", {
+        description: "Complete sign-in in your browser, then return to Forge. Allow localhost if Windows Firewall prompts.",
+        duration: 8000,
+      });
+      const r = await window.grudge.auth.puterLoginExternal();
+      toast.success(`Signed in as ${r.user.username} \u00b7 ${r.grudgeId}`);
+      onSignedIn();
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      setErr(msg);
+      toast.error("Browser sign-in failed", { description: msg });
+      setShowManual(true);
     } finally {
       setBusy("idle");
     }
   }
 
   async function manualSignIn() {
-    if (!manualToken.trim() || !manualUuid.trim() || !manualUsername.trim()) {
-      setErr("All three fields are required for manual sign-in.");
+    if (!manualToken.trim()) {
+      setErr("Puter token is required.");
       return;
     }
     setBusy("manual"); setErr(null);
     try {
-      const user = { uuid: manualUuid.trim(), username: manualUsername.trim() };
-      const r = await window.grudge.auth.setSession(manualToken.trim(), user);
-      toast.success(`Signed in as ${user.username} \u00b7 ${r.grudgeId}`);
+      let r: { grudgeId: string; user: { username: string } };
+      if (manualUuid.trim() && manualUsername.trim()) {
+        const user = { uuid: manualUuid.trim(), username: manualUsername.trim() };
+        r = await window.grudge.auth.setSession(manualToken.trim(), user);
+        toast.success(`Signed in as ${user.username} \u00b7 ${r.grudgeId}`);
+      } else {
+        r = await window.grudge.auth.setSessionFromToken(manualToken.trim());
+        toast.success(`Signed in as ${r.user.username} \u00b7 ${r.grudgeId}`);
+      }
       onSignedIn();
     } catch (e: any) {
       const msg = e?.message ?? String(e);
@@ -91,6 +116,16 @@ export default function Login({ onSignedIn }: Props) {
           {busy === "signin" ? "Signing in\u2026" : "Sign in / Create Grudge account"}
         </button>
 
+        <button
+          type="button"
+          className="btn ghost flex items-center justify-center gap-2 w-full mt-2"
+          onClick={signInExternal}
+          disabled={busy !== "idle"}
+        >
+          {busy === "external" ? <Loader2 size={16} className="animate-spin" /> : <ExternalLink size={16} />}
+          {busy === "external" ? "Waiting for browser\u2026" : "Sign in with system browser"}
+        </button>
+
         <div className="muted text-xs mt-3 flex items-center justify-center gap-1">
           <ShieldCheck size={12} /> Tokens stored in Windows Credential Vault
         </div>
@@ -118,14 +153,14 @@ export default function Login({ onSignedIn }: Props) {
         {showManual && (
           <div className="mt-3 text-left text-xs space-y-2 border-t border-line pt-3">
             <div className="muted">
-              If sign-in times out (firewall/network), paste your Puter token + UUID + username directly. Grab them from
+              Paste your Puter token only — we resolve your account automatically. Or add username + uuid from
               <button onClick={openPuterProfile} className="text-gold inline-flex items-center gap-1 ml-1">
-                puter.com profile <ExternalLink size={10} />
+                puter.com/?show_token=1 <ExternalLink size={10} />
               </button>.
             </div>
-            <input value={manualUsername} onChange={(e) => setManualUsername(e.target.value)} placeholder="username" />
-            <input value={manualUuid} onChange={(e) => setManualUuid(e.target.value)} placeholder="uuid (from puter.auth.getUser)" />
-            <input type="password" value={manualToken} onChange={(e) => setManualToken(e.target.value)} placeholder="puter auth token" />
+            <input type="password" value={manualToken} onChange={(e) => setManualToken(e.target.value)} placeholder="Puter auth token (required)" />
+            <input value={manualUsername} onChange={(e) => setManualUsername(e.target.value)} placeholder="username (optional)" />
+            <input value={manualUuid} onChange={(e) => setManualUuid(e.target.value)} placeholder="uuid (optional)" />
             <button
               className="btn flex items-center justify-center gap-2 w-full"
               onClick={manualSignIn}

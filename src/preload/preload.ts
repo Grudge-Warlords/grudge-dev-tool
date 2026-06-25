@@ -109,8 +109,12 @@ const api = {
     clearSession: () => ipcRenderer.invoke("auth:clearSession"),
     wipeIdentity: () => ipcRenderer.invoke("auth:wipeIdentity"),
     getPuterToken: () => ipcRenderer.invoke("auth:getPuterToken"),
-    /** Browser-based Puter sign-in via @heyputer/puter.js (opens default browser, returns once user signs in). */
+    /** In-app Puter OAuth; auto-falls back to system browser on failure. */
     puterLogin: () => ipcRenderer.invoke("auth:puterLogin"),
+    /** Puter sign-in via default browser + localhost callback. */
+    puterLoginExternal: () => ipcRenderer.invoke("auth:puterLoginExternal"),
+    /** Paste a Puter token; uuid/username resolved via /whoami or JWT. */
+    setSessionFromToken: (token: string) => ipcRenderer.invoke("auth:setSessionFromToken", token),
   },
   // Cloudflare R2 + Worker
   cf: {
