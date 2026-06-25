@@ -17,7 +17,7 @@ Grudge Studio developer tooling for the **ONE TRUTH** fleet — one URL (`client
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/> · [CLI quickstart](docs/cli-quickstart.md) · [ONE TRUTH](docs/one-truth.md) · [Tray quickstart](docs/dev-tool-quickstart.md)
 
-⬇ **Forge installer:** [`Grudge Studio Forge-Setup-0.5.0.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.5.0/Grudge.Studio.Forge-Setup-0.5.0.exe) · Windows x64 · NSIS · auto-updating
+⬇ **Forge installer:** [`Grudge Studio Forge-Setup-0.5.0.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.5.0/Grudge-Studio-Forge-Setup-0.5.0.exe) · Windows x64 · NSIS · auto-updating
 
 ---
 

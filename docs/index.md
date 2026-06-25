@@ -37,7 +37,7 @@ grudge-dev upload-pack --root "C:\packs\MyPack" --pack-id my-pack --dry-run
 
 ## Download — Grudge Studio Forge tray app (v0.5.0)
 
-[⬇ Download `Grudge Studio Forge-Setup-0.5.0.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.5.0/Grudge.Studio.Forge-Setup-0.5.0.exe){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
+[⬇ Download `Grudge Studio Forge-Setup-0.5.0.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.5.0/Grudge-Studio-Forge-Setup-0.5.0.exe){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
 [All releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases){: .btn .fs-5 .mb-2 .mr-2 }
 [Latest release page](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .fs-5 .mb-2 .mr-2 }
 [View source on GitHub](https://github.com/Grudge-Warlords/grudge-dev-tool){: .btn .fs-5 .mb-2 }
