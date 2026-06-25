@@ -4,7 +4,7 @@ import { FolderOpen, RefreshCcw, Power, Cloud, Bot, User, LogIn, LogOut, KeyRoun
 import { FLEET_CLIENT_URL } from "../../shared/fleet";
 import { clearMirror } from "../lib/workspace";
 import { StatusDot } from "../components/StatusBar";
-import { puterSignIn, puterSignOut } from "../lib/puter";
+
 
 export default function Settings() {
   const [data, setData] = useState<any>(null);
@@ -111,9 +111,9 @@ export default function Settings() {
   async function signInWithPuter() {
     setSigningIn(true);
     try {
-      const { token, user } = await puterSignIn();
-      const r = await window.grudge.auth.setSession(token, user);
-      toast.success(`Signed in as ${user.username} · ${r.grudgeId}`);
+      toast.info("Opening Puter sign-in window…", { duration: 4000 });
+      const r = await window.grudge.auth.puterLogin();
+      toast.success(`Signed in as ${r.user.username} · ${r.grudgeId}`);
       reload();
     } catch (e: any) {
       toast.error("Sign-in failed", { description: e?.message ?? String(e) });
@@ -121,7 +121,6 @@ export default function Settings() {
   }
   async function signOutLocal() {
     await window.grudge.auth.clearSession();
-    await puterSignOut();
     toast.success("Signed out");
     reload();
   }

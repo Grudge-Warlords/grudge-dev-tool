@@ -46,12 +46,16 @@ export async function setSession(puterToken: string, user: PuterUser): Promise<{
   // Reuse existing Grudge ID if one was minted before for this user.
   const existingRaw = await getSecret(ACCOUNT_GID);
   let grudgeId: string;
+  let firstSeenAt = Date.now();
   if (existingRaw) {
     try {
-      const parsed = JSON.parse(existingRaw) as { grudgeId: string; puterUuid: string };
-      grudgeId = parsed.puterUuid === user.uuid
-        ? parsed.grudgeId
-        : deriveGrudgeId(user.uuid, Date.now());
+      const parsed = JSON.parse(existingRaw) as { grudgeId: string; puterUuid: string; firstSeenAt?: number };
+      if (parsed.puterUuid === user.uuid) {
+        grudgeId = parsed.grudgeId;
+        firstSeenAt = parsed.firstSeenAt ?? firstSeenAt;
+      } else {
+        grudgeId = deriveGrudgeId(user.uuid, Date.now());
+      }
     } catch { grudgeId = deriveGrudgeId(user.uuid, Date.now()); }
   } else {
     grudgeId = deriveGrudgeId(user.uuid, Date.now());
@@ -62,7 +66,7 @@ export async function setSession(puterToken: string, user: PuterUser): Promise<{
   // Win32 RPC_X_BAD_STUB_DATA crash.
   const tokenStore = await setSecret(ACCOUNT_TOKEN, puterToken);
   const userStore  = await setSecret(ACCOUNT_USER,  JSON.stringify(minimalUser));
-  const gidStore   = await setSecret(ACCOUNT_GID,   JSON.stringify({ grudgeId, puterUuid: user.uuid, firstSeenAt: Date.now() }));
+  const gidStore   = await setSecret(ACCOUNT_GID,   JSON.stringify({ grudgeId, puterUuid: user.uuid, firstSeenAt }));
   log.info(`[auth] setSession persisted: token=${tokenStore.via} user=${userStore.via} gid=${gidStore.via} grudgeId=${grudgeId}`);
   return { grudgeId };
 }

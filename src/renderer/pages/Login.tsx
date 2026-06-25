@@ -17,10 +17,9 @@ export default function Login({ onSignedIn }: Props) {
   async function signIn() {
     setBusy("signin"); setErr(null);
     try {
-      // Browser-based auth: main process spawns a localhost server and opens
-      // the user's default browser to puter.com. We just wait.
-      toast.info("Opening your browser to sign in to Puter\u2026", {
-        description: "Complete sign-in in the browser window. Return here when done.",
+      // In-app Puter OAuth window (avoids Windows Firewall blocking external-browser localhost callbacks).
+      toast.info("Opening Puter sign-in window\u2026", {
+        description: "Sign in inside the Forge window. Your Grudge ID is minted automatically after Puter auth.",
         duration: 6000,
       });
       const r = await window.grudge.auth.puterLogin();
@@ -80,7 +79,7 @@ export default function Login({ onSignedIn }: Props) {
         />
         <h1 className="page-title" style={{ marginBottom: 4 }}>Sign in to Grudge Studio</h1>
         <p className="muted text-sm" style={{ marginBottom: 18 }}>
-          Click sign in and complete authentication in your default browser. Your Grudge ID is derived from your Puter account; save data, ships, characters, and uploads sync to your Puter cloud.
+          Click sign in and complete authentication in the Puter window. Your Grudge ID is derived from your Puter account UUID; save data, ships, characters, and uploads sync to your Puter cloud.
         </p>
 
         <button
@@ -119,7 +118,7 @@ export default function Login({ onSignedIn }: Props) {
         {showManual && (
           <div className="mt-3 text-left text-xs space-y-2 border-t border-line pt-3">
             <div className="muted">
-              If the popup doesn’t open, paste your Puter token + UUID + username directly. Grab them from
+              If sign-in times out (firewall/network), paste your Puter token + UUID + username directly. Grab them from
               <button onClick={openPuterProfile} className="text-gold inline-flex items-center gap-1 ml-1">
                 puter.com profile <ExternalLink size={10} />
               </button>.

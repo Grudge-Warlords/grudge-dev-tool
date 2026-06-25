@@ -4,6 +4,10 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Fixed
+
+- **Puter sign-in firewall hang** — OAuth now runs in an in-app BrowserWindow instead of the system browser + `getAuthToken()` localhost callback (Windows Firewall often blocked the redirect, leaving sign-in stuck until timeout). Settings identity sign-in uses the same main-process flow as Login.
+
 ### Added
 
 - **GrudgeLoader** — folder browse (`delimiter: /`), breadcrumbs, pagination, `>server` search, sandbox-safe drag-drop upload (`webUtils.getPathForFile`), Pick files IPC, upload progress toasts, compact demo banner.
