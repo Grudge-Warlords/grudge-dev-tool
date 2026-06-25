@@ -137,7 +137,7 @@ export default function Upload() {
               if (!paths?.length) return;
               setFiles((arr) => [
                 ...arr,
-                ...paths.map((p) => ({
+                ...paths.map((p: string) => ({
                   path: p,
                   name: p.split(/[\\/]/).pop() ?? p,
                   size: 0,
