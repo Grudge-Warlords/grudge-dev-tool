@@ -4,6 +4,20 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-06-25
+
+### Added
+
+- **`cli/` package** — `grudge-dev` v0.5.0 autonomous developer CLI: `setup`, `doctor`, `login`, `fleet`, `upload-pack`, `search`, `status`.
+- **ONE TRUTH probes** in `grudge-dev doctor` — validates `client.grudge-studio.com` rewrites (fleet manifest, auth verify, objectstore JSON, icons, supabase health).
+- **GitHub Pages docs:** [CLI quickstart](docs/cli-quickstart.md), [ONE TRUTH wiring](docs/one-truth.md).
+
+### Changed
+
+- Docs home updated for v0.5.0 CLI + v0.3.6 Forge tray download.
+- API reference examples use `client.grudge-studio.com` as canonical base.
+- Tray quickstart Settings default → `client.grudge-studio.com`.
+
 ## [0.3.6] — 2026-05-29
 
 ### Added

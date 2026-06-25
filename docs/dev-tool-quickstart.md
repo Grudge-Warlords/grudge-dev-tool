@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Quickstart
-nav_order: 2
+nav_order: 4
 ---
 # Grudge Dev Tool — Quickstart
 
@@ -21,7 +21,7 @@ The window stays hidden — only the tray icon appears. Left-click the icon to o
 
 Open **Settings** in the sidebar. You must:
 
-1. Set **API base URL** (default `https://api.grudge-studio.com`).
+1. Set **API base URL** to **`https://client.grudge-studio.com`** (ONE TRUTH Vercel rewrites). Legacy `api.grudge-studio.com` still works for direct VPS calls but the client host is preferred for objectstore + fleet probes.
 2. Paste a **Grudge bearer token**. Mint one at `id.grudge-studio.com`. The token is stored in Windows Credential Vault via `keytar`; nothing on disk in plaintext.
 3. Optional: paste a **BlenderKit API key** to enable the Asset Library page and the `enrich` ingestion stage.
 4. Check the **Toolchain** table. Each tool shows green/red:

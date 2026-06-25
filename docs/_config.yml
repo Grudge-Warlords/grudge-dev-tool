@@ -1,5 +1,5 @@
 title: Grudge Dev Tool
-description: Windows tray app for object-storage browse/search/upload, Grudge UUIDs, and BlenderKit-driven asset ingestion.
+description: Grudge Studio developer tooling — v0.5 CLI (ONE TRUTH setup, doctor, upload-pack) + v0.3.6 Forge Windows tray app.
 url: "https://grudge-warlords.github.io"
 baseurl: "/grudge-dev-tool"
 remote_theme: just-the-docs/just-the-docs

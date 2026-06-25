@@ -4,7 +4,11 @@ title: API Reference
 nav_order: 5
 ---
 # API Reference — `/api/objectstore/*`
-All routes live in `GrudgeBuilder/server/integrations/object_storage/devToolRoutes.ts` (deployed to `api.grudge-studio.com` — the backend VPS, **not** `grudgewarlords.com` which is the player-facing frontend). All non-public routes require a `Bearer` token in the `Authorization` header.
+All routes live in `grudge-builder/server/integrations/object_storage/devToolRoutes.ts`.
+
+**Recommended base URL:** `https://client.grudge-studio.com` (Vercel rewrites → Railway GCS bucket). Direct VPS: `https://api.grudge-studio.com` or local `http://localhost:5000`.
+
+Use `grudge-dev doctor` to confirm JSON responses (no HTML SPA leaks). Non-public routes require `Bearer` token or `X-Admin-Password` (local dev).
 ## `GET /api/objectstore/list`
 Paginated listing of objects under a relative prefix.
 **Query params**
@@ -14,7 +18,7 @@ Paginated listing of objects under a relative prefix.
 **Example**
 ```
 curl -H "Authorization: Bearer $T" \
-  "https://api.grudge-studio.com/api/objectstore/list?prefix=asset-packs/classic64/&limit=50"
+  "https://client.grudge-studio.com/api/objectstore/list?prefix=asset-packs/classic64/&limit=50"
 ```
 **Response**
 ```json
@@ -27,7 +31,7 @@ Server-side filter against per-pack `manifest.json` catalogs.
 **Example**
 ```
 curl -H "Authorization: Bearer $T" \
-  "https://api.grudge-studio.com/api/objectstore/search?q=helmet&pack=classic64"
+  "https://client.grudge-studio.com/api/objectstore/search?q=helmet&pack=classic64"
 ```
 **Response** — `{ count, items: [<entry>, ...] }`
 ## `POST /api/objectstore/upload-url`

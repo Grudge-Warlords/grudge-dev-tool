@@ -1,0 +1,37 @@
+{
+  "name": "grudge-dev-tool",
+  "version": "0.5.0",
+  "description": "Grudge Studio developer CLI — fleet health, auth, and asset-pack uploads for ONE TRUTH wiring.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "grudge-dev": "./dist/cli.js",
+    "grudge-dev-tool": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build",
+    "doctor": "node dist/cli.js doctor",
+    "setup": "node dist/cli.js setup"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.6.3"
+  },
+  "optionalDependencies": {
+    "keytar": "^7.9.0",
+    "sharp": "^0.34.2"
+  }
+}

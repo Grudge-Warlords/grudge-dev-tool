@@ -2,16 +2,40 @@
 layout: default
 title: Home
 nav_order: 1
-description: Windows tray app for object-storage browse/search/upload, Grudge UUIDs, and BlenderKit-driven asset ingestion.
+description: Grudge Studio developer tooling — autonomous CLI (v0.5) + Windows Forge tray app (v0.3.6).
 permalink: /
 ---
 # Grudge Dev Tool
 
 {: .fs-9 }
-A Windows tray app for the Grudge Studio team — object-storage browse / search / upload, Grudge UUIDs, BlenderKit-driven ingestion, and a small always-on-top **GrudgeLoader** overlay for fast asset access.
+Grudge Studio developer tooling — **ONE TRUTH** fleet wiring, asset-pack uploads, and the Windows **Forge** tray app.
 {: .fs-5 .fw-300 }
 
-## Download — Grudge Studio Forge (v0.3.6)
+## CLI — v0.5.0 (recommended)
+
+Autonomous setup for `client.grudge-studio.com` — no tray app required for uploads or health checks.
+
+```powershell
+git clone https://github.com/Grudge-Warlords/grudge-dev-tool.git
+cd grudge-dev-tool/cli
+npm install && npm run build
+npm install -g .
+
+grudge-dev setup
+grudge-dev doctor
+grudge-dev login --admin-password <pw>
+grudge-dev upload-pack --root "C:\packs\MyPack" --pack-id my-pack --dry-run
+```
+
+[CLI quickstart →](cli-quickstart.md){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
+[ONE TRUTH wiring →](one-truth.md){: .btn .fs-5 .mb-2 .mr-2 }
+
+`doctor` probes fleet manifest, auth verify, objectstore JSON, icons, and Supabase health via Vercel rewrites on **client.grudge-studio.com**. Expect **100%** when the fleet is wired correctly.
+{: .fs-3 .text-grey-dk-100 }
+
+---
+
+## Download — Grudge Studio Forge tray app (v0.3.6)
 
 [⬇ Download `Grudge Studio Forge-Setup-0.3.6.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.3.6/Grudge.Studio.Forge-Setup-0.3.6.exe){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
 [All releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases){: .btn .fs-5 .mb-2 .mr-2 }
@@ -19,41 +43,44 @@ A Windows tray app for the Grudge Studio team — object-storage browse / search
 [View source on GitHub](https://github.com/Grudge-Warlords/grudge-dev-tool){: .btn .fs-5 .mb-2 }
 Windows x64 · Authenticode-signed NSIS installer · auto-updating.
 {: .fs-3 .text-grey-dk-100 }
-Already installed? Auto-update delivers the latest version within ~4 h. To force, restart the app from the tray menu (right-click → Quit, then relaunch).
+Already installed? Auto-update delivers the latest version within ~4 h. Restart from the tray menu (right-click → Quit, then relaunch).
 {: .fs-3 .text-grey-dk-100 }
+
 ---
 
 ## What it does
 
-- **Tray icon** with full context menu, plus **GrudgeLoader** — a small frameless always-on-top overlay snapped bottom-right.
-- **Browser / Search / Upload** for the team object storage.
-- **Per-asset copy buttons** in GrudgeLoader: `path`, CDN URL, `curl`, `wget`, Node `assetUrl()` snippet — pick a format from the dropdown, click the copy icon.
-- **Mandatory ingestion pipeline** for every uploaded file: `size-verify → convert → enrich → rig → hash → UUID → upload → manifest`.
-- **BlenderKit** integration for autonomous Blender actions: search the catalog from the local daemon, run autothumb / scene-enrich Python scripts in Blender headless.
-- **Auto-update** via `electron-updater` against the GitHub release feed.
-- **Network listener** + status bar — green/yellow/red dot showing live connectivity to the backend.
+### CLI (v0.5.0)
 
-## Quickstart
+- **`grudge-dev setup`** — auto-detect API base (`client.grudge-studio.com` → localhost) and `grudge-builder` repo; writes `~/.grudge-dev/config.json`.
+- **`grudge-dev doctor`** — ONE TRUTH probes (JSON endpoints, no HTML leaks).
+- **`grudge-dev login`** — store JWT or admin password (keytar or `~/.grudge-dev/auth.json`).
+- **`grudge-dev upload-pack`** — walk pack → hash → UUID → presigned PUT → manifest.
+- **`grudge-dev fleet` / `search`** — live manifest + catalog search.
 
-1. Download `Grudge Dev Tool-Setup-x.y.z.exe` from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) and install it.
-2. Find the **gold-helm tray icon** (Windows notification area, bottom-right). Left-click → GrudgeLoader. Double-click → main window.
-3. Open **Settings** and paste your Grudge bearer token (and optionally your BlenderKit API key).
-4. Confirm the **Toolchain** card is mostly green.
+### Forge tray app (v0.3.6)
+
+- **Tray icon** + **GrudgeLoader** always-on-top overlay.
+- **Browser / Search / Upload** for team object storage.
+- **Forge 3D** editor, BlenderKit, ingestion pipeline, auto-update.
 
 ## Documentation
 
-- [Quickstart](dev-tool-quickstart.md)
+- [CLI quickstart](cli-quickstart.md)
+- [ONE TRUTH fleet wiring](one-truth.md)
+- [Tray app quickstart](dev-tool-quickstart.md)
 - [Object storage layout & ACL](object-storage.md)
 - [Grudge UUID system](grudge-uuid.md)
 - [API reference (`/api/objectstore/*`)](api-reference.md)
-- [Troubleshooting & error resolutions](troubleshooting.md)
-
-## Releases
-
-The newest install is always at the [latest release](https://github.com/grudge-studio/grudge-dev-tool/releases/latest). Existing installations auto-update silently and prompt **Restart now / Later** when ready.
+- [Troubleshooting](troubleshooting.md)
 
 ## Project status
 
-v0.3.6 · Windows x64 · Authenticode-signed NSIS installer · auto-updating. The 0.3.x line ships the Forge 3D editor, the ingestion pipeline, R2 / Worker / asset-service triple-backend, the internal HTML previewer, and admin gating. Roadmap items live in the [tracking issues](https://github.com/Grudge-Warlords/grudge-dev-tool/issues).
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **CLI** | v0.5.0 | Autonomous setup, `doctor`, `upload-pack` — `cli/` in this repo |
+| **Forge tray** | v0.3.6 | NSIS installer; v0.5 tray refresh planned |
 
-<!-- Pages deploy ping: 2026-04-26T04:02:43.0999482-05:00 -->
+Canonical API for browser + CLI: **`https://client.grudge-studio.com`** (Vercel rewrites → Railway + objectstore + assets CDN).
+
+<!-- Pages deploy: 2026-06-25 v0.5.0 docs -->

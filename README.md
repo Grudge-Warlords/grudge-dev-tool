@@ -10,9 +10,9 @@
 
 A Windows tray application for the Grudge Studio team. Browse object storage, search the asset catalog, mass-upload through a mandatory ingestion pipeline, generate Grudge UUIDs, pull from BlenderKit, and **author / preview / convert / upload 3D models** with the built-in **Forge 3D** editor — all from a single tray icon plus a small always-on-top **GrudgeLoader** overlay. Also doubles as a Windows default 3D viewer for `.glb` / `.gltf` / `.fbx` / `.obj` / `.stl` / `.ply` / `.dae` / `.3mf`.
 
-> **Status:** v0.3.6 · Windows x64 · Authenticode-signed NSIS installer · auto-updating
+> **Status:** CLI **v0.5.0** (`cli/` — `grudge-dev setup` / `doctor` / `upload-pack`) · Forge tray **v0.3.6** · Windows x64 NSIS · auto-updating
 
-📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>
+📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/> — [CLI quickstart](docs/cli-quickstart.md) · [ONE TRUTH](docs/one-truth.md)
 📦 **Latest release:** <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest>
 ⬇ **Direct download (v0.3.6):** [`Grudge Studio Forge-Setup-0.3.6.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.3.6/Grudge.Studio.Forge-Setup-0.3.6.exe) · Windows x64 · NSIS
 📝 **Audit notes:** [`REVIEW.md`](REVIEW.md) — production-wiring + dependency review against the canonical `Grudge-Warlords/grudge-studio-backend`.
