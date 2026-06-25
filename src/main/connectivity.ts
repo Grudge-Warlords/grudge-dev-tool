@@ -1,5 +1,5 @@
 import { BrowserWindow, net } from "electron";
-import { getApiBaseUrl, resolveBackend } from "./api";
+import { getApiBaseUrl, getAssetsApiBaseUrl, resolveBackend } from "./api";
 import { readCf } from "./cf/credentials";
 import { r2Health } from "./cf/r2Direct";
 import { runTruthAudit, TRUTH_HEALTH_THRESHOLD, type TruthProbe } from "../shared/fleet";
@@ -98,24 +98,30 @@ async function tick(broadcast: (s: ConnectivityState) => void) {
       return;
     }
 
-    // ONE TRUTH: probe fleet client rewrites (same checks as `grudge-dev doctor`).
+    // ONE TRUTH fleet probes + objectstore list smoke test (what Loader/Browser use).
     const apiBase = await getApiBaseUrl();
+    const assetsBase = (await getAssetsApiBaseUrl()).replace(/\/$/, "");
     const audit = await runTruthAudit(apiBase);
+    const listProbe = await probe(`${assetsBase}/api/objectstore/list?prefix=asset-packs/&limit=1`);
     const failed = audit.probes.filter((p) => !p.ok);
     const avgLatency = audit.probes.length
       ? Math.round(audit.probes.reduce((sum, p) => sum + (p.latencyMs ?? 0), 0) / audit.probes.length)
       : null;
+    const truthOk = audit.score >= TRUTH_HEALTH_THRESHOLD;
+    const objectstoreOk = listProbe.ok;
 
     last = {
-      reachable: audit.score >= TRUTH_HEALTH_THRESHOLD,
+      reachable: truthOk && objectstoreOk,
       online: net.isOnline(),
       apiBaseUrl: apiBase,
       lastCheckedAt: Date.now(),
       latencyMs: avgLatency,
       status: audit.probes.find((p) => p.id === "fleet-manifest")?.status ?? null,
-      error: failed.length
+      error: !truthOk
         ? `ONE TRUTH ${audit.score}% — ${failed.map((p) => p.label).join(", ")}`
-        : null,
+        : !objectstoreOk
+          ? `objectstore list failed${listProbe.error ? ` — ${listProbe.error}` : ""} (${assetsBase})`
+          : null,
       truthScore: audit.score,
       probes: audit.probes,
     };

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 const api = {
   // Settings
@@ -91,10 +91,16 @@ const api = {
     logFile: () => ipcRenderer.invoke("diag:logFile"),
     openLogFolder: () => ipcRenderer.invoke("diag:openLogFolder"),
   },
+  // Local file paths (sandbox-safe drag-drop)
+  files: {
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
+    pickForUpload: () => ipcRenderer.invoke("files:pickForUpload") as Promise<string[]>,
+  },
   // App lifecycle
   app: {
     quit: () => ipcRenderer.invoke("app:quit"),
     hide: () => ipcRenderer.invoke("app:hide"),
+    openRoute: (route: string) => ipcRenderer.invoke("app:openRoute", route),
   },
   // Auth (Puter ↔ Grudge ID)
   auth: {
@@ -130,6 +136,8 @@ const api = {
     consumeInitialFile: () => ipcRenderer.invoke("forge:consumeInitialFile"),
     /** Read a file from disk and hand the bytes back to the renderer. */
     readFile: (path: string) => ipcRenderer.invoke("forge:readFile", path),
+    /** Download a public CDN model and open it in Forge 3D. */
+    openRemote: (url: string) => ipcRenderer.invoke("forge:openRemote", url) as Promise<{ path: string; name: string }>,
     /** Pop out the 3D viewport to a separate window. */
     popOut: () => ipcRenderer.invoke("forge:popOut"),
     /** Listener for second-instance "Open with..." events. */

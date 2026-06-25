@@ -1,27 +1,23 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Copy, Check, Pin, X, ChevronRight, FolderOpen, Upload as UploadIcon } from "lucide-react";
+import {
+  X, ChevronRight, Folder, ExternalLink, Upload as UploadIcon,
+  Search as SearchIcon, Box, MoreHorizontal,
+} from "lucide-react";
 import StatusBar from "./components/StatusBar";
-
-declare global { interface Window { grudge: any } }
+import DemoModeBanner from "./components/DemoModeBanner";
+import { pathsFromFileList } from "./lib/filePaths";
+import { isImagePath, isModelPath } from "../shared/mediaTypes";
 
 type Tab = "pinned" | "browse" | "upload";
 
-// Pinned defaults that always exist for any tenant: top-level prefixes only.
-// Removed the version-specific `asset-packs/classic64/v0.6/` shortcut
-// — first-run users without that pack saw "Empty." with no recourse.
-const DEFAULT_PINNED = [
-  "asset-packs/",
-  "user-uploads/",
-  "shared/",
-];
+const DEFAULT_PINNED = ["asset-packs/", "user-uploads/", "shared/"];
 
-/** Build the CMD_FORMATS table given the runtime-resolved CDN base. */
 function buildCmdFormats(cdnBase: string) {
   const base = cdnBase.replace(/\/$/, "");
   return [
     { id: "path", label: "path", tpl: (p: string) => p },
-    { id: "cdn",  label: "cdn",  tpl: (p: string) => `${base}/${p}` },
+    { id: "cdn", label: "cdn", tpl: (p: string) => `${base}/${p}` },
     { id: "curl", label: "curl", tpl: (p: string) => `curl -L ${base}/${p} -O` },
     { id: "wget", label: "wget", tpl: (p: string) => `wget ${base}/${p}` },
     { id: "node", label: "node", tpl: (p: string) => `assetUrl(\"${p.startsWith("/") ? p : "/" + p}\")` },
@@ -37,16 +33,58 @@ interface UploadStatus {
   error?: string;
 }
 
+interface ListItem {
+  name: string;
+  size: number;
+  contentType: string;
+  updated: string | null;
+}
+
+function loadPinned(): string[] {
+  try {
+    const raw = localStorage.getItem("loader.pinned");
+    if (!raw) return [...DEFAULT_PINNED];
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved)) return [...DEFAULT_PINNED];
+    const merged = [...DEFAULT_PINNED];
+    for (const p of saved) {
+      if (typeof p === "string" && !merged.includes(p)) merged.push(p);
+    }
+    return merged;
+  } catch {
+    return [...DEFAULT_PINNED];
+  }
+}
+
+function Breadcrumb({ prefix, onSelect }: { prefix: string; onSelect: (p: string) => void }) {
+  const parts = prefix.split("/").filter(Boolean);
+  let acc = "";
+  return (
+    <div className="loader-breadcrumb">
+      <button type="button" onClick={() => onSelect("")}>root</button>
+      {parts.map((p) => {
+        acc += `${p}/`;
+        const path = acc;
+        return (
+          <React.Fragment key={path}>
+            <ChevronRight size={10} className="opacity-40" />
+            <button type="button" onClick={() => onSelect(path)}>{p}</button>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function LoaderApp() {
   const [tab, setTab] = useState<Tab>("pinned");
   const [prefix, setPrefix] = useState("asset-packs/");
-  const [items, setItems] = useState<any[]>([]);
+  const [folders, setFolders] = useState<string[]>([]);
+  const [items, setItems] = useState<ListItem[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
-  const [cmdFormat, setCmdFormat] = useState<CmdFormat>("curl");
-  const [pinned, setPinned] = useState<string[]>(DEFAULT_PINNED);
-  // Resolved at runtime via the cf.r2PublicUrl IPC (canonical CDN base, defaults
-  // to https://assets.grudge-studio.com when no override is configured). Cached
-  // once on mount so we don't IPC-round-trip per row.
+  const [cmdFormat, setCmdFormat] = useState<CmdFormat>("cdn");
+  const [pinned, setPinned] = useState<string[]>(loadPinned);
   const [cdnBase, setCdnBase] = useState("https://assets.grudge-studio.com");
   const cmdFormatsList = useMemo(() => buildCmdFormats(cdnBase), [cdnBase]);
   const [error, setError] = useState<string | null>(null);
@@ -54,30 +92,30 @@ export default function LoaderApp() {
   const [copied, setCopied] = useState<string | null>(null);
   const [uploadQueue, setUploadQueue] = useState<Record<string, UploadStatus>>({});
   const [pinnedTarget, setPinnedTarget] = useState("user-uploads/");
+  const [searchResults, setSearchResults] = useState<ListItem[]>([]);
 
-  // Load pinned shortcuts from localStorage
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("loader.pinned");
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr) && arr.length) setPinned(arr);
-      }
-    } catch { /* ignore */ }
-  }, []);
+  const isServerSearch = filter.startsWith(">");
+  const serverQuery = isServerSearch ? filter.slice(1).trim() : "";
+
   useEffect(() => {
     localStorage.setItem("loader.pinned", JSON.stringify(pinned));
   }, [pinned]);
 
-  // Subscribe to upload progress
   useEffect(() => {
-    const off = window.grudge?.upload?.onProgress?.((p: any) => {
+    const offProg = window.grudge?.upload?.onProgress?.((p: UploadStatus) => {
       setUploadQueue((q) => ({ ...q, [p.filePath]: p }));
     });
-    return () => off?.();
+    const offDone = window.grudge?.upload?.onJobDone?.((p: UploadStatus) => {
+      setUploadQueue((q) => ({ ...q, [p.filePath]: p }));
+      if (p.status === "done") {
+        toast.success("Upload complete", { description: p.filePath.split(/[\\/]/).pop() });
+      } else if (p.error) {
+        toast.error("Upload failed", { description: p.error });
+      }
+    });
+    return () => { offProg?.(); offDone?.(); };
   }, []);
 
-  // Resolve the CDN base once on mount via the canonical IPC.
   useEffect(() => {
     (async () => {
       try {
@@ -87,16 +125,64 @@ export default function LoaderApp() {
     })();
   }, []);
 
-  async function browse(p: string) {
-    setTab("browse"); setPrefix(p); setLoading(true); setError(null);
-    try {
-      const res = await window.grudge.os.list({ prefix: p, limit: 200 });
-      setItems(res.items ?? []);
-    } catch (e: any) {
-      setError(e.message);
+  const browse = useCallback(async (p: string, cursor?: string | null) => {
+    setTab("browse");
+    setPrefix(p);
+    setLoading(true);
+    setError(null);
+    if (!cursor) {
+      setFolders([]);
       setItems([]);
-    } finally { setLoading(false); }
-  }
+      setNextCursor(null);
+    }
+    try {
+      const res = await window.grudge.os.list({
+        prefix: p,
+        delimiter: "/",
+        limit: 200,
+        cursor: cursor ?? undefined,
+      });
+      setFolders((prev) => (cursor ? prev : (res.folders ?? [])));
+      setItems((prev) => (cursor ? [...prev, ...(res.items ?? [])] : (res.items ?? [])));
+      setNextCursor(res.nextCursor ?? null);
+    } catch (e: any) {
+      setError(e.message ?? String(e));
+      if (!cursor) {
+        setFolders([]);
+        setItems([]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isServerSearch || !serverQuery) {
+      setSearchResults([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await window.grudge.os.search({ q: serverQuery, limit: 100 });
+        if (cancelled) return;
+        setSearchResults((res.items ?? []).map((it: any) => ({
+          name: it.path ?? it.name,
+          size: it.sizeBytes ?? it.size ?? 0,
+          contentType: it.contentType ?? "",
+          updated: it.updated ?? null,
+        })));
+        setTab("browse");
+      } catch (e: any) {
+        if (!cancelled) setError(e.message ?? String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isServerSearch, serverQuery]);
 
   function copy(text: string, label?: string) {
     navigator.clipboard.writeText(text).then(() => {
@@ -111,31 +197,61 @@ export default function LoaderApp() {
   function pinHere() {
     if (pinned.includes(prefix)) return;
     setPinned([...pinned, prefix]);
+    toast.success("Pinned", { description: prefix });
   }
+
   function unpin(p: string) {
     setPinned(pinned.filter((x) => x !== p));
   }
 
-  const filtered = useMemo(() => {
-    if (!filter) return items;
+  const visibleItems = useMemo(() => {
+    if (isServerSearch && serverQuery) return searchResults;
+    if (!filter || isServerSearch) return items;
     const f = filter.toLowerCase();
     return items.filter((it) => it.name.toLowerCase().includes(f));
-  }, [items, filter]);
+  }, [items, filter, isServerSearch, serverQuery, searchResults]);
+
+  async function enqueueUpload(paths: string[], targetPrefix: string) {
+    if (!paths.length) {
+      toast.error("No file paths", { description: "Drag-drop or pick files from disk." });
+      return;
+    }
+    const targetBase = targetPrefix.replace(/\/?$/, "/");
+    const dropped = paths.map((lp) => ({
+      localPath: lp,
+      targetPath: `${targetBase}${lp.split(/[\\/]/).pop()}`,
+    }));
+    try {
+      await window.grudge.upload.enqueue({ id: `loader-${Date.now()}`, files: dropped });
+      toast.success(`Queued ${dropped.length} file(s)`);
+      setTab("upload");
+    } catch (e: any) {
+      toast.error("Upload enqueue failed", { description: e?.message ?? String(e) });
+    }
+  }
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
-    const dropped: { localPath: string; targetPath: string }[] = [];
-    for (let i = 0; i < e.dataTransfer.files.length; i++) {
-      const f = e.dataTransfer.files[i];
-      const lp = (f as any).path as string | undefined;
-      if (lp) {
-        const targetBase = pinnedTarget.replace(/\/?$/, "/");
-        dropped.push({ localPath: lp, targetPath: `${targetBase}${f.name}` });
+    void enqueueUpload(pathsFromFileList(e.dataTransfer.files), pinnedTarget);
+  }
+
+  async function pickFiles() {
+    const paths = await window.grudge?.files?.pickForUpload?.();
+    if (paths?.length) void enqueueUpload(paths, pinnedTarget);
+  }
+
+  async function openAssetActions(name: string) {
+    const cdn = `${cdnBase}/${name}`;
+    if (isModelPath(name)) {
+      try {
+        await window.grudge?.forge?.openRemote?.(cdn);
+        toast.success("Opened in Forge 3D", { description: name.split("/").pop() });
+        return;
+      } catch (e: any) {
+        toast.error("Forge open failed", { description: e?.message ?? String(e) });
       }
     }
-    if (dropped.length === 0) return;
-    const jobId = `loader-${Date.now()}`;
-    window.grudge.upload.enqueue({ id: jobId, files: dropped });
+    void window.grudge.os.openExternal(cdn);
   }
 
   return (
@@ -148,7 +264,6 @@ export default function LoaderApp() {
           alt="Grudge"
           className="loader-titlebar-emblem"
           onError={(e) => {
-            // Fallback if the file isn't shipped: try favicon.ico, then a transparent pixel
             const img = e.currentTarget;
             if (!img.dataset.fallback) {
               img.dataset.fallback = "1";
@@ -159,105 +274,153 @@ export default function LoaderApp() {
         <span className="loader-title">GrudgeLoader</span>
         <StatusBar compact />
         <div className="loader-tab-row ml-auto">
-          <button className={tab === "pinned" ? "active" : ""} onClick={() => setTab("pinned")}>Pinned</button>
-          <button className={tab === "browse" ? "active" : ""} onClick={() => browse(prefix)}>Browse</button>
-          <button className={tab === "upload" ? "active" : ""} onClick={() => setTab("upload")}>Upload</button>
+          <button type="button" className={tab === "pinned" ? "active" : ""} onClick={() => setTab("pinned")}>Pinned</button>
+          <button type="button" className={tab === "browse" ? "active" : ""} onClick={() => browse(prefix)}>Browse</button>
+          <button type="button" className={tab === "upload" ? "active" : ""} onClick={() => setTab("upload")}>Upload</button>
         </div>
-        <button className="loader-close" title="Hide" onClick={() => window.grudge?.loader?.hide?.()}><X size={14} /></button>
+        <button type="button" className="loader-close" title="Hide" onClick={() => window.grudge?.loader?.hide?.()}>
+          <X size={14} />
+        </button>
       </div>
 
-      {tab === "pinned" && (
-        <div className="loader-section">
-          <div className="loader-hint">Quick folders. Click to browse, copy button copies the path.</div>
-          {pinned.map((p) => (
-            <div className="loader-row" key={p}>
-              <span className="loader-folder-icon">📁</span>
-              <button className="loader-link" onClick={() => browse(p)}>{p}</button>
-              <button className="copy-btn" title="Copy path" onClick={() => copy(p)}>{copied === p ? "✓" : "⧉"}</button>
-              <button className="copy-btn danger" title="Unpin" onClick={() => unpin(p)}>×</button>
-            </div>
-          ))}
-          <div className="loader-row">
-            <input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="prefix to pin" />
-            <button className="loader-pin-btn" onClick={pinHere}>＋ pin</button>
-          </div>
-        </div>
-      )}
+      <div className="loader-body">
+        <DemoModeBanner feature="object storage browse / upload" compact />
 
-      {tab === "browse" && (
-        <div className="loader-section">
-          <div className="loader-bar">
-            <input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="prefix" />
-            <button onClick={() => browse(prefix)}>Go</button>
-            <select value={cmdFormat} onChange={(e) => setCmdFormat(e.target.value as CmdFormat)}>
-              {cmdFormatsList.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-            </select>
-          </div>
-          <input
-            className="loader-filter"
-            placeholder="filter visible…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-          {loading && <div className="muted">Loading…</div>}
-          {error && <div className="status-bad small">{error}</div>}
-          <div className="loader-list">
-            {filtered.map((it: any) => {
-              const fmt = cmdFormatsList.find((c) => c.id === cmdFormat)!;
-              const cmd = fmt.tpl(it.name);
-              const isImg = (it.contentType || "").startsWith("image/");
-              const cdnThumb = `${cdnBase}/${it.name}`;
-              return (
-                <div className="loader-asset" key={it.name}>
-                  <div className="loader-asset-thumb">
-                    {isImg ? <img src={cdnThumb} alt="" loading="lazy" />
-                           : <span className="loader-asset-glyph">📄</span>}
-                  </div>
-                  <div className="loader-asset-meta">
-                    <div className="loader-asset-name" title={it.name}>{it.name.split("/").slice(-1)[0]}</div>
-                    <div className="muted small">{(it.size / 1024).toFixed(1)} KB</div>
-                  </div>
-                  <button className="copy-btn" title={`Copy ${cmdFormat}`} onClick={() => copy(cmd)}>
-                    {copied === cmd ? "✓" : "⧉"}
-                  </button>
-                </div>
-              );
-            })}
-            {!loading && filtered.length === 0 && <div className="muted">Empty.</div>}
-          </div>
-        </div>
-      )}
-
-      {tab === "upload" && (
-        <div className="loader-section">
-          <div className="loader-hint">Drop files anywhere below. They'll upload to the target prefix.</div>
-          <div className="loader-bar">
-            <input value={pinnedTarget} onChange={(e) => setPinnedTarget(e.target.value)} placeholder="target prefix" />
-          </div>
-          <div
-            className="loader-drop"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={onDrop}
-          >
-            Drop files here<br />
-            <span className="muted small">{Object.keys(uploadQueue).length} in flight</span>
-          </div>
-          <div className="loader-list">
-            {Object.values(uploadQueue).slice(-12).reverse().map((row) => (
-              <div className="loader-asset" key={row.filePath}>
-                <span className="loader-asset-glyph">⬆</span>
-                <div className="loader-asset-meta">
-                  <div className="loader-asset-name" title={row.filePath}>{row.filePath.split(/[\\/]/).pop()}</div>
-                  <div className="muted small">
-                    {row.status} · {row.bytesUploaded}/{row.bytesTotal}
-                    {row.error && <span className="status-bad"> · {row.error}</span>}
-                  </div>
-                </div>
+        {tab === "pinned" && (
+          <div className="loader-section">
+            <div className="loader-hint">Quick folders — click to browse, ⧉ copies the prefix path.</div>
+            {pinned.map((p) => (
+              <div className="loader-row" key={p}>
+                <Folder size={14} className="text-gold shrink-0" />
+                <button type="button" className="loader-link" onClick={() => browse(p)}>{p}</button>
+                <button type="button" className="copy-btn" title="Copy path" onClick={() => copy(p)}>{copied === p ? "✓" : "⧉"}</button>
+                {!DEFAULT_PINNED.includes(p) && (
+                  <button type="button" className="copy-btn danger" title="Unpin" onClick={() => unpin(p)}>×</button>
+                )}
               </div>
             ))}
+            <div className="loader-row">
+              <input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="prefix to pin" />
+              <button type="button" className="loader-pin-btn" onClick={pinHere}>＋ pin</button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {tab === "browse" && (
+          <div className="loader-section">
+            <Breadcrumb prefix={prefix} onSelect={(p) => browse(p)} />
+            <div className="loader-bar">
+              <input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="prefix" />
+              <button type="button" onClick={() => browse(prefix)}>Go</button>
+              <select value={cmdFormat} onChange={(e) => setCmdFormat(e.target.value as CmdFormat)}>
+                {cmdFormatsList.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </div>
+            <input
+              className="loader-filter"
+              placeholder="filter… or >search server-side"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+            {isServerSearch && (
+              <div className="loader-hint flex items-center gap-1">
+                <SearchIcon size={12} /> Server search: {serverQuery || "(type after >)"}
+              </div>
+            )}
+            {loading && <div className="muted text-xs">Loading…</div>}
+            {error && <div className="status-bad small">{error}</div>}
+            {!isServerSearch && folders.length > 0 && (
+              <div className="loader-folder-list">
+                {folders.map((f) => (
+                  <button type="button" key={f} className="loader-folder-row" onClick={() => browse(f)}>
+                    <Folder size={14} className="text-gold" />
+                    <span>{f.replace(prefix, "").replace(/\/$/, "") || f}</span>
+                    <ChevronRight size={12} className="ml-auto opacity-50" />
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="loader-list">
+              {visibleItems.map((it) => {
+                const fmt = cmdFormatsList.find((c) => c.id === cmdFormat)!;
+                const cmd = fmt.tpl(it.name);
+                const showImg = isImagePath(it.name) || (it.contentType || "").startsWith("image/");
+                const cdnThumb = `${cdnBase}/${it.name}`;
+                return (
+                  <div className="loader-asset" key={it.name}>
+                    <div className="loader-asset-thumb">
+                      {showImg
+                        ? <img src={cdnThumb} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                        : isModelPath(it.name)
+                          ? <Box size={18} className="text-gold" />
+                          : <span className="loader-asset-glyph">📄</span>}
+                    </div>
+                    <div className="loader-asset-meta">
+                      <div className="loader-asset-name" title={it.name}>{it.name.split("/").slice(-1)[0]}</div>
+                      <div className="muted small">{(it.size / 1024).toFixed(1)} KB</div>
+                    </div>
+                    <button type="button" className="copy-btn" title={`Copy ${cmdFormat}`} onClick={() => copy(cmd, cmdFormat)}>
+                      {copied === cmd ? "✓" : "⧉"}
+                    </button>
+                    <button
+                      type="button"
+                      className="copy-btn"
+                      title={isModelPath(it.name) ? "Open in Forge 3D" : "Open CDN"}
+                      onClick={() => void openAssetActions(it.name)}
+                    >
+                      {isModelPath(it.name) ? <Box size={12} /> : <ExternalLink size={12} />}
+                    </button>
+                  </div>
+                );
+              })}
+              {!loading && visibleItems.length === 0 && !folders.length && <div className="muted text-xs">Empty.</div>}
+            </div>
+            {nextCursor && !isServerSearch && (
+              <button type="button" className="btn ghost text-xs w-full mt-2" onClick={() => browse(prefix, nextCursor)}>
+                Load more…
+              </button>
+            )}
+          </div>
+        )}
+
+        {tab === "upload" && (
+          <div className="loader-section">
+            <div className="loader-hint">Drop files or pick from disk — uploads to the target prefix via the active backend (R2 / fleet client).</div>
+            <div className="loader-bar">
+              <input value={pinnedTarget} onChange={(e) => setPinnedTarget(e.target.value)} placeholder="target prefix" />
+              <button type="button" className="btn ghost text-xs flex items-center gap-1" onClick={pickFiles}>
+                <UploadIcon size={12} /> Pick
+              </button>
+            </div>
+            <div
+              className="loader-drop"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={onDrop}
+            >
+              Drop files here<br />
+              <span className="muted small">{Object.keys(uploadQueue).length} in flight</span>
+            </div>
+            <div className="loader-list">
+              {Object.values(uploadQueue).slice(-12).reverse().map((row) => (
+                <div className="loader-asset" key={row.filePath}>
+                  <UploadIcon size={14} className="text-gold shrink-0" />
+                  <div className="loader-asset-meta">
+                    <div className="loader-asset-name" title={row.filePath}>{row.filePath.split(/[\\/]/).pop()}</div>
+                    <div className="muted small">
+                      {row.status}
+                      {row.bytesTotal ? ` · ${Math.round((row.bytesUploaded / row.bytesTotal) * 100)}%` : ""}
+                      {row.error && <span className="status-bad"> · {row.error}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" className="btn ghost text-xs w-full mt-1 flex items-center justify-center gap-1" onClick={() => window.grudge?.app?.openRoute?.("/upload")}>
+              <MoreHorizontal size={12} /> Full upload pipeline in main window
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

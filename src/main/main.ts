@@ -15,7 +15,7 @@ import { extractZip } from "./ingestion/archive";
 import { initLogger, getLogFilePath } from "./logger";
 import { startConnectivity, stopConnectivity, getConnectivity } from "./connectivity";
 import { setupAutoUpdater, checkForUpdatesNow, quitAndInstall } from "./updater";
-import { getCfStatus, readCf, writeCf, clearCf } from "./cf/credentials";
+import { getCfStatus, readCf, writeCf, clearCf, resolvePublicCdnBase } from "./cf/credentials";
 import { workerHealth } from "./cf/objectStoreWorker";
 import { r2Health, resetR2Client, r2GetSignedUploadUrl, r2GetSignedDownloadUrl, r2List, r2PublicUrl, r2Head } from "./cf/r2Direct";
 import * as forge from "./forge";
@@ -257,7 +257,7 @@ function registerIpc() {
   ipcMain.handle("settings:get", async () => ({
     apiBaseUrl: await api.getApiBaseUrl(),
     assetsApiBaseUrl: await api.getAssetsApiBaseUrl(),
-    cdnBaseUrl: "https://assets.grudge-studio.com",
+    cdnBaseUrl: await resolvePublicCdnBase(),
     hasToken: Boolean(await api.getToken()),
     hasBlenderKitKey: Boolean(await bk.getApiKey()),
   }));
@@ -318,6 +318,26 @@ function registerIpc() {
   // App lifecycle (so the renderer can offer a real Quit)
   ipcMain.handle("app:quit", () => { (app as any).isQuiting = true; app.quit(); });
   ipcMain.handle("app:hide", () => { mainWindow?.hide(); });
+  ipcMain.handle("app:openRoute", (_e, route: string) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (!mainWindow.isVisible()) mainWindow.show();
+      mainWindow.focus();
+      if (route) mainWindow.webContents.send("nav", route);
+    }
+  });
+  ipcMain.handle("files:pickForUpload", async () => {
+    const lw = getLoaderWindow();
+    const parent =
+      mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()
+        ? mainWindow
+        : lw && !lw.isDestroyed()
+          ? lw
+          : undefined;
+    const r = await dialog.showOpenDialog(parent ?? (undefined as any), {
+      properties: ["openFile", "multiSelections"],
+    });
+    return r.canceled ? [] : r.filePaths;
+  });
 
   // Puter auth + Grudge identity
   ipcMain.handle("auth:getSession", () => puterAuth.getSession());
@@ -374,6 +394,10 @@ function registerIpc() {
   // Forge3D — "Open with..." + read file from disk for renderer.
   ipcMain.handle("forge:consumeInitialFile", () => forge.consumeInitialFile());
   ipcMain.handle("forge:readFile", async (_e, pathOrObj: unknown) => forge.readModelFile(pathOrObj));
+  ipcMain.handle("forge:openRemote", async (_e, url: string) => {
+    if (!url || typeof url !== "string") throw new Error("forge:openRemote requires a URL");
+    return forge.openRemoteModel(url, mainWindow && !mainWindow.isDestroyed() ? mainWindow : null);
+  });
 
   // Forge3D pop-out canvas — creates a detached borderless viewport window.
   let popOutWin: BrowserWindow | null = null;

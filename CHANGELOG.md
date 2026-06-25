@@ -4,10 +4,18 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Added
+
+- **GrudgeLoader** — folder browse (`delimiter: /`), breadcrumbs, pagination, `>server` search, sandbox-safe drag-drop upload (`webUtils.getPathForFile`), Pick files IPC, upload progress toasts, compact demo banner.
+- **`forge:openRemote`** — download public CDN models into Forge 3D from GrudgeLoader (`.glb`, `.gltf`, etc.).
+- **`src/shared/mediaTypes.ts`** — content-type inference for R2-direct listings and Loader thumbnails.
+
 ### Changed
 
 - README rewritten for v0.5.0 ONE TRUTH (CLI + Forge); badges aligned (Node 22.x).
 - Root and `cli/` `package.json` metadata updated; Upload page backend labels fixed.
+- Connectivity probe now smoke-tests `objectstore/list` so Loader status is not falsely “live”.
+- `settings:get.cdnBaseUrl` resolves dynamically via `resolvePublicCdnBase()`.
 
 ## [0.5.0] — 2026-06-25
 

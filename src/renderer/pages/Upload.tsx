@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Cloud, CloudOff, Database, Server, type LucideIcon } from "lucide-react";
 import DemoModeBanner from "../components/DemoModeBanner";
+import { pathsFromFileList } from "../lib/filePaths";
 
 interface QueueRow {
   filePath: string;
@@ -63,12 +65,15 @@ export default function Upload() {
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
-    const dropped: { path: string; name: string; size: number }[] = [];
-    for (let i = 0; i < e.dataTransfer.files.length; i++) {
-      const f = e.dataTransfer.files[i];
-      // Electron exposes the absolute path on dropped files.
-      const p = (f as any).path as string | undefined;
-      if (p) dropped.push({ path: p, name: f.name, size: f.size });
+    const paths = pathsFromFileList(e.dataTransfer.files);
+    const dropped = paths.map((p, i) => ({
+      path: p,
+      name: e.dataTransfer.files[i]?.name ?? p.split(/[\\/]/).pop() ?? p,
+      size: e.dataTransfer.files[i]?.size ?? 0,
+    }));
+    if (!dropped.length) {
+      toast.error("Could not read file paths", { description: "Use Pick files or check sandbox preload." });
+      return;
     }
     setFiles((arr) => [...arr, ...dropped]);
   }
@@ -123,6 +128,26 @@ export default function Upload() {
         style={{ border: "2px dashed var(--gold-deep)", textAlign: "center", padding: 32 }}
       >
         Drop files here  ·  {files.length} queued
+        <div className="mt-3">
+          <button
+            type="button"
+            className="btn ghost text-xs"
+            onClick={async () => {
+              const paths = await window.grudge?.files?.pickForUpload?.();
+              if (!paths?.length) return;
+              setFiles((arr) => [
+                ...arr,
+                ...paths.map((p) => ({
+                  path: p,
+                  name: p.split(/[\\/]/).pop() ?? p,
+                  size: 0,
+                })),
+              ]);
+            }}
+          >
+            Pick files from disk
+          </button>
+        </div>
       </div>
       {files.length > 0 && (
         <div className="card">

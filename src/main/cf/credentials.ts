@@ -59,6 +59,16 @@ export async function clearCf(account: CfAccount): Promise<void> {
   await keytar.deletePassword(SERVICE, CF_ACCOUNTS[account]);
 }
 
+/** Canonical public CDN base (custom CNAME → r2.dev → env → production default). */
+export async function resolvePublicCdnBase(): Promise<string> {
+  const base =
+    (await readCf("publicUrl")) ??
+    (await readCf("publicR2Url")) ??
+    process.env.OBJECT_STORAGE_PUBLIC_URL ??
+    "https://assets.grudge-studio.com";
+  return base.replace(/\/$/, "");
+}
+
 export interface CfCredentialsStatus {
   worker: { url: boolean; apiKey: boolean };
   direct: { endpoint: boolean; bucket: boolean; accessKeyId: boolean; secret: boolean };
@@ -68,7 +78,10 @@ export interface CfCredentialsStatus {
 
 export async function getCfStatus(): Promise<CfCredentialsStatus> {
   const has = async (a: CfAccount) => Boolean(await readCf(a));
-  const publicCdn = (await readCf("publicR2Url")) ?? (await readCf("publicUrl")) ?? null;
+  let publicCdn: string | null = null;
+  try {
+    publicCdn = await resolvePublicCdnBase();
+  } catch { /* ignore */ }
   return {
     worker: {
       url: await has("workerUrl"),

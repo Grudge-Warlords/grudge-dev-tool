@@ -70,6 +70,14 @@
 }
 .loader-close:hover { color: var(--danger); }
 
+.loader-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .loader-section {
   padding: 8px;
   display: flex;
@@ -77,6 +85,50 @@
   gap: 6px;
   flex: 1;
   overflow: hidden;
+  min-height: 0;
+}
+
+.loader-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.loader-breadcrumb button {
+  background: none;
+  border: none;
+  color: var(--gold);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 2px;
+}
+
+.loader-folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 100px;
+  overflow-y: auto;
+}
+.loader-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+}
+.loader-folder-row:hover {
+  border-color: var(--gold-deep);
+  color: var(--gold);
 }
 .loader-hint { color: var(--muted); font-size: 11px; }
 .loader-bar { display: flex; gap: 4px; }

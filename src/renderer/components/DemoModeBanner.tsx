@@ -13,7 +13,7 @@ interface ConnState {
  * isn't returning data. Hidden when the connectivity probe says the API is
  * reachable. Use as the *fallback* inside a page; do not gate the entire UI.
  */
-export default function DemoModeBanner({ feature }: { feature: string }) {
+export default function DemoModeBanner({ feature, compact = false }: { feature: string; compact?: boolean }) {
   const [conn, setConn] = useState<ConnState | null>(null);
 
   useEffect(() => {
@@ -32,11 +32,11 @@ export default function DemoModeBanner({ feature }: { feature: string }) {
   if (conn.reachable) return null;
 
   return (
-    <div className="border border-gold-deep/60 bg-gold/5 rounded-lg p-4 my-3 flex gap-3 items-start">
-      <CloudOff className="text-gold mt-0.5 shrink-0" size={20} />
-      <div className="flex-1">
-        <div className="text-gold font-semibold mb-1">Demo mode — {feature} is unavailable</div>
-        <div className="text-muted text-sm mb-2">
+    <div className={`border border-gold-deep/60 bg-gold/5 rounded-lg flex gap-2 items-start ${compact ? "p-2 my-1 text-[10px]" : "p-4 my-3"}`}>
+      <CloudOff className="text-gold mt-0.5 shrink-0" size={compact ? 14 : 20} />
+      <div className="flex-1 min-w-0">
+        <div className={`text-gold font-semibold ${compact ? "mb-0.5" : "mb-1"}`}>Demo mode — {feature} unavailable</div>
+        <div className={`text-muted ${compact ? "text-[10px]" : "text-sm"} mb-1`}>
           The backend at <span className="font-mono text-ink">{conn.apiBaseUrl}</span> isn't reachable
           {conn.error ? <> (<span className="text-danger">{conn.error}</span>)</> : null}.
           Local features (UUID, ingestion dry-run, BlenderKit) keep working.

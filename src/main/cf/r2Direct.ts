@@ -1,6 +1,7 @@
 import { S3Client, ListObjectsV2Command, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { readCf } from "./credentials";
+import { readCf, resolvePublicCdnBase } from "./credentials";
+import { inferContentType } from "../../shared/mediaTypes";
 
 /**
  * Cloudflare R2 client using the S3-compatible API. Uses creds stored in keytar:
@@ -74,7 +75,7 @@ export async function r2List(req: { prefix: string; delimiter?: string; cursor?:
     items: (r.Contents ?? []).map((o) => ({
       name: o.Key ?? "",
       size: Number(o.Size ?? 0),
-      contentType: "application/octet-stream", // S3 ListObjectsV2 doesn't return Content-Type; fetch via HEAD when needed
+      contentType: inferContentType(o.Key ?? ""),
       updated: o.LastModified ? o.LastModified.toISOString() : null,
       md5Hash: o.ETag ?? null,
     })),
@@ -136,12 +137,9 @@ export async function r2Health(): Promise<{ ok: boolean; latencyMs: number; erro
  * has something to copy to the clipboard. Production points at the Cloudflare
  * Worker fronting the `grudge-assets` R2 bucket.
  */
+export { resolvePublicCdnBase } from "./credentials";
+
 export async function r2PublicUrl(key: string): Promise<string> {
-  const baseR2 = await readCf("publicR2Url");
-  const base =
-    (await readCf("publicUrl")) ??
-    baseR2 ??
-    process.env.OBJECT_STORAGE_PUBLIC_URL ??
-    "https://assets.grudge-studio.com";
-  return `${base.replace(/\/$/, "")}/${key.replace(/^\//, "")}`;
+  const base = await resolvePublicCdnBase();
+  return `${base}/${key.replace(/^\//, "")}`;
 }

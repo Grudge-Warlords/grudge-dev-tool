@@ -1,6 +1,7 @@
-import { BrowserWindow } from "electron";
-import { promises as fs } from "node:fs";
-import { basename, extname } from "node:path";
+import { BrowserWindow, net } from "electron";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, extname, join } from "node:path";
 import log from "./logger";
 
 /**
@@ -17,6 +18,7 @@ import log from "./logger";
  */
 
 const SUPPORTED_EXTS = new Set([".glb", ".gltf", ".obj", ".fbx", ".stl", ".ply", ".dae", ".3mf"]);
+const ALLOWED_REMOTE_HOSTS = /(^|\.)(grudge-studio\.com|grudgewarlords\.com|localhost)$/i;
 
 let pendingPath: string | null = null;
 
@@ -97,13 +99,66 @@ export async function readModelFile(pathOrObj: unknown): Promise<ReadFileResult>
   const path = resolveModelPath(pathOrObj);
   const ext = extname(path).toLowerCase();
   if (!SUPPORTED_EXTS.has(ext)) throw new Error(`Unsupported extension: ${ext}`);
-  const data = await fs.readFile(path);
+  const data = await readFile(path);
   return {
     name: basename(path),
     bytes: data,
     mime: MIME_BY_EXT[ext] ?? "application/octet-stream",
     size: data.byteLength,
   };
+}
+
+function validateRemoteUrl(url: string): URL {
+  const u = new URL(url);
+  if (u.protocol !== "https:" && !(u.protocol === "http:" && u.hostname === "localhost")) {
+    throw new Error("Only HTTPS model URLs are allowed");
+  }
+  if (!ALLOWED_REMOTE_HOSTS.test(u.hostname)) {
+    throw new Error(`Remote host not allowed: ${u.hostname}`);
+  }
+  const ext = extname(u.pathname).toLowerCase();
+  if (!SUPPORTED_EXTS.has(ext)) throw new Error(`Unsupported model extension: ${ext || "(none)"}`);
+  return u;
+}
+
+function downloadUrl(url: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    const req = net.request({ method: "GET", url });
+    req.on("response", (res) => {
+      const code = res.statusCode ?? 0;
+      if (code >= 400) {
+        reject(new Error(`HTTP ${code} fetching model`));
+        return;
+      }
+      res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      res.on("end", () => resolve(Buffer.concat(chunks)));
+      res.on("error", reject);
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+/** Download a public CDN model and open it in Forge 3D (used by GrudgeLoader / Browser). */
+export async function openRemoteModel(url: string, mainWindow: BrowserWindow | null): Promise<{ path: string; name: string }> {
+  const u = validateRemoteUrl(url);
+  const data = await downloadUrl(u.href);
+  const dir = await mkdtemp(join(tmpdir(), "grudge-forge-"));
+  const name = basename(u.pathname) || "model.glb";
+  const path = join(dir, name);
+  await writeFile(path, data);
+  log.info("Forge: opened remote model:", u.href, "→", path);
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (!mainWindow.isVisible()) mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send("forge:openFile", { path, name });
+    mainWindow.webContents.send("nav", "/forge");
+  } else {
+    pendingPath = path;
+  }
+  return { path, name };
 }
 
 /** When the main window is created and the user already had a pending file, push it. */
