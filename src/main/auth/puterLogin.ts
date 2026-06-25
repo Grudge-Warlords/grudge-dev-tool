@@ -45,24 +45,25 @@ function tokenFromUrl(url: string): string | null {
 }
 
 async function fetchPuterUser(token: string): Promise<PuterUser> {
-  const res = await net.fetch("https://api.puter.com/auth/user", {
+  // Puter.js uses GET /whoami (not /auth/user — that path 404s on api.puter.com).
+  const res = await net.fetch("https://api.puter.com/whoami", {
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`Puter API /auth/user returned ${res.status}: ${body.slice(0, 200)}`);
+    throw new Error(`Puter API /whoami returned ${res.status}: ${body.slice(0, 200)}`);
   }
   const data = await res.json() as any;
   const user = data?.user ?? data;
   if (!user?.uuid || !user?.username) {
-    throw new Error(`Puter user response missing uuid/username: ${JSON.stringify(data).slice(0, 200)}`);
+    throw new Error(`Puter /whoami missing uuid/username: ${JSON.stringify(data).slice(0, 200)}`);
   }
   return {
     uuid: user.uuid,
     username: user.username,
     email: user.email ?? undefined,
-    email_verified: user.email_verified ?? undefined,
+    email_verified: user.email_verified ?? user.email_confirmed ?? undefined,
   };
 }
 

@@ -7,6 +7,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 ### Fixed
 
 - **Puter sign-in firewall hang** — OAuth now runs in an in-app BrowserWindow instead of the system browser + `getAuthToken()` localhost callback (Windows Firewall often blocked the redirect, leaving sign-in stuck until timeout). Settings identity sign-in uses the same main-process flow as Login.
+- **Puter sign-in 404 after token** — user lookup now calls `GET /whoami` (Puter.js canonical endpoint); `/auth/user` does not exist on `api.puter.com`.
 
 ### Added
 
