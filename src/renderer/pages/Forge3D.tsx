@@ -4,9 +4,9 @@ import { toast } from "sonner";
 import {
   Move, RotateCcw, Maximize2, Camera, Download,
   FileBox, Trash2, ChevronRight, ChevronDown, Box,
-  Lightbulb, Grid3x3, Sun, FolderOpen,
+  Lightbulb, Grid3x3, Sun, FolderOpen, Save, FolderInput, Undo2, Redo2, Plus,
 } from "lucide-react";
-import { SceneEngine, type GizmoMode } from "../lib/forge/sceneEngine";
+import { SceneEngine, type GizmoMode, DEFAULT_STUDIO_LIGHTS, type StudioLightState } from "../lib/forge/sceneEngine";
 import { loadModel, type LoadedModel, isSupported } from "../lib/forge/loaders";
 import { exportToGlb, downloadBlob, ACCEPT_ATTR } from "../lib/forge/converters";
 import { inspectGlb, formatBytes, type GlbInspection } from "../lib/forge/glbInspect";
@@ -24,7 +24,13 @@ import {
   type ForgeAnimSettings,
 } from "../lib/forge/forgeAnimation";
 import ForgeWorkbench from "../components/ForgeWorkbench";
+import { findObjectByUuid } from "../lib/forge/sceneGraph";
+import { serializeScene, downloadSceneJson, parseSceneJson, applyMatrix } from "../lib/forge/sceneSerializer";
+import { TransformHistory, type TransformSnapshot } from "../lib/forge/history";
+import { deployToFleet } from "../lib/forge/deploy";
 import type { StoreCategory } from "../../shared/fleetGames";
+
+const BG_PRESETS = [0x0a0e1a, 0x111418, 0x1a1a25, 0xffffff, 0x444a55];
 
 interface SceneItem {
   id: string;
@@ -53,9 +59,18 @@ export default function Forge3D() {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<SceneEngine | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const sceneInputRef = useRef<HTMLInputElement | null>(null);
+  const historyRef = useRef(new TransformHistory());
 
   const [items, setItems] = useState<SceneItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedNodeUuid, setSelectedNodeUuid] = useState<string | null>(null);
+  const [studioLights, setStudioLights] = useState<StudioLightState>(DEFAULT_STUDIO_LIGHTS);
+  const [sceneName, setSceneName] = useState("forge-scene");
+  const [storeCategories, setStoreCategories] = useState<StoreCategory[]>([]);
+  const [deployCategoryId, setDeployCategoryId] = useState("characters");
+  const [runIngest, setRunIngest] = useState(true);
+  const [historyTick, setHistoryTick] = useState(0);
   const [gizmoMode, setGizmoMode] = useState<GizmoMode>("translate");
   const [showHelpers, setShowHelpers] = useState(true);
   const [autoFrame, setAutoFrame] = useState(true);
@@ -70,13 +85,24 @@ export default function Forge3D() {
   const [animSettings, setAnimSettings] = useState<ForgeAnimSettings>(DEFAULT_FORGE_ANIM);
 
   const selected = useMemo(() => items.find((i) => i.id === selectedId) ?? null, [items, selectedId]);
+  const selectedNode = useMemo(() => {
+    if (!selected) return null;
+    if (selectedNodeUuid) return findObjectByUuid(selected.object, selectedNodeUuid);
+    return selected.object;
+  }, [selected, selectedNodeUuid]);
+  const canUndo = historyTick >= 0 && historyRef.current.canUndo;
+  const canRedo = historyTick >= 0 && historyRef.current.canRedo;
 
   // -- Engine bootstrap ----------------------------------------------------
   useEffect(() => {
     void window.grudge.fleet.storeCategories().then((cats: StoreCategory[] | null | undefined) => {
-      setFleetPrefixes((cats ?? []).slice(0, 8).map((c) => ({
+      const list = cats ?? [];
+      setStoreCategories(list);
+      setFleetPrefixes(list.slice(0, 8).map((c) => ({
         id: c.id, label: c.label, prefix: c.prefix,
       })));
+      const chars = list.find((c) => c.id === "characters");
+      if (chars) setR2Path(chars.prefix);
     });
   }, []);
 
@@ -107,8 +133,25 @@ export default function Forge3D() {
       showAxes: true,
       hdri: true,
     });
+    engine.applyStudioLightState(DEFAULT_STUDIO_LIGHTS);
     engineRef.current = engine;
+    const off = engine.onTransformChange(() => {
+      const obj = (engine.transform as unknown as { object?: THREE.Object3D }).object;
+      if (!obj) return;
+      historyRef.current.push({
+        uuid: obj.uuid,
+        position: obj.position.toArray() as [number, number, number],
+        rotation: [
+          THREE.MathUtils.radToDeg(obj.rotation.x),
+          THREE.MathUtils.radToDeg(obj.rotation.y),
+          THREE.MathUtils.radToDeg(obj.rotation.z),
+        ],
+        scale: obj.scale.toArray() as [number, number, number],
+      });
+      setHistoryTick((n) => n + 1);
+    });
     return () => {
+      off();
       engine.dispose();
       engineRef.current = null;
     };
@@ -124,9 +167,13 @@ export default function Forge3D() {
 
   useEffect(() => {
     if (!engineRef.current) return;
-    if (selected) engineRef.current.attach(selected.object);
+    if (selectedNode) engineRef.current.attach(selectedNode);
     else engineRef.current.detach();
-  }, [selected]);
+  }, [selectedNode]);
+
+  useEffect(() => {
+    engineRef.current?.applyStudioLightState(studioLights);
+  }, [studioLights]);
 
   useEffect(() => {
     if (engineRef.current) engineRef.current.timeScale = animSettings.timeScale;
@@ -185,6 +232,7 @@ export default function Forge3D() {
       };
       setItems((prev) => [...prev, item]);
       setSelectedId(id);
+      setSelectedNodeUuid(null);
       if (autoFrame) engineRef.current.frame(loaded.object);
       const rigHint = rig.fingerprintLabel ? ` · ${rig.fingerprintLabel}` : rig.boneCount > 0 ? ` · ${rig.boneCount} bones` : "";
       toast.success(`Loaded ${file.name}`, {
@@ -267,6 +315,208 @@ export default function Forge3D() {
 
   function updateBodyMorph(itemId: string, morph: BodyMorphConfig) {
     setItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, bodyMorph: morph } : it)));
+  }
+
+  function snapshotTransform(obj: THREE.Object3D): TransformSnapshot {
+    return {
+      uuid: obj.uuid,
+      position: obj.position.toArray() as [number, number, number],
+      rotation: [
+        THREE.MathUtils.radToDeg(obj.rotation.x),
+        THREE.MathUtils.radToDeg(obj.rotation.y),
+        THREE.MathUtils.radToDeg(obj.rotation.z),
+      ],
+      scale: obj.scale.toArray() as [number, number, number],
+    };
+  }
+
+  function applySnapshot(snap: TransformSnapshot): void {
+    for (const it of items) {
+      const obj = findObjectByUuid(it.object, snap.uuid) ?? (it.object.uuid === snap.uuid ? it.object : null);
+      if (!obj) continue;
+      obj.position.fromArray(snap.position);
+      obj.rotation.set(
+        THREE.MathUtils.degToRad(snap.rotation[0]),
+        THREE.MathUtils.degToRad(snap.rotation[1]),
+        THREE.MathUtils.degToRad(snap.rotation[2]),
+      );
+      obj.scale.fromArray(snap.scale);
+      obj.updateMatrixWorld(true);
+      break;
+    }
+    setHistoryTick((n) => n + 1);
+  }
+
+  function selectNode(uuid: string, object: THREE.Object3D) {
+    setSelectedNodeUuid(uuid);
+    engineRef.current?.attach(object);
+  }
+
+  function onTransformTick() {
+    if (selectedNode) historyRef.current.push(snapshotTransform(selectedNode));
+    setHistoryTick((n) => n + 1);
+  }
+
+  function undoTransform() {
+    const snap = historyRef.current.undo();
+    if (snap) applySnapshot(snap);
+  }
+
+  function redoTransform() {
+    const snap = historyRef.current.redo();
+    if (snap) applySnapshot(snap);
+  }
+
+  function saveScene() {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const doc = serializeScene({
+      name: sceneName,
+      entities: items.map((it) => ({
+        id: it.id,
+        name: it.name,
+        format: it.format,
+        object: it.object,
+        diskPath: it.diskPath,
+        bodyMorph: it.bodyMorph,
+      })),
+      background: engine.getBackgroundColor(),
+      showHelpers,
+      animSettings,
+      camera: engine.camera,
+      controlsTarget: engine.controls.target,
+      lights: engine.getStudioLightState(),
+    });
+    downloadSceneJson(doc);
+    toast.success("Scene saved", { description: `${doc.entities.length} entities` });
+  }
+
+  async function loadSceneFile(file: File) {
+    const engine = engineRef.current;
+    if (!engine) return;
+    try {
+      const doc = parseSceneJson(await file.text());
+      setSceneName(doc.name);
+      setShowHelpers(doc.settings.showHelpers);
+      setAnimSettings(doc.settings.animSettings);
+      setStudioLights(doc.settings.lights);
+      const bg = doc.settings.background;
+      setBgIndex(BG_PRESETS.indexOf(bg) >= 0 ? BG_PRESETS.indexOf(bg) : 0);
+      engine.setBackgroundColor(bg);
+      engine.camera.position.fromArray(doc.settings.camera.position);
+      engine.controls.target.fromArray(doc.settings.camera.target);
+      engine.controls.update();
+
+      for (const it of items) {
+        engine.removeSkeletonHelper(it.object);
+        engine.scene.remove(it.object);
+        if (it.mixer) engine.removeMixer(it.mixer);
+      }
+      setItems([]);
+      setSelectedId(null);
+      setSelectedNodeUuid(null);
+      historyRef.current.clear();
+
+      const loadedItems: SceneItem[] = [];
+      for (const ent of doc.entities) {
+        if (!ent.diskPath) {
+          toast.warning(`Skipped ${ent.name} — no disk path in scene file`);
+          continue;
+        }
+        const res = await window.grudge.forge.readFile(ent.diskPath);
+        const f = new File([res.bytes as BlobPart], res.name, { type: res.mime });
+        const loaded: LoadedModel = await loadModel(f);
+        applyMatrix(loaded.object, ent.matrix);
+        loaded.object.visible = ent.visible;
+        const id = ent.id || `e${Date.now().toString(36)}`;
+        loaded.object.userData.itemId = id;
+        engine.scene.add(loaded.object);
+        const mixer = engine.buildMixer(loaded.object, loaded.animations);
+        loadedItems.push({
+          id,
+          name: ent.name,
+          format: ent.format,
+          object: loaded.object,
+          animations: loaded.animations,
+          mixer,
+          triangles: loaded.triangles,
+          vertices: loaded.vertices,
+          bones: loaded.bones,
+          inspection: null,
+          bytes: f.size,
+          rig: inspectSceneRig(loaded.object),
+          bodyMorph: ent.bodyMorph ?? { ...DEFAULT_BODY_MORPH },
+          sourceRest: loaded.bones > 0 ? captureRestPose(loaded.object) : null,
+          diskPath: ent.diskPath,
+        });
+      }
+      setItems(loadedItems);
+      if (loadedItems.length) setSelectedId(loadedItems[0].id);
+      toast.success(`Loaded scene ${doc.name}`, { description: `${loadedItems.length} entities` });
+    } catch (e: unknown) {
+      toast.error("Scene load failed", { description: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  function addPrimitive(kind: "box" | "sphere" | "plane") {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const mesh = engine.addPrimitive(kind);
+    const id = `prim_${Date.now().toString(36)}`;
+    mesh.userData.itemId = id;
+    const rig = inspectSceneRig(mesh);
+    const item: SceneItem = {
+      id,
+      name: mesh.name,
+      format: "primitive",
+      object: mesh,
+      animations: [],
+      mixer: null,
+      triangles: kind === "sphere" ? 512 : kind === "plane" ? 2 : 12,
+      vertices: kind === "sphere" ? 256 : kind === "plane" ? 4 : 8,
+      bones: 0,
+      inspection: null,
+      bytes: 0,
+      rig,
+      bodyMorph: { ...DEFAULT_BODY_MORPH },
+      sourceRest: null,
+      diskPath: null,
+    };
+    setItems((prev) => [...prev, item]);
+    setSelectedId(id);
+    setSelectedNodeUuid(mesh.uuid);
+    if (autoFrame) engine.frame(mesh);
+  }
+
+  async function fleetDeploySelected() {
+    if (!selected) return;
+    setBusyUpload(true);
+    try {
+      const cat = storeCategories.find((c) => c.id === deployCategoryId);
+      const result = await deployToFleet({
+        object: selected.object,
+        animations: selected.animations,
+        filenameBase: selected.name.replace(/\.[^.]+$/, ""),
+        prefix: r2Path || cat?.prefix || "models/",
+        categoryId: deployCategoryId,
+        runIngest,
+      });
+      if (!result.ok) {
+        toast.error("Fleet deploy failed", { description: result.errors?.join("; ") });
+        return;
+      }
+      toast.success("Fleet deploy complete", {
+        description: [
+          result.grudgeUUID ? `UUID ${result.grudgeUUID}` : null,
+          result.rig ? `rig ${result.rig}` : null,
+          result.publicUrl ?? result.key,
+        ].filter(Boolean).join(" · "),
+      });
+    } catch (e: unknown) {
+      toast.error("Fleet deploy failed", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusyUpload(false);
+    }
   }
 
   // -- Animation control ---------------------------------------------------
@@ -387,8 +637,23 @@ export default function Forge3D() {
     }
   }
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const k = e.key.toLowerCase();
+      if (k === "w") setGizmoMode("translate");
+      else if (k === "e") setGizmoMode("rotate");
+      else if (k === "r") setGizmoMode("scale");
+      else if (k === "f") frameSelected();
+      else if (e.ctrlKey && k === "z") { e.preventDefault(); undoTransform(); }
+      else if (e.ctrlKey && k === "y") { e.preventDefault(); redoTransform(); }
+      else if (e.key === "Delete" && selectedId) removeItem(selectedId);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   // -- Background cycler ---------------------------------------------------
-  const BG_PRESETS = [0x0a0e1a, 0x111418, 0x1a1a25, 0xffffff, 0x444a55];
   function cycleBackground() {
     const next = (bgIndex + 1) % BG_PRESETS.length;
     setBgIndex(next);
@@ -403,6 +668,13 @@ export default function Forge3D() {
         showHelpers={showHelpers} setShowHelpers={setShowHelpers}
         autoFrame={autoFrame} setAutoFrame={setAutoFrame}
         onPickFiles={() => fileInputRef.current?.click()}
+        onLoadScene={() => sceneInputRef.current?.click()}
+        onSaveScene={saveScene}
+        onUndo={undoTransform}
+        onRedo={redoTransform}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onAddPrimitive={addPrimitive}
         onFrame={frameSelected}
         onScreenshot={screenshot}
         onCycleBg={cycleBackground}
@@ -412,7 +684,18 @@ export default function Forge3D() {
         canExport={selected != null}
         canExportAll={items.length > 0}
       />
-      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr 360px", minHeight: 0 }}>
+      <input
+        ref={sceneInputRef}
+        type="file"
+        accept=".forge-scene.json,.json"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void loadSceneFile(f);
+          e.target.value = "";
+        }}
+      />
+      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr 380px", minHeight: 0 }}>
         {/* HIERARCHY */}
         <Panel title={`Scene (${items.length})`}>
           {fleetPrefixes.length > 0 && (
@@ -451,7 +734,7 @@ export default function Forge3D() {
                 <HierarchyRow
                   key={it.id} item={it}
                   selected={selectedId === it.id}
-                  onSelect={() => setSelectedId(it.id)}
+                  onSelect={() => { setSelectedId(it.id); setSelectedNodeUuid(null); }}
                   onRemove={() => removeItem(it.id)}
                 />
               ))}
@@ -523,7 +806,19 @@ export default function Forge3D() {
               r2Path={r2Path}
               setR2Path={setR2Path}
               onUploadR2={uploadSelectedToR2}
+              onFleetDeploy={fleetDeploySelected}
               busyUpload={busyUpload}
+              selectedNode={selectedNode}
+              selectedNodeUuid={selectedNodeUuid ?? selected.object.uuid}
+              onSelectNode={selectNode}
+              onTransformTick={onTransformTick}
+              studioLights={studioLights}
+              onStudioLights={setStudioLights}
+              storeCategories={storeCategories}
+              deployCategoryId={deployCategoryId}
+              setDeployCategoryId={setDeployCategoryId}
+              runIngest={runIngest}
+              setRunIngest={setRunIngest}
             />
           )}
         </Panel>
@@ -542,6 +837,13 @@ function Toolbar(props: {
   autoFrame: boolean;
   setAutoFrame: (v: boolean) => void;
   onPickFiles: () => void;
+  onLoadScene: () => void;
+  onSaveScene: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onAddPrimitive: (kind: "box" | "sphere" | "plane") => void;
   onFrame: () => void;
   onScreenshot: () => void;
   onCycleBg: () => void;
@@ -551,16 +853,17 @@ function Toolbar(props: {
   canExport: boolean;
   canExportAll: boolean;
 }) {
-  const Btn = ({ active, onClick, title, children }: any) => (
+  const Btn = ({ active, onClick, title, children, disabled }: any) => (
     <button
       onClick={onClick}
       title={title}
+      disabled={disabled}
       style={{
         background: active ? "rgba(255,198,42,0.18)" : "transparent",
-        color: active ? "var(--gold)" : "var(--text)",
+        color: disabled ? "var(--muted)" : active ? "var(--gold)" : "var(--text)",
         border: "1px solid " + (active ? "var(--gold-deep)" : "var(--line)"),
-        borderRadius: 5, padding: "5px 8px", cursor: "pointer", fontSize: 12,
-        display: "inline-flex", alignItems: "center", gap: 4,
+        borderRadius: 5, padding: "5px 8px", cursor: disabled ? "not-allowed" : "pointer", fontSize: 12,
+        display: "inline-flex", alignItems: "center", gap: 4, opacity: disabled ? 0.5 : 1,
       }}>
       {children}
     </button>
@@ -571,7 +874,13 @@ function Toolbar(props: {
       padding: "8px 14px", borderBottom: "1px solid var(--line)",
       background: "var(--bg-1)", flexWrap: "wrap",
     }}>
-      <Btn onClick={props.onPickFiles} title="Open file (Ctrl+O)"><FolderOpen size={14} />Open</Btn>
+      <Btn onClick={props.onPickFiles} title="Open model"><FolderOpen size={14} />Open</Btn>
+      <Btn onClick={props.onLoadScene} title="Load .forge-scene.json"><FolderInput size={14} />Scene</Btn>
+      <Btn onClick={props.onSaveScene} title="Save scene JSON"><Save size={14} />Save</Btn>
+      <span style={{ width: 1, height: 22, background: "var(--line)" }} />
+      <Btn onClick={props.onUndo} title="Undo (Ctrl+Z)" disabled={!props.canUndo}><Undo2 size={14} /></Btn>
+      <Btn onClick={props.onRedo} title="Redo (Ctrl+Y)" disabled={!props.canRedo}><Redo2 size={14} /></Btn>
+      <Btn onClick={() => props.onAddPrimitive("box")} title="Add box primitive"><Plus size={14} />Box</Btn>
       <span style={{ width: 1, height: 22, background: "var(--line)" }} />
       <Btn active={props.gizmoMode === "translate"} onClick={() => props.setGizmoMode("translate")} title="Translate (W)"><Move size={14} />T</Btn>
       <Btn active={props.gizmoMode === "rotate"} onClick={() => props.setGizmoMode("rotate")} title="Rotate (E)"><RotateCcw size={14} />R</Btn>

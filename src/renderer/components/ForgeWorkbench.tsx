@@ -1,8 +1,13 @@
 import React, { useMemo, useRef } from "react";
 import * as THREE from "three";
 import {
-  Bone, Play, Pause, Upload, RefreshCcw, Layers, Settings2, Wand2,
+  Bone, Play, Pause, Upload, RefreshCcw, Layers, Settings2, Wand2, Box, Sun,
 } from "lucide-react";
+import ForgeSceneTree from "./ForgeSceneTree";
+import ForgeTransformPanel from "./ForgeTransformPanel";
+import ForgeLightingPanel from "./ForgeLightingPanel";
+import type { StudioLightState } from "../lib/forge/sceneEngine";
+import type { StoreCategory } from "../../shared/fleetGames";
 import {
   retargetClips,
   captureRestPose,
@@ -48,10 +53,22 @@ interface Props {
   r2Path: string;
   setR2Path: (v: string) => void;
   onUploadR2: () => void;
+  onFleetDeploy: () => void;
   busyUpload: boolean;
+  selectedNode: THREE.Object3D | null;
+  selectedNodeUuid: string | null;
+  onSelectNode: (uuid: string, object: THREE.Object3D) => void;
+  onTransformTick: () => void;
+  studioLights: StudioLightState;
+  onStudioLights: (s: StudioLightState) => void;
+  storeCategories: StoreCategory[];
+  deployCategoryId: string;
+  setDeployCategoryId: (id: string) => void;
+  runIngest: boolean;
+  setRunIngest: (v: boolean) => void;
 }
 
-type Tab = "inspect" | "rig" | "animation" | "modeling";
+type Tab = "scene" | "rig" | "animation" | "modeling" | "deploy";
 
 const MORPH_SLIDERS: Array<{ key: keyof BodyMorphConfig; label: string; min: number; max: number; step: number }> = [
   { key: "torsoLength", label: "Torso", min: 0.7, max: 1.4, step: 0.01 },
@@ -66,7 +83,7 @@ const MORPH_SLIDERS: Array<{ key: keyof BodyMorphConfig; label: string; min: num
 ];
 
 export default function ForgeWorkbench(props: Props) {
-  const [tab, setTab] = React.useState<Tab>("rig");
+  const [tab, setTab] = React.useState<Tab>("scene");
   const [deepInspect, setDeepInspect] = React.useState<string | null>(null);
   const [deepBusy, setDeepBusy] = React.useState(false);
   const animInputRef = useRef<HTMLInputElement>(null);
@@ -154,13 +171,28 @@ export default function ForgeWorkbench(props: Props) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex flex-wrap gap-1 p-2 border-b border-line">
+        <TabBtn id="scene" label="Scene" icon={Box} />
         <TabBtn id="rig" label="Rig" icon={Bone} />
         <TabBtn id="animation" label="Anim" icon={Play} />
         <TabBtn id="modeling" label="Morph" icon={Wand2} />
-        <TabBtn id="inspect" label="Export" icon={Upload} />
+        <TabBtn id="deploy" label="Deploy" icon={Upload} />
       </div>
 
       <div className="flex-1 overflow-auto p-2 text-xs">
+        {tab === "scene" && (
+          <div className="space-y-3">
+            <div className="text-gold font-semibold">Object graph</div>
+            <ForgeSceneTree
+              root={item.object}
+              selectedUuid={props.selectedNodeUuid}
+              onSelect={props.onSelectNode}
+            />
+            <ForgeTransformPanel object={props.selectedNode} onChange={props.onTransformTick} />
+            <div className="text-gold font-semibold flex items-center gap-1"><Sun size={12} /> Lighting</div>
+            <ForgeLightingPanel lights={props.studioLights} onChange={props.onStudioLights} />
+          </div>
+        )}
+
         {tab === "rig" && !item.rig && (
           <p className="text-muted">No rig data — static mesh or load failed.</p>
         )}
@@ -335,17 +367,41 @@ export default function ForgeWorkbench(props: Props) {
           </div>
         )}
 
-        {tab === "inspect" && (
+        {tab === "deploy" && (
           <div className="space-y-2">
+            <label className="block">
+              <span className="text-muted">Fleet category</span>
+              <select
+                className="w-full text-xs"
+                value={props.deployCategoryId}
+                onChange={(e) => {
+                  props.setDeployCategoryId(e.target.value);
+                  const cat = props.storeCategories.find((c) => c.id === e.target.value);
+                  if (cat) props.setR2Path(cat.prefix);
+                }}
+              >
+                {props.storeCategories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                ))}
+              </select>
+            </label>
             <label className="block">
               <span className="text-muted">R2 prefix</span>
               <input value={props.r2Path} onChange={(e) => props.setR2Path(e.target.value)} className="w-full font-mono text-[10px]" />
             </label>
-            <button type="button" className="btn w-full text-xs" onClick={props.onUploadR2} disabled={props.busyUpload}>
-              {props.busyUpload ? "Uploading…" : "Convert → GLB → Upload"}
+            <label className="flex items-center gap-2 text-[10px]">
+              <input type="checkbox" checked={props.runIngest} onChange={(e) => props.setRunIngest(e.target.checked)} />
+              Run Grudge ingest (UUID, rig, thumbnail)
+            </label>
+            <button type="button" className="btn w-full text-xs" onClick={props.onFleetDeploy} disabled={props.busyUpload}>
+              {props.busyUpload ? "Deploying…" : "Fleet deploy (ingest → R2)"}
+            </button>
+            <button type="button" className="btn ghost w-full text-xs" onClick={props.onUploadR2} disabled={props.busyUpload}>
+              Quick upload (skip ingest)
             </button>
             <p className="text-muted text-[10px]">
-              Export uses toolbar GLB buttons. Upload publishes to fleet <span className="font-mono">models/</span> prefixes.
+              Fleet deploy runs size-verify → convert → rig → Grudge UUID before publishing to ObjectStore.
+              Save scene JSON from the toolbar to version multi-object layouts.
             </p>
           </div>
         )}

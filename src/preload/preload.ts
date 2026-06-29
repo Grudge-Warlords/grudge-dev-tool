@@ -144,6 +144,8 @@ const api = {
     consumeInitialFile: () => ipcRenderer.invoke("forge:consumeInitialFile"),
     /** Read a file from disk and hand the bytes back to the renderer. */
     readFile: (path: string) => ipcRenderer.invoke("forge:readFile", path),
+    writeTempFile: (args: { name: string; bytes: Uint8Array }) =>
+      ipcRenderer.invoke("forge:writeTempFile", args) as Promise<string>,
     /** Download a public CDN model and open it in Forge 3D. */
     openRemote: (url: string) => ipcRenderer.invoke("forge:openRemote", url) as Promise<{ path: string; name: string }>,
     /** Pop out the 3D viewport to a separate window. */

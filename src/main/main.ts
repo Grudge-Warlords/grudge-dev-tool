@@ -411,6 +411,8 @@ function registerIpc() {
   // Forge3D — "Open with..." + read file from disk for renderer.
   ipcMain.handle("forge:consumeInitialFile", () => forge.consumeInitialFile());
   ipcMain.handle("forge:readFile", async (_e, pathOrObj: unknown) => forge.readModelFile(pathOrObj));
+  ipcMain.handle("forge:writeTempFile", async (_e, args: { name: string; bytes: Uint8Array }) =>
+    forge.writeTempModelFile(args.name, args.bytes));
   ipcMain.handle("forge:openRemote", async (_e, url: string) => {
     if (!url || typeof url !== "string") throw new Error("forge:openRemote requires a URL");
     return forge.openRemoteModel(url, mainWindow && !mainWindow.isDestroyed() ? mainWindow : null);

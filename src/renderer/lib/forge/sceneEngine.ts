@@ -5,6 +5,20 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 
 export type GizmoMode = "translate" | "rotate" | "scale";
 
+export interface StudioLightState {
+  key: { color: number; intensity: number; position: [number, number, number] };
+  fill: { color: number; intensity: number; position: [number, number, number] };
+  ambient: { color: number; intensity: number };
+  exposure: number;
+}
+
+export const DEFAULT_STUDIO_LIGHTS: StudioLightState = {
+  key: { color: 0xfff1d6, intensity: 1.4, position: [5, 8, 4] },
+  fill: { color: 0x88aaff, intensity: 0.4, position: [-4, 3, -2] },
+  ambient: { color: 0xffffff, intensity: 0.18 },
+  exposure: 1.0,
+};
+
 export interface SceneEngineOptions {
   background?: number;
   showGrid?: boolean;
@@ -31,7 +45,13 @@ export class SceneEngine {
   private readonly transformHelper: THREE.Object3D;
   readonly clock = new THREE.Clock();
   readonly mixers: THREE.AnimationMixer[] = [];
+  readonly studioLights: {
+    key: THREE.DirectionalLight;
+    fill: THREE.DirectionalLight;
+    ambient: THREE.AmbientLight;
+  };
   timeScale = 1;
+  private transformListeners = new Set<() => void>();
 
   private grid: THREE.GridHelper | null = null;
   private skeletonHelpers = new Map<THREE.Object3D, THREE.SkeletonHelper>();
@@ -62,6 +82,7 @@ export class SceneEngine {
 
     // Lighting — warm key + cool fill, plus IBL from RoomEnvironment for PBR materials.
     const key = new THREE.DirectionalLight(0xfff1d6, 1.4);
+    key.name = "ForgeKeyLight";
     key.position.set(5, 8, 4);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
@@ -74,11 +95,14 @@ export class SceneEngine {
     this.scene.add(key);
 
     const fill = new THREE.DirectionalLight(0x88aaff, 0.4);
+    fill.name = "ForgeFillLight";
     fill.position.set(-4, 3, -2);
     this.scene.add(fill);
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.18);
+    ambient.name = "ForgeAmbientLight";
     this.scene.add(ambient);
+    this.studioLights = { key, fill, ambient };
 
     if (opts.hdri !== false) {
       const pmrem = new THREE.PMREMGenerator(this.renderer);
@@ -87,12 +111,14 @@ export class SceneEngine {
 
     if (opts.showGrid !== false) {
       this.grid = new THREE.GridHelper(20, 20, 0xffc62a, 0x1c2a55);
+      this.grid.userData.forgeInternal = true;
       (this.grid.material as THREE.Material).transparent = true;
       (this.grid.material as THREE.Material).opacity = 0.6;
       this.scene.add(this.grid);
     }
     if (opts.showAxes !== false) {
       this.axes = new THREE.AxesHelper(0.75);
+      this.axes.userData.forgeInternal = true;
       this.scene.add(this.axes);
     }
 
@@ -104,6 +130,9 @@ export class SceneEngine {
     this.transform = new TransformControls(this.camera, this.renderer.domElement);
     this.transform.addEventListener("dragging-changed", (e: any) => {
       this.controls.enabled = !e.value;
+    });
+    this.transform.addEventListener("objectChange", () => {
+      for (const cb of this.transformListeners) cb();
     });
     // r169+: TransformControls is NOT an Object3D — add its helper instead.
     // Older code paths that did `scene.add(transformControls)` would land a
@@ -142,6 +171,66 @@ export class SceneEngine {
 
   detach(): void {
     this.transform.detach();
+  }
+
+  onTransformChange(cb: () => void): () => void {
+    this.transformListeners.add(cb);
+    return () => this.transformListeners.delete(cb);
+  }
+
+  getBackgroundColor(): number {
+    const bg = this.scene.background;
+    return bg instanceof THREE.Color ? bg.getHex() : 0x0a0e1a;
+  }
+
+  setBackgroundColor(hex: number): void {
+    this.scene.background = new THREE.Color(hex);
+  }
+
+  getStudioLightState(): StudioLightState {
+    const { key, fill, ambient } = this.studioLights;
+    return {
+      key: {
+        color: key.color.getHex(),
+        intensity: key.intensity,
+        position: key.position.toArray() as [number, number, number],
+      },
+      fill: {
+        color: fill.color.getHex(),
+        intensity: fill.intensity,
+        position: fill.position.toArray() as [number, number, number],
+      },
+      ambient: { color: ambient.color.getHex(), intensity: ambient.intensity },
+      exposure: this.renderer.toneMappingExposure,
+    };
+  }
+
+  applyStudioLightState(state: StudioLightState): void {
+    const { key, fill, ambient } = this.studioLights;
+    key.color.setHex(state.key.color);
+    key.intensity = state.key.intensity;
+    key.position.fromArray(state.key.position);
+    fill.color.setHex(state.fill.color);
+    fill.intensity = state.fill.intensity;
+    fill.position.fromArray(state.fill.position);
+    ambient.color.setHex(state.ambient.color);
+    ambient.intensity = state.ambient.intensity;
+    this.renderer.toneMappingExposure = state.exposure;
+  }
+
+  addPrimitive(kind: "box" | "sphere" | "plane"): THREE.Mesh {
+    let geometry: THREE.BufferGeometry;
+    if (kind === "sphere") geometry = new THREE.SphereGeometry(0.5, 32, 16);
+    else if (kind === "plane") geometry = new THREE.PlaneGeometry(2, 2);
+    else geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshStandardMaterial({ color: 0x8899bb, metalness: 0.1, roughness: 0.75 });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `Primitive_${kind}`;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.position.y = kind === "plane" ? 0 : 0.5;
+    this.scene.add(mesh);
+    return mesh;
   }
 
   /** Frame an Object3D — center on its bounding box and fit camera to it. */

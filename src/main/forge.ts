@@ -95,6 +95,16 @@ export function resolveModelPath(input: unknown): string {
   throw new Error("forge:readFile requires a file path string");
 }
 
+/** Write exported bytes to a temp file (for ingest / fleet deploy). */
+export async function writeTempModelFile(name: string, bytes: Uint8Array): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "grudge-forge-export-"));
+  const safe = basename(name) || "export.glb";
+  const path = join(dir, safe);
+  await writeFile(path, bytes);
+  log.info("Forge: wrote temp export:", path);
+  return path;
+}
+
 export async function readModelFile(pathOrObj: unknown): Promise<ReadFileResult> {
   const path = resolveModelPath(pathOrObj);
   const ext = extname(path).toLowerCase();
