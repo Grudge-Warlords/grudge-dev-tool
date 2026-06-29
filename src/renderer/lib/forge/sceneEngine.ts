@@ -31,8 +31,10 @@ export class SceneEngine {
   private readonly transformHelper: THREE.Object3D;
   readonly clock = new THREE.Clock();
   readonly mixers: THREE.AnimationMixer[] = [];
+  timeScale = 1;
 
   private grid: THREE.GridHelper | null = null;
+  private skeletonHelpers = new Map<THREE.Object3D, THREE.SkeletonHelper>();
   private axes: THREE.AxesHelper | null = null;
   private rafHandle = 0;
   private resizeObserver?: ResizeObserver;
@@ -189,10 +191,34 @@ export class SceneEngine {
     if (this.disposed) return;
     this.rafHandle = requestAnimationFrame(this.tick);
     const dt = this.clock.getDelta();
-    for (const m of this.mixers) m.update(dt);
+    for (const m of this.mixers) m.update(dt * this.timeScale);
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   };
+
+  setSkeletonHelper(root: THREE.Object3D, visible: boolean): void {
+    let helper = this.skeletonHelpers.get(root);
+    if (visible) {
+      if (!helper) {
+        helper = new THREE.SkeletonHelper(root);
+        (helper.material as THREE.LineBasicMaterial).linewidth = 1;
+        this.scene.add(helper);
+        this.skeletonHelpers.set(root, helper);
+      }
+      helper.visible = true;
+    } else if (helper) {
+      helper.visible = false;
+    }
+  }
+
+  removeSkeletonHelper(root: THREE.Object3D): void {
+    const helper = this.skeletonHelpers.get(root);
+    if (helper) {
+      this.scene.remove(helper);
+      helper.dispose?.();
+      this.skeletonHelpers.delete(root);
+    }
+  }
 
   /** Take a PNG screenshot of the current frame (data URL). */
   screenshot(): string {

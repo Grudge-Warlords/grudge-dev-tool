@@ -2,14 +2,28 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import * as THREE from "three";
 import { toast } from "sonner";
 import {
-  Move, RotateCcw, Maximize2, Camera, Download, UploadCloud,
-  Play, Pause, FileBox, Trash2, ChevronRight, ChevronDown, Box,
+  Move, RotateCcw, Maximize2, Camera, Download,
+  FileBox, Trash2, ChevronRight, ChevronDown, Box,
   Lightbulb, Grid3x3, Sun, FolderOpen,
 } from "lucide-react";
 import { SceneEngine, type GizmoMode } from "../lib/forge/sceneEngine";
 import { loadModel, type LoadedModel, isSupported } from "../lib/forge/loaders";
 import { exportToGlb, downloadBlob, ACCEPT_ATTR } from "../lib/forge/converters";
 import { inspectGlb, formatBytes, type GlbInspection } from "../lib/forge/glbInspect";
+import {
+  captureRestPose,
+  DEFAULT_BODY_MORPH,
+  type BodyMorphConfig,
+  type RestPoseEntry,
+} from "../lib/forge/boneAliases";
+import { inspectSceneRig, type RigInspectResult } from "../lib/forge/rigInspect";
+import {
+  DEFAULT_FORGE_ANIM,
+  applyLoopMode,
+  crossfadeTo,
+  type ForgeAnimSettings,
+} from "../lib/forge/forgeAnimation";
+import ForgeWorkbench from "../components/ForgeWorkbench";
 import type { StoreCategory } from "../../shared/fleetGames";
 
 interface SceneItem {
@@ -24,6 +38,10 @@ interface SceneItem {
   bones: number;
   inspection: GlbInspection | null;
   bytes: number;
+  rig: RigInspectResult;
+  bodyMorph: BodyMorphConfig;
+  sourceRest: Map<string, RestPoseEntry> | null;
+  diskPath: string | null;
 }
 
 const ICON_BY_FORMAT: Record<string, string> = {
@@ -49,6 +67,7 @@ export default function Forge3D() {
   const [r2Path, setR2Path] = useState("models/");
   const [busyUpload, setBusyUpload] = useState(false);
   const [fleetPrefixes, setFleetPrefixes] = useState<Array<{ id: string; label: string; prefix: string }>>([]);
+  const [animSettings, setAnimSettings] = useState<ForgeAnimSettings>(DEFAULT_FORGE_ANIM);
 
   const selected = useMemo(() => items.find((i) => i.id === selectedId) ?? null, [items, selectedId]);
 
@@ -109,8 +128,21 @@ export default function Forge3D() {
     else engineRef.current.detach();
   }, [selected]);
 
+  useEffect(() => {
+    if (engineRef.current) engineRef.current.timeScale = animSettings.timeScale;
+  }, [animSettings.timeScale]);
+
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    for (const it of items) {
+      const show = selected?.id === it.id && animSettings.showSkeleton && it.bones > 0;
+      engine.setSkeletonHelper(it.object, show);
+    }
+  }, [items, selected, animSettings.showSkeleton]);
+
   // -- File loading --------------------------------------------------------
-  const addFile = useCallback(async (file: File) => {
+  const addFile = useCallback(async (file: File, diskPath: string | null = null) => {
     if (!isSupported(file.name)) {
       toast.error(`Unsupported file: ${file.name}`);
       return;
@@ -130,6 +162,8 @@ export default function Forge3D() {
       loaded.object.traverse((n) => { (n as THREE.Mesh).castShadow = true; (n as THREE.Mesh).receiveShadow = true; });
       engineRef.current.scene.add(loaded.object);
       const mixer = engineRef.current.buildMixer(loaded.object, loaded.animations);
+      const rig = inspectSceneRig(loaded.object);
+      const sourceRest = loaded.bones > 0 ? captureRestPose(loaded.object) : null;
       const item: SceneItem = {
         id,
         name: file.name,
@@ -142,12 +176,19 @@ export default function Forge3D() {
         bones: loaded.bones,
         inspection,
         bytes: file.size,
+        rig,
+        bodyMorph: { ...DEFAULT_BODY_MORPH },
+        sourceRest,
+        diskPath: diskPath ?? (() => {
+          try { return window.grudge.files.getPathForFile(file) || null; } catch { return null; }
+        })(),
       };
       setItems((prev) => [...prev, item]);
       setSelectedId(id);
       if (autoFrame) engineRef.current.frame(loaded.object);
+      const rigHint = rig.fingerprintLabel ? ` · ${rig.fingerprintLabel}` : rig.boneCount > 0 ? ` · ${rig.boneCount} bones` : "";
       toast.success(`Loaded ${file.name}`, {
-        description: `${loaded.triangles.toLocaleString()} triangles · ${loaded.animations.length} animation${loaded.animations.length === 1 ? "" : "s"}`,
+        description: `${loaded.triangles.toLocaleString()} triangles · ${loaded.animations.length} clip${loaded.animations.length === 1 ? "" : "s"}${rigHint}`,
       });
     } catch (err: any) {
       console.error("Forge3D load failed", err);
@@ -198,7 +239,7 @@ export default function Forge3D() {
       (window as any).grudge?.forge?.readFile?.(info.path).then((res: { name: string; bytes: ArrayBuffer; mime: string }) => {
         if (!res || !res.bytes) return;
         const file = new File([res.bytes], res.name, { type: res.mime });
-        void addFile(file);
+        void addFile(file, info.path);
       }).catch((err: any) => {
         toast.error("Open file failed", { description: err?.message ?? String(err) });
       });
@@ -207,19 +248,33 @@ export default function Forge3D() {
     (window as any).grudge?.forge?.consumeInitialFile?.().then((file: { path: string; name: string } | null) => {
       if (file) {
         (window as any).grudge?.forge?.readFile?.(file.path).then((res: any) => {
-          if (res?.bytes) void addFile(new File([res.bytes], res.name, { type: res.mime }));
+          if (res?.bytes) void addFile(new File([res.bytes], res.name, { type: res.mime }), file.path);
         });
       }
     });
     return () => off?.();
   }, [addFile]);
 
+  function mergeAnimations(itemId: string, clips: THREE.AnimationClip[]) {
+    setItems((prev) => prev.map((it) => {
+      if (it.id !== itemId) return it;
+      if (it.mixer && engineRef.current) engineRef.current.removeMixer(it.mixer);
+      const mixer = engineRef.current?.buildMixer(it.object, clips) ?? null;
+      return { ...it, animations: clips, mixer };
+    }));
+    toast.success(`Merged ${clips.length} animation clip${clips.length === 1 ? "" : "s"}`);
+  }
+
+  function updateBodyMorph(itemId: string, morph: BodyMorphConfig) {
+    setItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, bodyMorph: morph } : it)));
+  }
+
   // -- Animation control ---------------------------------------------------
   function playClip(item: SceneItem, clip: THREE.AnimationClip) {
-    if (activeClip) activeClip.stop();
     if (!item.mixer) return;
     const action = item.mixer.clipAction(clip);
-    action.reset().fadeIn(0.15).play();
+    applyLoopMode(action, animSettings.loop);
+    crossfadeTo(activeClip, action, animSettings.crossfadeMs / 1000);
     setActiveClip(action);
     setPaused(false);
   }
@@ -243,6 +298,7 @@ export default function Forge3D() {
     setItems((prev) => {
       const target = prev.find((i) => i.id === id);
       if (target && engineRef.current) {
+        engineRef.current.removeSkeletonHelper(target.object);
         engineRef.current.scene.remove(target.object);
         if (target.mixer) engineRef.current.removeMixer(target.mixer);
       }
@@ -356,7 +412,7 @@ export default function Forge3D() {
         canExport={selected != null}
         canExportAll={items.length > 0}
       />
-      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr 320px", minHeight: 0 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr 360px", minHeight: 0 }}>
         {/* HIERARCHY */}
         <Panel title={`Scene (${items.length})`}>
           {fleetPrefixes.length > 0 && (
@@ -445,24 +501,29 @@ export default function Forge3D() {
           />
         </div>
 
-        {/* INSPECTOR */}
-        <Panel title="Inspector">
+        {/* GRUDGE WORKBENCH — rig / retarget / morph / export */}
+        <Panel title="Grudge Workbench">
           {!selected ? (
             <div style={{ padding: 12, color: "var(--muted)", fontSize: 12 }}>
-              Select an object in the hierarchy to inspect it.
+              Select a model to inspect rig, retarget animations, apply body morph, or upload to fleet storage.
             </div>
           ) : (
-            <Inspector
+            <ForgeWorkbench
               item={selected}
+              allItems={items}
+              animSettings={animSettings}
+              onAnimSettings={setAnimSettings}
+              onBodyMorph={(m) => updateBodyMorph(selected.id, m)}
+              onAnimationsMerged={(clips) => mergeAnimations(selected.id, clips)}
               activeClip={activeClip}
               paused={paused}
               onPlay={(clip) => playClip(selected, clip)}
               onPauseToggle={togglePlayPause}
               onStop={stopClip}
-              onUploadR2={uploadSelectedToR2}
-              busyUpload={busyUpload}
               r2Path={r2Path}
               setR2Path={setR2Path}
+              onUploadR2={uploadSelectedToR2}
+              busyUpload={busyUpload}
             />
           )}
         </Panel>
@@ -583,7 +644,7 @@ function HierarchyRow({ item, selected, onSelect, onRemove }:
         <div style={{ paddingLeft: 32, paddingBottom: 4, fontSize: 11, color: "var(--muted)" }}>
           <div>Triangles: <strong>{item.triangles.toLocaleString()}</strong></div>
           <div>Vertices: {item.vertices.toLocaleString()}</div>
-          {item.bones > 0 && <div>Bones: {item.bones}</div>}
+          {item.bones > 0 && <div>Bones: {item.bones}{item.rig.fingerprintLabel ? ` (${item.rig.fingerprintLabel})` : ""}</div>}
           {item.animations.length > 0 && <div>Clips: {item.animations.length}</div>}
         </div>
       )}
@@ -591,154 +652,4 @@ function HierarchyRow({ item, selected, onSelect, onRemove }:
   );
 }
 
-function Inspector(props: {
-  item: SceneItem;
-  activeClip: THREE.AnimationAction | null;
-  paused: boolean;
-  onPlay: (clip: THREE.AnimationClip) => void;
-  onPauseToggle: () => void;
-  onStop: () => void;
-  onUploadR2: () => void;
-  busyUpload: boolean;
-  r2Path: string;
-  setR2Path: (s: string) => void;
-}) {
-  const { item, activeClip, paused, onPlay, onPauseToggle, onStop, onUploadR2, busyUpload, r2Path, setR2Path } = props;
-  const [, force] = useState(0);
-  // Re-render every 200ms while playing so clip time updates.
-  useEffect(() => {
-    if (!activeClip) return;
-    const id = window.setInterval(() => force((c) => c + 1), 200);
-    return () => window.clearInterval(id);
-  }, [activeClip]);
 
-  const t = item.object.position;
-  const r = item.object.rotation;
-  const s = item.object.scale;
-
-  return (
-    <div style={{ padding: 10, fontSize: 12, color: "var(--text)" }}>
-      <Field label="Name"><span style={{ color: "var(--gold)" }}>{item.name}</span></Field>
-      <Field label="Format">{item.format.toUpperCase()}</Field>
-      <Field label="Size">{formatBytes(item.bytes)}</Field>
-      <Field label="Triangles">{item.triangles.toLocaleString()}</Field>
-      <Field label="Vertices">{item.vertices.toLocaleString()}</Field>
-      {item.bones > 0 && <Field label="Bones">{item.bones}</Field>}
-
-      <SectionTitle>Transform</SectionTitle>
-      <VecRow label="Pos" x={t.x} y={t.y} z={t.z} />
-      <VecRow label="Rot" x={r.x} y={r.y} z={r.z} />
-      <VecRow label="Scl" x={s.x} y={s.y} z={s.z} />
-
-      {item.inspection && (
-        <>
-          <SectionTitle>GLB Container</SectionTitle>
-          <Field label="Magic">{item.inspection.magic}</Field>
-          <Field label="Version">{item.inspection.version}</Field>
-          <Field label="JSON chunk">{formatBytes(item.inspection.jsonLength)}</Field>
-          <Field label="BIN chunk">{formatBytes(item.inspection.binLength)}</Field>
-          {item.inspection.generator && <Field label="Generator">{item.inspection.generator}</Field>}
-          {item.inspection.extensionsUsed.length > 0 && (
-            <Field label="Extensions">
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                {item.inspection.extensionsUsed.map((e) => (
-                  <span key={e} className="badge">{e}</span>
-                ))}
-              </div>
-            </Field>
-          )}
-        </>
-      )}
-
-      {item.animations.length > 0 && (
-        <>
-          <SectionTitle>Animations ({item.animations.length})</SectionTitle>
-          <div style={{ maxHeight: 160, overflow: "auto", border: "1px solid var(--line)", borderRadius: 4, padding: 4 }}>
-            {item.animations.map((clip) => {
-              const isActive = activeClip?.getClip() === clip;
-              return (
-                <div key={clip.uuid}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 6,
-                    padding: "4px 6px", borderRadius: 4,
-                    background: isActive ? "rgba(255,198,42,0.10)" : "transparent",
-                  }}>
-                  <button
-                    onClick={() => isActive ? onPauseToggle() : onPlay(clip)}
-                    style={{ background: "transparent", border: "none", color: "var(--gold)", cursor: "pointer" }}
-                    title={isActive ? (paused ? "Resume" : "Pause") : "Play"}
-                  >
-                    {isActive && !paused ? <Pause size={12} /> : <Play size={12} />}
-                  </button>
-                  <span style={{ flex: 1, color: isActive ? "var(--gold)" : "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {clip.name}
-                  </span>
-                  <span style={{ color: "var(--muted)", fontSize: 10 }}>{clip.duration.toFixed(2)}s</span>
-                </div>
-              );
-            })}
-          </div>
-          {activeClip && (
-            <div style={{ marginTop: 4, display: "flex", gap: 4 }}>
-              <button className="btn ghost" style={{ flex: 1, fontSize: 11, padding: "4px 8px" }} onClick={onPauseToggle}>
-                {paused ? "Resume" : "Pause"}
-              </button>
-              <button className="btn ghost" style={{ flex: 1, fontSize: 11, padding: "4px 8px" }} onClick={onStop}>Stop</button>
-            </div>
-          )}
-        </>
-      )}
-
-      <SectionTitle>Object Storage (R2)</SectionTitle>
-      <div style={{ marginBottom: 6 }}>
-        <label style={{ color: "var(--muted)", fontSize: 11, marginBottom: 2, display: "block" }}>Prefix (key path)</label>
-        <input
-          value={r2Path}
-          onChange={(e) => setR2Path(e.target.value)}
-          placeholder="user-uploads/forge"
-          style={{ width: "100%", fontSize: 11 }}
-        />
-      </div>
-      <button
-        className="btn"
-        onClick={onUploadR2}
-        disabled={busyUpload}
-        style={{ width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12 }}
-      >
-        <UploadCloud size={14} /> {busyUpload ? "Uploading…" : "Convert → GLB → Upload"}
-      </button>
-      <div style={{ color: "var(--muted)", fontSize: 10, marginTop: 6 }}>
-        Uploads via signed PUT. Public URL is copied to your clipboard when available.
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: "1px dotted var(--line)" }}>
-      <span style={{ color: "var(--muted)" }}>{label}</span>
-      <span style={{ textAlign: "right", maxWidth: "60%", overflow: "hidden", textOverflow: "ellipsis" }}>{children}</span>
-    </div>
-  );
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ color: "var(--gold)", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", margin: "10px 0 4px" }}>
-      {children}
-    </div>
-  );
-}
-
-function VecRow({ label, x, y, z }: { label: string; x: number; y: number; z: number }) {
-  const fmt = (v: number) => v.toFixed(2).replace(/\.?0+$/, "");
-  return (
-    <div style={{ display: "flex", gap: 4, fontSize: 11, alignItems: "center" }}>
-      <span style={{ color: "var(--muted)", width: 28 }}>{label}</span>
-      <span style={{ color: "#ff6b6b", width: 60, textAlign: "right" }}>{fmt(x)}</span>
-      <span style={{ color: "#6bff6b", width: 60, textAlign: "right" }}>{fmt(y)}</span>
-      <span style={{ color: "#6b9eff", width: 60, textAlign: "right" }}>{fmt(z)}</span>
-    </div>
-  );
-}

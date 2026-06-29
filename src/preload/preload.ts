@@ -134,6 +134,10 @@ const api = {
     r2Head: (key: string) => ipcRenderer.invoke("cf:r2Head", key),
     r2PublicUrl: (key: string) => ipcRenderer.invoke("cf:r2PublicUrl", key),
   },
+  // GLB/GLTF deep inspection (gltf-transform scene graph)
+  model: {
+    inspect: (path: string) => ipcRenderer.invoke("model:inspect", path),
+  },
   // Forge3D editor / Windows 3D viewer
   forge: {
     /** Returns the path captured from argv before the renderer mounted (or null). */

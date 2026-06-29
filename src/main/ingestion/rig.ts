@@ -1,4 +1,5 @@
 import { extname } from "node:path";
+import { matchSkeletonFingerprint } from "../../shared/grudgeRigs";
 
 export interface RigResult {
   ok: boolean;
@@ -13,23 +14,6 @@ export interface RigResult {
 const CHARACTER_CATEGORIES = new Set([
   "characters", "weapons", "mounts", "companions", "npc", "boss",
 ]);
-
-/**
- * Known Grudge skeleton fingerprints. Match by joint count + a few canonical
- * bone names. Extend as more rigs come on-line.
- */
-const SKELETON_FINGERPRINTS: Array<{
-  name: string;
-  jointCounts: number[];
-  requiredBones: string[];
-}> = [
-  { name: "mixamo-65", jointCounts: [65, 64, 66], requiredBones: ["mixamorig:Hips", "mixamorig:Spine", "mixamorig:Head"] },
-  { name: "mixamo-49-3chain", jointCounts: [49, 48, 50], requiredBones: ["mixamorig:Hips", "mixamorig:LeftHandThumb1"] },
-  { name: "mixamo-41-2chain", jointCounts: [41, 40, 42], requiredBones: ["mixamorig:Hips", "mixamorig:LeftHandIndex1"] },
-  { name: "mixamo-25-nofingers", jointCounts: [25, 24, 26], requiredBones: ["mixamorig:Hips", "mixamorig:LeftHand"] },
-  { name: "grudge-worge-bear", jointCounts: [38, 37, 39], requiredBones: ["worge:Spine", "worge:HeadBear"] },
-  { name: "grudge-worge-raptor", jointCounts: [34, 33, 35], requiredBones: ["worge:Spine", "worge:Tail"] },
-];
 
 export interface RigOptions {
   category?: string;
@@ -74,17 +58,10 @@ export async function inspectRig(absPath: string, opts: RigOptions = {}): Promis
       const skin = skins[0];
       const joints = skin.listJoints();
       result.jointCount = joints.length;
-      const boneNames = new Set(joints.map((j: any) => j.getName()));
+      const boneNames = joints.map((j: { getName: () => string }) => j.getName());
 
-      let matched: string | null = null;
-      for (const fp of SKELETON_FINGERPRINTS) {
-        const countOk = fp.jointCounts.includes(joints.length);
-        const requiredOk = fp.requiredBones.every((b) => boneNames.has(b));
-        if (countOk && requiredOk) {
-          matched = fp.name;
-          break;
-        }
-      }
+      const fp = matchSkeletonFingerprint(boneNames);
+      const matched = fp?.name ?? null;
       if (matched) {
         result.rig = matched;
         result.matchedSkeleton = matched;

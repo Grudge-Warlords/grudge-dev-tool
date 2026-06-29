@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
@@ -71,9 +72,15 @@ export async function loadModel(file: File): Promise<LoadedModel> {
       case "glb":
       case "gltf": {
         const gltf = await new GLTFLoader().loadAsync(url);
-        const stats = tallyStats(gltf.scene);
+        let scene = gltf.scene;
+        let hasSkin = false;
+        gltf.scene.traverse((n) => {
+          if ((n as THREE.SkinnedMesh).isSkinnedMesh) hasSkin = true;
+        });
+        if (hasSkin) scene = SkeletonUtils.clone(gltf.scene) as THREE.Group;
+        const stats = tallyStats(scene);
         return {
-          object: gltf.scene,
+          object: scene,
           animations: gltf.animations ?? [],
           gltf,
           format,
