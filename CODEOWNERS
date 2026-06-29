@@ -1,0 +1,12 @@
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# All changes require a Grudge Studio team review.
+
+*                              @grudge-studio/core
+/src/main/**                   @grudge-studio/core @grudge-studio/desktop
+/src/main/blenderkit/**        @grudge-studio/desktop @grudge-studio/asset-pipeline
+/src/main/ingestion/**         @grudge-studio/asset-pipeline
+/src/renderer/**               @grudge-studio/frontend
+/scripts/upload-asset-pack.ts  @grudge-studio/asset-pipeline
+/electron-builder.yml          @grudge-studio/desktop
+/.github/**                    @grudge-studio/devops
+/docs/**                       @grudge-studio/core
