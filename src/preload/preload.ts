@@ -207,6 +207,16 @@ const api = {
     /** Convert an absolute path to a file:// URL (used by drag-drop). */
     fileUrl: (absPath: string) => ipcRenderer.invoke("preview:fileUrl", absPath) as Promise<string>,
   },
+  // Dev portal (orchestrator local execution)
+  dev: {
+    terminal: (cmd: string, cwd?: string) => ipcRenderer.invoke("dev:terminal", cmd, cwd),
+    npmRun: (script: string, cwd?: string) => ipcRenderer.invoke("dev:npmRun", script, cwd),
+    openVsCode: (dir?: string) => ipcRenderer.invoke("dev:openVsCode", dir),
+    listPods: () => ipcRenderer.invoke("dev:listPods"),
+    spawnNode: (scriptPath: string, cwd?: string) => ipcRenderer.invoke("dev:spawnNode", scriptPath, cwd),
+    getWorkspaceDir: () => ipcRenderer.invoke("dev:getWorkspaceDir") as Promise<string>,
+    setWorkspaceDir: (dir: string) => ipcRenderer.invoke("dev:setWorkspaceDir", dir),
+  },
   // Coder (local GrudachainCode IDE)
   coder: {
     launch: (opts?: any) => ipcRenderer.invoke("coder:launch", opts),

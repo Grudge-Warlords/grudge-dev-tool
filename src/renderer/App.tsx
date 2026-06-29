@@ -54,7 +54,7 @@ const NAV: NavEntry[] = [
   { route: "/library", label: "Store", Icon: Store },
   { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
   { route: "/games", label: "Games", Icon: Gamepad2 },
-  { route: "/ai", label: "GRUDA AI", Icon: Bot },
+  { route: "/ai", label: "Dev Portal", Icon: Bot },
   { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true },
   { route: "/forge", label: "Forge 3D", Icon: Hammer, adminOnly: true },
   { route: "/play", label: "Play Modes", Icon: Play, adminOnly: true },

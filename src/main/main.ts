@@ -20,6 +20,7 @@ import { workerHealth } from "./cf/objectStoreWorker";
 import { r2Health, resetR2Client, r2GetSignedUploadUrl, r2GetSignedDownloadUrl, r2List, r2PublicUrl, r2Head } from "./cf/r2Direct";
 import * as forge from "./forge";
 import * as coder from "./coder";
+import * as devPortal from "./devPortal";
 import { workersAiChat, workersAiCaption, aiGatewayHealth, aiGatewayProxy } from "./cf/aiGateway";
 import * as ollama from "./ollama";
 import * as legion from "./legion/orchestrator";
@@ -457,6 +458,15 @@ function registerIpc() {
   ipcMain.handle("ai:chat", (_e, opts) => workersAiChat(opts));
   ipcMain.handle("ai:caption", (_e, opts) => workersAiCaption(opts));
   ipcMain.handle("ai:proxy", (_e, opts) => aiGatewayProxy(opts));
+
+  // Dev portal (terminal, npm, vscode, pods, node)
+  ipcMain.handle("dev:terminal", (_e, cmd: string, cwd?: string) => devPortal.runTerminalCommand(cmd, cwd));
+  ipcMain.handle("dev:npmRun", (_e, script: string, cwd?: string) => devPortal.runNpmScript(script, cwd));
+  ipcMain.handle("dev:openVsCode", (_e, dir?: string) => devPortal.openVsCode(dir));
+  ipcMain.handle("dev:listPods", () => devPortal.listLocalPods());
+  ipcMain.handle("dev:spawnNode", (_e, scriptPath: string, cwd?: string) => devPortal.spawnNodeScript(scriptPath, cwd));
+  ipcMain.handle("dev:getWorkspaceDir", () => devPortal.getWorkspaceDir());
+  ipcMain.handle("dev:setWorkspaceDir", (_e, dir: string) => { devPortal.setWorkspaceDir(dir); return { ok: true }; });
 
   // Coder (local GrudachainCode IDE)
   ipcMain.handle("coder:launch", (_e, opts) => coder.launch(opts));

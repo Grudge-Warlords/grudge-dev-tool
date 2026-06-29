@@ -87,6 +87,76 @@ export async function runAgent(task: string, projectId?: string): Promise<{
   return res.json();
 }
 
+export interface OrchestratorPlanStep {
+  step: number;
+  worker: string;
+  action: string;
+  detail: string;
+  command?: string;
+  auto?: boolean;
+}
+
+export interface HubPod {
+  id: string;
+  user_id: string;
+  project_id?: string | null;
+  name: string;
+  kind: string;
+  url?: string | null;
+  status: string;
+  meta_json?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrchestratorResult {
+  ok: boolean;
+  runId: string;
+  status: string;
+  workers: Array<{ id: string; label: string; caps: string[] }>;
+  plan: OrchestratorPlanStep[];
+  summary: string;
+  executeLocally: OrchestratorPlanStep[];
+  message: string;
+}
+
+export async function runOrchestrator(task: string, projectId?: string): Promise<OrchestratorResult> {
+  const res = await fetch(`${HUB}/v1/orchestrator/run`, {
+    method: "POST",
+    headers: await hubAuthHeaders(),
+    body: JSON.stringify({ task, projectId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error ?? `Orchestrator failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function listHubPods(): Promise<HubPod[]> {
+  const res = await fetch(`${HUB}/v1/pods`, { headers: await hubAuthHeaders() });
+  if (!res.ok) throw new Error(`List pods failed (${res.status})`);
+  const body = await res.json() as { pods: HubPod[] };
+  return body.pods ?? [];
+}
+
+export async function createHubPod(input: {
+  name: string;
+  kind?: string;
+  projectId?: string;
+  url?: string;
+  meta?: Record<string, unknown>;
+}): Promise<HubPod> {
+  const res = await fetch(`${HUB}/v1/pods`, {
+    method: "POST",
+    headers: await hubAuthHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Create pod failed (${res.status})`);
+  const body = await res.json() as { pod: HubPod };
+  return body.pod;
+}
+
 export function openGrudaAgentWorkspace(projectSlug?: string): void {
   const base = HUB;
   const url = projectSlug ? `${base}/?project=${encodeURIComponent(projectSlug)}` : base;
