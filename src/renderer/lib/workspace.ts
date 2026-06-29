@@ -7,6 +7,8 @@ export interface WorkspaceMirror {
   searchQuery?: string;
   forgeLastUrl?: string;
   localAssetsRoot?: string;
+  requestObjectPath?: string;
+  playModeId?: string;
 }
 
 /** Fast localStorage mirror — hydrates before electron-store IPC returns. */

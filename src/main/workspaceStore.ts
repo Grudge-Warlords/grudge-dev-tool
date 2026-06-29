@@ -9,6 +9,10 @@ export interface WorkspaceSnapshot {
   searchQuery: string;
   forgeLastUrl: string;
   localAssetsRoot: string;
+  /** Last object path used on Request URL tab. */
+  requestObjectPath: string;
+  /** Last selected Play Modes fleet game id. */
+  playModeId: string;
   updatedAt: number;
 }
 
@@ -19,6 +23,8 @@ const DEFAULT: WorkspaceSnapshot = {
   searchQuery: "",
   forgeLastUrl: "",
   localAssetsRoot: "",
+  requestObjectPath: "",
+  playModeId: "",
   updatedAt: 0,
 };
 

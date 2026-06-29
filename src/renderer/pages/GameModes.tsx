@@ -1,141 +1,153 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  Shield, Car, Gamepad2, X, Coins, Heart, Swords, Gauge,
+  Gamepad2, ExternalLink, RefreshCw, ArrowLeft, ArrowRight, RotateCw,
+  Loader2, Globe, Maximize2,
 } from "lucide-react";
-import { TowerDefenseDemo } from "../lib/forge/towerDefenseDemo";
-import { DriveDemo } from "../lib/forge/driveDemo";
+import { getPlayModes, type PlayModeId } from "../../shared/playModes";
+import type { FleetGame } from "../../shared/fleetGames";
+import { readMirror, writeMirror } from "../lib/workspace";
 
-type ActiveMode = null | "tower" | "drive";
+interface WebviewEl extends HTMLElement {
+  src: string;
+  canGoBack(): boolean;
+  canGoForward(): boolean;
+  goBack(): void;
+  goForward(): void;
+  reload(): void;
+  getURL(): string;
+  loadURL(url: string): Promise<void>;
+}
+
+const WEBVIEW_PARTITION = "persist:grudge-playcanvas";
 
 export default function GameModes() {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const demoRef = useRef<{ dispose: () => void } | null>(null);
-  const [active, setActive] = useState<ActiveMode>(null);
-  const [stats, setStats] = useState<Record<string, any>>({});
+  const modes = getPlayModes();
+  const wvRef = useRef<WebviewEl | null>(null);
+  const [activeId, setActiveId] = useState<PlayModeId | null>(() => {
+    const saved = readMirror().playModeId;
+    return (saved && modes.some((m) => m.id === saved) ? saved : modes[0]?.id) as PlayModeId | null;
+  });
+  const [loading, setLoading] = useState(false);
+  const [canBack, setCanBack] = useState(false);
+  const [canFwd, setCanFwd] = useState(false);
 
-  // Tear down any running demo
-  function stopDemo() {
-    demoRef.current?.dispose();
-    demoRef.current = null;
-    setActive(null);
-    setStats({});
-  }
+  const active = modes.find((m) => m.id === activeId) ?? modes[0] ?? null;
 
-  useEffect(() => () => stopDemo(), []);
+  const selectMode = useCallback((game: FleetGame) => {
+    setActiveId(game.id as PlayModeId);
+    writeMirror({ playModeId: game.id });
+    void window.grudge.workspace.patch({ playModeId: game.id });
+    const wv = wvRef.current;
+    if (wv && game.url) {
+      void wv.loadURL(game.url).catch(() => { wv.src = game.url; });
+    }
+  }, []);
 
-  function launchTower() {
-    stopDemo();
-    if (!viewportRef.current) return;
-    const demo = new TowerDefenseDemo(viewportRef.current);
-    demo.onStats = (s) => setStats(s);
-    demoRef.current = demo;
-    setActive("tower");
-    toast.success("Tower Defense started");
-  }
-
-  function launchDrive() {
-    stopDemo();
-    if (!viewportRef.current) return;
-    const demo = new DriveDemo(viewportRef.current);
-    demo.onStats = (s) => setStats(s);
-    demoRef.current = demo;
-    setActive("drive");
-    toast.success("Grudge Drive started — WASD to drive, Shift to boost");
-  }
+  useEffect(() => {
+    const wv = wvRef.current;
+    if (!wv || !active?.url) return;
+    const refreshNav = () => {
+      try { setCanBack(wv.canGoBack()); setCanFwd(wv.canGoForward()); } catch { /* ignore */ }
+    };
+    const onStart = () => setLoading(true);
+    const onStop = () => { setLoading(false); refreshNav(); };
+    const onFail = (e: { errorCode: number; errorDescription?: string }) => {
+      setLoading(false);
+      if (e.errorCode === -3) return;
+      toast.error(`Load failed: ${e.errorDescription ?? e.errorCode}`);
+    };
+    wv.addEventListener("did-start-loading", onStart);
+    wv.addEventListener("did-stop-loading", onStop);
+    wv.addEventListener("did-fail-load", onFail as unknown as EventListener);
+    wv.src = active.url;
+    return () => {
+      wv.removeEventListener("did-start-loading", onStart);
+      wv.removeEventListener("did-stop-loading", onStop);
+      wv.removeEventListener("did-fail-load", onFail as unknown as EventListener);
+    };
+  }, [active?.url]);
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Top bar */}
-      <div className="flex items-center gap-4 px-4 py-3 border-b border-line bg-bg-2/50">
-        <Gamepad2 size={18} className="text-gold" />
-        <span className="font-semibold text-sm">Game Modes</span>
-
-        {active === null ? (
-          <div className="flex items-center gap-2 ml-auto">
-            <button className="btn flex items-center gap-2 text-xs" onClick={launchTower}>
-              <Shield size={14} /> Tower Defense
-            </button>
-            <button className="btn flex items-center gap-2 text-xs" onClick={launchDrive}>
-              <Car size={14} /> Grudge Drive
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3 ml-auto">
-            {/* Live stats HUD */}
-            {active === "tower" && (
-              <>
-                <span className="flex items-center gap-1 text-xs text-gold"><Coins size={12} />{stats.gold ?? 0}</span>
-                <span className="flex items-center gap-1 text-xs text-red-400"><Heart size={12} />{stats.lives ?? 0}</span>
-                <span className="flex items-center gap-1 text-xs text-muted"><Swords size={12} />Wave {stats.wave ?? 0}</span>
-                <span className="text-xs text-muted">{stats.enemies ?? 0} enemies</span>
-              </>
-            )}
-            {active === "drive" && (
-              <>
-                <span className="flex items-center gap-1 text-xs text-gold"><Gauge size={12} />{stats.speed ?? 0} km/h</span>
-                <span className="text-xs text-muted">Lap {stats.lap ?? 0}</span>
-              </>
-            )}
-            <button
-              className="btn flex items-center gap-1 text-xs bg-red-900/30 border-red-800 hover:bg-red-900/50"
-              onClick={stopDemo}
-            >
-              <X size={12} /> Exit
-            </button>
-          </div>
-        )}
+    <div className="flex flex-col h-full min-h-[480px]">
+      <div className="mb-3">
+        <h1 className="page-title flex items-center gap-2">
+          <Gamepad2 size={20} /> Play Modes
+        </h1>
+        <p className="page-sub">
+          Launch and smoke-test live fleet playables in a sandboxed webview — Warlords, Survival, RTS, Drive, Forge, Arena, and more.
+        </p>
       </div>
 
-      {/* Viewport */}
-      <div
-        ref={viewportRef}
-        className="flex-1 relative"
-        style={{ minHeight: 300 }}
-      >
-        {active === null && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 text-muted">
-            <Gamepad2 size={48} className="text-gold/30" />
-            <div className="text-center max-w-md space-y-2">
-              <h2 className="text-lg font-semibold text-gold">Game Mode Showcase</h2>
-              <p className="text-sm">
-                Playable 3D prototypes built with the Forge engine. Tower Defense
-                uses the GrudgeBuilder tower/enemy system with craftpix-style tower
-                meshes. Grudge Drive demonstrates the over-shoulder camera and
-                mount/vehicle physics.
-              </p>
-              <p className="text-xs text-muted">
-                Pick a mode above to launch. These run entirely client-side in
-                Three.js — no server required.
-              </p>
-            </div>
+      <div className="flex flex-1 gap-3 min-h-0">
+        <aside className="w-56 shrink-0 border border-line rounded-md bg-bg-1 overflow-y-auto p-2 space-y-1">
+          {modes.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => selectMode(g)}
+              className={`w-full text-left rounded p-2 text-xs border transition-colors ${
+                active?.id === g.id ? "border-gold bg-gold/10 text-gold" : "border-transparent hover:border-line hover:bg-bg-2"
+              }`}
+            >
+              <div className="font-semibold truncate">{g.displayName}</div>
+              <div className="text-[10px] text-muted truncate">{g.engine}</div>
+              <div className="text-[10px] text-muted/80 mt-0.5 capitalize">{g.status} · {g.category}</div>
+            </button>
+          ))}
+        </aside>
 
-            <div className="grid grid-cols-2 gap-4 max-w-lg w-full px-4">
-              <button
-                onClick={launchTower}
-                className="card hover:border-gold/50 transition-colors text-left cursor-pointer"
-              >
-                <Shield size={24} className="text-gold mb-2" />
-                <div className="font-semibold text-sm">Tower Defense</div>
-                <div className="text-xs text-muted mt-1">
-                  Place towers, defend against waves. Arrow, Magic, Cannon, Fire
-                  tower types. Auto-targeting + projectiles. Enemies scale per wave.
+        <section className="flex-1 flex flex-col min-w-0 border border-line rounded-md bg-bg-1 overflow-hidden">
+          {active ? (
+            <>
+              <div className="border-b border-line px-3 py-2 flex items-center gap-2 flex-wrap bg-bg-2/50">
+                <span className="font-semibold text-sm text-gold">{active.displayName}</span>
+                <span className="text-[10px] text-muted truncate flex-1">{active.url}</span>
+                {loading && <Loader2 size={14} className="animate-spin text-gold" />}
+                <div className="flex gap-1 ml-auto">
+                  <button type="button" className="btn ghost text-xs py-0 px-2" disabled={!canBack} onClick={() => wvRef.current?.goBack()}>
+                    <ArrowLeft size={12} />
+                  </button>
+                  <button type="button" className="btn ghost text-xs py-0 px-2" disabled={!canFwd} onClick={() => wvRef.current?.goForward()}>
+                    <ArrowRight size={12} />
+                  </button>
+                  <button type="button" className="btn ghost text-xs py-0 px-2" onClick={() => wvRef.current?.reload()}>
+                    <RotateCw size={12} />
+                  </button>
+                  <button type="button" className="btn ghost text-xs py-0 px-2" onClick={() => void window.grudge.os.openExternal(active.url)}>
+                    <ExternalLink size={12} />
+                  </button>
+                  <button type="button" className="btn ghost text-xs py-0 px-2" onClick={() => void window.grudge.app.openRoute("/preview")}>
+                    <Maximize2 size={12} /> Preview tab
+                  </button>
                 </div>
-              </button>
-              <button
-                onClick={launchDrive}
-                className="card hover:border-gold/50 transition-colors text-left cursor-pointer"
-              >
-                <Car size={24} className="text-gold mb-2" />
-                <div className="font-semibold text-sm">Grudge Drive</div>
-                <div className="text-xs text-muted mt-1">
-                  WASD racing on a circular track. Over-shoulder camera follows
-                  behind. Shift to boost. Trees + border markers. Lap counter.
-                </div>
-              </button>
+              </div>
+
+              <p className="text-[10px] text-muted px-3 py-1 border-b border-line">{active.description}</p>
+
+              <div className="flex-1 relative min-h-[360px]">
+                <webview
+                  ref={wvRef as React.Ref<HTMLWebViewElement>}
+                  src={active.url}
+                  partition={WEBVIEW_PARTITION}
+                  allowpopups
+                  className="absolute inset-0 w-full h-full"
+                  style={{ display: "flex" }}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-muted gap-2">
+              <Globe size={40} className="text-gold/30" />
+              <p className="text-sm">No play modes in catalog</p>
             </div>
-          </div>
-        )}
+          )}
+        </section>
+      </div>
+
+      <div className="mt-2 text-[10px] text-muted flex items-center gap-2">
+        <RefreshCw size={10} />
+        Embedded via Electron webview ({WEBVIEW_PARTITION}). Use External for full browser or Preview tab for local HTML.
       </div>
     </div>
   );
