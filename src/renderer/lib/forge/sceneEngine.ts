@@ -37,6 +37,7 @@ export class SceneEngine {
   private rafHandle = 0;
   private resizeObserver?: ResizeObserver;
   private disposed = false;
+  private tickCallbacks: Array<(dt: number) => void> = [];
 
   constructor(private container: HTMLElement, opts: SceneEngineOptions = {}) {
     const bg = opts.background ?? 0x0a0e1a;
@@ -176,6 +177,15 @@ export class SceneEngine {
     mixer.stopAllAction();
   }
 
+  /** Register a per-frame callback (e.g. Rapier physics step). Returns unsubscribe. */
+  onTick(cb: (dt: number) => void): () => void {
+    this.tickCallbacks.push(cb);
+    return () => {
+      const i = this.tickCallbacks.indexOf(cb);
+      if (i >= 0) this.tickCallbacks.splice(i, 1);
+    };
+  }
+
   private onResize = (): void => {
     if (this.disposed) return;
     const w = Math.max(1, this.container.clientWidth);
@@ -190,6 +200,7 @@ export class SceneEngine {
     this.rafHandle = requestAnimationFrame(this.tick);
     const dt = this.clock.getDelta();
     for (const m of this.mixers) m.update(dt);
+    for (const cb of this.tickCallbacks) cb(dt);
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   };

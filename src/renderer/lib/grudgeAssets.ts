@@ -2,21 +2,9 @@ import * as THREE from "three";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { CDN_BASE } from "../../shared/grudge6Assets";
 import type { FactionId } from "../../shared/characterCatalog";
+import { ASSET_MANIFEST, type AssetEntry } from "../../shared/assetManifest";
 
-export interface AssetEntry {
-  path: string;
-  tags?: string[];
-}
-
-export const ASSET_MANIFEST: Record<string, AssetEntry> = {
-  char_enemy:   { path: "toon-shooter/characters/Character_Enemy.glb", tags: ["character", "enemy"] },
-  char_hazmat:  { path: "toon-shooter/characters/Character_Hazmat.glb", tags: ["character"] },
-  char_soldier: { path: "toon-shooter/characters/Character_Soldier.glb", tags: ["character", "player"] },
-  weapon_ak:    { path: "toon-shooter/guns/AK.glb", tags: ["weapon"] },
-  weapon_pistol:{ path: "toon-shooter/guns/Pistol.glb", tags: ["weapon"] },
-  weapon_knife_1: { path: "toon-shooter/guns/Knife_1.glb", tags: ["weapon", "melee"] },
-  weapon_sniper:  { path: "toon-shooter/guns/Sniper.glb", tags: ["weapon"] },
-};
+export { ASSET_MANIFEST, type AssetEntry };
 
 export const FACTION_CDN_KEY: Record<FactionId, string> = {
   crusade: "char_soldier",

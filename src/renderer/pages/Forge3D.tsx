@@ -4,11 +4,18 @@ import { toast } from "sonner";
 import {
   Move, RotateCcw, Maximize2, Camera, Download, UploadCloud,
   Play, Pause, FileBox, Trash2, ChevronRight, ChevronDown, Box,
-  Lightbulb, Grid3x3, Sun, FolderOpen, ExternalLink,
+  Lightbulb, Grid3x3, Sun, FolderOpen, ExternalLink, Layers, Zap,
 } from "lucide-react";
 import { SceneEngine, type GizmoMode } from "../lib/forge/sceneEngine";
 import { resourceBaseFromModelLocation } from "../lib/filePaths";
-import { loadModel, type LoadedModel, isSupported } from "../lib/forge/loaders";
+import { loadModel, loadRemoteModel, type LoadedModel, isSupported } from "../lib/forge/loaders";
+import { flattenMeshHierarchy, findObjectByUuid } from "../lib/forge/meshHierarchy";
+import { ForgeRapierWorld } from "../lib/forge/rapierWorld";
+import { applyTextureToMesh } from "../lib/forge/materialUtils";
+import ForgeAssetBrowser, { cdnKeyToUrl } from "../components/ForgeAssetBrowser";
+import ForgeMaterialPanel from "../components/ForgeMaterialPanel";
+import ForgePhysicsPanel from "../components/ForgePhysicsPanel";
+import { cdnUrl } from "../../shared/grudge6Assets";
 import { exportToGlb, downloadBlob, ACCEPT_ATTR } from "../lib/forge/converters";
 import { inspectGlb, formatBytes, type GlbInspection } from "../lib/forge/glbInspect";
 import { useWorkspaceField } from "../lib/useWorkspaceField";
@@ -51,8 +58,20 @@ export default function Forge3D() {
   const [bgIndex, setBgIndex] = useState(0);
   const [r2Path, setR2Path] = useWorkspaceField("forgeLastUrl", "user-uploads/forge");
   const [busyUpload, setBusyUpload] = useState(false);
+  const [leftTab, setLeftTab] = useState<"scene" | "assets">("scene");
+  const [rightTab, setRightTab] = useState<"inspect" | "materials" | "physics">("inspect");
+  const [selectedMeshUuid, setSelectedMeshUuid] = useState<string | null>(null);
+  const [physicsReady, setPhysicsReady] = useState(false);
+  const [physicsPlaying, setPhysicsPlaying] = useState(false);
+  const [physicsBodies, setPhysicsBodies] = useState(0);
+  const physicsRef = useRef<ForgeRapierWorld | null>(null);
 
   const selected = useMemo(() => items.find((i) => i.id === selectedId) ?? null, [items, selectedId]);
+  const selectedMesh = useMemo(() => {
+    if (!selected || !selectedMeshUuid) return null;
+    const obj = findObjectByUuid(selected.object, selectedMeshUuid);
+    return obj && (obj as THREE.Mesh).isMesh ? (obj as THREE.Mesh) : null;
+  }, [selected, selectedMeshUuid]);
 
   // -- Engine bootstrap ----------------------------------------------------
   useEffect(() => {
@@ -80,9 +99,67 @@ export default function Forge3D() {
 
   useEffect(() => {
     if (!engineRef.current) return;
-    if (selected) engineRef.current.attach(selected.object);
+    const target = selectedMesh ?? selected?.object ?? null;
+    if (target) engineRef.current.attach(target);
     else engineRef.current.detach();
-  }, [selected]);
+  }, [selected, selectedMesh]);
+
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const off = engine.onTick((dt) => physicsRef.current?.step(dt));
+    return off;
+  }, []);
+
+  useEffect(() => () => {
+    physicsRef.current?.dispose();
+    physicsRef.current = null;
+  }, []);
+
+  const ingestLoaded = useCallback((loaded: LoadedModel, name: string, extras?: Partial<SceneItem>) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const id = `e${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
+    loaded.object.userData.itemId = id;
+    loaded.object.traverse((n) => { (n as THREE.Mesh).castShadow = true; (n as THREE.Mesh).receiveShadow = true; });
+    engine.scene.add(loaded.object);
+    const mixer = engine.buildMixer(loaded.object, loaded.animations);
+    const item: SceneItem = {
+      id,
+      name,
+      format: loaded.format,
+      object: loaded.object,
+      animations: loaded.animations,
+      mixer,
+      triangles: loaded.triangles,
+      vertices: loaded.vertices,
+      bones: loaded.bones,
+      inspection: null,
+      sceneGraph: null,
+      diskPath: null,
+      bytes: 0,
+      ...extras,
+    };
+    setItems((prev) => [...prev, item]);
+    setSelectedId(id);
+    setSelectedMeshUuid(null);
+    if (autoFrame) engine.frame(loaded.object);
+    return item;
+  }, [autoFrame]);
+
+  const loadFromRemote = useCallback(async (url: string, displayName: string) => {
+    if (!engineRef.current) return;
+    setLoading(true);
+    try {
+      const loaded = await loadRemoteModel(url);
+      ingestLoaded(loaded, displayName.split("/").pop() ?? displayName);
+      toast.success(`Loaded ${displayName}`);
+    } catch (err: unknown) {
+      toast.error("CDN load failed", { description: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setLoading(false);
+    }
+  }, [ingestLoaded]);
 
   // -- File loading --------------------------------------------------------
   const addFile = useCallback(async (file: File, modelLocation?: string) => {
@@ -108,29 +185,7 @@ export default function Forge3D() {
           if (graph?.ok) sceneGraph = graph as Record<string, unknown>;
         } catch { /* optional */ }
       }
-      const id = `e${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
-      loaded.object.userData.itemId = id;
-      loaded.object.traverse((n) => { (n as THREE.Mesh).castShadow = true; (n as THREE.Mesh).receiveShadow = true; });
-      engineRef.current.scene.add(loaded.object);
-      const mixer = engineRef.current.buildMixer(loaded.object, loaded.animations);
-      const item: SceneItem = {
-        id,
-        name: file.name,
-        format: loaded.format,
-        object: loaded.object,
-        animations: loaded.animations,
-        mixer,
-        triangles: loaded.triangles,
-        vertices: loaded.vertices,
-        bones: loaded.bones,
-        inspection,
-        sceneGraph,
-        diskPath: diskPath ?? null,
-        bytes: file.size,
-      };
-      setItems((prev) => [...prev, item]);
-      setSelectedId(id);
-      if (autoFrame) engineRef.current.frame(loaded.object);
+      ingestLoaded(loaded, file.name, { inspection, sceneGraph, diskPath: diskPath ?? null, bytes: file.size });
       toast.success(`Loaded ${file.name}`, {
         description: `${loaded.triangles.toLocaleString()} triangles · ${loaded.animations.length} animation${loaded.animations.length === 1 ? "" : "s"}`,
       });
@@ -140,7 +195,7 @@ export default function Forge3D() {
     } finally {
       setLoading(false);
     }
-  }, [autoFrame]);
+  }, [ingestLoaded]);
 
   const onPickFiles = useCallback((files: FileList | null) => {
     if (!files) return;
@@ -325,9 +380,29 @@ export default function Forge3D() {
     if (engineRef.current) engineRef.current.scene.background = new THREE.Color(BG_PRESETS[next]);
   }
 
+  async function initPhysics() {
+    const world = new ForgeRapierWorld();
+    const ok = await world.init();
+    if (!ok) {
+      toast.error("Rapier failed to load");
+      return;
+    }
+    world.addGround();
+    physicsRef.current = world;
+    setPhysicsReady(true);
+    setPhysicsBodies(0);
+    toast.success("Physics ready — add objects and press Play");
+  }
+
+  function addSelectedToPhysics() {
+    if (!selected || !physicsRef.current) return;
+    physicsRef.current.addDynamicFromObject(selected.id, selected.object);
+    setPhysicsBodies((n) => n + 1);
+  }
+
   // ----------------------- Render ----------------------------------------
   return (
-    <div className="forge3d" style={{ height: "100%", display: "grid", gridTemplateRows: "auto 1fr", gap: 0 }}>
+    <div className="forge3d forge-studio" style={{ height: "100%", display: "grid", gridTemplateRows: "auto 1fr", gap: 0 }}>
       <Toolbar
         gizmoMode={gizmoMode} setGizmoMode={setGizmoMode}
         showHelpers={showHelpers} setShowHelpers={setShowHelpers}
@@ -342,24 +417,44 @@ export default function Forge3D() {
         canExport={selected != null}
         canExportAll={items.length > 0}
       />
-      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr 320px", minHeight: 0 }}>
-        {/* HIERARCHY */}
-        <Panel title={`Scene (${items.length})`}>
-          {items.length === 0 ? (
-            <div style={{ padding: "12px", color: "var(--muted)", fontSize: 12 }}>
-              Drop a 3D file anywhere on this window, or click <strong className="text-gold">+ Open file</strong>.
-            </div>
+      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr 340px", minHeight: 0 }}>
+        <Panel title="Forge Studio">
+          <div className="forge-studio-tabs">
+            <button type="button" className={`forge-studio-tab${leftTab === "scene" ? " active" : ""}`} onClick={() => setLeftTab("scene")}>
+              <Layers size={12} /> Scene ({items.length})
+            </button>
+            <button type="button" className={`forge-studio-tab${leftTab === "assets" ? " active" : ""}`} onClick={() => setLeftTab("assets")}>
+              <Box size={12} /> Assets
+            </button>
+          </div>
+          {leftTab === "scene" ? (
+            items.length === 0 ? (
+              <div style={{ padding: "12px", color: "var(--muted)", fontSize: 12 }}>
+                Drop GLB/FBX anywhere, browse <strong className="text-gold">Assets</strong>, or Open file.
+              </div>
+            ) : (
+              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {items.map((it) => (
+                  <HierarchyRow
+                    key={it.id} item={it}
+                    selected={selectedId === it.id}
+                    selectedMeshUuid={selectedMeshUuid}
+                    onSelect={() => { setSelectedId(it.id); setSelectedMeshUuid(null); }}
+                    onSelectMesh={(uuid) => { setSelectedId(it.id); setSelectedMeshUuid(uuid); }}
+                    onRemove={() => removeItem(it.id)}
+                  />
+                ))}
+              </ul>
+            )
           ) : (
-            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-              {items.map((it) => (
-                <HierarchyRow
-                  key={it.id} item={it}
-                  selected={selectedId === it.id}
-                  onSelect={() => setSelectedId(it.id)}
-                  onRemove={() => removeItem(it.id)}
-                />
-              ))}
-            </ul>
+            <ForgeAssetBrowser
+              onLoadCdnKey={(key) => void loadFromRemote(cdnKeyToUrl(key), key)}
+              onLoadR2Key={(key) => void loadFromRemote(cdnUrl(key), key)}
+              onApplyTexture={(url) => {
+                if (selectedMesh) void applyTextureToMesh(selectedMesh, url);
+                else toast.error("Select a mesh first (expand object in Scene)");
+              }}
+            />
           )}
         </Panel>
 
@@ -405,24 +500,44 @@ export default function Forge3D() {
           />
         </div>
 
-        {/* INSPECTOR */}
-        <Panel title="Inspector">
-          {!selected ? (
-            <div style={{ padding: 12, color: "var(--muted)", fontSize: 12 }}>
-              Select an object in the hierarchy to inspect it.
-            </div>
-          ) : (
-            <Inspector
-              item={selected}
-              activeClip={activeClip}
-              paused={paused}
-              onPlay={(clip) => playClip(selected, clip)}
-              onPauseToggle={togglePlayPause}
-              onStop={stopClip}
-              onUploadR2={uploadSelectedToR2}
-              busyUpload={busyUpload}
-              r2Path={r2Path}
-              setR2Path={setR2Path}
+        <Panel title="Studio panels">
+          <div className="forge-studio-tabs">
+            {(["inspect", "materials", "physics"] as const).map((t) => (
+              <button key={t} type="button" className={`forge-studio-tab${rightTab === t ? " active" : ""}`} onClick={() => setRightTab(t)}>
+                {t === "inspect" ? "Inspect" : t === "materials" ? "Materials" : <><Zap size={11} /> Physics</>}
+              </button>
+            ))}
+          </div>
+          {rightTab === "inspect" && (
+            !selected ? (
+              <div className="forge-panel-empty">Select an object to inspect animations, GLB chunks, and R2 upload.</div>
+            ) : (
+              <Inspector
+                item={selected}
+                activeClip={activeClip}
+                paused={paused}
+                onPlay={(clip) => playClip(selected, clip)}
+                onPauseToggle={togglePlayPause}
+                onStop={stopClip}
+                onUploadR2={uploadSelectedToR2}
+                busyUpload={busyUpload}
+                r2Path={r2Path}
+                setR2Path={setR2Path}
+              />
+            )
+          )}
+          {rightTab === "materials" && <ForgeMaterialPanel mesh={selectedMesh} />}
+          {rightTab === "physics" && (
+            <ForgePhysicsPanel
+              physics={physicsRef.current}
+              ready={physicsReady}
+              playing={physicsPlaying}
+              bodyCount={physicsBodies}
+              onInit={() => void initPhysics()}
+              onAddSelected={addSelectedToPhysics}
+              onPlay={() => { physicsRef.current?.play(); setPhysicsPlaying(true); }}
+              onPause={() => { physicsRef.current?.pause(); setPhysicsPlaying(false); }}
+              onReset={() => { physicsRef.current?.reset(); setPhysicsPlaying(false); }}
             />
           )}
         </Panel>
@@ -511,9 +626,13 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function HierarchyRow({ item, selected, onSelect, onRemove }:
-  { item: SceneItem; selected: boolean; onSelect: () => void; onRemove: () => void }) {
+function HierarchyRow({ item, selected, selectedMeshUuid, onSelect, onSelectMesh, onRemove }:
+  {
+    item: SceneItem; selected: boolean; selectedMeshUuid: string | null;
+    onSelect: () => void; onSelectMesh: (uuid: string) => void; onRemove: () => void;
+  }) {
   const [open, setOpen] = useState(false);
+  const meshes = useMemo(() => flattenMeshHierarchy(item.object).filter((n) => n.mesh), [item.object]);
   return (
     <li>
       <div
@@ -541,11 +660,19 @@ function HierarchyRow({ item, selected, onSelect, onRemove }:
         ><Trash2 size={12} /></button>
       </div>
       {open && (
-        <div style={{ paddingLeft: 32, paddingBottom: 4, fontSize: 11, color: "var(--muted)" }}>
-          <div>Triangles: <strong>{item.triangles.toLocaleString()}</strong></div>
-          <div>Vertices: {item.vertices.toLocaleString()}</div>
-          {item.bones > 0 && <div>Bones: {item.bones}</div>}
-          {item.animations.length > 0 && <div>Clips: {item.animations.length}</div>}
+        <div style={{ paddingLeft: 20, paddingBottom: 4, fontSize: 11, color: "var(--muted)" }}>
+          <div>Triangles: <strong>{item.triangles.toLocaleString()}</strong> · {item.animations.length} clips</div>
+          {meshes.slice(0, 24).map((m) => (
+            <button
+              key={m.uuid}
+              type="button"
+              className={`forge-mesh-row${selectedMeshUuid === m.uuid ? " active" : ""}`}
+              style={{ paddingLeft: m.depth * 8 }}
+              onClick={(e) => { e.stopPropagation(); onSelectMesh(m.uuid); }}
+            >
+              {m.name}
+            </button>
+          ))}
         </div>
       )}
     </li>
