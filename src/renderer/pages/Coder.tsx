@@ -303,7 +303,7 @@ export default function Coder() {
                 src={localUrl}
                 partition="persist:grudge-coder"
                 className="coder-webview"
-                allowpopups="true"
+                allowpopups
               />
             </div>
           ) : (

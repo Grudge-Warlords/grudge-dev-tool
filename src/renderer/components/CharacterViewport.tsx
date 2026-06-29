@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { Loader2, RotateCcw, Swords, Footprints, Heart, Skull, Zap } from "lucide-react";
+import { Loader2, RotateCcw, Swords, Footprints, Heart, Skull, Zap, type LucideIcon } from "lucide-react";
 import { SceneEngine } from "../lib/forge/sceneEngine";
 import { loadRemoteModel } from "../lib/forge/loaders";
 import {
@@ -19,7 +19,7 @@ interface Props {
   vfxMode?: boolean;
 }
 
-const ANIM_BTNS: { id: UnitAnimState; label: string; Icon: React.ComponentType<{ size?: number }> }[] = [
+const ANIM_BTNS: { id: UnitAnimState; label: string; Icon: LucideIcon }[] = [
   { id: "idle", label: "Idle", Icon: RotateCcw },
   { id: "run", label: "Run", Icon: Footprints },
   { id: "attack", label: "Attack", Icon: Swords },
