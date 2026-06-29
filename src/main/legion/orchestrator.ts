@@ -185,13 +185,28 @@ export async function fetchGrudgedotGames(): Promise<unknown[]> {
   return Array.isArray(data) ? data : (data.games ?? []);
 }
 
-export async function fetchObjectStoreCatalog(path: string): Promise<unknown> {
-  const base = FLEET_URLS.objectStore.replace(/\/$/, "");
-  const p = path.startsWith("/") ? path : `/${path}`;
-  const res = await fetch(`${base}${p}`, {
+export async function fetchObjectStoreCatalog(catalogPath: string): Promise<unknown> {
+  const { getAssetsApiBaseUrl } = await import("../api");
+  const apiBase = (await getAssetsApiBaseUrl()).replace(/\/$/, "");
+
+  // ONE TRUTH: {client}/api/objectstore/v1/{catalog}.json
+  // Accept legacy shapes: "/api/v1/weapons.json", "weapons.json", "master-items.json"
+  let file = catalogPath.replace(/^\/+/, "");
+  file = file.replace(/^api\/v1\//, "").replace(/^api\/objectstore\/v1\//, "");
+  if (!file.endsWith(".json")) file = `${file}.json`;
+
+  const url = `${apiBase}/api/objectstore/v1/${file}`;
+  const res = await fetch(url, {
     headers: { Accept: "application/json" },
     signal: AbortSignal.timeout(15_000),
   });
-  if (!res.ok) throw new Error(`ObjectStore ${p}: HTTP ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Catalog ${file}: HTTP ${res.status}${body ? ` — ${body.slice(0, 120)}` : ""}`);
+  }
+  const ct = res.headers.get("content-type") ?? "";
+  if (ct.includes("text/html")) {
+    throw new Error(`Catalog ${file}: HTML response (check ONE TRUTH client URL in Settings)`);
+  }
   return res.json();
 }

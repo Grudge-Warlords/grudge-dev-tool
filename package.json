@@ -1,6 +1,6 @@
 {
   "name": "grudge-dev-tool",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Grudge Studio developer tooling — grudge-dev CLI (ONE TRUTH doctor, upload-pack) and Windows Forge tray app (object storage, Forge 3D, BlenderKit).",
   "private": true,
   "homepage": "https://grudge-warlords.github.io/grudge-dev-tool/",
@@ -16,6 +16,7 @@
     "node": ">=22.0.0",
     "npm": ">=10.0.0"
   },
+  "packageManager": "npm@10.9.2",
   "author": {
     "name": "Racalvin The Pirate King",
     "email": "games@grudgestudio.org"

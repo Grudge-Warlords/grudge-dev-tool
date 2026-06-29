@@ -25,6 +25,7 @@ import * as ollama from "./ollama";
 import * as legion from "./legion/orchestrator";
 import * as whisper from "./legion/whisper";
 import { FLEET_GAMES, STORE_CATEGORIES } from "../shared/fleetGames";
+import { mergeFleetGames } from "../shared/fleetMerge";
 import { FLEET_ENDPOINTS } from "../shared/fleetConnections";
 import * as workspaceStore from "./workspaceStore";
 import * as puterAuth from "./auth/puterSession";
@@ -460,6 +461,13 @@ function registerIpc() {
   ipcMain.handle("coder:stop", () => coder.stop());
   ipcMain.handle("coder:status", () => coder.getStatus());
   ipcMain.handle("coder:open", () => { coder.openInBrowser(); });
+  ipcMain.handle("coder:pickProjectDir", async () => {
+    const r = await dialog.showOpenDialog(mainWindow ?? (undefined as any), {
+      title: "Select Coder workspace folder",
+      properties: ["openDirectory"],
+    });
+    return r.canceled || !r.filePaths[0] ? null : r.filePaths[0];
+  });
 
   // Model inspection (gltf-transform scene graph — parent/child tree, meshes, materials, skins, animations)
   ipcMain.handle("model:inspect", (_e, path: string) => inspectModel(path));
@@ -515,7 +523,8 @@ function registerIpc() {
   ipcMain.handle("fleet:games", async () => {
     try {
       const live = await legion.fetchGrudgedotGames();
-      return { static: FLEET_GAMES, live, merged: FLEET_GAMES };
+      const liveArr = Array.isArray(live) ? live : [];
+      return { static: FLEET_GAMES, live: liveArr, merged: mergeFleetGames(FLEET_GAMES, liveArr) };
     } catch {
       return { static: FLEET_GAMES, live: [], merged: FLEET_GAMES };
     }

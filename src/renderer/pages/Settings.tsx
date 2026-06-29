@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { FolderOpen, RefreshCcw, Power, Cloud, Bot, User, LogIn, LogOut, KeyRound, Save, Trash2, Download, Upload, Link2 } from "lucide-react";
+import { FolderOpen, RefreshCcw, Power, Cloud, Bot, User, LogIn, LogOut, KeyRound, Save, Trash2, Download, Upload, Link2, ShieldCheck } from "lucide-react";
 import { FLEET_CLIENT_URL } from "../../shared/fleet";
 import { clearMirror } from "../lib/workspace";
+import { getAdminOverride, setAdminOverride, isOpenMode } from "../lib/admin";
 import { StatusDot } from "../components/StatusBar";
 
 
@@ -29,6 +30,7 @@ export default function Settings() {
   const [legionHub, setLegionHub] = useState("");
   const [fleetKey, setFleetKey] = useState("");
   const [hasFleetKey, setHasFleetKey] = useState(false);
+  const [adminOverride, setAdminOverrideState] = useState<"on" | "off" | "none">("none");
 
   async function reload() {
     const d = await window.grudge.settings.get();
@@ -44,6 +46,7 @@ export default function Settings() {
     try { setSession(await window.grudge.auth?.getSession?.()); } catch { /* */ }
     try { setLegionHub(await window.grudge.legion?.getHubUrl?.() ?? ""); } catch { /* */ }
     try { setHasFleetKey(!!(await window.grudge.legion?.getFleetKey?.())); } catch { /* */ }
+    setAdminOverrideState(getAdminOverride());
   }
 
   async function saveCfAi() {
@@ -207,6 +210,27 @@ export default function Settings() {
     <div>
       <h1 className="page-title">Settings</h1>
       <p className="page-sub">All secrets stored in Windows Credential Vault via <span className="kbd">keytar</span>.</p>
+
+      <div className="card">
+        <h3 className="flex items-center gap-2" style={{ margin: "0 0 8px" }}>
+          <ShieldCheck size={16} className="text-gold" /> Admin access
+        </h3>
+        <p className="muted text-xs mb-2">
+          Admin surfaces: Upload, Forge 3D, Coder, BlenderKit, Play Modes, Preview, Settings.
+          {isOpenMode() && " This build has no allowlist — all signed-in users are admin."}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button className={`btn ghost text-xs ${adminOverride === "on" ? "border-gold text-gold" : ""}`} onClick={() => { setAdminOverride("on"); setAdminOverrideState("on"); toast.success("Admin override ON — reload route to apply"); }}>
+            Force admin ON
+          </button>
+          <button className={`btn ghost text-xs ${adminOverride === "off" ? "border-gold text-gold" : ""}`} onClick={() => { setAdminOverride("off"); setAdminOverrideState("off"); toast.info("Admin override OFF"); }}>
+            Force admin OFF
+          </button>
+          <button className="btn ghost text-xs" onClick={() => { setAdminOverride("clear"); setAdminOverrideState("none"); toast.success("Admin override cleared"); }}>
+            Clear override
+          </button>
+        </div>
+      </div>
 
       <div className="card">
         <h3 className="flex items-center gap-2" style={{ margin: "0 0 8px" }}>

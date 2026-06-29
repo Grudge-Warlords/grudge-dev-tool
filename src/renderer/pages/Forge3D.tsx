@@ -10,6 +10,7 @@ import { SceneEngine, type GizmoMode } from "../lib/forge/sceneEngine";
 import { loadModel, type LoadedModel, isSupported } from "../lib/forge/loaders";
 import { exportToGlb, downloadBlob, ACCEPT_ATTR } from "../lib/forge/converters";
 import { inspectGlb, formatBytes, type GlbInspection } from "../lib/forge/glbInspect";
+import type { StoreCategory } from "../../shared/fleetGames";
 
 interface SceneItem {
   id: string;
@@ -45,12 +46,40 @@ export default function Forge3D() {
   const [activeClip, setActiveClip] = useState<THREE.AnimationAction | null>(null);
   const [paused, setPaused] = useState(false);
   const [bgIndex, setBgIndex] = useState(0);
-  const [r2Path, setR2Path] = useState("user-uploads/forge");
+  const [r2Path, setR2Path] = useState("models/");
   const [busyUpload, setBusyUpload] = useState(false);
+  const [fleetPrefixes, setFleetPrefixes] = useState<Array<{ id: string; label: string; prefix: string }>>([]);
 
   const selected = useMemo(() => items.find((i) => i.id === selectedId) ?? null, [items, selectedId]);
 
   // -- Engine bootstrap ----------------------------------------------------
+  useEffect(() => {
+    void window.grudge.fleet.storeCategories().then((cats: StoreCategory[] | null | undefined) => {
+      setFleetPrefixes((cats ?? []).slice(0, 8).map((c) => ({
+        id: c.id, label: c.label, prefix: c.prefix,
+      })));
+    });
+  }, []);
+
+  async function openFleetSample(prefix: string) {
+    try {
+      const res = await window.grudge.os.list({ prefix, delimiter: "/", limit: 50 });
+      const model = (res.items ?? []).find((it: { name: string }) =>
+        /\.(glb|gltf)$/i.test(it.name),
+      );
+      if (!model) {
+        toast.info("No GLB in prefix yet", { description: prefix });
+        void window.grudge.app.openRoute("/library");
+        return;
+      }
+      const url: string = await window.grudge.cf.r2PublicUrl(model.name);
+      await window.grudge.forge.openRemote(url);
+      toast.success(`Loaded ${model.name.split("/").pop()}`);
+    } catch (e: any) {
+      toast.error("Fleet asset open failed", { description: e?.message });
+    }
+  }
+
   useEffect(() => {
     if (!viewportRef.current) return;
     const engine = new SceneEngine(viewportRef.current, {
@@ -330,6 +359,32 @@ export default function Forge3D() {
       <div style={{ display: "grid", gridTemplateColumns: "240px 1fr 320px", minHeight: 0 }}>
         {/* HIERARCHY */}
         <Panel title={`Scene (${items.length})`}>
+          {fleetPrefixes.length > 0 && (
+            <div style={{ padding: "8px 10px", borderBottom: "1px solid var(--line)" }}>
+              <div style={{ fontSize: 10, color: "var(--gold)", fontWeight: 700, marginBottom: 6, textTransform: "uppercase" }}>
+                Fleet resources
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {fleetPrefixes.map((c) => (
+                  <button
+                    key={c.id}
+                    className="btn ghost"
+                    style={{ fontSize: 10, padding: "2px 6px" }}
+                    title={c.prefix}
+                    onClick={() => openFleetSample(c.prefix)}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="btn ghost text-[10px] mt-2 w-full"
+                onClick={() => window.grudge.app.openRoute("/library")}
+              >
+                Open Grudge Store
+              </button>
+            </div>
+          )}
           {items.length === 0 ? (
             <div style={{ padding: "12px", color: "var(--muted)", fontSize: 12 }}>
               Drop a 3D file anywhere on this window, or click <strong className="text-gold">+ Open file</strong>.

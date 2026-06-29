@@ -316,11 +316,13 @@ export interface StoreCategory {
 }
 
 export const STORE_CATEGORIES: StoreCategory[] = [
-  { id: "weapons", label: "Weapons & Guns", icon: "⚔️", prefix: "models/weapons/", objectStorePath: "/api/v1/weapons.json" },
-  { id: "characters", label: "Characters", icon: "🧙", prefix: "models/characters/", objectStorePath: "/api/v1/characters.json" },
-  { id: "ships", label: "Ships & Vehicles", icon: "🚢", prefix: "models/ships/", objectStorePath: "/api/v1/ships.json" },
-  { id: "environment", label: "Nature & Environment", icon: "🌲", prefix: "models/environment/", objectStorePath: "/api/v1/environment.json" },
-  { id: "buildings", label: "Buildings & Scenes", icon: "🏰", prefix: "models/buildings/", objectStorePath: "/api/v1/buildings.json" },
+  { id: "master", label: "All Fleet Items", icon: "🗂️", prefix: "models/", objectStorePath: "master-items.json" },
+  { id: "recipes", label: "Crafting Recipes", icon: "📜", prefix: "models/", objectStorePath: "master-recipes.json" },
+  { id: "weapons", label: "Weapons & Guns", icon: "⚔️", prefix: "models/weapons/", objectStorePath: "weapons.json" },
+  { id: "characters", label: "Characters", icon: "🧙", prefix: "models/characters/", objectStorePath: "characters.json" },
+  { id: "ships", label: "Ships & Vehicles", icon: "🚢", prefix: "models/ships/", objectStorePath: "ships.json" },
+  { id: "environment", label: "Nature & Environment", icon: "🌲", prefix: "models/environment/", objectStorePath: "environment.json" },
+  { id: "buildings", label: "Buildings & Scenes", icon: "🏰", prefix: "models/buildings/", objectStorePath: "buildings.json" },
   { id: "vfx", label: "VFX & Particles", icon: "✨", prefix: "vfx/", objectStorePath: undefined },
   { id: "icons", label: "Icons & UI", icon: "🎨", prefix: "icons/", objectStorePath: undefined },
   { id: "audio", label: "Audio", icon: "🔊", prefix: "audio/", objectStorePath: undefined },

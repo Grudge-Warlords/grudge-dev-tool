@@ -4,6 +4,25 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-06-25
+
+### Fixed
+
+- **Grudge Store catalogs** — ONE TRUTH fetch via `{client}/api/objectstore/v1/{catalog}.json` (fixes double `/api/v1/` path bug).
+- **Fleet game thumbnails** — CSP allows `opengraph.githubassets.com`; fallback thumb on load error.
+- **grudgedot merge** — live `/api/games` entries overlay static fleet registry instead of being ignored.
+- **Tray menu** — Store, Forge 3D, BlenderKit, and Fleet Games open correct routes.
+
+### Added
+
+- **Store UX** — card grid with thumbnails, sales groupings (category/pack/tier/slot), prefix browse fallback, Forge/CDN actions.
+- **BlenderKit** — `/blenderkit` admin route wired (was orphan page).
+- **Play Modes** — Tower Defense + Grudge Drive Three.js demos at `/play`.
+- **Forge 3D fleet panel** — quick-load fleet resource prefixes from Store categories.
+- **Coder** — folder picker, game-repo presets, fleet workflow docs.
+- **Settings** — admin override toggles (force on/off/clear).
+- **Browser** — honors `browserPrefix` from Store “Browse prefix” deep links.
+
 ## [0.5.2] — 2026-06-25
 
 ### Fixed

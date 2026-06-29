@@ -31,6 +31,7 @@ let lastError: string | null = null;
 const CODER_CANDIDATES = [
   "F:\\GitHub\\GrudachainCode",
   "D:\\GitHub\\GrudachainCode",
+  "D:\\GrudgeRepos\\GrudachainCode",
   join(process.env.HOME ?? process.env.USERPROFILE ?? "", "GrudachainCode"),
 ];
 

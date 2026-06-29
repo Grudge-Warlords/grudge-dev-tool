@@ -3,6 +3,7 @@ import {
   FolderTree, Search as SearchIcon, Upload as UploadIcon, Link2,
   Fingerprint, Store, BookOpen, Settings as SettingsIcon,
   Power, Minimize2, LogOut, Loader2, Hammer, Code2, Gamepad2, Globe, ShieldCheck, Bot,
+  Boxes, Play,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -22,6 +23,8 @@ const Forge3D = React.lazy(() => import("./pages/Forge3D"));
 const Coder = React.lazy(() => import("./pages/Coder"));
 
 const Preview = React.lazy(() => import("./pages/Preview"));
+const AssetLibrary = React.lazy(() => import("./pages/AssetLibrary"));
+const GameModes = React.lazy(() => import("./pages/GameModes"));
 import Login from "./pages/Login";    // not lazy — always rendered first
 import StatusBar from "./components/StatusBar";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -30,7 +33,7 @@ import { hydrateFromMain, persistRoute, readMirror } from "./lib/workspace";
 
 type Route =
   | "/browser" | "/search" | "/upload" | "/request"
-  | "/uuid" | "/library" | "/forge" | "/coder" | "/games" | "/legion"
+  | "/uuid" | "/library" | "/blenderkit" | "/forge" | "/play" | "/coder" | "/games" | "/legion"
   | "/preview" | "/docs" | "/settings";
 
 interface NavEntry {
@@ -48,9 +51,11 @@ const NAV: NavEntry[] = [
   { route: "/request", label: "Request URL", Icon: Link2, adminOnly: true },
   { route: "/uuid", label: "UUID", Icon: Fingerprint },
   { route: "/library", label: "Store", Icon: Store },
+  { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
   { route: "/games", label: "Games", Icon: Gamepad2 },
   { route: "/legion", label: "Legion", Icon: Bot },
   { route: "/forge", label: "Forge 3D", Icon: Hammer, adminOnly: true },
+  { route: "/play", label: "Play Modes", Icon: Play, adminOnly: true },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
   { route: "/preview", label: "Preview", Icon: Globe, adminOnly: true },
   { route: "/docs", label: "Docs", Icon: BookOpen },
@@ -67,8 +72,8 @@ interface Session {
 }
 
 const VALID_ROUTES = new Set<string>([
-  "/browser", "/search", "/upload", "/request", "/uuid", "/library", "/forge",
-  "/coder", "/games", "/legion", "/preview", "/docs", "/settings",
+  "/browser", "/search", "/upload", "/request", "/uuid", "/library", "/blenderkit",
+  "/forge", "/play", "/coder", "/games", "/legion", "/preview", "/docs", "/settings",
 ]);
 
 export default function App() {
@@ -200,7 +205,7 @@ export default function App() {
 }
 </nav>
   < div className = "sidebar-footer flex items-center gap-2" >
-    <span className="version flex-1" > v0.5.1 </span>
+    <span className="version flex-1" > v0.5.3 </span>
       < button
 title = "Sign out"
 className = "text-muted hover:text-gold"
@@ -232,7 +237,9 @@ onClick = {() => {
 { route === "/request" && <Request /> }
 { route === "/uuid" && <UUID /> }
 { route === "/library" && <Library /> }
+{ route === "/blenderkit" && <AssetLibrary /> }
 { route === "/forge" && <Forge3D /> }
+{ route === "/play" && <GameModes /> }
 { route === "/coder" && <Coder /> }
 { route === "/games" && <FleetLauncher /> }
 { route === "/legion" && <Legion /> }

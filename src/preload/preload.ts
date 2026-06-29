@@ -207,6 +207,7 @@ const api = {
     stop: () => ipcRenderer.invoke("coder:stop"),
     status: () => ipcRenderer.invoke("coder:status"),
     open: () => ipcRenderer.invoke("coder:open"),
+    pickProjectDir: () => ipcRenderer.invoke("coder:pickProjectDir"),
   },
   // Workspace memory (electron-store + localStorage mirror in renderer)
   workspace: {

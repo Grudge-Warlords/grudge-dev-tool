@@ -6,6 +6,7 @@ import {
   Box, Music, Search as SearchIcon, Copy, ExternalLink, Home,
 } from "lucide-react";
 import DemoModeBanner from "../components/DemoModeBanner";
+import { readMirror } from "../lib/workspace";
 
 interface ListResp {
   items: Array<{ name: string; size: number; contentType: string; updated: string | null }>;
@@ -103,8 +104,15 @@ function Breadcrumb({ prefix, onSelect }: { prefix: string; onSelect: (p: string
 }
 
 export default function Browser() {
-  const [selected, setSelected] = useState<string>(ROOT_PREFIX);
+  const [selected, setSelected] = useState<string>(() => readMirror().browserPrefix ?? ROOT_PREFIX);
   const [filter, setFilter] = useState<string>("");
+
+  useEffect(() => {
+    void (async () => {
+      const snap = await window.grudge?.workspace?.get?.();
+      if (snap?.browserPrefix != null) setSelected(snap.browserPrefix);
+    })();
+  }, []);
 
   const isServerSearch = filter.startsWith(">");
   const serverQuery = isServerSearch ? filter.slice(1).trim() : "";
