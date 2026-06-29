@@ -1,5 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { join } from "node:path";
+import * as toolPaths from "../toolPaths";
+
+const nodeRequire = createRequire(join(__dirname, "..", "..", "package.json"));
 
 export interface ToolStatus {
   name: string;
@@ -33,23 +38,49 @@ function probeVersion(bin: string, args: string[]): string | undefined {
   return undefined;
 }
 
-export function detectBlender(): ToolStatus {
+const WIN_BLENDER_CANDIDATES = [
+  "C:\\Program Files\\Blender Foundation\\Blender 4.5\\blender.exe",
+  "C:\\Program Files\\Blender Foundation\\Blender 4.4\\blender.exe",
+  "C:\\Program Files\\Blender Foundation\\Blender 4.3\\blender.exe",
+  "C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe",
+  "C:\\Program Files\\Blender Foundation\\Blender 4.1\\blender.exe",
+];
+
+function firstExisting(paths: string[]): string | null {
+  for (const p of paths) {
+    if (p && existsSync(p)) return p;
+  }
+  return null;
+}
+
+export async function detectBlender(): Promise<ToolStatus> {
+  const stored = await toolPaths.getToolPath("blender");
   const envPath = process.env.BLENDER_PATH;
-  const path = (envPath && existsSync(envPath)) ? envPath : which("blender");
+  const path = stored
+    ?? (envPath && existsSync(envPath) ? envPath : null)
+    ?? which("blender")
+    ?? firstExisting(WIN_BLENDER_CANDIDATES);
   if (!path) {
     return {
       name: "Blender",
       available: false,
-      reason: "Not found on PATH. Set BLENDER_PATH or install Blender 4.x.",
+      reason: "Not found — install Blender 4.x or set path in Accounts → Toolchain.",
     };
   }
   const version = probeVersion(path, ["--version"]);
   return { name: "Blender", available: true, path, version };
 }
 
-export function detectFfmpeg(): ToolStatus {
-  const path = which("ffmpeg");
-  if (!path) return { name: "ffmpeg", available: false, reason: "Not found on PATH." };
+const WIN_FFMPEG_CANDIDATES = [
+  "C:\\ffmpeg\\bin\\ffmpeg.exe",
+  "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
+  "C:\\ProgramData\\chocolatey\\bin\\ffmpeg.exe",
+];
+
+export async function detectFfmpeg(): Promise<ToolStatus> {
+  const stored = await toolPaths.getToolPath("ffmpeg");
+  const path = stored ?? which("ffmpeg") ?? firstExisting(WIN_FFMPEG_CANDIDATES);
+  if (!path) return { name: "ffmpeg", available: false, reason: "Not found — install ffmpeg or set path in Accounts." };
   return { name: "ffmpeg", available: true, path, version: probeVersion(path, ["-version"]) };
 }
 
@@ -64,15 +95,14 @@ export function detectSharp(): ToolStatus {
 
 export function detectGltfTransform(): ToolStatus {
   try {
-    require.resolve("@gltf-transform/core");
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pkg = require("@gltf-transform/core/package.json");
-    return { name: "gltf-transform", available: true, version: pkg.version };
+    const pkgPath = nodeRequire.resolve("@gltf-transform/core/package.json");
+    const pkg = nodeRequire(pkgPath) as { version?: string };
+    return { name: "gltf-transform", available: true, version: pkg.version ?? "bundled" };
   } catch {
     return {
       name: "gltf-transform",
       available: false,
-      reason: "@gltf-transform/core not installed (model probe / rig inspection disabled).",
+      reason: "@gltf-transform/core not resolvable — run npm install in app root.",
     };
   }
 }
@@ -104,8 +134,9 @@ function blenderKitCandidatePaths(): string[] {
   return candidates;
 }
 
-export function detectBlenderKit(): ToolStatus {
-  const candidates = blenderKitCandidatePaths();
+export async function detectBlenderKit(): Promise<ToolStatus> {
+  const stored = await toolPaths.getToolPath("blenderkit");
+  const candidates = stored ? [stored, ...blenderKitCandidatePaths()] : blenderKitCandidatePaths();
   for (const path of candidates) {
     const manifest = `${path}\\blender_manifest.toml`;
     if (!existsSync(manifest)) continue;
@@ -126,12 +157,12 @@ export function detectBlenderKit(): ToolStatus {
   };
 }
 
-export function detectAll(): ToolStatus[] {
+export async function detectAll(): Promise<ToolStatus[]> {
   return [
     detectSharp(),
     detectGltfTransform(),
-    detectBlender(),
-    detectFfmpeg(),
-    detectBlenderKit(),
+    await detectBlender(),
+    await detectFfmpeg(),
+    await detectBlenderKit(),
   ];
 }

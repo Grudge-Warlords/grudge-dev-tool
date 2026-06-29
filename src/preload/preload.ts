@@ -207,6 +207,21 @@ const api = {
     /** Convert an absolute path to a file:// URL (used by drag-drop). */
     fileUrl: (absPath: string) => ipcRenderer.invoke("preview:fileUrl", absPath) as Promise<string>,
   },
+  // Accounts — wallet, GBUX, toolchain (Steam-style customer + admin hub)
+  accounts: {
+    wallet: (grudgeId: string) => ipcRenderer.invoke("accounts:wallet", grudgeId),
+    provisionWallet: (args: { grudgeId: string; email?: string }) =>
+      ipcRenderer.invoke("accounts:provisionWallet", args),
+    gbuxBalance: (grudgeId: string) => ipcRenderer.invoke("accounts:gbuxBalance", grudgeId),
+    gbuxPurchase: (args: { packId: string; grudgeId: string; walletAddress?: string }) =>
+      ipcRenderer.invoke("accounts:gbuxPurchase", args),
+    gbuxTransfer: (args: { toAddress: string; amount: number; memo?: string }) =>
+      ipcRenderer.invoke("accounts:gbuxTransfer", args),
+    getAleWallet: () => ipcRenderer.invoke("accounts:getAleWallet") as Promise<string | null>,
+    setAleWallet: (address: string) => ipcRenderer.invoke("accounts:setAleWallet", address),
+    getToolPaths: () => ipcRenderer.invoke("accounts:getToolPaths"),
+    setToolPath: (key: string, path: string | null) => ipcRenderer.invoke("accounts:setToolPath", key, path),
+  },
   // Dev portal (orchestrator local execution)
   dev: {
     terminal: (cmd: string, cwd?: string) => ipcRenderer.invoke("dev:terminal", cmd, cwd),

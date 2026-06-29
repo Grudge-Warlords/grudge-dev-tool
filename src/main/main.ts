@@ -21,6 +21,8 @@ import { r2Health, resetR2Client, r2GetSignedUploadUrl, r2GetSignedDownloadUrl, 
 import * as forge from "./forge";
 import * as coder from "./coder";
 import * as devPortal from "./devPortal";
+import * as economy from "./economy";
+import * as toolPaths from "./toolPaths";
 import { workersAiChat, workersAiCaption, aiGatewayHealth, aiGatewayProxy } from "./cf/aiGateway";
 import * as ollama from "./ollama";
 import * as legion from "./legion/orchestrator";
@@ -271,6 +273,21 @@ function registerIpc() {
   ipcMain.handle("settings:setBlenderKitKey", (_e, key: string) => bk.setApiKey(key));
   ipcMain.handle("settings:clearBlenderKitKey", () => bk.clearApiKey());
   ipcMain.handle("settings:toolchain", async () => detectAll());
+
+  // Accounts — wallet, GBUX, toolchain paths
+  ipcMain.handle("accounts:wallet", (_e, grudgeId: string) => economy.getPlayerWallet(grudgeId));
+  ipcMain.handle("accounts:provisionWallet", (_e, args: { grudgeId: string; email?: string }) =>
+    economy.provisionWallet(args.grudgeId, args.email));
+  ipcMain.handle("accounts:gbuxBalance", (_e, grudgeId: string) => economy.getGbuxBalance(grudgeId));
+  ipcMain.handle("accounts:gbuxPurchase", (_e, args: { packId: string; grudgeId: string; walletAddress?: string }) =>
+    economy.requestGbuxPurchase(args));
+  ipcMain.handle("accounts:gbuxTransfer", (_e, args: { toAddress: string; amount: number; memo?: string }) =>
+    economy.adminGbuxTransfer(args));
+  ipcMain.handle("accounts:getAleWallet", () => economy.getAleAdminWallet());
+  ipcMain.handle("accounts:setAleWallet", (_e, address: string) => economy.setAleAdminWallet(address));
+  ipcMain.handle("accounts:getToolPaths", () => toolPaths.getAllToolPaths());
+  ipcMain.handle("accounts:setToolPath", (_e, key: toolPaths.ToolPathKey, path: string | null) =>
+    toolPaths.setToolPath(key, path));
 
   // Object storage
   ipcMain.handle("os:list", (_e, req) => api.listObjects(req));

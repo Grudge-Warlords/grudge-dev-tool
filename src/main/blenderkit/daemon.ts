@@ -25,8 +25,8 @@ const DEFAULT_PORTS = ["62485", "65425", "55428", "49452", "35452", "25152", "51
 // Derived from the on-disk addon manifest so we track BlenderKit upgrades
 // automatically; falls back to v1.8 when the manifest read fails.
 const FALLBACK_API_PREFIX = "v1.8";
-function apiPrefix(): string {
-  const v = readAddonVersion();
+async function apiPrefix(): Promise<string> {
+  const v = await readAddonVersion();
   if (v && v !== "unknown") {
     const m = v.match(/^(\d+)\.(\d+)/);
     if (m) return `v${m[1]}.${m[2]}`;
@@ -41,9 +41,9 @@ let spawnedProc: ChildProcess | null = null;
 let cachedPort: string | null = null;
 let cachedAddonVersion: string | null = null;
 
-function readAddonVersion(): string {
+async function readAddonVersion(): Promise<string> {
   if (cachedAddonVersion) return cachedAddonVersion;
-  const status = detectBlenderKit();
+  const status = await detectBlenderKit();
   if (status.available && status.path) {
     try {
       const manifest = readFileSync(join(status.path, "blender_manifest.toml"), "utf8");
@@ -72,8 +72,8 @@ export async function clearApiKey(): Promise<void> {
 }
 
 /** Find the daemon binary that ships with the addon (Windows only for now). */
-function findDaemonBinary(): string | null {
-  const status = detectBlenderKit();
+async function findDaemonBinary(): Promise<string | null> {
+  const status = await detectBlenderKit();
   if (!status.available || !status.path) return null;
   const clientDir = join(status.path, "client");
   if (!existsSync(clientDir)) return null;
@@ -104,7 +104,7 @@ function findDaemonBinary(): string | null {
 
 async function isDaemonOn(port: string): Promise<boolean> {
   try {
-    const resp = await fetch(`http://127.0.0.1:${port}/${apiPrefix()}/report`, {
+    const resp = await fetch(`http://127.0.0.1:${port}/${await apiPrefix()}/report`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       signal: AbortSignal.timeout(400),
@@ -132,7 +132,7 @@ export async function ensureDaemon(): Promise<{ port: string; spawned: boolean }
   const found = await discoverPort();
   if (found) return { port: found, spawned: false };
 
-  const bin = findDaemonBinary();
+  const bin = await findDaemonBinary();
   if (!bin) return null;
 
   // Start the daemon, attach a clean shutdown path.
@@ -177,12 +177,12 @@ async function postDaemon<T>(endpoint: string, payload: BkRequestBase & Record<s
   const body = {
     app_id: process.pid,
     api_key: apiKey,
-    addon_version: readAddonVersion(),
+    addon_version: await readAddonVersion(),
     platform_version: process.platform,
     ...payload,
   };
 
-  const url = `http://127.0.0.1:${ready.port}/${apiPrefix()}${endpoint}`;
+  const url = `http://127.0.0.1:${ready.port}/${await apiPrefix()}${endpoint}`;
   const resp = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -253,7 +253,7 @@ export async function getReport(): Promise<any> {
   const ready = await ensureDaemon();
   if (!ready) throw new Error("daemon not available");
   const apiKey = await getApiKey();
-  const resp = await fetch(`http://127.0.0.1:${ready.port}/${apiPrefix()}/report`, {
+  const resp = await fetch(`http://127.0.0.1:${ready.port}/${await apiPrefix()}/report`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ app_id: process.pid, api_key: apiKey || "" }),

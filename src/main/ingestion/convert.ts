@@ -94,7 +94,7 @@ export async function convertFile(
 
   // Models: BLEND / FBX / OBJ → GLB via Blender headless
   if ([".blend", ".fbx", ".obj"].includes(ext)) {
-    const blender = detectBlender();
+    const blender = await detectBlender();
     if (!blender.available) {
       result.warnings.push(`Blender unavailable — uploading raw ${ext} (${blender.reason}).`);
       return result;
@@ -150,7 +150,7 @@ export async function convertFile(
 
   // Audio: WAV → OGG via ffmpeg (only if ffmpeg available)
   if (ext === ".wav" && verify.probed.sizeBytes > 1024 * 1024) {
-    const ffmpeg = detectFfmpeg();
+    const ffmpeg = await detectFfmpeg();
     if (!ffmpeg.available) {
       result.warnings.push(`ffmpeg unavailable — uploading raw .wav.`);
       return result;

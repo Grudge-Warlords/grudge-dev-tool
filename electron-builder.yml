@@ -16,6 +16,7 @@ files:
 asarUnpack:
   - "node_modules/@heyputer/puter.js/**"
   - "node_modules/open/**"
+  - "node_modules/@gltf-transform/**"
 extraResources:
   - from: resources
     to: .

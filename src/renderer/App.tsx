@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import {
   FolderTree, Search as SearchIcon, Upload as UploadIcon, Link2,
   Fingerprint, Store, BookOpen, Settings as SettingsIcon,
-  Power, Minimize2, LogOut, Loader2, Hammer, Code2, Gamepad2, Globe, ShieldCheck, Bot,
+  Power, Minimize2, LogOut, Loader2, Hammer, Code2, Gamepad2, Globe, ShieldCheck, Bot, User,
   Boxes, Play,
   type LucideIcon,
 } from "lucide-react";
@@ -18,6 +18,7 @@ const Library = React.lazy(() => import("./pages/GrudgeStore"));
 const FleetLauncher = React.lazy(() => import("./pages/FleetLauncher"));
 const Legion = React.lazy(() => import("./pages/Legion"));
 const AIWorkspace = React.lazy(() => import("./pages/AIWorkspace"));
+const Accounts = React.lazy(() => import("./pages/Accounts"));
 const Docs = React.lazy(() => import("./pages/Docs"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const Forge3D = React.lazy(() => import("./pages/Forge3D"));
@@ -35,7 +36,7 @@ import { hydrateFromMain, persistRoute, readMirror } from "./lib/workspace";
 type Route =
   | "/browser" | "/search" | "/upload" | "/request"
   | "/uuid" | "/library" | "/blenderkit" | "/forge" | "/play" | "/coder" | "/games" | "/legion" | "/ai"
-  | "/preview" | "/docs" | "/settings";
+  | "/accounts" | "/preview" | "/docs" | "/settings";
 
 interface NavEntry {
   route: Route;
@@ -46,6 +47,7 @@ interface NavEntry {
 }
 
 const NAV: NavEntry[] = [
+  { route: "/accounts", label: "Account", Icon: User },
   { route: "/browser", label: "Browser", Icon: FolderTree },
   { route: "/search", label: "Search", Icon: SearchIcon },
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true },
@@ -75,7 +77,7 @@ interface Session {
 
 const VALID_ROUTES = new Set<string>([
   "/browser", "/search", "/upload", "/request", "/uuid", "/library", "/blenderkit",
-  "/forge", "/play", "/coder", "/games", "/ai", "/legion", "/preview", "/docs", "/settings",
+  "/forge", "/play", "/coder", "/games", "/ai", "/accounts", "/legion", "/preview", "/docs", "/settings",
 ]);
 
 export default function App() {
@@ -245,6 +247,7 @@ onClick = {() => {
 { route === "/coder" && <Coder /> }
 { route === "/games" && <FleetLauncher /> }
 { route === "/ai" && <AIWorkspace /> }
+{ route === "/accounts" && <Accounts /> }
 { route === "/legion" && <Legion /> }
 { route === "/preview" && <Preview /> }
 { route === "/docs" && <Docs /> }

@@ -217,7 +217,8 @@ export default function Settings() {
         </h3>
         <p className="muted text-xs mb-2">
           Admin surfaces: Upload, Forge 3D, Coder, BlenderKit, Play Modes, Preview, Settings.
-          {isOpenMode() && " This build has no allowlist — all signed-in users are admin."}
+          {isOpenMode() && " OPEN MODE — all signed-in users are admin (dev only)."}
+          {!isOpenMode() && " Operators: grudachain, molochdadev — see Account tab for wallet & GBUX."}
         </p>
         <div className="flex flex-wrap gap-2">
           <button className={`btn ghost text-xs ${adminOverride === "on" ? "border-gold text-gold" : ""}`} onClick={() => { setAdminOverride("on"); setAdminOverrideState("on"); toast.success("Admin override ON — reload route to apply"); }}>

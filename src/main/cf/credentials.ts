@@ -21,6 +21,7 @@ export const CF_ACCOUNTS = {
   aiWorkersApi:   "cf-ai-workers-api",
   accountId:      "cf-account-id",
   aiGatewayId:    "cf-ai-gateway-id",
+  aleAdminWallet: "grudge-ale-admin-wallet",
 } as const;
 
 export type CfAccount = keyof typeof CF_ACCOUNTS;

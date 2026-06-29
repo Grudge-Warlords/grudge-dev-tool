@@ -71,8 +71,8 @@ export async function enrichAsset(
     return result;
   }
 
-  const blender = detectBlender();
-  const bk = detectBlenderKit();
+  const blender = await detectBlender();
+  const bk = await detectBlenderKit();
   if (!blender.available) {
     result.warnings.push(`Blender unavailable; skipping enrich (${blender.reason}).`);
     return result;

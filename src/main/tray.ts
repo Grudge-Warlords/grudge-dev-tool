@@ -52,6 +52,7 @@ export function createTray(getWindow: () => BrowserWindow | null): Tray {
     { label: "Forge 3D",         click: () => showWindow("/forge") },
     { label: "BlenderKit Search", click: () => showWindow("/blenderkit") },
     { label: "Fleet Games",      click: () => showWindow("/games") },
+    { label: "Account",          click: () => showWindow("/accounts") },
     { label: "Dev Portal",       click: () => showWindow("/ai") },
     { type: "separator" },
     { label: "Open Docs",      click: () => showWindow("/docs") },
