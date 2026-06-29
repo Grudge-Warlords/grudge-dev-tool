@@ -17,6 +17,7 @@ const UUID = React.lazy(() => import("./pages/UUID"));
 const Library = React.lazy(() => import("./pages/GrudgeStore"));
 const FleetLauncher = React.lazy(() => import("./pages/FleetLauncher"));
 const Legion = React.lazy(() => import("./pages/Legion"));
+const AIWorkspace = React.lazy(() => import("./pages/AIWorkspace"));
 const Docs = React.lazy(() => import("./pages/Docs"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const Forge3D = React.lazy(() => import("./pages/Forge3D"));
@@ -33,7 +34,7 @@ import { hydrateFromMain, persistRoute, readMirror } from "./lib/workspace";
 
 type Route =
   | "/browser" | "/search" | "/upload" | "/request"
-  | "/uuid" | "/library" | "/blenderkit" | "/forge" | "/play" | "/coder" | "/games" | "/legion"
+  | "/uuid" | "/library" | "/blenderkit" | "/forge" | "/play" | "/coder" | "/games" | "/legion" | "/ai"
   | "/preview" | "/docs" | "/settings";
 
 interface NavEntry {
@@ -53,7 +54,8 @@ const NAV: NavEntry[] = [
   { route: "/library", label: "Store", Icon: Store },
   { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
   { route: "/games", label: "Games", Icon: Gamepad2 },
-  { route: "/legion", label: "Legion", Icon: Bot },
+  { route: "/ai", label: "GRUDA AI", Icon: Bot },
+  { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true },
   { route: "/forge", label: "Forge 3D", Icon: Hammer, adminOnly: true },
   { route: "/play", label: "Play Modes", Icon: Play, adminOnly: true },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
@@ -73,7 +75,7 @@ interface Session {
 
 const VALID_ROUTES = new Set<string>([
   "/browser", "/search", "/upload", "/request", "/uuid", "/library", "/blenderkit",
-  "/forge", "/play", "/coder", "/games", "/legion", "/preview", "/docs", "/settings",
+  "/forge", "/play", "/coder", "/games", "/ai", "/legion", "/preview", "/docs", "/settings",
 ]);
 
 export default function App() {
@@ -205,7 +207,7 @@ export default function App() {
 }
 </nav>
   < div className = "sidebar-footer flex items-center gap-2" >
-    <span className="version flex-1" > v0.5.5 </span>
+    <span className="version flex-1" > v0.5.6 </span>
       < button
 title = "Sign out"
 className = "text-muted hover:text-gold"
@@ -242,6 +244,7 @@ onClick = {() => {
 { route === "/play" && <GameModes /> }
 { route === "/coder" && <Coder /> }
 { route === "/games" && <FleetLauncher /> }
+{ route === "/ai" && <AIWorkspace /> }
 { route === "/legion" && <Legion /> }
 { route === "/preview" && <Preview /> }
 { route === "/docs" && <Docs /> }
