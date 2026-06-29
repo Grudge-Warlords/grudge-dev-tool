@@ -1,6 +1,6 @@
 {
   "name": "grudge-dev-tool",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Grudge Studio developer CLI — fleet health, auth, and asset-pack uploads for ONE TRUTH wiring.",
   "type": "module",
   "license": "MIT",

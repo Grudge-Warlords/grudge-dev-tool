@@ -236,7 +236,7 @@ export default function App() {
 }
 </nav>
   < div className = "sidebar-footer flex items-center gap-2" >
-    <span className="version flex-1" > v0.6.0 </span>
+    <span className="version flex-1" > v{__APP_VERSION__} </span>
       < button
 title = "Sign out"
 className = "text-muted hover:text-gold"

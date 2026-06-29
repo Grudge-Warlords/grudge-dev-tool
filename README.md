@@ -13,11 +13,11 @@ Grudge Studio developer tooling for the **ONE TRUTH** fleet — one URL (`client
 | Package | Version | What it is |
 |---------|---------|------------|
 | **`grudge-dev` CLI** | v0.5.0 | Autonomous setup, `doctor`, `login`, `upload-pack`, `fleet`, `search` — lives in [`cli/`](cli/) |
-| **Forge tray app** | v0.5.1 | Windows tray + GrudgeLoader overlay, object-storage UI, Forge 3D editor, BlenderKit, auto-update |
+| **Forge tray app** | v0.6.0 | Windows tray + GrudgeLoader overlay, Grudge Engine tab, GrudaChain, Forge 3D, BlenderKit, auto-update |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/> · [CLI quickstart](docs/cli-quickstart.md) · [ONE TRUTH](docs/one-truth.md) · [Tray quickstart](docs/dev-tool-quickstart.md)
 
-⬇ **Forge installer:** [`Grudge Studio Forge-Setup-0.5.1.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.5.1/Grudge-Studio-Forge-Setup-0.5.1.exe) · Windows x64 · NSIS · auto-updating
+⬇ **Forge installer:** [`Grudge Studio Forge-Setup-0.6.0.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.6.0/Grudge-Studio-Forge-Setup-0.6.0.exe) · Windows x64 · NSIS · auto-updating
 
 ---
 

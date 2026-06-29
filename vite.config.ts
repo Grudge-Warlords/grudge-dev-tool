@@ -1,7 +1,10 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { LOADER_CSP, RENDERER_CSP } from "./src/shared/rendererCsp";
+
+const pkg = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as { version: string };
 
 function grudgeCspPlugin(): Plugin {
   return {
@@ -22,6 +25,9 @@ function grudgeCspPlugin(): Plugin {
 // Electron main is compiled separately by tsc.
 export default defineConfig({
   plugins: [grudgeCspPlugin(), react()],
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   root: resolve(__dirname, "src/renderer"),
   base: "./",
   build: {
@@ -37,7 +43,6 @@ export default defineConfig({
   },
   server: {
     port: 5174,
-    strictPort: true,
     strictPort: true,
   },
 });
