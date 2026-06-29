@@ -288,6 +288,16 @@ function registerIpc() {
   ipcMain.handle("accounts:getToolPaths", () => toolPaths.getAllToolPaths());
   ipcMain.handle("accounts:setToolPath", (_e, key: toolPaths.ToolPathKey, path: string | null) =>
     toolPaths.setToolPath(key, path));
+  ipcMain.handle("accounts:listRewards", (_e, grudgeId: string) => economy.listRewards(grudgeId));
+  ipcMain.handle("accounts:claimReward", (_e, args: { grudgeId: string; rewardId: string; walletAddress?: string }) =>
+    economy.claimReward(args));
+  ipcMain.handle("accounts:ledger", (_e, grudgeId: string, limit?: number) => economy.getLedger(grudgeId, limit));
+  ipcMain.handle("accounts:swapQuote", (_e, args: { grudgeId: string; pairId: string; fromAmount: number }) =>
+    economy.getSwapQuote(args));
+  ipcMain.handle("accounts:swapExecute", (_e, args: { grudgeId: string; quoteId: string; walletAddress?: string }) =>
+    economy.executeSwap(args));
+  ipcMain.handle("accounts:grantReward", (_e, args: Parameters<typeof economy.grantReward>[0]) =>
+    economy.grantReward(args));
 
   // Object storage
   ipcMain.handle("os:list", (_e, req) => api.listObjects(req));

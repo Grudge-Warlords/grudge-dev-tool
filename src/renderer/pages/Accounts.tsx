@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   User, Wallet, Coins, ShieldCheck, ExternalLink, Copy, RefreshCw,
-  Loader2, Wrench, Server, AlertTriangle,
+  Loader2, Wrench, Server, AlertTriangle, Gift, ArrowLeftRight, History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getAdminRole } from "../lib/admin";
@@ -12,6 +12,14 @@ import {
   GBUX_SOLSCAN,
   ACCOUNT_PAGE_URL,
 } from "../../shared/grudgeEconomy";
+import {
+  SWAP_PAIRS,
+  WEB3_BEST_PRACTICES,
+  solscanTxUrl,
+  type EconomyReward,
+  type LedgerEntry,
+  type SwapQuote,
+} from "../../shared/web3";
 import { runTruthAudit } from "../../shared/fleet";
 import { FLEET_CLIENT_URL } from "../../shared/fleet";
 
@@ -29,6 +37,15 @@ export default function Accounts() {
   const [transferAmt, setTransferAmt] = useState("100");
   const [busy, setBusy] = useState(false);
   const [apiBase, setApiBase] = useState(FLEET_CLIENT_URL);
+  const [rewards, setRewards] = useState<EconomyReward[]>([]);
+  const [rewardsError, setRewardsError] = useState<string | null>(null);
+  const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
+  const [swapPairId, setSwapPairId] = useState(SWAP_PAIRS[0]?.id ?? "gbux_sol");
+  const [swapAmount, setSwapAmount] = useState("100");
+  const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
+  const [grantAmt, setGrantAmt] = useState("100");
+  const [grantTitle, setGrantTitle] = useState("Forge operator grant");
 
   const role = getAdminRole(session);
   const isAdmin = role === "admin";
@@ -57,6 +74,14 @@ export default function Accounts() {
         const bal = await window.grudge.accounts.gbuxBalance(s.grudgeId);
         setGbuxBalance(bal.ok ? bal.balance : null);
         setGbuxError(bal.ok ? null : (bal.error ?? "Unavailable"));
+
+        const rw = await window.grudge.accounts.listRewards(s.grudgeId);
+        setRewards(rw.ok ? rw.rewards : []);
+        setRewardsError(rw.ok ? null : (rw.error ?? "Unavailable"));
+
+        const lg = await window.grudge.accounts.ledger(s.grudgeId, 30);
+        setLedger(lg.ok ? lg.entries : []);
+        setLedgerError(lg.ok ? null : (lg.error ?? "Unavailable"));
       }
 
       const audit = await runTruthAudit(settings.apiBaseUrl ?? FLEET_CLIENT_URL);
@@ -136,6 +161,94 @@ export default function Accounts() {
   async function saveAleWallet() {
     await window.grudge.accounts.setAleWallet(aleWallet.trim());
     toast.success("ALE admin treasury wallet saved");
+  }
+
+  async function onClaimReward(rewardId: string) {
+    if (!session?.grudgeId) return;
+    setBusy(true);
+    try {
+      const r = await window.grudge.accounts.claimReward({
+        grudgeId: session.grudgeId,
+        rewardId,
+        walletAddress: wallet?.address,
+      });
+      if (r.ok) {
+        toast.success("Reward claimed", { description: r.message });
+        void refresh();
+      } else toast.error("Claim failed", { description: r.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSwapQuote() {
+    if (!session?.grudgeId) return;
+    const fromAmount = Number(swapAmount);
+    if (!Number.isFinite(fromAmount) || fromAmount <= 0) {
+      toast.error("Enter a valid swap amount");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await window.grudge.accounts.swapQuote({
+        grudgeId: session.grudgeId,
+        pairId: swapPairId,
+        fromAmount,
+      });
+      if (r.ok && r.quote) {
+        setSwapQuote(r.quote);
+        toast.success("Quote ready", {
+          description: `${r.quote.fromAmount} → ${r.quote.toAmount.toFixed(6)}`,
+        });
+      } else toast.error("Quote failed", { description: r.error ?? "Unavailable" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSwapExecute() {
+    if (!session?.grudgeId || !swapQuote) return;
+    setBusy(true);
+    try {
+      const r = await window.grudge.accounts.swapExecute({
+        grudgeId: session.grudgeId,
+        quoteId: swapQuote.quoteId,
+        walletAddress: wallet?.address,
+      });
+      if (r.ok) {
+        toast.success("Swap submitted", { description: r.message });
+        setSwapQuote(null);
+        void refresh();
+      } else toast.error("Swap failed", { description: r.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onAdminGrant() {
+    if (!session?.grudgeId) return;
+    const amount = Number(grantAmt);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter valid grant amount");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await window.grudge.accounts.grantReward({
+        grudgeId: session.grudgeId,
+        rewardType: "admin",
+        amount,
+        sourceGame: "forge",
+        title: grantTitle.trim() || "Operator grant",
+        description: `Granted by ${session.puterUser?.username ?? "admin"}`,
+      });
+      if (r.ok) {
+        toast.success("Reward granted", { description: r.message });
+        void refresh();
+      } else toast.error("Grant failed", { description: r.message });
+    } finally {
+      setBusy(false);
+    }
   }
 
   const copy = (text: string, label: string) => {
@@ -257,6 +370,153 @@ export default function Accounts() {
         </div>
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="card">
+          <h2 className="text-gold font-semibold flex items-center gap-2 mb-3">
+            <Gift size={16} /> Rewards inbox
+          </h2>
+          <p className="text-xs text-muted mb-3">
+            Server-side GBUX rewards from quests, events, and fleet games. Claim credits your MPC wallet.
+          </p>
+          {rewardsError && (
+            <div className="flex items-center gap-2 text-sm text-muted mb-2">
+              <AlertTriangle size={14} /> {rewardsError}
+            </div>
+          )}
+          {rewards.length === 0 ? (
+            <p className="text-sm text-muted">No pending rewards.</p>
+          ) : (
+            <ul className="space-y-2 max-h-48 overflow-y-auto">
+              {rewards.map((rw) => (
+                <li key={rw.id} className="border border-line rounded p-2 text-xs">
+                  <div className="flex justify-between gap-2">
+                    <span className="font-semibold">{rw.title}</span>
+                    <span className="text-gold">{rw.amount} GBUX</span>
+                  </div>
+                  <div className="text-muted">{rw.sourceGame} · {rw.rewardType}</div>
+                  {rw.status === "pending" ? (
+                    <button
+                      type="button"
+                      className="btn ghost text-[10px] mt-1"
+                      disabled={busy}
+                      onClick={() => void onClaimReward(rw.id)}
+                    >
+                      Claim
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-muted">{rw.status}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="card">
+          <h2 className="text-gold font-semibold flex items-center gap-2 mb-3">
+            <ArrowLeftRight size={16} /> Token swap
+          </h2>
+          <p className="text-xs text-muted mb-3">
+            GBUX ↔ SOL/USDC via fleet Jupiter proxy. Quotes expire in 60s.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2 mb-2">
+            <select
+              className="text-xs font-mono"
+              value={swapPairId}
+              onChange={(e) => { setSwapPairId(e.target.value); setSwapQuote(null); }}
+            >
+              {SWAP_PAIRS.filter((p) => p.enabled).map((p) => (
+                <option key={p.id} value={p.id}>{p.fromSymbol} → {p.toSymbol}</option>
+              ))}
+            </select>
+            <input
+              className="font-mono text-xs"
+              placeholder="Amount"
+              value={swapAmount}
+              onChange={(e) => { setSwapAmount(e.target.value); setSwapQuote(null); }}
+            />
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className="btn ghost text-xs" disabled={busy} onClick={() => void onSwapQuote()}>
+              Get quote
+            </button>
+            <button
+              type="button"
+              className="btn text-xs"
+              disabled={busy || !swapQuote}
+              onClick={() => void onSwapExecute()}
+            >
+              Execute swap
+            </button>
+          </div>
+          {swapQuote && (
+            <div className="text-[10px] text-muted mt-2 font-mono">
+              {swapQuote.fromAmount} {SWAP_PAIRS.find((p) => p.id === swapQuote.pairId)?.fromSymbol} →{" "}
+              {swapQuote.toAmount.toFixed(6)} · fee {swapQuote.feeGbux} GBUX
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="card">
+        <h2 className="text-gold font-semibold flex items-center gap-2 mb-3">
+          <History size={16} /> Transaction history
+        </h2>
+        {ledgerError && (
+          <div className="flex items-center gap-2 text-sm text-muted mb-2">
+            <AlertTriangle size={14} /> {ledgerError}
+          </div>
+        )}
+        {ledger.length === 0 ? (
+          <p className="text-sm text-muted">No ledger entries yet.</p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr>
+                <th className="text-left">When</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {ledger.map((e) => (
+                <tr key={e.id}>
+                  <td className="text-muted">{new Date(e.createdAt).toLocaleString()}</td>
+                  <td>{e.type} ({e.direction})</td>
+                  <td className="text-gold">{e.amount} GBUX</td>
+                  <td>{e.status}</td>
+                  <td>
+                    {e.txSignature && (
+                      <button
+                        type="button"
+                        className="text-gold"
+                        onClick={() => void window.grudge.os.openExternal(solscanTxUrl(e.txSignature!))}
+                      >
+                        <ExternalLink size={10} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="card border-line/50">
+        <h2 className="text-gold font-semibold text-sm mb-2">Web3 best practices</h2>
+        <ul className="text-[10px] text-muted grid sm:grid-cols-2 gap-1">
+          <li>• MPC wallets via Crossmint — never store private keys client-side</li>
+          <li>• GBUX on-chain · in-game gold is DB-only</li>
+          <li>• Max transfer {WEB3_BEST_PRACTICES.maxSingleTransferGbux.toLocaleString()} GBUX / tx</li>
+          <li>• Max daily {WEB3_BEST_PRACTICES.maxDailyGbuxPerUser.toLocaleString()} GBUX per user</li>
+          <li>• Economy rate limit {WEB3_BEST_PRACTICES.economyRateLimitPerMinute}/min</li>
+          <li>• JWT includes wallet_address for fleet games</li>
+        </ul>
+      </div>
+
       <div className="card">
         <h2 className="text-gold font-semibold flex items-center gap-2 mb-3">
           <Server size={16} /> Fleet systems
@@ -328,6 +588,16 @@ export default function Accounts() {
           <button type="button" className="btn mt-2" disabled={busy} onClick={() => void onAdminTransfer()}>
             Transfer GBUX (ALE admin)
           </button>
+          <div className="border-t border-line mt-4 pt-3">
+            <div className="text-xs text-muted mb-2">Grant pending reward (hub ledger)</div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <input className="font-mono text-xs sm:col-span-2" placeholder="Title" value={grantTitle} onChange={(e) => setGrantTitle(e.target.value)} />
+              <input className="font-mono text-xs" placeholder="GBUX" value={grantAmt} onChange={(e) => setGrantAmt(e.target.value)} />
+            </div>
+            <button type="button" className="btn ghost text-xs mt-2" disabled={busy} onClick={() => void onAdminGrant()}>
+              Grant reward to current user
+            </button>
+          </div>
         </div>
       )}
     </div>

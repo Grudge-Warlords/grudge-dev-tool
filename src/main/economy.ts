@@ -7,6 +7,14 @@ import {
   GAME_DATA_URL,
   GBUX_PURCHASE_PACKS,
 } from "../shared/grudgeEconomy";
+import {
+  ECONOMY_API_URLS,
+  type EconomyReward,
+  type LedgerEntry,
+  type SwapQuote,
+  validateGbuxAmount,
+} from "../shared/web3";
+import { FLEET_URLS } from "../shared/fleet";
 
 export interface WalletRecord {
   player_id?: string;
@@ -84,6 +92,7 @@ export async function getGbuxBalance(grudgeId: string): Promise<{
 }> {
   const headers = await authHeaders();
   const urls = [
+    `${ECONOMY_API_URLS.aiHub}/balance?grudgeId=${encodeURIComponent(grudgeId)}`,
     `${GAME_API_URL}/api/economy/balance?grudgeId=${encodeURIComponent(grudgeId)}`,
     `${GAME_API_URL}/api/economy/gbux/${encodeURIComponent(grudgeId)}`,
   ];
@@ -96,6 +105,199 @@ export async function getGbuxBalance(grudgeId: string): Promise<{
     }
   }
   return { ok: false, balance: null, error: "GBUX balance endpoint unavailable" };
+}
+
+async function economyBases(): Promise<string[]> {
+  return [...new Set([
+    ECONOMY_API_URLS.aiHub,
+    `${GAME_API_URL}/api/economy`,
+    `${FLEET_URLS.ai}/v1/economy`,
+  ])];
+}
+
+function mapReward(row: Record<string, unknown>): EconomyReward {
+  return {
+    id: String(row.id ?? ""),
+    grudgeId: String(row.grudgeId ?? row.grudge_id ?? ""),
+    rewardType: (row.rewardType ?? row.reward_type ?? "quest") as EconomyReward["rewardType"],
+    amount: Number(row.amount ?? 0),
+    sourceGame: String(row.sourceGame ?? row.source_game ?? "forge"),
+    sourceRef: (row.sourceRef ?? row.source_ref ?? null) as string | null,
+    title: String(row.title ?? "Reward"),
+    description: (row.description ?? null) as string | null,
+    itemId: (row.itemId ?? row.item_id ?? null) as string | null,
+    nftMint: (row.nftMint ?? row.nft_mint ?? null) as string | null,
+    status: (row.status ?? "pending") as EconomyReward["status"],
+    expiresAt: (row.expiresAt ?? row.expires_at ?? null) as string | null,
+    createdAt: String(row.createdAt ?? row.created_at ?? new Date().toISOString()),
+    claimedAt: (row.claimedAt ?? row.claimed_at ?? null) as string | null,
+  };
+}
+
+function mapLedger(row: Record<string, unknown>): LedgerEntry {
+  return {
+    id: String(row.id ?? ""),
+    grudgeId: String(row.grudgeId ?? row.grudge_id ?? ""),
+    walletAddress: (row.walletAddress ?? row.wallet_address ?? null) as string | null,
+    type: (row.type ?? "transfer") as LedgerEntry["type"],
+    amount: Number(row.amount ?? 0),
+    direction: (row.direction ?? "credit") as LedgerEntry["direction"],
+    sourceGame: (row.sourceGame ?? row.source_game ?? null) as string | null,
+    rewardId: (row.rewardId ?? row.reward_id ?? null) as string | null,
+    txSignature: (row.txSignature ?? row.tx_signature ?? null) as string | null,
+    memo: (row.memo ?? null) as string | null,
+    status: (row.status ?? "pending") as LedgerEntry["status"],
+    createdAt: String(row.createdAt ?? row.created_at ?? new Date().toISOString()),
+  };
+}
+
+export async function listRewards(grudgeId: string): Promise<{
+  ok: boolean;
+  rewards: EconomyReward[];
+  source?: string;
+  error?: string;
+}> {
+  const headers = await authHeaders();
+  for (const base of await economyBases()) {
+    const r = await tryFetchJson(
+      `${base.replace(/\/$/, "")}/rewards?grudgeId=${encodeURIComponent(grudgeId)}`,
+      { headers },
+    );
+    if (r.ok) {
+      const body = r.data as { rewards?: unknown[] };
+      const rewards = (body.rewards ?? []).map((row) => mapReward(row as Record<string, unknown>));
+      return { ok: true, rewards, source: base };
+    }
+  }
+  return { ok: false, rewards: [], error: "Rewards service unavailable" };
+}
+
+export async function claimReward(input: {
+  grudgeId: string;
+  rewardId: string;
+  walletAddress?: string;
+}): Promise<{ ok: boolean; message: string; txSignature?: string }> {
+  const headers = await authHeaders();
+  const body = JSON.stringify({
+    grudgeId: input.grudgeId,
+    rewardId: input.rewardId,
+    walletAddress: input.walletAddress,
+  });
+  for (const base of await economyBases()) {
+    const r = await tryFetchJson(`${base.replace(/\/$/, "")}/rewards/claim`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (r.ok) {
+      const data = r.data as { message?: string; txSignature?: string; tx?: string };
+      return {
+        ok: true,
+        message: data.message ?? "Reward claimed",
+        txSignature: data.txSignature ?? data.tx,
+      };
+    }
+  }
+  return { ok: false, message: "Claim failed — economy service unavailable" };
+}
+
+export async function getLedger(grudgeId: string, limit = 50): Promise<{
+  ok: boolean;
+  entries: LedgerEntry[];
+  source?: string;
+  error?: string;
+}> {
+  const headers = await authHeaders();
+  const q = `grudgeId=${encodeURIComponent(grudgeId)}&limit=${limit}`;
+  for (const base of await economyBases()) {
+    const r = await tryFetchJson(`${base.replace(/\/$/, "")}/ledger?${q}`, { headers });
+    if (r.ok) {
+      const body = r.data as { entries?: unknown[]; ledger?: unknown[] };
+      const raw = body.entries ?? body.ledger ?? [];
+      return { ok: true, entries: raw.map((row) => mapLedger(row as Record<string, unknown>)), source: base };
+    }
+  }
+  return { ok: false, entries: [], error: "Ledger unavailable" };
+}
+
+export async function getSwapQuote(input: {
+  grudgeId: string;
+  pairId: string;
+  fromAmount: number;
+}): Promise<{ ok: boolean; quote: SwapQuote | null; error?: string }> {
+  const headers = await authHeaders();
+  const body = JSON.stringify(input);
+  for (const base of await economyBases()) {
+    const r = await tryFetchJson(`${base.replace(/\/$/, "")}/swap/quote`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (r.ok) {
+      const data = r.data as { quote?: SwapQuote };
+      if (data.quote) return { ok: true, quote: data.quote };
+    }
+  }
+  return { ok: false, quote: null, error: "Swap quote unavailable" };
+}
+
+export async function executeSwap(input: {
+  grudgeId: string;
+  quoteId: string;
+  walletAddress?: string;
+}): Promise<{ ok: boolean; message: string; txSignature?: string }> {
+  const headers = await authHeaders();
+  const body = JSON.stringify(input);
+  for (const base of await economyBases()) {
+    const r = await tryFetchJson(`${base.replace(/\/$/, "")}/swap/execute`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (r.ok) {
+      const data = r.data as { message?: string; txSignature?: string; tx?: string };
+      return {
+        ok: true,
+        message: data.message ?? "Swap submitted",
+        txSignature: data.txSignature ?? data.tx,
+      };
+    }
+    const err = r.data as { error?: string };
+    if (r.status === 400 && err.error) return { ok: false, message: err.error };
+  }
+  return { ok: false, message: "Swap execution unavailable" };
+}
+
+export async function grantReward(input: {
+  grudgeId: string;
+  rewardType: string;
+  amount: number;
+  sourceGame: string;
+  title: string;
+  description?: string;
+  itemId?: string;
+}): Promise<{ ok: boolean; message: string; rewardId?: string }> {
+  const valid = validateGbuxAmount(input.amount);
+  if (!valid.ok) return { ok: false, message: valid.error ?? "Invalid amount" };
+
+  const headers = await authHeaders();
+  const body = JSON.stringify({ ...input, agent: "ale" });
+  for (const base of await economyBases()) {
+    const r = await tryFetchJson(`${base.replace(/\/$/, "")}/rewards/grant`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (r.ok) {
+      const data = r.data as { message?: string; rewardId?: string; id?: string };
+      return {
+        ok: true,
+        message: data.message ?? "Reward granted",
+        rewardId: data.rewardId ?? data.id,
+      };
+    }
+  }
+  return { ok: false, message: "Grant reward failed — admin economy route unavailable" };
 }
 
 export async function requestGbuxPurchase(input: {
@@ -143,6 +345,9 @@ export async function adminGbuxTransfer(input: {
   amount: number;
   memo?: string;
 }): Promise<{ ok: boolean; message: string }> {
+  const valid = validateGbuxAmount(input.amount);
+  if (!valid.ok) return { ok: false, message: valid.error ?? "Invalid amount" };
+
   const treasury = await readCf("aleAdminWallet");
   const r = await tryFetchJson(`${GAME_API_URL}/api/economy/transfer`, {
     method: "POST",

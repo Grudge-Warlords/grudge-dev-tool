@@ -21,6 +21,7 @@ export const GBUX_PURCHASE_PACKS = [
 export const GRUDGE_SERVICES = [
   { id: "id", label: "Grudge ID", url: GRUDGE_ID_URL, role: "identity" },
   { id: "api", label: "Game API", url: GAME_API_URL, role: "economy" },
+  { id: "aiHub", label: "GRUDA AI Hub (economy)", url: "https://ai.grudge-studio.com/v1/economy", role: "economy" },
   { id: "gameData", label: "Game data / wallet", url: GAME_DATA_URL, role: "wallet" },
   { id: "account", label: "Account API", url: ACCOUNT_API_URL, role: "profile" },
   { id: "walletPage", label: "Wallet dashboard", url: "https://grudgewarlords.com/wallet", role: "wallet" },

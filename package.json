@@ -1,6 +1,6 @@
 {
   "name": "grudge-dev-tool",
-  "version": "0.5.9",
+  "version": "0.6.0",
   "description": "Grudge Studio developer tooling — grudge-dev CLI (ONE TRUTH doctor, upload-pack) and Windows Forge tray app (object storage, Forge 3D, BlenderKit).",
   "private": true,
   "homepage": "https://grudge-warlords.github.io/grudge-dev-tool/",

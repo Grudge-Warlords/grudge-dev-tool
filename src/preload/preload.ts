@@ -221,6 +221,23 @@ const api = {
     setAleWallet: (address: string) => ipcRenderer.invoke("accounts:setAleWallet", address),
     getToolPaths: () => ipcRenderer.invoke("accounts:getToolPaths"),
     setToolPath: (key: string, path: string | null) => ipcRenderer.invoke("accounts:setToolPath", key, path),
+    listRewards: (grudgeId: string) => ipcRenderer.invoke("accounts:listRewards", grudgeId),
+    claimReward: (args: { grudgeId: string; rewardId: string; walletAddress?: string }) =>
+      ipcRenderer.invoke("accounts:claimReward", args),
+    ledger: (grudgeId: string, limit?: number) => ipcRenderer.invoke("accounts:ledger", grudgeId, limit),
+    swapQuote: (args: { grudgeId: string; pairId: string; fromAmount: number }) =>
+      ipcRenderer.invoke("accounts:swapQuote", args),
+    swapExecute: (args: { grudgeId: string; quoteId: string; walletAddress?: string }) =>
+      ipcRenderer.invoke("accounts:swapExecute", args),
+    grantReward: (args: {
+      grudgeId: string;
+      rewardType: string;
+      amount: number;
+      sourceGame: string;
+      title: string;
+      description?: string;
+      itemId?: string;
+    }) => ipcRenderer.invoke("accounts:grantReward", args),
   },
   // Dev portal (orchestrator local execution)
   dev: {
