@@ -1,6 +1,7 @@
 import keytar from "keytar";
 import { FLEET_URLS } from "../../shared/fleet";
 import * as puterSession from "../auth/puterSession";
+import { buildLegionFleetContext } from "./fleetTruth";
 
 const SERVICE = "grudge-dev-tool";
 
@@ -121,16 +122,36 @@ export async function listAgents(): Promise<unknown[]> {
   return data.agents ?? (Array.isArray(data) ? data : []);
 }
 
+const INFRA_PATTERN =
+  /\b(worker|workers|cloudflare|d1|r2|deploy|fleet|truth|canonical|mismatch|railway|objectstore|assets\.grudge|api\.grudge|legion|infrastructure|production|vercel)\b/i;
+
+async function messagesWithFleetTruth(opts: {
+  message?: string;
+  messages?: Array<{ role: string; content: string }>;
+  injectFleetTruth?: boolean;
+}): Promise<Array<{ role: string; content: string }>> {
+  const base =
+    opts.messages ?? (opts.message ? [{ role: "user", content: opts.message }] : []);
+  const inject = opts.injectFleetTruth !== false;
+  const text = opts.message ?? opts.messages?.map((m) => m.content).join("\n") ?? "";
+  if (!inject || !INFRA_PATTERN.test(text)) return base;
+  try {
+    const ctx = await buildLegionFleetContext();
+    return [{ role: "system", content: ctx }, ...base];
+  } catch {
+    return base;
+  }
+}
+
 export async function legionChat(opts: {
   message?: string;
   messages?: Array<{ role: string; content: string }>;
   role?: string;
   model?: string;
+  injectFleetTruth?: boolean;
 }): Promise<{ response: string; source: string }> {
   const hub = await getLegionHubUrl();
-  const messages = opts.messages ?? (
-    opts.message ? [{ role: "user", content: opts.message }] : []
-  );
+  const messages = await messagesWithFleetTruth(opts);
   const res = await fetch(`${hub}/api/chat`, {
     method: "POST",
     headers: await authHeaders(),

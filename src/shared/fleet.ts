@@ -4,8 +4,8 @@ export const FLEET_CLIENT_URL = "https://client.grudge-studio.com";
 
 export const FLEET_URLS = {
   auth: "https://id.grudge-studio.com",
-  identityApi: "https://api.grudge-studio.com",
-  gameData: "https://grudge-builder-production.up.railway.app",
+  identityApi: "https://grudge-studio.com",
+  gameData: "https://grudge-api-production-0d46.up.railway.app",
   assets: "https://assets.grudge-studio.com",
   objectStore: "https://objectstore.grudge-studio.com/api/v1",
   client: FLEET_CLIENT_URL,
@@ -33,6 +33,7 @@ export function buildTruthProbes(apiBase: string): TruthProbe[] {
     { id: "auth-verify", label: "Auth verify", url: `${base}/api/auth/verify`, role: "identity" },
     { id: "os-items", label: "master-items.json", url: `${base}/api/objectstore/v1/master-items.json`, role: "objectstore" },
     { id: "os-recipes", label: "master-recipes.json", url: `${base}/api/objectstore/v1/master-recipes.json`, role: "objectstore" },
+    { id: "os-fleet-truth", label: "fleet-truth.json", url: `${base}/api/objectstore/v1/_meta/fleet-truth.json`, role: "objectstore" },
     { id: "icon-pack", label: "Pack weapon icon", url: `${base}/api/assets/icons/pack/weapons/Sword_01.png`, role: "assets" },
     { id: "supabase-health", label: "Supabase health", url: `${base}/api/supabase/health`, role: "game-data" },
   ];

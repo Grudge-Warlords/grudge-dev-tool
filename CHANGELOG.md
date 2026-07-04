@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Added
+
+- **Legion fleet truth** — infra/fleet questions prepend live `fleet-truth.json` + `/api/fleet/truth-audit` snapshot (no invented workers).
+- **Canonical Railway game-data URL** — `grudge-api-production-0d46.up.railway.app`; deprecated `api.grudge-studio.com` removed from fleet registry.
+
 ## [0.5.3] — 2026-06-25
 
 ### Fixed
