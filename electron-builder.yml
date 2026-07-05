@@ -25,6 +25,10 @@ extraResources:
       - "icon-*.png"
       - "icon.ico"
       - "brand/**"
+  - from: resources/tools
+    to: tools
+    filter:
+      - "FBX2glTF.exe"
 extraMetadata:
   main: dist/main/main.js
 # Register Grudge Dev Tool as a Windows file handler so users can

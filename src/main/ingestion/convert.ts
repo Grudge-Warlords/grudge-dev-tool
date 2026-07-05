@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { extname, basename, join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { detectBlender, detectFfmpeg } from "./toolchain";
+import { detectBlender, detectFbx2gltf, detectFfmpeg } from "./toolchain";
 import type { SizeVerifyResult } from "./sizeVerify";
 
 export interface ConvertResult {
@@ -15,7 +15,7 @@ export interface ConvertResult {
   /** A list of additional companion files (e.g., .webp next to a .png). */
   companions: { path: string; role: "webp-companion" | "thumb" | "raw"; sizeBytes: number }[];
   converted: boolean;
-  conversionKind: "none" | "blender-glb" | "sharp-png" | "sharp-webp" | "ffmpeg-ogg";
+  conversionKind: "none" | "fbx2gltf-glb" | "blender-glb" | "sharp-png" | "sharp-webp" | "ffmpeg-ogg";
 }
 
 function runCmd(bin: string, args: string[], cwd?: string): Promise<{ code: number; stdout: string; stderr: string }> {
@@ -92,7 +92,34 @@ export async function convertFile(
   const outDir = opts.outDir ?? join(tmpdir(), "grudge-dev-tool-convert");
   await fs.mkdir(outDir, { recursive: true });
 
-  // Models: BLEND / FBX / OBJ → GLB via Blender headless
+  // FBX → GLB via embedded FBX2glTF (preferred for Mixamo / grudge6 race rigs)
+  if (ext === ".fbx") {
+    const fbx2gltf = await detectFbx2gltf();
+    const outBase = join(outDir, basename(absPath, ext));
+    const outPath = `${outBase}.glb`;
+    if (fbx2gltf.available && fbx2gltf.path) {
+      const r = await runCmd(fbx2gltf.path, [
+        "-i", absPath,
+        "-o", outBase,
+        "-b",
+        "--pbr-metallic-roughness",
+        "--anim-framerate", "bake30",
+      ]);
+      if (r.code === 0 && (await fs.stat(outPath).catch(() => null))) {
+        result.outputPath = outPath;
+        result.converted = true;
+        result.conversionKind = "fbx2gltf-glb";
+        return result;
+      }
+      result.warnings.push(
+        `FBX2glTF failed (exit ${r.code}) — trying Blender fallback. stderr=${r.stderr.slice(0, 240)}`,
+      );
+    } else {
+      result.warnings.push(`FBX2glTF unavailable (${fbx2gltf.reason}) — trying Blender fallback.`);
+    }
+  }
+
+  // Models: BLEND / FBX / OBJ → GLB via Blender headless (fallback for FBX)
   if ([".blend", ".fbx", ".obj"].includes(ext)) {
     const blender = await detectBlender();
     if (!blender.available) {

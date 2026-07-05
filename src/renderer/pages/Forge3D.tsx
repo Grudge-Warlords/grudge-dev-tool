@@ -197,11 +197,42 @@ export default function Forge3D() {
     if (!engineRef.current) return;
     setLoading(true);
     try {
-      const loaded: LoadedModel = await loadModel(file);
+      let loadFile = file;
+      let resolvedDiskPath = diskPath;
+      if (file.name.toLowerCase().endsWith(".fbx")) {
+        let sourcePath = diskPath;
+        if (!sourcePath) {
+          const buf = await file.arrayBuffer();
+          sourcePath = await window.grudge.forge.writeTempFile({
+            name: file.name,
+            bytes: new Uint8Array(buf),
+          });
+        }
+        const converted = await window.grudge.ingest.convert(sourcePath) as {
+          ok: boolean;
+          converted: boolean;
+          outputPath: string;
+          conversionKind: string;
+          errors: string[];
+          warnings: string[];
+        };
+        if (converted.ok && converted.converted) {
+          const res = await window.grudge.forge.readFile(converted.outputPath);
+          const glbName = converted.outputPath.split(/[\\/]/).pop() ?? file.name.replace(/\.fbx$/i, ".glb");
+          loadFile = new File([res.bytes], glbName, { type: "model/gltf-binary" });
+          resolvedDiskPath = converted.outputPath;
+          if (converted.conversionKind === "fbx2gltf-glb") {
+            toast.info("FBX converted via FBX2glTF", { description: glbName });
+          }
+        } else if (converted.errors?.length) {
+          toast.warning("FBX2glTF conversion skipped", { description: converted.errors[0] });
+        }
+      }
+      const loaded: LoadedModel = await loadModel(loadFile);
       // Inspect GLB binary container if applicable.
       let inspection: GlbInspection | null = null;
-      if (file.name.toLowerCase().endsWith(".glb")) {
-        const buf = await file.arrayBuffer();
+      if (loadFile.name.toLowerCase().endsWith(".glb")) {
+        const buf = await loadFile.arrayBuffer();
         inspection = inspectGlb(buf);
       }
       const id = `e${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
@@ -213,7 +244,7 @@ export default function Forge3D() {
       const sourceRest = loaded.bones > 0 ? captureRestPose(loaded.object) : null;
       const item: SceneItem = {
         id,
-        name: file.name,
+        name: loadFile.name,
         format: loaded.format,
         object: loaded.object,
         animations: loaded.animations,
@@ -222,11 +253,11 @@ export default function Forge3D() {
         vertices: loaded.vertices,
         bones: loaded.bones,
         inspection,
-        bytes: file.size,
+        bytes: loadFile.size,
         rig,
         bodyMorph: { ...DEFAULT_BODY_MORPH },
         sourceRest,
-        diskPath: diskPath ?? (() => {
+        diskPath: resolvedDiskPath ?? (() => {
           try { return window.grudge.files.getPathForFile(file) || null; } catch { return null; }
         })(),
       };
@@ -235,7 +266,7 @@ export default function Forge3D() {
       setSelectedNodeUuid(null);
       if (autoFrame) engineRef.current.frame(loaded.object);
       const rigHint = rig.fingerprintLabel ? ` · ${rig.fingerprintLabel}` : rig.boneCount > 0 ? ` · ${rig.boneCount} bones` : "";
-      toast.success(`Loaded ${file.name}`, {
+      toast.success(`Loaded ${loadFile.name}`, {
         description: `${loaded.triangles.toLocaleString()} triangles · ${loaded.animations.length} clip${loaded.animations.length === 1 ? "" : "s"}${rigHint}`,
       });
     } catch (err: any) {

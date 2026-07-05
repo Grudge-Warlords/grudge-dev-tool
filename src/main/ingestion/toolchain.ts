@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import * as toolPaths from "../toolPaths";
+import { resolveBundledFbx2gltf } from "./fbx2gltfPath";
 
 const nodeRequire = createRequire(join(__dirname, "..", "..", "package.json"));
 
@@ -76,6 +77,31 @@ const WIN_FFMPEG_CANDIDATES = [
   "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
   "C:\\ProgramData\\chocolatey\\bin\\ffmpeg.exe",
 ];
+
+const WIN_FBX2GLTF_CANDIDATES = [
+  "D:\\FBX2glTF.exe",
+  "C:\\Tools\\FBX2glTF.exe",
+];
+
+export async function detectFbx2gltf(): Promise<ToolStatus> {
+  const stored = await toolPaths.getToolPath("fbx2gltf");
+  const envPath = process.env.FBX2GLTF_PATH;
+  const path =
+    (stored && existsSync(stored) ? stored : null)
+    ?? (envPath && existsSync(envPath) ? envPath : null)
+    ?? resolveBundledFbx2gltf()
+    ?? which("FBX2glTF")
+    ?? firstExisting(WIN_FBX2GLTF_CANDIDATES);
+  if (!path) {
+    return {
+      name: "FBX2glTF",
+      available: false,
+      reason: "Not found — bundled tool missing or set path in Accounts → Toolchain.",
+    };
+  }
+  const version = probeVersion(path, ["-V", "--version"]);
+  return { name: "FBX2glTF", available: true, path, version };
+}
 
 export async function detectFfmpeg(): Promise<ToolStatus> {
   const stored = await toolPaths.getToolPath("ffmpeg");
@@ -161,6 +187,7 @@ export async function detectAll(): Promise<ToolStatus[]> {
   return [
     detectSharp(),
     detectGltfTransform(),
+    await detectFbx2gltf(),
     await detectBlender(),
     await detectFfmpeg(),
     await detectBlenderKit(),

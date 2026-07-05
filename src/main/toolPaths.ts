@@ -17,7 +17,7 @@ async function getStore(): Promise<Store> {
   return cachedStore;
 }
 
-export type ToolPathKey = "blender" | "ffmpeg" | "blenderkit";
+export type ToolPathKey = "blender" | "ffmpeg" | "blenderkit" | "fbx2gltf";
 
 export async function getToolPath(key: ToolPathKey): Promise<string | null> {
   const store = await getStore();
@@ -32,10 +32,11 @@ export async function setToolPath(key: ToolPathKey, path: string | null): Promis
 }
 
 export async function getAllToolPaths(): Promise<Record<ToolPathKey, string | null>> {
-  const [blender, ffmpeg, blenderkit] = await Promise.all([
+  const [blender, ffmpeg, blenderkit, fbx2gltf] = await Promise.all([
     getToolPath("blender"),
     getToolPath("ffmpeg"),
     getToolPath("blenderkit"),
+    getToolPath("fbx2gltf"),
   ]);
-  return { blender, ffmpeg, blenderkit };
+  return { blender, ffmpeg, blenderkit, fbx2gltf };
 }

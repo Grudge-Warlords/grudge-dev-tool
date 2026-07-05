@@ -38,6 +38,7 @@ const api = {
   // Ingestion (single file)
   ingest: {
     one: (path: string, opts: any) => ipcRenderer.invoke("ingest:one", { path, opts }),
+    convert: (path: string) => ipcRenderer.invoke("ingest:convert", { path }),
   },
   // BlenderKit
   bk: {

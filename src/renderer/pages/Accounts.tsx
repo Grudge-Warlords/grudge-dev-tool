@@ -149,7 +149,7 @@ export default function Accounts() {
     }
   }
 
-  async function saveToolPath(key: "blender" | "ffmpeg" | "blenderkit") {
+  async function saveToolPath(key: "blender" | "ffmpeg" | "blenderkit" | "fbx2gltf") {
     const current = toolPaths[key] ?? "";
     const next = prompt(`Path to ${key} executable/folder:`, current) ?? null;
     if (next === null) return;
@@ -557,14 +557,14 @@ export default function Accounts() {
           </tbody>
         </table>
         <div className="flex flex-wrap gap-2">
-          {(["blender", "ffmpeg", "blenderkit"] as const).map((k) => (
+          {(["fbx2gltf", "blender", "ffmpeg", "blenderkit"] as const).map((k) => (
             <button key={k} type="button" className="btn ghost text-xs" onClick={() => void saveToolPath(k)}>
               Set {k} path
             </button>
           ))}
         </div>
         <p className="text-[10px] text-muted mt-2">
-          gltf-transform ships with Forge. Point Blender/ffmpeg/BlenderKit at your local installs if not on PATH.
+          FBX2glTF ships embedded for FBX→GLB (grudge6 / Mixamo). Override paths for Blender, ffmpeg, or BlenderKit if not on PATH.
         </p>
       </div>
 

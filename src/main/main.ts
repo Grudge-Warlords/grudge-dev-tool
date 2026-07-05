@@ -9,7 +9,7 @@ import * as api from "./api";
 import { uploader } from "./uploader";
 import * as bk from "./blenderkit/daemon";
 import { detectAll } from "./ingestion/toolchain";
-import { ingestOne } from "./ingestion";
+import { ingestOne, convertFile, verifyFile } from "./ingestion";
 import { inspectModel } from "./ingestion/modelInspect";
 import { extractZip } from "./ingestion/archive";
 import log, { initLogger, getLogFilePath } from "./logger";
@@ -314,6 +314,10 @@ function registerIpc() {
 
   // Ingestion (single file run, used by the Upload page preview)
   ipcMain.handle("ingest:one", (_e, args) => ingestOne(args.path, args.opts));
+  ipcMain.handle("ingest:convert", async (_e, args: { path: string }) => {
+    const sizeRes = await verifyFile(args.path);
+    return convertFile(args.path, sizeRes);
+  });
 
   // BlenderKit
   ipcMain.handle("bk:search", (_e, opts) => bk.searchAssets(opts));
