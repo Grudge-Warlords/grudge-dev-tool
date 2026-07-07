@@ -127,7 +127,7 @@ export async function r2Health(): Promise<{ ok: boolean; latencyMs: number; erro
 /**
  * Compose the public CDN URL for a key.
  *
- * Resolution order (matches canonical grudge-studio-backend wiring):
+ * Resolution order (fleet SSOT — GrudgeBuilder/shared/fleet/manifest.ts):
  *   1. keytar `cf-r2-public-url`        — user override (custom CNAME)
  *   2. keytar `cf-r2-public-r2-url`     — r2.dev fallback when no custom domain
  *   3. process.env.OBJECT_STORAGE_PUBLIC_URL

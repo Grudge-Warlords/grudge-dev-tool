@@ -2,8 +2,9 @@
 
 export const GRUDGE_ID_URL = "https://id.grudge-studio.com";
 export const GAME_API_URL = "https://api.grudge-studio.com";
-export const GAME_DATA_URL = "https://grudge-builder-production.up.railway.app";
-export const ACCOUNT_API_URL = "https://account.grudge-studio.com";
+export const GAME_DATA_URL = "https://grudge-api-production-0d46.up.railway.app";
+/** Profiles/social — unified on grudge-backend (account.grudge-studio.com retired). */
+export const ACCOUNT_API_URL = "https://api.grudge-studio.com";
 export const ACCOUNT_PAGE_URL = `${GRUDGE_ID_URL}/account`;
 
 /** Solana SPL mint — GBUX utility token (fleet ONE TRUTH). */

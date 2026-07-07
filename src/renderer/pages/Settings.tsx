@@ -287,7 +287,7 @@ export default function Settings() {
             <button className="btn ghost" onClick={saveAssetsApiBase}>Save</button>
           </div>
           <div className="muted text-[10px] mt-1">
-            Leave empty for ONE TRUTH. Set only when objectstore routes to a separate host (e.g. <span className="font-mono">assets-api.grudge-studio.com</span>).
+            Leave empty for ONE TRUTH. Set only for legacy split-host installs (deprecated — use <span className="font-mono">objectstore.grudge-studio.com</span>).
           </div>
         </details>
       </div>
