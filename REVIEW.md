@@ -1,5 +1,7 @@
 # grudge-dev-tool — Production audit (v0.3.2 → v0.3.3)
 
+> **Superseded (2026-07):** Fleet SSOT is `GrudgeBuilder/shared/fleet/manifest.ts` + **grudge-backend**. `grudge-studio-backend` is archived. This audit is historical.
+
 Generated 2026-04-29 against commit on `main`. Audit notes from v0.3.2; **all 8 findings resolved in v0.3.3**.
 
 The audit was scoped to:
