@@ -26,6 +26,21 @@ const THUMB = (repo: string) =>
 /** Static fleet catalog — merged with live grudgedot /api/games when available. */
 export const FLEET_GAMES: FleetGame[] = [
   {
+    id: "grudge-studio",
+    name: "grudge-dev-tool",
+    displayName: "Grudge Studio",
+    description:
+      "Canonical desktop hub — ONE TRUTH fleet, assets, Forge, and Coder in one app (v0.7.0).",
+    url: "https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest",
+    repo: "grudge-dev-tool",
+    engine: "Electron + React + Three.js",
+    status: "live",
+    category: "tool",
+    topics: ["tool", "assets", "forge", "coder", "studio"],
+    thumbnail: THUMB("grudge-dev-tool"),
+    releasesUrl: "https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.7.0",
+  },
+  {
     id: "grudgewarlords",
     name: "Grudge-Warlords",
     displayName: "Grudge Warlords",
@@ -43,15 +58,30 @@ export const FLEET_GAMES: FleetGame[] = [
   {
     id: "studio-forge",
     name: "RTS-Grudge",
-    displayName: "Grudge Studio Forge",
-    description: "Fleet map & model editor — terrain, ObjectStore CDN, play mode. Warlords · RTS · DCQ.",
+    displayName: "Forge",
+    description:
+      "Full scene editor (forge.grudge-studio.com) — also embedded in Grudge Studio desktop.",
     url: "https://forge.grudge-studio.com",
     repo: "RTS-Grudge",
     engine: "R3F + Rapier + drei",
     status: "live",
     category: "tool",
-    topics: ["tool", "editor", "3d"],
+    topics: ["tool", "editor", "3d", "studio"],
     thumbnail: THUMB("RTS-Grudge"),
+  },
+  {
+    id: "studio-coder",
+    name: "GrudachainCode",
+    displayName: "Coder",
+    description:
+      "Agentic vibe IDE (coder.grudge-studio.com) — also embedded in Grudge Studio desktop.",
+    url: "https://coder.grudge-studio.com",
+    repo: "GrudachainCode",
+    engine: "Monaco + CF Workers",
+    status: "live",
+    category: "tool",
+    topics: ["tool", "ide", "ai", "studio"],
+    thumbnail: THUMB("GrudachainCode"),
   },
   {
     id: "rts-grudge",
