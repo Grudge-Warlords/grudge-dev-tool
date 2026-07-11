@@ -9,17 +9,31 @@ export const STUDIO_MODULE_URLS = {
   forgeEditor: "https://forge.grudge-studio.com/editor",
 } as const;
 
+/**
+ * Keep aligned with live client manifest:
+ *   https://client.grudge-studio.com/api/fleet/manifest
+ * and grudge-builder `shared/fleet/manifest.ts` (SSOT for URLs).
+ */
 export const FLEET_URLS = {
   auth: "https://id.grudge-studio.com",
-  identityApi: "https://api.grudge-studio.com",
-  gameData: "https://grudge-builder-production.up.railway.app",
+  /** Identity portal / The-ENGINE — NOT api.grudge-studio.com (deprecated auth path). */
+  identityApi: "https://grudge-studio.com",
+  /** Postgres game-data Railway — never grudge-builder-production.* */
+  gameData: "https://grudge-api-production-0d46.up.railway.app",
   assets: "https://assets.grudge-studio.com",
   objectStore: "https://objectstore.grudge-studio.com/api/v1",
   client: FLEET_CLIENT_URL,
   ai: "https://ai.grudge-studio.com",
   warlords: "https://grudgewarlords.com",
+  characters: "https://character.grudge-studio.com",
+  arena: "https://arena.grudge-studio.com",
+  play: "https://play.grudge.studio",
+  survival: "https://survival.grudge-studio.com",
+  dcq: "https://dcq.grudge-studio.com",
   coder: STUDIO_MODULE_URLS.coder,
   forge: STUDIO_MODULE_URLS.forge,
+  /** Dead for auth — probe may still hit 200 HTML; never use for SSO. */
+  deprecatedApi: "https://api.grudge-studio.com",
 } as const;
 
 export type TruthProbeRole = "game-data" | "identity" | "assets" | "objectstore";
