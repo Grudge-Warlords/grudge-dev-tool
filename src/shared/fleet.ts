@@ -2,6 +2,13 @@
 
 export const FLEET_CLIENT_URL = "https://client.grudge-studio.com";
 
+/** Production module surfaces embedded inside Grudge Studio (Coder + Forge). */
+export const STUDIO_MODULE_URLS = {
+  coder: "https://coder.grudge-studio.com",
+  forge: "https://forge.grudge-studio.com",
+  forgeEditor: "https://forge.grudge-studio.com/editor",
+} as const;
+
 export const FLEET_URLS = {
   auth: "https://id.grudge-studio.com",
   identityApi: "https://api.grudge-studio.com",
@@ -11,6 +18,8 @@ export const FLEET_URLS = {
   client: FLEET_CLIENT_URL,
   ai: "https://ai.grudge-studio.com",
   warlords: "https://grudgewarlords.com",
+  coder: STUDIO_MODULE_URLS.coder,
+  forge: STUDIO_MODULE_URLS.forge,
 } as const;
 
 export type TruthProbeRole = "game-data" | "identity" | "assets" | "objectstore";

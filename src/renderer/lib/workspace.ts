@@ -7,10 +7,12 @@ export interface WorkspaceMirror {
   browserPrefix?: string;
   searchQuery?: string;
   forgeLastUrl?: string;
+  forgeMode?: "full" | "quick";
   localAssetsRoot?: string;
   coderRoot?: string;
   coderProjectDir?: string;
   coderPort?: number;
+  coderMode?: "production" | "local";
   engineRoot?: string;
   enginePort?: number;
   engineUseLocal?: boolean;

@@ -1,8 +1,58 @@
 # Changelog
 
-All notable changes to **grudge-dev-tool** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to **Grudge Studio** (`grudge-dev-tool` repo) are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.7.0] — 2026-07-11
+
+### Added — Grudge Studio all-in-one shell
+
+- **Product rebrand** — display name **Grudge Studio** (installer, tray, window title). `appId` remains `com.grudgestudio.forge` for updater continuity.
+- **Home hub** (`/home`) — ONE TRUTH score, canonical host map, launchers for Forge / Coder / Assets / Engine / Games.
+- **Coder production mode** — embeds `https://coder.grudge-studio.com` by default; **Local** still launches GrudachainCode.
+- **Forge dual mode** — **Full Forge** webview (`forge.grudge-studio.com/editor`) + **Quick 3D** (existing in-process editor). File pop-out still uses Quick 3D.
+- **Grouped sidebar** — Studio · Assets · Create · Run · System.
+- **Fleet SSOT** — `STUDIO_MODULE_URLS` / `FLEET_URLS.coder` / `FLEET_URLS.forge` in `shared/fleet.ts`.
+- **Docs** — `docs/grudge-studio.md` product charter.
+
+### Added — Quick 3D (Forge) editor parity
+
+- **Clip distances** — camera near/far/FOV panel with Prop / Character / Arena / World presets; default far **100k** + logarithmic depth buffer for large scenes.
+- **Mesh-level outliner** — full hierarchy (Group/Mesh/SkinnedMesh/Bone/LOD/Light) with geometry name, material, tri counts, collapse, hide/show, type colors.
+- **Object properties** — editable position/rotation/scale, mesh breakdown (verts, morphs, bones, shadows).
+- **Camera panel** — fog (none/linear/exp2), clip plane controls.
+- **Viewport** — click-to-select, ViewHelper axes, render stats overlay, wireframe (X), local/world gizmo (Q), snap, frame-all (A).
+- **Auto frame** expands near/far from selection bounds so distant LODs and tiny props both render.
+
+### Changed
+
+- Default route → `/home`.
+- Coder & Forge no longer admin-only (Upload/Settings still gated).
+- Quit / tray / auth success copy → “Grudge Studio”.
+
+### Notes
+
+- Web coder/forge deploys unchanged; Studio embeds them as modules.
+- Installer: `Grudge Studio-Setup-0.7.0.exe`.
 
 ## [Unreleased]
+
+## [0.6.1] — 2026-07-09
+
+### Added
+
+- **Arena Skirmish play mode** — third-person combat sandbox (WASD, click/Space strike, Shift+drag look, wave dummies).
+- **Tower Defense placement** — click grid to place towers; hotkeys `1–4` select Arrow / Magic / Cannon / Fire; seed towers no longer drain starter gold.
+- **Games Hub filters** — search, category + status filters, live-merge count, status badges.
+- **Fleet catalog** — Flare Boss Arena entry.
+- **Legion panel** — agent list, hub/agent/RAG/whisper latency chips, starter prompts, clear chat.
+- **Forge 3D hotkeys** — `W/E/R` gizmo, `F` frame, `G` grid, `Del` remove selected; viewport hint strip.
+
+### Changed
+
+- Sidebar label **GrudaChain → Legion** (route still `/legion`; GrudaChain RAG remains a mode).
+- Games Hub prototypes tab labeled **Play modes**.
+- Play mode HUD shows controls help and per-mode live stats.
+- Forge 3D status pill shows Rapier body count when physics is armed.
 
 ## [0.6.0] — 2026-06-28
 
@@ -262,7 +312,8 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - Tailwind CSS, lucide-react icons, sonner toasts, TanStack Query data layer.
 - Full icon set generation (`scripts/build-icons.mjs`) from the brand emblem source.
 
-[Unreleased]: https://github.com/Grudge-Warlords/grudge-dev-tool/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/Grudge-Warlords/grudge-dev-tool/compare/v0.7.0...HEAD
+[0.7.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.7.0
 [0.6.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.6.0
 [0.5.1]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.5.1
 [0.5.0]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.5.0

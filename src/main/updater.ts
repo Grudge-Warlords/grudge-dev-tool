@@ -38,7 +38,7 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
       type: "info",
       buttons: ["Restart now", "Later"],
       defaultId: 0,
-      message: `Grudge Dev Tool ${info?.version} ready to install`,
+      message: `Grudge Studio ${info?.version} ready to install`,
       detail: "Restart to apply the update.",
     }).then((res) => {
       if (res.response === 0) autoUpdater.quitAndInstall();

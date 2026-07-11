@@ -23,7 +23,7 @@ const CALLBACK_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
 const SUCCESS_HTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Signed in</title>
 <style>body{font-family:system-ui;background:#0c1334;color:#ffc62a;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;padding:24px}</style>
-</head><body><div><h1>Authentication successful</h1><p>Return to Grudge Studio Forge.</p></div></body></html>`;
+</head><body><div><h1>Authentication successful</h1><p>Return to Grudge Studio.</p></div></body></html>`;
 
 function isPuterHost(hostname: string): boolean {
   return hostname === "puter.com" || /\.puter\.(com|site)$/i.test(hostname);

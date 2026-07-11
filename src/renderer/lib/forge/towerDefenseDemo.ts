@@ -66,9 +66,14 @@ export class TowerDefenseDemo {
   private lives = 20;
   private spawnTimer = 0;
   private spawnQueue: number[] = [];
+  private selectedType: TowerKey = "arrow";
+  private pathSet = new Set<string>();
+  private raycaster = new THREE.Raycaster();
+  private pointer = new THREE.Vector2();
+  private groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
   /** Callbacks for the UI */
-  onStats?: (s: { gold: number; wave: number; lives: number; enemies: number }) => void;
+  onStats?: (s: { gold: number; wave: number; lives: number; enemies: number; selectedTower: string }) => void;
 
   constructor(private container: HTMLElement) {
     const w = Math.max(1, container.clientWidth);
@@ -101,6 +106,17 @@ export class TowerDefenseDemo {
     this.tick();
 
     window.addEventListener("resize", this.onResize);
+    this.renderer.domElement.addEventListener("pointerdown", this.onPointerDown);
+    window.addEventListener("keydown", this.onKeyDown);
+  }
+
+  /** UI can switch tower type before clicking the grid. */
+  setTowerType(type: TowerKey) {
+    if (type in TOWER_DEFS) this.selectedType = type;
+  }
+
+  getTowerTypes() {
+    return Object.entries(TOWER_DEFS).map(([key, def]) => ({ key: key as TowerKey, ...def }));
   }
 
   // ── Map ───────────────────────────────────────────────────────────────────
@@ -130,6 +146,8 @@ export class TowerDefenseDemo {
       } else { x = Math.min(GRID_W - 1, x + 1); this.path.push(new THREE.Vector3(x, 0, z)); }
     }
 
+    this.pathSet = new Set(this.path.map(p => `${p.x},${p.z}`));
+
     // Draw path tiles
     for (const p of this.path) {
       const tile = new THREE.Mesh(
@@ -140,28 +158,29 @@ export class TowerDefenseDemo {
       this.scene.add(tile);
     }
 
-    // Auto-place towers on non-path cells near the path
-    const pathSet = new Set(this.path.map(p => `${p.x},${p.z}`));
+    // Seed a few free towers so waves aren't empty on first load
     const towerKeys = Object.keys(TOWER_DEFS) as TowerKey[];
     let placed = 0;
-    for (let gx = 0; gx < GRID_W && placed < 8; gx++) {
-      for (let gz = 0; gz < GRID_H && placed < 8; gz++) {
-        if (pathSet.has(`${gx},${gz}`)) continue;
-        // Only near the path
+    for (let gx = 0; gx < GRID_W && placed < 4; gx++) {
+      for (let gz = 0; gz < GRID_H && placed < 4; gz++) {
+        if (this.pathSet.has(`${gx},${gz}`)) continue;
         const nearPath = this.path.some(p => Math.abs(p.x - gx) <= 1 && Math.abs(p.z - gz) <= 1);
-        if (!nearPath) continue;
-        if (Math.random() > 0.35) continue;
+        if (!nearPath || Math.random() > 0.4) continue;
         const tk = towerKeys[placed % towerKeys.length];
-        this.placeTower(tk, gx, gz);
+        this.placeTower(tk, gx, gz, true);
         placed++;
       }
     }
   }
 
-  placeTower(type: TowerKey, gx: number, gz: number) {
+  placeTower(type: TowerKey, gx: number, gz: number, free = false): boolean {
+    if (this.pathSet.has(`${gx},${gz}`)) return false;
+    if (this.towers.some(t => t.gx === gx && t.gz === gz)) return false;
     const def = TOWER_DEFS[type];
-    if (this.gold < def.cost) return;
-    this.gold -= def.cost;
+    if (!free) {
+      if (this.gold < def.cost) return false;
+      this.gold -= def.cost;
+    }
 
     const group = new THREE.Group();
     const h = 1.2;
@@ -187,7 +206,27 @@ export class TowerDefenseDemo {
     group.position.set(gx + 0.5, 0, gz + 0.5);
     this.scene.add(group);
     this.towers.push({ mesh: group, type, gx, gz, range: def.range, rate: def.rate, dmg: def.dmg, lastFired: 0 });
+    return true;
   }
+
+  private onPointerDown = (e: PointerEvent) => {
+    if (e.button !== 0 || this.disposed) return;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const hit = new THREE.Vector3();
+    if (!this.raycaster.ray.intersectPlane(this.groundPlane, hit)) return;
+    const gx = Math.floor(hit.x);
+    const gz = Math.floor(hit.z);
+    if (gx < 0 || gz < 0 || gx >= GRID_W || gz >= GRID_H) return;
+    this.placeTower(this.selectedType, gx, gz, false);
+  };
+
+  private onKeyDown = (e: KeyboardEvent) => {
+    const map: Record<string, TowerKey> = { "1": "arrow", "2": "magic", "3": "cannon", "4": "fire" };
+    if (map[e.key]) this.selectedType = map[e.key];
+  };
 
   // ── Waves ─────────────────────────────────────────────────────────────────
   private startWave() {
@@ -311,6 +350,7 @@ export class TowerDefenseDemo {
     this.onStats?.({
       gold: this.gold, wave: this.wave, lives: this.lives,
       enemies: this.enemies.filter(e => !e.dead).length,
+      selectedTower: this.selectedType,
     });
   };
 
@@ -327,6 +367,8 @@ export class TowerDefenseDemo {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this.onResize);
+    window.removeEventListener("keydown", this.onKeyDown);
+    this.renderer.domElement.removeEventListener("pointerdown", this.onPointerDown);
     this.controls.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();

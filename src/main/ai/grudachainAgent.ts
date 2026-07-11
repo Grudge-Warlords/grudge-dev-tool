@@ -4,7 +4,7 @@ import { r2List, r2PublicUrl } from "../cf/r2Direct";
 import { fetchObjectStoreCatalog } from "../legion/orchestrator";
 import { FLEET_GAMES } from "../../shared/fleetGames";
 
-const GRUDACHAIN_SYSTEM = `You are GRUDA — the Grudge Studio agentic dev copilot inside Grudge Dev Tool.
+const GRUDACHAIN_SYSTEM = `You are GRUDA — the Grudge Studio agentic dev copilot inside Grudge Studio.
 You have RAG knowledge from the user's AnythingLLM workspace (Grudge-trained docs, pipelines, lore).
 You can request tools by replying with a single JSON line wrapped in <tool>...</tool> tags, then wait for results.
 

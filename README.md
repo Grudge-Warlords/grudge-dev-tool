@@ -1,4 +1,4 @@
-# Grudge Dev Tool
+# Grudge Studio
 
 [![Release](https://img.shields.io/github/v/release/Grudge-Warlords/grudge-dev-tool?display_name=tag&sort=semver)](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest)
 [![Pages](https://img.shields.io/github/actions/workflow/status/Grudge-Warlords/grudge-dev-tool/pages.yml?label=docs)](https://grudge-warlords.github.io/grudge-dev-tool/)
@@ -8,16 +8,16 @@
 [![Three.js](https://img.shields.io/badge/three.js-r169-049ef4.svg)](https://threejs.org/)
 [![Node](https://img.shields.io/badge/node-22.x-339933.svg?logo=nodedotjs)](https://nodejs.org/)
 
-Grudge Studio developer tooling for the **ONE TRUTH** fleet — one URL (`client.grudge-studio.com`) for manifest, auth, objectstore JSON, uploads, and health probes.
+**Grudge Studio** — the canonical desktop app for the **ONE TRUTH** fleet: information, assets, **Forge**, and **Coder** in one shell. API base: `client.grudge-studio.com`.
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **`grudge-dev` CLI** | v0.5.0 | Autonomous setup, `doctor`, `login`, `upload-pack`, `fleet`, `search` — lives in [`cli/`](cli/) |
-| **Forge tray app** | v0.6.0 | Windows tray + GrudgeLoader overlay, Grudge Engine tab, GrudaChain, Forge 3D, BlenderKit, auto-update |
+| **Grudge Studio** | v0.7.0 | Windows tray app: Home hub, assets, Forge (full + Quick 3D), Coder (prod + local), Engine, Legion |
+| **`grudge-dev` CLI** | v0.5.x | Autonomous setup, `doctor`, `login`, `upload-pack`, `fleet`, `search` — [`cli/`](cli/) |
 
-📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/> · [CLI quickstart](docs/cli-quickstart.md) · [ONE TRUTH](docs/one-truth.md) · [Tray quickstart](docs/dev-tool-quickstart.md)
+📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/> · [Studio charter](docs/grudge-studio.md) · [CLI](docs/cli-quickstart.md) · [ONE TRUTH](docs/one-truth.md)
 
-⬇ **Forge installer:** [`Grudge Studio Forge-Setup-0.6.0.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.6.0/Grudge-Studio-Forge-Setup-0.6.0.exe) · Windows x64 · NSIS · auto-updating
+⬇ **Installer:** [latest release](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) · Windows x64 · NSIS · auto-updating · product name **Grudge Studio**
 
 ---
 
@@ -45,31 +45,32 @@ grudge-dev doctor          # expect 100% when fleet is wired
 grudge-dev login --admin-password <pw>
 ```
 
-**Forge tray**
+**Grudge Studio**
 
-1. Install the `.exe` (or wait for auto-update from v0.3.x).
+1. Install the `.exe` (or auto-update from prior “Forge” tray builds).
 2. **Settings → Grudge identity → ONE TRUTH** (sets `client.grudge-studio.com`, clears legacy overrides).
 3. Sign in or paste a bearer token from `id.grudge-studio.com`.
-4. Status bar shows **ONE TRUTH 100%** when all six probes pass (same checks as `grudge-dev doctor`).
+4. **Home** and the status bar show **ONE TRUTH** score (same probes as `grudge-dev doctor`).
+5. Open **Forge** (Full or Quick 3D) and **Coder** (Production or Local) from Create.
 
-Legacy split-host override remains under **Settings → Legacy split-host override** for installs that still route objectstore to a separate host.
+Legacy split-host override remains under **Settings → Legacy split-host override**.
 
 ---
 
-## Forge tray — features
+## Grudge Studio — features
 
-Windows tray app for the Grudge Studio team: browse object storage, search the asset catalog, mass-upload through a mandatory ingestion pipeline, generate Grudge UUIDs, pull from BlenderKit, and **author / preview / convert / upload 3D models** with the built-in **Forge 3D** editor. Also registers as a Windows default 3D viewer for `.glb` / `.gltf` / `.fbx` / `.obj` / `.stl` / `.ply` / `.dae` / `.3mf`.
+Canonical hub for the Grudge team: fleet truth, object storage, Forge, and Coder without leaving the app. Registers as a Windows 3D viewer for `.glb` / `.gltf` / `.fbx` / `.obj` / `.stl` / `.ply` / `.dae` / `.3mf`.
 
 | Surface | What it does |
 |---|---|
 | **Tray icon** | Gold-helm emblem. Left-click → GrudgeLoader. Double-click → main window. Right-click → menu. |
-| **Main window** | Browser · Search · Upload · Request URL · UUID · BlenderKit · **Forge 3D** · Coder · **Preview** · Settings — status bar shows ONE TRUTH score, admin pill, logs, update progress. |
-| **Forge 3D** | Three.js (r169) editor/viewer with PBR, IBL, TransformControls, animation clips, `Convert → GLB → Upload to R2`. |
-| **GrudgeLoader** | Always-on-top overlay: pinned folders, prefix browse, drag-drop bulk upload, per-asset copy buttons (path / CDN / curl / wget / Node snippet). |
-| **Ingestion** | Mandatory pipeline: `size-verify → convert → enrich → rig → hash → UUID → upload → manifest` (20+ file types). |
-| **Object storage backends** | **R2 direct** (when creds present) → **Cloudflare Worker** → **fleet client** (`grudge` mode, ONE TRUTH default). Override in Settings. |
-| **Connectivity** | Every 30s: six ONE TRUTH probes when backend is `grudge`; status bar shows `ONE TRUTH N%`. |
-| **Auto-update** | `electron-updater` checks GitHub releases every 4h. |
+| **Home** | ONE TRUTH meter, host map, launchers for Forge / Coder / Assets / Engine / Games. |
+| **Assets** | Browser · Search · Upload · Store · BlenderKit · mandatory ingestion pipeline. |
+| **Forge** | **Full** embeds `forge.grudge-studio.com/editor`; **Quick 3D** is the in-process Three.js viewer (file open / pop-out). |
+| **Coder** | **Production** embeds `coder.grudge-studio.com`; **Local** spawns GrudachainCode + HF injection. |
+| **Engine / Games / Legion** | Characters, VFX, fleet launcher, agentic RAG (`Ctrl+/`). |
+| **Connectivity** | 30s ONE TRUTH probes; status bar `ONE TRUTH N%`. |
+| **Auto-update** | `electron-updater` → GitHub releases every 4h. |
 
 ---
 
@@ -85,11 +86,11 @@ npm install -g .
 grudge-dev --version
 ```
 
-### Forge tray (from release)
+### Grudge Studio (from release)
 
 Download the latest `.exe` from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) and run it.
 
-### Forge tray (from source)
+### Grudge Studio (from source)
 
 ```powershell
 git clone https://github.com/Grudge-Warlords/grudge-dev-tool.git

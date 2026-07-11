@@ -2,18 +2,42 @@
 layout: default
 title: Home
 nav_order: 1
-description: Grudge Studio developer tooling — autonomous CLI (v0.5) + Windows Forge tray app (v0.6).
+description: Grudge Studio — canonical truth, assets, Forge, and Coder in one Windows app + grudge-dev CLI.
 permalink: /
 ---
-# Grudge Dev Tool
+# Grudge Studio
 
 {: .fs-9 }
-Grudge Studio developer tooling — **ONE TRUTH** fleet wiring, asset-pack uploads, and the Windows **Forge** tray app.
+The **best** Grudge desktop app — **ONE TRUTH** fleet info, **asset** pipeline, **Forge**, and **Coder** in one shell.
 {: .fs-5 .fw-300 }
 
-## CLI — v0.5.0 (recommended)
+[Product charter →](grudge-studio.md){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
+[ONE TRUTH wiring →](one-truth.md){: .btn .fs-5 .mb-2 .mr-2 }
+[CLI quickstart →](cli-quickstart.md){: .btn .fs-5 .mb-2 .mr-2 }
 
-Autonomous setup for `client.grudge-studio.com` — no tray app required for uploads or health checks.
+---
+
+## Download — Grudge Studio (v0.7.0)
+
+[⬇ Download latest installer](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
+[All releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases){: .btn .fs-5 .mb-2 .mr-2 }
+[View source on GitHub](https://github.com/Grudge-Warlords/grudge-dev-tool){: .btn .fs-5 .mb-2 }
+Windows x64 · NSIS · auto-updating · product name **Grudge Studio**.
+{: .fs-3 .text-grey-dk-100 }
+
+### Simple connection (ONE TRUTH)
+
+1. Install Grudge Studio (or auto-update from prior Forge tray builds).
+2. **Settings → ONE TRUTH** — fleet client `https://client.grudge-studio.com`.
+3. Sign in or paste a bearer token from `id.grudge-studio.com`.
+4. Status bar / Home show **ONE TRUTH** score (same probes as `grudge-dev doctor`).
+5. Open **Forge** (full editor or Quick 3D) and **Coder** (production or local) from the sidebar.
+
+Legacy installs named "Grudge Studio Forge" still update (same `appId`).
+
+---
+
+## CLI — Grudge Studio CLI (`grudge-dev`)
 
 ```powershell
 git clone https://github.com/Grudge-Warlords/grudge-dev-tool.git
@@ -27,59 +51,24 @@ grudge-dev login --admin-password <pw>
 grudge-dev upload-pack --root "C:\packs\MyPack" --pack-id my-pack --dry-run
 ```
 
-[CLI quickstart →](cli-quickstart.md){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
-[ONE TRUTH wiring →](one-truth.md){: .btn .fs-5 .mb-2 .mr-2 }
-
-`doctor` probes fleet manifest, auth verify, objectstore JSON, icons, and Supabase health via Vercel rewrites on **client.grudge-studio.com**. Expect **100%** when the fleet is wired correctly.
-{: .fs-3 .text-grey-dk-100 }
+`doctor` probes fleet manifest, auth, objectstore JSON, icons, and Supabase health via **client.grudge-studio.com**.
 
 ---
 
-## Download — Grudge Studio Forge tray app (v0.6.0)
+## Modules in the app
 
-[⬇ Download `Grudge Studio Forge-Setup-0.6.0.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.6.0/Grudge-Studio-Forge-Setup-0.6.0.exe){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
-[All releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases){: .btn .fs-5 .mb-2 .mr-2 }
-[Latest release page](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .fs-5 .mb-2 .mr-2 }
-[View source on GitHub](https://github.com/Grudge-Warlords/grudge-dev-tool){: .btn .fs-5 .mb-2 }
-Windows x64 · Authenticode-signed NSIS installer · auto-updating.
-{: .fs-3 .text-grey-dk-100 }
-
-### Simple connection (ONE TRUTH)
-
-One URL powers everything — no split `api` vs `assets-api` hosts:
-
-1. Install the tray app (or let auto-update deliver v0.6.0).
-2. **Settings → Grudge identity → Fleet client URL** — click **ONE TRUTH** (defaults to `https://client.grudge-studio.com`).
-3. Sign in or paste a bearer token from `id.grudge-studio.com`.
-4. Status bar shows **ONE TRUTH 100%** when all six fleet probes pass (same checks as `grudge-dev doctor`).
-
-Legacy split-host installs can still set an optional objectstore override under **Legacy split-host override** in Settings.
-
-Already installed on v0.5.x? Auto-update delivers v0.6.0 within ~4 h after the release is published. Restart from the tray menu (right-click → Quit, then relaunch), then tap **ONE TRUTH** in Settings.
-{: .fs-3 .text-grey-dk-100 }
-
----
-
-## What it does
-
-### CLI (v0.5.0)
-
-- **`grudge-dev setup`** — auto-detect API base (`client.grudge-studio.com` → localhost) and `grudge-builder` repo; writes `~/.grudge-dev/config.json`.
-- **`grudge-dev doctor`** — ONE TRUTH probes (JSON endpoints, no HTML leaks).
-- **`grudge-dev login`** — store JWT or admin password (keytar or `~/.grudge-dev/auth.json`).
-- **`grudge-dev upload-pack`** — walk pack → hash → UUID → presigned PUT → manifest.
-- **`grudge-dev fleet` / `search`** — live manifest + catalog search.
-
-### Forge tray app (v0.6.0)
-
-- **Grudge Engine tab** — native character viewer, VFX playground, The-ENGINE hub.
-- **GrudaChain** (`Ctrl+/`) — AnythingLLM RAG + HuggingFace fallback.
-- **ONE TRUTH connectivity** — fleet manifest, auth, objectstore JSON, icons, Supabase health.
-- **Tray icon** + **GrudgeLoader** always-on-top overlay.
-- **Forge 3D** editor, BlenderKit, ingestion pipeline, auto-update.
+| Module | Role |
+|--------|------|
+| **Home** | ONE TRUTH meter, host map, launchers |
+| **Assets** | Browser · Search · Upload · Store · BlenderKit |
+| **Forge** | Full `forge.grudge-studio.com` + Quick 3D |
+| **Coder** | Production `coder.grudge-studio.com` + local GrudachainCode |
+| **Engine / Games / Legion** | Characters, fleet, agentic RAG |
+| **CLI** | Headless doctor + upload-pack |
 
 ## Documentation
 
+- [Grudge Studio charter](grudge-studio.md)
 - [CLI quickstart](cli-quickstart.md)
 - [ONE TRUTH fleet wiring](one-truth.md)
 - [Tray app quickstart](dev-tool-quickstart.md)
@@ -92,9 +81,9 @@ Already installed on v0.5.x? Auto-update delivers v0.6.0 within ~4 h after the r
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **CLI** | v0.5.0 | Autonomous setup, `doctor`, `upload-pack` — `cli/` in this repo |
-| **Forge tray** | v0.6.0 | Grudge Engine tab, GrudaChain, native viewer, ONE TRUTH fleet client |
+| **Grudge Studio** | v0.7.0 | Home hub, Coder prod embed, Forge full/quick, rebrand |
+| **CLI** | v0.5.x | `grudge-dev` in `cli/` |
 
-Canonical API for browser + CLI + Forge: **`https://client.grudge-studio.com`** (Vercel rewrites → Railway + objectstore + assets CDN).
+Canonical API: **`https://client.grudge-studio.com`**.
 
-<!-- Pages deploy: 2026-06-25 v0.5.0 Forge ONE TRUTH -->
+<!-- Pages deploy: 2026-07-10 v0.7.0 Grudge Studio -->

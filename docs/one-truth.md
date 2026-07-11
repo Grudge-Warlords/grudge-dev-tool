@@ -16,8 +16,10 @@ Grudge Studio uses a single canonical host map. The dev tool (`doctor` + Forge c
 | JSON catalog | `objectstore.grudge-studio.com` | `/api/objectstore/v1/*` |
 | Binary CDN | `assets.grudge-studio.com` | `/api/assets/*` |
 | **Dev client** | **`client.grudge-studio.com`** | All of the above |
+| Coder (Studio module) | `coder.grudge-studio.com` | Embedded in Grudge Studio Coder tab |
+| Forge (Studio module) | `forge.grudge-studio.com` | Embedded in Grudge Studio Forge tab |
 
-**Always use `client.grudge-studio.com` as API base** in CLI and Forge Settings — not raw Railway URLs and not deprecated GitHub Pages objectstore.
+**Always use `client.grudge-studio.com` as API base** in CLI and Grudge Studio Settings — not raw Railway URLs and not deprecated GitHub Pages objectstore.
 
 ## Deprecated (split-brain)
 

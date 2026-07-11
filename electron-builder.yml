@@ -1,5 +1,7 @@
+# appId kept for electron-updater continuity from "Grudge Studio Forge" installs.
+# Display name is Grudge Studio (v0.7+). Full appId cutover deferred to 1.0.
 appId: com.grudgestudio.forge
-productName: Grudge Studio Forge
+productName: Grudge Studio
 copyright: Copyright © 2026 Grudge Studio
 asar: true
 directories:
@@ -26,8 +28,8 @@ extraResources:
       - "brand/**"
 extraMetadata:
   main: dist/main/main.js
-# Register Grudge Dev Tool as a Windows file handler so users can
-# right-click → Open With → Grudge Dev Tool on any supported 3D model file,
+# Register Grudge Studio as a Windows file handler so users can
+# right-click → Open With → Grudge Studio on any supported 3D model file,
 # or set us as the default 3D viewer for the listed extensions.
 fileAssociations:
   - ext: glb
@@ -89,10 +91,10 @@ nsis:
   perMachine: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Grudge Studio Forge
+  shortcutName: Grudge Studio
   installerIcon: resources/icon.ico
   uninstallerIcon: resources/icon.ico
-  uninstallDisplayName: Grudge Studio Forge ${version}
+  uninstallDisplayName: Grudge Studio ${version}
 publish:
   - provider: github
     owner: Grudge-Warlords

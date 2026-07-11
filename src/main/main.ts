@@ -42,11 +42,11 @@ forge.captureInitialArgv();
 
 // ---------------------------------------------------------------------------
 // Crash reporter — local-only (no remote endpoint). Dumps go to
-// %APPDATA%/Grudge Dev Tool/Crashpad/. Useful for postmortems on the user's
+// %APPDATA%/grudge-dev-tool/Crashpad/. Useful for postmortems on the user's
 // machine without shipping any data anywhere.
 // ---------------------------------------------------------------------------
 crashReporter.start({
-  productName: "Grudge Dev Tool",
+  productName: "Grudge Studio",
   companyName: "Grudge Studio",
   submitURL: "",
   uploadToServer: false,

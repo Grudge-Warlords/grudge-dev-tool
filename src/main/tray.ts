@@ -26,7 +26,7 @@ export function createTray(getWindow: () => BrowserWindow | null): Tray {
     console.warn("[tray] icon not found, falling back to default. Run `npm run build:icons` first.");
   }
   tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
-  tray.setToolTip("Grudge Dev Tool");
+  tray.setToolTip("Grudge Studio");
 
   const showWindow = (route?: string) => {
     const w = getWindow();
@@ -39,7 +39,7 @@ export function createTray(getWindow: () => BrowserWindow | null): Tray {
   };
 
   const menu = Menu.buildFromTemplate([
-    { label: "Grudge Dev Tool", enabled: false },
+    { label: "Grudge Studio", enabled: false },
     { type: "separator" },
     { label: "GrudgeLoader (always-on-top)", click: () => toggleLoader() },
     { label: "Hide GrudgeLoader",            click: () => hideLoader() },

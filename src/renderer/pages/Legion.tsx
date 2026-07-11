@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bot, Database, ExternalLink, Mic, MicOff, Send, Loader2, Sparkles, Radio, Zap,
+  Trash2, RefreshCcw, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { persistLegionChat, readMirror } from "../lib/workspace";
@@ -14,15 +15,23 @@ interface ChatMsg {
 
 const WAKE_RE = /AL\s*BABY/i;
 
+const STARTER_PROMPTS = [
+  "List fleet games and their status",
+  "What R2 asset packs are available?",
+  "How do I open a GLB in Forge 3D?",
+  "Summarize ONE TRUTH connectivity checks",
+];
+
 export default function Legion() {
   const [health, setHealth] = useState<any>(null);
   const [grudaHealth, setGrudaHealth] = useState<any>(null);
   const [whisper, setWhisper] = useState<any>(null);
+  const [agents, setAgents] = useState<any[]>([]);
   const [mode, setMode] = useState<"grudachain" | "legion">("grudachain");
   const [messages, setMessages] = useState<ChatMsg[]>(() => {
     const saved = readMirror().grudachainChat ?? readMirror().legionChat;
     if (saved?.length) return saved as ChatMsg[];
-    return [{ role: "system", content: "GRUDA Chain — AnythingLLM RAG + agentic R2 tools. Ctrl+/ for quick overlay." }];
+    return [{ role: "system", content: "GRUDA Chain / Legion — AnythingLLM RAG + agentic R2 tools. Ctrl+/ for quick overlay." }];
   });
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -38,14 +47,16 @@ export default function Legion() {
 
   const refresh = useCallback(async () => {
     try {
-      const [h, w, g] = await Promise.all([
+      const [h, w, g, a] = await Promise.all([
         window.grudge.legion.health(),
         window.grudge.legion.whisperHealth(),
         window.grudge.grudachain.health(),
+        window.grudge.legion.agents().catch(() => []),
       ]);
       setHealth(h);
       setWhisper(w);
       setGrudaHealth(g);
+      setAgents(Array.isArray(a) ? a : []);
     } catch { /* ignore */ }
   }, []);
 
@@ -72,6 +83,18 @@ export default function Legion() {
     mediaRecorderRef.current?.stop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
   }, []);
+
+  function clearChat() {
+    const intro: ChatMsg = {
+      role: "system",
+      content: mode === "grudachain"
+        ? "GRUDA Chain — AnythingLLM RAG + agentic R2 tools. Ctrl+/ for quick overlay."
+        : "Legion Hub — fleet AI chat via provider chain.",
+    };
+    setMessages([intro]);
+    setSessionId(undefined);
+    toast.message("Chat cleared");
+  }
 
   async function send(text?: string) {
     const msg = (text ?? input).trim();
@@ -179,6 +202,7 @@ export default function Legion() {
   }
 
   const hubOk = health?.hub?.status != null && health.hub.status < 500;
+  const agentOk = health?.agent?.status != null && health.agent.status < 500;
   const ragOk = grudaHealth?.ok;
   const openAnythingLlm = () => {
     window.grudge?.os?.openExternal?.("http://localhost:3001");
@@ -190,16 +214,55 @@ export default function Legion() {
         <div className="px-3 py-2 border-b border-line">
           <div className="flex items-center gap-2 mb-2">
             <Sparkles size={16} className="text-gold" />
-            <span className="text-xs font-semibold">GRUDA Chain RAG</span>
-            <span className={`ml-auto w-2 h-2 rounded-full ${ragOk ? "bg-ok" : "bg-danger"}`} />
+            <span className="text-xs font-semibold">Legion / GRUDA</span>
+            <span className={`ml-auto w-2 h-2 rounded-full ${ragOk || hubOk ? "bg-ok" : "bg-danger"}`} />
           </div>
           <p className="text-[10px] text-muted leading-relaxed">
             Local AnythingLLM on port 3001 — Grudge-trained workspace + R2 asset context.
             Press <span className="kbd">Ctrl+/</span> for the floating assistant.
           </p>
-          <button type="button" className="btn ghost text-[10px] mt-2 w-full flex items-center justify-center gap-1" onClick={openAnythingLlm}>
-            <ExternalLink size={11} /> Open AnythingLLM UI
-          </button>
+          <div className="flex gap-2 mt-2">
+            <button type="button" className="btn ghost text-[10px] flex-1 flex items-center justify-center gap-1" onClick={openAnythingLlm}>
+              <ExternalLink size={11} /> AnythingLLM
+            </button>
+            <button type="button" className="btn ghost text-[10px] flex items-center justify-center gap-1" onClick={() => void refresh()}>
+              <RefreshCcw size={11} />
+            </button>
+          </div>
+
+          <div className="mt-2 grid grid-cols-2 gap-1.5 text-[9px]">
+            <div className={`rounded border px-1.5 py-1 ${ragOk ? "border-emerald-500/40 text-emerald-300" : "border-line text-muted"}`}>
+              RAG {ragOk ? "online" : "offline"}
+              {grudaHealth?.latencyMs != null && <span className="block opacity-70">{grudaHealth.latencyMs}ms</span>}
+            </div>
+            <div className={`rounded border px-1.5 py-1 ${hubOk ? "border-emerald-500/40 text-emerald-300" : "border-line text-muted"}`}>
+              Hub {hubOk ? "ok" : "down"}
+              {health?.hub?.latencyMs != null && <span className="block opacity-70">{health.hub.latencyMs}ms</span>}
+            </div>
+            <div className={`rounded border px-1.5 py-1 ${agentOk ? "border-emerald-500/40 text-emerald-300" : "border-line text-muted"}`}>
+              Agent {agentOk ? "ok" : "down"}
+              {health?.agent?.latencyMs != null && <span className="block opacity-70">{health.agent.latencyMs}ms</span>}
+            </div>
+            <div className={`rounded border px-1.5 py-1 ${whisper?.ok ? "border-emerald-500/40 text-emerald-300" : "border-line text-muted"}`}>
+              Whisper {whisper?.ok ? "ok" : "n/a"}
+            </div>
+          </div>
+
+          {agents.length > 0 && (
+            <div className="mt-2 border-t border-line pt-2">
+              <div className="flex items-center gap-1 text-[10px] text-muted mb-1">
+                <Users size={10} /> Legion agents ({agents.length})
+              </div>
+              <ul className="max-h-24 overflow-auto space-y-0.5">
+                {agents.slice(0, 12).map((a: any, i: number) => (
+                  <li key={a.id ?? a.name ?? i} className="text-[10px] text-ink/80 truncate">
+                    {a.name ?? a.id ?? a.role ?? `agent-${i + 1}`}
+                    {a.status ? <span className="text-muted"> · {a.status}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
         <iframe
           src="./legion/app.html"
@@ -230,6 +293,9 @@ export default function Legion() {
               ? `${grudaHealth?.baseUrl ?? "localhost:3001"} · ${grudaHealth?.workspaceSlug ?? "workspace"}`
               : `${health?.hub?.url ?? "ai.grudge-studio.com"}`}
           </p>
+          <button type="button" className="btn ghost text-xs flex items-center gap-1" onClick={clearChat} title="Clear chat">
+            <Trash2 size={12} />
+          </button>
           <button
             type="button"
             className="btn ghost text-xs flex items-center gap-1"
@@ -242,6 +308,21 @@ export default function Legion() {
         </div>
 
         <div className="flex-1 overflow-auto p-3 space-y-2">
+          {messages.length <= 1 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {STARTER_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className="text-[10px] px-2 py-1 rounded border border-line text-muted hover:border-gold/40 hover:text-gold"
+                  onClick={() => void send(p)}
+                  disabled={busy}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
           {messages.map((m, i) => (
             <div
               key={i}
@@ -288,6 +369,11 @@ export default function Legion() {
             <Radio size={10} className={hubOk ? "text-green-400" : "text-danger"} />
             Legion {hubOk ? "online" : "offline"}
           </span>
+          <span className="flex items-center gap-1">
+            <Radio size={10} className={agentOk ? "text-green-400" : "text-danger"} />
+            Agent {agentOk ? "online" : "offline"}
+          </span>
+          {health?.hasFleetKey && <span className="text-gold">fleet key set</span>}
         </div>
       </div>
     </div>

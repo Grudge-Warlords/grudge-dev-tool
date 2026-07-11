@@ -5,11 +5,15 @@ import {
   Move, RotateCcw, Maximize2, Camera, Download, UploadCloud,
   Play, Pause, FileBox, Trash2, ChevronRight, ChevronDown, Box,
   Lightbulb, Grid3x3, Sun, FolderOpen, ExternalLink, Layers, Zap,
+  Eye, EyeOff, Focus, Crosshair, Aperture,
 } from "lucide-react";
-import { SceneEngine, type GizmoMode } from "../lib/forge/sceneEngine";
+import { SceneEngine, type GizmoMode, type TransformSpace } from "../lib/forge/sceneEngine";
 import { resourceBaseFromModelLocation } from "../lib/filePaths";
 import { loadModel, loadRemoteModel, type LoadedModel, isSupported } from "../lib/forge/loaders";
-import { flattenMeshHierarchy, findObjectByUuid } from "../lib/forge/meshHierarchy";
+import {
+  flattenMeshHierarchy, findObjectByUuid, aggregateMeshStats, KIND_COLOR,
+  type MeshBreakdown,
+} from "../lib/forge/meshHierarchy";
 import { ForgeRapierWorld } from "../lib/forge/rapierWorld";
 import { applyTextureToMesh } from "../lib/forge/materialUtils";
 import ForgeAssetBrowser, { cdnKeyToUrl } from "../components/ForgeAssetBrowser";
@@ -59,19 +63,33 @@ export default function Forge3D() {
   const [r2Path, setR2Path] = useWorkspaceField("forgeLastUrl", "user-uploads/forge");
   const [busyUpload, setBusyUpload] = useState(false);
   const [leftTab, setLeftTab] = useState<"scene" | "assets">("scene");
-  const [rightTab, setRightTab] = useState<"inspect" | "materials" | "physics">("inspect");
+  const [rightTab, setRightTab] = useState<"inspect" | "object" | "camera" | "materials" | "physics">("inspect");
   const [selectedMeshUuid, setSelectedMeshUuid] = useState<string | null>(null);
   const [physicsReady, setPhysicsReady] = useState(false);
   const [physicsPlaying, setPhysicsPlaying] = useState(false);
   const [physicsBodies, setPhysicsBodies] = useState(0);
   const physicsRef = useRef<ForgeRapierWorld | null>(null);
+  const [transformSpace, setTransformSpace] = useState<TransformSpace>("world");
+  const [wireframe, setWireframe] = useState(false);
+  const [showBones, setShowBones] = useState(true);
+  const [snapTranslate, setSnapTranslate] = useState(0);
+  const [clipNear, setClipNear] = useState(0.01);
+  const [clipFar, setClipFar] = useState(100_000);
+  const [clipFov, setClipFov] = useState(50);
+  const [fogKind, setFogKind] = useState<"none" | "linear" | "exp2">("none");
+  const [renderStats, setRenderStats] = useState({ calls: 0, triangles: 0, points: 0, lines: 0, geometries: 0, textures: 0 });
+  const [, forceTransform] = useState(0);
 
   const selected = useMemo(() => items.find((i) => i.id === selectedId) ?? null, [items, selectedId]);
-  const selectedMesh = useMemo(() => {
-    if (!selected || !selectedMeshUuid) return null;
-    const obj = findObjectByUuid(selected.object, selectedMeshUuid);
-    return obj && (obj as THREE.Mesh).isMesh ? (obj as THREE.Mesh) : null;
+  const selectedObject = useMemo(() => {
+    if (!selected) return null;
+    if (!selectedMeshUuid) return selected.object;
+    return findObjectByUuid(selected.object, selectedMeshUuid) ?? selected.object;
   }, [selected, selectedMeshUuid]);
+  const selectedMesh = useMemo(() => {
+    if (!selectedObject) return null;
+    return (selectedObject as THREE.Mesh).isMesh ? (selectedObject as THREE.Mesh) : null;
+  }, [selectedObject]);
 
   // -- Engine bootstrap ----------------------------------------------------
   useEffect(() => {
@@ -81,8 +99,16 @@ export default function Forge3D() {
       showGrid: true,
       showAxes: true,
       hdri: true,
+      near: 0.01,
+      far: 100_000,
+      gridSize: 100,
+      gridDivisions: 100,
     });
     engineRef.current = engine;
+    const planes = engine.getClipPlanes();
+    setClipNear(planes.near);
+    setClipFar(planes.far);
+    setClipFov(planes.fov);
     return () => {
       engine.dispose();
       engineRef.current = null;
@@ -98,23 +124,130 @@ export default function Forge3D() {
   }, [gizmoMode]);
 
   useEffect(() => {
+    engineRef.current?.setTransformSpace(transformSpace);
+  }, [transformSpace]);
+
+  useEffect(() => {
+    engineRef.current?.setSnap(snapTranslate, snapTranslate > 0 ? 15 : 0, snapTranslate > 0 ? 0.1 : 0);
+  }, [snapTranslate]);
+
+  useEffect(() => {
+    engineRef.current?.setWireframe(wireframe);
+  }, [wireframe]);
+
+  useEffect(() => {
+    engineRef.current?.setClipPlanes(clipNear, clipFar, clipFov);
+  }, [clipNear, clipFar, clipFov]);
+
+  useEffect(() => {
+    engineRef.current?.setFog(fogKind, 0x0a0e1a, 20, Math.min(clipFar * 0.4, 800), 0.015);
+  }, [fogKind, clipFar]);
+
+  useEffect(() => {
     if (!engineRef.current) return;
-    const target = selectedMesh ?? selected?.object ?? null;
+    const target = selectedObject;
     if (target) engineRef.current.attach(target);
     else engineRef.current.detach();
-  }, [selected, selectedMesh]);
+  }, [selectedObject]);
+
+  useEffect(() => {
+    engineRef.current?.setPickRoots(items.map((i) => i.object));
+  }, [items]);
+
+  // Click-to-select (three.js editor viewport pick)
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setPickHandler((obj) => {
+      if (!obj) {
+        setSelectedMeshUuid(null);
+        return;
+      }
+      // Find parent scene item
+      let walk: THREE.Object3D | null = obj;
+      let itemId: string | null = null;
+      while (walk) {
+        if (walk.userData?.itemId) {
+          itemId = String(walk.userData.itemId);
+          break;
+        }
+        walk = walk.parent;
+      }
+      if (!itemId) {
+        // match by scene membership
+        for (const it of items) {
+          let found = false;
+          it.object.traverse((n) => { if (n === obj) found = true; });
+          if (found) { itemId = it.id; break; }
+        }
+      }
+      if (itemId) {
+        setSelectedId(itemId);
+        setSelectedMeshUuid(obj.uuid);
+        setRightTab("object");
+      }
+    });
+    return () => engine.setPickHandler(null);
+  }, [items]);
 
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
-    const off = engine.onTick((dt) => physicsRef.current?.step(dt));
-    return off;
+    const off = engine.onTick((dt) => {
+      physicsRef.current?.step(dt);
+    });
+    const id = window.setInterval(() => {
+      if (engineRef.current) setRenderStats(engineRef.current.getRenderStats());
+      forceTransform((n) => n + 1);
+    }, 250);
+    return () => {
+      off();
+      window.clearInterval(id);
+    };
   }, []);
 
   useEffect(() => () => {
     physicsRef.current?.dispose();
     physicsRef.current = null;
   }, []);
+
+  // Studio hotkeys — three.js editor style
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "w") { setGizmoMode("translate"); e.preventDefault(); }
+      else if (k === "e") { setGizmoMode("rotate"); e.preventDefault(); }
+      else if (k === "r") { setGizmoMode("scale"); e.preventDefault(); }
+      else if (k === "q") { setTransformSpace((s) => (s === "world" ? "local" : "world")); e.preventDefault(); }
+      else if (k === "g") { setShowHelpers((v) => !v); e.preventDefault(); }
+      else if (k === "x") { setWireframe((v) => !v); e.preventDefault(); }
+      else if (k === "f") {
+        const engine = engineRef.current;
+        if (engine && selectedObject) { engine.frame(selectedObject); e.preventDefault(); }
+      } else if (k === "a" && !e.shiftKey) {
+        engineRef.current?.frameAll();
+        e.preventDefault();
+      } else if (k === "delete" || k === "backspace") {
+        if (selectedId) {
+          const engine = engineRef.current;
+          const item = items.find((i) => i.id === selectedId);
+          if (engine && item) {
+            engine.scene.remove(item.object);
+            item.mixer?.stopAllAction();
+            setItems((prev) => prev.filter((i) => i.id !== selectedId));
+            setSelectedId(null);
+            setSelectedMeshUuid(null);
+          }
+          e.preventDefault();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [items, selectedId, selectedObject]);
 
   const ingestLoaded = useCallback((loaded: LoadedModel, name: string, extras?: Partial<SceneItem>) => {
     const engine = engineRef.current;
@@ -294,7 +427,8 @@ export default function Forge3D() {
   }
 
   function frameSelected() {
-    if (selected && engineRef.current) engineRef.current.frame(selected.object);
+    if (selectedObject && engineRef.current) engineRef.current.frame(selectedObject);
+    else if (selected && engineRef.current) engineRef.current.frame(selected.object);
   }
 
   function screenshot() {
@@ -405,10 +539,15 @@ export default function Forge3D() {
     <div className="forge3d forge-studio" style={{ height: "100%", display: "grid", gridTemplateRows: "auto 1fr", gap: 0 }}>
       <Toolbar
         gizmoMode={gizmoMode} setGizmoMode={setGizmoMode}
+        transformSpace={transformSpace} setTransformSpace={setTransformSpace}
         showHelpers={showHelpers} setShowHelpers={setShowHelpers}
         autoFrame={autoFrame} setAutoFrame={setAutoFrame}
+        wireframe={wireframe} setWireframe={setWireframe}
+        snapOn={snapTranslate > 0}
+        onToggleSnap={() => setSnapTranslate((v) => (v > 0 ? 0 : 0.5))}
         onPickFiles={() => fileInputRef.current?.click()}
         onFrame={frameSelected}
+        onFrameAll={() => engineRef.current?.frameAll()}
         onScreenshot={screenshot}
         onCycleBg={cycleBackground}
         onExportSelected={exportSelected}
@@ -417,8 +556,8 @@ export default function Forge3D() {
         canExport={selected != null}
         canExportAll={items.length > 0}
       />
-      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr 340px", minHeight: 0 }}>
-        <Panel title="Forge Studio">
+      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr 360px", minHeight: 0 }}>
+        <Panel title="Outliner">
           <div className="forge-studio-tabs">
             <button type="button" className={`forge-studio-tab${leftTab === "scene" ? " active" : ""}`} onClick={() => setLeftTab("scene")}>
               <Layers size={12} /> Scene ({items.length})
@@ -431,6 +570,9 @@ export default function Forge3D() {
             items.length === 0 ? (
               <div style={{ padding: "12px", color: "var(--muted)", fontSize: 12 }}>
                 Drop GLB/FBX anywhere, browse <strong className="text-gold">Assets</strong>, or Open file.
+                <div style={{ marginTop: 8, fontSize: 10, opacity: 0.8 }}>
+                  Outliner shows mesh · geometry · material · tris · bones · LOD (three.js editor style).
+                </div>
               </div>
             ) : (
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
@@ -439,9 +581,11 @@ export default function Forge3D() {
                     key={it.id} item={it}
                     selected={selectedId === it.id}
                     selectedMeshUuid={selectedMeshUuid}
-                    onSelect={() => { setSelectedId(it.id); setSelectedMeshUuid(null); }}
-                    onSelectMesh={(uuid) => { setSelectedId(it.id); setSelectedMeshUuid(uuid); }}
+                    showBones={showBones}
+                    onSelect={() => { setSelectedId(it.id); setSelectedMeshUuid(null); setRightTab("object"); }}
+                    onSelectNode={(uuid) => { setSelectedId(it.id); setSelectedMeshUuid(uuid); setRightTab("object"); }}
                     onRemove={() => removeItem(it.id)}
+                    onFocus={() => engineRef.current?.frame(it.object)}
                   />
                 ))}
               </ul>
@@ -455,6 +599,14 @@ export default function Forge3D() {
                 else toast.error("Select a mesh first (expand object in Scene)");
               }}
             />
+          )}
+          {leftTab === "scene" && items.length > 0 && (
+            <div style={{ padding: "6px 10px", borderTop: "1px solid var(--line)", fontSize: 10, color: "var(--muted)" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <input type="checkbox" checked={showBones} onChange={(e) => setShowBones(e.target.checked)} />
+                Show bones in outliner
+              </label>
+            </div>
           )}
         </Panel>
 
@@ -481,6 +633,24 @@ export default function Forge3D() {
             </div>
           )}
           <div style={{
+            position: "absolute", top: 10, right: 12, zIndex: 5,
+            fontSize: 10, color: "var(--muted)", fontFamily: "ui-monospace, monospace",
+            background: "rgba(15,21,48,0.78)", padding: "6px 10px", borderRadius: 6,
+            border: "1px solid var(--line)", lineHeight: 1.45, textAlign: "right",
+          }}>
+            <div>draw {renderStats.calls} · tris {renderStats.triangles.toLocaleString()}</div>
+            <div>geo {renderStats.geometries} · tex {renderStats.textures}</div>
+            <div>near {clipNear} · far {clipFar >= 1000 ? `${(clipFar / 1000).toFixed(0)}k` : clipFar}</div>
+          </div>
+          <div style={{
+            position: "absolute", bottom: 8, left: 12, zIndex: 5,
+            fontSize: 10, color: "var(--muted)",
+            background: "rgba(15,21,48,0.7)", padding: "4px 10px", borderRadius: 999,
+            border: "1px solid var(--line)", maxWidth: "70%",
+          }}>
+            W/E/R gizmo · Q local/world · F focus · A frame all · X wireframe · G grid · click select · Del
+          </div>
+          <div style={{
             position: "absolute", bottom: 8, right: 12, zIndex: 5,
             display: "flex", gap: 6, alignItems: "center", fontSize: 11, color: "var(--muted)",
             background: "rgba(15,21,48,0.7)", padding: "4px 10px", borderRadius: 999,
@@ -489,6 +659,7 @@ export default function Forge3D() {
             <Box size={12} />
             {items.length} object{items.length === 1 ? "" : "s"} ·
             {" "}{items.reduce((a, i) => a + i.triangles, 0).toLocaleString()} tris
+            {physicsReady ? ` · phys ${physicsBodies}` : ""}
           </div>
           <input
             ref={fileInputRef}
@@ -500,11 +671,17 @@ export default function Forge3D() {
           />
         </div>
 
-        <Panel title="Studio panels">
-          <div className="forge-studio-tabs">
-            {(["inspect", "materials", "physics"] as const).map((t) => (
+        <Panel title="Properties">
+          <div className="forge-studio-tabs" style={{ flexWrap: "wrap" }}>
+            {([
+              ["inspect", "Inspect"],
+              ["object", "Object"],
+              ["camera", "Camera"],
+              ["materials", "Materials"],
+              ["physics", "Physics"],
+            ] as const).map(([t, label]) => (
               <button key={t} type="button" className={`forge-studio-tab${rightTab === t ? " active" : ""}`} onClick={() => setRightTab(t)}>
-                {t === "inspect" ? "Inspect" : t === "materials" ? "Materials" : <><Zap size={11} /> Physics</>}
+                {t === "physics" ? <><Zap size={11} /> {label}</> : label}
               </button>
             ))}
           </div>
@@ -525,6 +702,27 @@ export default function Forge3D() {
                 setR2Path={setR2Path}
               />
             )
+          )}
+          {rightTab === "object" && (
+            <ObjectPanel
+              object={selectedObject}
+              item={selected}
+              onChange={() => forceTransform((n) => n + 1)}
+              onFocus={() => selectedObject && engineRef.current?.frame(selectedObject)}
+            />
+          )}
+          {rightTab === "camera" && (
+            <CameraPanel
+              near={clipNear} far={clipFar} fov={clipFov}
+              setNear={setClipNear} setFar={setClipFar} setFov={setClipFov}
+              fogKind={fogKind} setFogKind={setFogKind}
+              onReset={() => {
+                setClipNear(0.01);
+                setClipFar(100_000);
+                setClipFov(50);
+                setFogKind("none");
+              }}
+            />
           )}
           {rightTab === "materials" && <ForgeMaterialPanel mesh={selectedMesh} />}
           {rightTab === "physics" && (
@@ -551,12 +749,19 @@ export default function Forge3D() {
 function Toolbar(props: {
   gizmoMode: GizmoMode;
   setGizmoMode: (m: GizmoMode) => void;
+  transformSpace: TransformSpace;
+  setTransformSpace: (s: TransformSpace) => void;
   showHelpers: boolean;
   setShowHelpers: (v: boolean) => void;
   autoFrame: boolean;
   setAutoFrame: (v: boolean) => void;
+  wireframe: boolean;
+  setWireframe: (v: boolean) => void;
+  snapOn: boolean;
+  onToggleSnap: () => void;
   onPickFiles: () => void;
   onFrame: () => void;
+  onFrameAll: () => void;
   onScreenshot: () => void;
   onCycleBg: () => void;
   onExportSelected: () => void;
@@ -590,9 +795,19 @@ function Toolbar(props: {
       <Btn active={props.gizmoMode === "translate"} onClick={() => props.setGizmoMode("translate")} title="Translate (W)"><Move size={14} />T</Btn>
       <Btn active={props.gizmoMode === "rotate"} onClick={() => props.setGizmoMode("rotate")} title="Rotate (E)"><RotateCcw size={14} />R</Btn>
       <Btn active={props.gizmoMode === "scale"} onClick={() => props.setGizmoMode("scale")} title="Scale (R)"><Maximize2 size={14} />S</Btn>
+      <Btn
+        active={props.transformSpace === "local"}
+        onClick={() => props.setTransformSpace(props.transformSpace === "world" ? "local" : "world")}
+        title="Local / World space (Q)"
+      >
+        <Crosshair size={14} />{props.transformSpace === "local" ? "Local" : "World"}
+      </Btn>
+      <Btn active={props.snapOn} onClick={props.onToggleSnap} title="Snap translate 0.5u / rotate 15°">Snap</Btn>
       <span style={{ width: 1, height: 22, background: "var(--line)" }} />
-      <Btn onClick={props.onFrame} title="Frame selection (F)"><Box size={14} />Frame</Btn>
-      <Btn active={props.showHelpers} onClick={() => props.setShowHelpers(!props.showHelpers)} title="Toggle grid"><Grid3x3 size={14} />Grid</Btn>
+      <Btn onClick={props.onFrame} title="Focus selection (F)"><Focus size={14} />Focus</Btn>
+      <Btn onClick={props.onFrameAll} title="Frame all (A)"><Aperture size={14} />All</Btn>
+      <Btn active={props.showHelpers} onClick={() => props.setShowHelpers(!props.showHelpers)} title="Toggle grid (G)"><Grid3x3 size={14} />Grid</Btn>
+      <Btn active={props.wireframe} onClick={() => props.setWireframe(!props.wireframe)} title="Wireframe (X)">Wire</Btn>
       <Btn active={props.autoFrame} onClick={() => props.setAutoFrame(!props.autoFrame)} title="Auto-frame on load"><Lightbulb size={14} />Auto</Btn>
       <Btn onClick={props.onCycleBg} title="Cycle background"><Sun size={14} />BG</Btn>
       <Btn onClick={props.onScreenshot} title="Screenshot"><Camera size={14} />PNG</Btn>
@@ -626,22 +841,51 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function HierarchyRow({ item, selected, selectedMeshUuid, onSelect, onSelectMesh, onRemove }:
+function HierarchyRow({ item, selected, selectedMeshUuid, showBones, onSelect, onSelectNode, onRemove, onFocus }:
   {
-    item: SceneItem; selected: boolean; selectedMeshUuid: string | null;
-    onSelect: () => void; onSelectMesh: (uuid: string) => void; onRemove: () => void;
+    item: SceneItem; selected: boolean; selectedMeshUuid: string | null; showBones: boolean;
+    onSelect: () => void; onSelectNode: (uuid: string) => void; onRemove: () => void; onFocus: () => void;
   }) {
-  const [open, setOpen] = useState(false);
-  const meshes = useMemo(() => flattenMeshHierarchy(item.object).filter((n) => n.mesh), [item.object]);
+  const [open, setOpen] = useState(true);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const nodes = useMemo(
+    () => flattenMeshHierarchy(item.object, { includeBones: showBones, maxDepth: 40 }),
+    [item.object, showBones],
+  );
+  const stats = useMemo(() => aggregateMeshStats(item.object), [item.object]);
+
+  const visibleNodes = useMemo(() => {
+    const out: MeshBreakdown[] = [];
+    const path: MeshBreakdown[] = [];
+    for (const n of nodes) {
+      while (path.length && path[path.length - 1]!.depth >= n.depth) path.pop();
+      const blocked = path.some((a) => collapsed.has(a.uuid));
+      if (!blocked) out.push(n);
+      path.push(n);
+    }
+    return out;
+  }, [nodes, collapsed]);
+
+  function toggleCollapse(uuid: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(uuid)) next.delete(uuid);
+      else next.add(uuid);
+      return next;
+    });
+  }
+
   return (
     <li>
       <div
         onClick={onSelect}
+        onDoubleClick={(e) => { e.stopPropagation(); onFocus(); }}
         style={{
           display: "flex", alignItems: "center", gap: 4,
           padding: "5px 8px", cursor: "pointer", fontSize: 12,
-          background: selected ? "rgba(255,198,42,0.10)" : "transparent",
-          borderLeft: selected ? "2px solid var(--gold)" : "2px solid transparent",
+          background: selected && !selectedMeshUuid ? "rgba(255,198,42,0.10)" : "transparent",
+          borderLeft: selected && !selectedMeshUuid ? "2px solid var(--gold)" : "2px solid transparent",
         }}>
         <button
           onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
@@ -654,28 +898,290 @@ function HierarchyRow({ item, selected, selectedMeshUuid, onSelect, onSelectMesh
           {item.name}
         </span>
         <button
+          onClick={(e) => { e.stopPropagation(); onFocus(); }}
+          title="Focus (F)"
+          style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", padding: 2 }}
+        ><Focus size={12} /></button>
+        <button
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
           title="Remove"
           style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", padding: 2 }}
         ><Trash2 size={12} /></button>
       </div>
       {open && (
-        <div style={{ paddingLeft: 20, paddingBottom: 4, fontSize: 11, color: "var(--muted)" }}>
-          <div>Triangles: <strong>{item.triangles.toLocaleString()}</strong> · {item.animations.length} clips</div>
-          {meshes.slice(0, 24).map((m) => (
-            <button
-              key={m.uuid}
-              type="button"
-              className={`forge-mesh-row${selectedMeshUuid === m.uuid ? " active" : ""}`}
-              style={{ paddingLeft: m.depth * 8 }}
-              onClick={(e) => { e.stopPropagation(); onSelectMesh(m.uuid); }}
-            >
-              {m.name}
-            </button>
-          ))}
+        <div style={{ paddingBottom: 6, fontSize: 10, color: "var(--muted)" }}>
+          <div style={{ padding: "2px 10px 6px 28px", lineHeight: 1.4 }}>
+            <strong style={{ color: "var(--text)" }}>{stats.meshes}</strong> mesh ·{" "}
+            <strong style={{ color: "var(--text)" }}>{stats.triangles.toLocaleString()}</strong> tris ·{" "}
+            <strong style={{ color: "var(--text)" }}>{stats.vertices.toLocaleString()}</strong> vtx ·{" "}
+            {stats.materials} mat
+            {stats.bones > 0 ? ` · ${stats.bones} bones` : ""}
+            {stats.lods > 0 ? ` · ${stats.lods} LOD` : ""}
+            {item.animations.length > 0 ? ` · ${item.animations.length} clips` : ""}
+          </div>
+          {visibleNodes.slice(0, 500).map((m) => {
+            const isSel = selectedMeshUuid === m.uuid;
+            const kindColor = KIND_COLOR[m.kind] ?? "#ccc";
+            return (
+              <div
+                key={m.uuid}
+                role="button"
+                tabIndex={0}
+                onClick={(e) => { e.stopPropagation(); onSelectNode(m.uuid); }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  onSelectNode(m.uuid);
+                  // focus this node
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "2px 8px 2px 0",
+                  paddingLeft: 12 + m.depth * 12,
+                  cursor: "pointer",
+                  background: isSel ? "rgba(255,198,42,0.12)" : "transparent",
+                  borderLeft: isSel ? "2px solid var(--gold)" : "2px solid transparent",
+                  opacity: m.visible ? 1 : 0.45,
+                }}
+              >
+                {m.hasChildren ? (
+                  <button
+                    type="button"
+                    onClick={(e) => toggleCollapse(m.uuid, e)}
+                    style={{ background: "none", border: "none", color: "var(--muted)", padding: 0, cursor: "pointer", width: 14 }}
+                  >
+                    {collapsed.has(m.uuid) ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                  </button>
+                ) : (
+                  <span style={{ width: 14 }} />
+                )}
+                <span
+                  title={m.kind}
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: kindColor,
+                    minWidth: 28,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {m.kind === "SkinnedMesh" ? "Skin" : m.kind.slice(0, 4)}
+                </span>
+                <span style={{
+                  flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  color: isSel ? "var(--gold)" : "var(--text)", fontSize: 11,
+                }}>
+                  {m.name}
+                </span>
+                {m.geometryName && (
+                  <span style={{ color: "var(--muted)", fontSize: 9, maxWidth: 72, overflow: "hidden", textOverflow: "ellipsis" }} title={m.geometryName}>
+                    {m.geometryName}
+                  </span>
+                )}
+                {m.materialNames[0] && (
+                  <span style={{ color: "#8af", fontSize: 9, maxWidth: 64, overflow: "hidden", textOverflow: "ellipsis" }} title={m.materialNames.join(", ")}>
+                    {m.materialNames[0]}
+                  </span>
+                )}
+                {m.triangles > 0 && (
+                  <span style={{ color: "var(--muted)", fontSize: 9, fontVariantNumeric: "tabular-nums" }}>
+                    {m.triangles >= 1000 ? `${(m.triangles / 1000).toFixed(1)}k` : m.triangles}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  title={m.visible ? "Hide" : "Show"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    m.object.visible = !m.object.visible;
+                    onSelectNode(m.uuid);
+                  }}
+                  style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: 0 }}
+                >
+                  {m.visible ? <Eye size={10} /> : <EyeOff size={10} />}
+                </button>
+              </div>
+            );
+          })}
+          {nodes.length > 500 && (
+            <div style={{ padding: "4px 12px", fontSize: 10 }}>…{nodes.length - 500} more nodes</div>
+          )}
         </div>
       )}
     </li>
+  );
+}
+
+function ObjectPanel({
+  object, item, onChange, onFocus,
+}: {
+  object: THREE.Object3D | null;
+  item: SceneItem | null;
+  onChange: () => void;
+  onFocus: () => void;
+}) {
+  if (!object) {
+    return <div className="forge-panel-empty">Click a node in the outliner or viewport to edit transform & mesh stats.</div>;
+  }
+  const isMesh = (object as THREE.Mesh).isMesh;
+  const mesh = isMesh ? (object as THREE.Mesh) : null;
+  const p = object.position;
+  const r = object.rotation;
+  const s = object.scale;
+  const setNum = (axis: "x" | "y" | "z", target: THREE.Vector3 | THREE.Euler, v: number) => {
+    target[axis] = v;
+    object.updateMatrixWorld(true);
+    onChange();
+  };
+
+  return (
+    <div style={{ padding: 10, fontSize: 12 }}>
+      <SectionTitle>Selection</SectionTitle>
+      <Field label="Name"><span style={{ color: "var(--gold)" }}>{object.name || object.type}</span></Field>
+      <Field label="Type">{object.type}</Field>
+      <Field label="UUID"><span style={{ fontSize: 9 }}>{object.uuid.slice(0, 13)}…</span></Field>
+      <Field label="Visible">{object.visible ? "yes" : "no"}</Field>
+      <div style={{ display: "flex", gap: 6, margin: "8px 0" }}>
+        <button className="btn ghost" style={{ flex: 1, fontSize: 11 }} onClick={onFocus}><Focus size={12} /> Focus</button>
+        <button className="btn ghost" style={{ flex: 1, fontSize: 11 }} onClick={() => { object.visible = !object.visible; onChange(); }}>
+          {object.visible ? <><EyeOff size={12} /> Hide</> : <><Eye size={12} /> Show</>}
+        </button>
+      </div>
+
+      <SectionTitle>Transform</SectionTitle>
+      <TransformInputs label="Position" x={p.x} y={p.y} z={p.z} onChange={(ax, v) => setNum(ax, p, v)} />
+      <TransformInputs label="Rotation" x={r.x} y={r.y} z={r.z} onChange={(ax, v) => setNum(ax, r, v)} step={0.01} />
+      <TransformInputs label="Scale" x={s.x} y={s.y} z={s.z} onChange={(ax, v) => setNum(ax, s, v)} step={0.01} />
+
+      {mesh && (
+        <>
+          <SectionTitle>Mesh breakdown</SectionTitle>
+          <Field label="Geometry">{mesh.geometry?.name || mesh.geometry?.type || "—"}</Field>
+          <Field label="Vertices">{(mesh.geometry?.getAttribute("position")?.count ?? 0).toLocaleString()}</Field>
+          <Field label="Triangles">{(
+            mesh.geometry?.index
+              ? Math.floor(mesh.geometry.index.count / 3)
+              : Math.floor((mesh.geometry?.getAttribute("position")?.count ?? 0) / 3)
+          ).toLocaleString()}</Field>
+          <Field label="Materials">
+            {Array.isArray(mesh.material)
+              ? mesh.material.map((m) => m.name || m.type).join(", ")
+              : (mesh.material?.name || mesh.material?.type || "—")}
+          </Field>
+          {(mesh as THREE.SkinnedMesh).isSkinnedMesh && (
+            <Field label="Bones">{(mesh as THREE.SkinnedMesh).skeleton?.bones?.length ?? 0}</Field>
+          )}
+          <Field label="Morph targets">{mesh.geometry?.morphAttributes?.position?.length ?? 0}</Field>
+          <Field label="Cast shadow">{mesh.castShadow ? "yes" : "no"}</Field>
+          <Field label="Receive shadow">{mesh.receiveShadow ? "yes" : "no"}</Field>
+        </>
+      )}
+
+      {item && (
+        <>
+          <SectionTitle>Asset</SectionTitle>
+          <Field label="File">{item.name}</Field>
+          <Field label="Format">{item.format.toUpperCase()}</Field>
+          <Field label="Root tris">{item.triangles.toLocaleString()}</Field>
+        </>
+      )}
+    </div>
+  );
+}
+
+function TransformInputs({
+  label, x, y, z, onChange, step = 0.001,
+}: {
+  label: string; x: number; y: number; z: number;
+  onChange: (axis: "x" | "y" | "z", v: number) => void;
+  step?: number;
+}) {
+  const inp = (axis: "x" | "y" | "z", val: number, color: string) => (
+    <input
+      type="number"
+      step={step}
+      value={Number.isFinite(val) ? Number(val.toFixed(4)) : 0}
+      onChange={(e) => onChange(axis, parseFloat(e.target.value) || 0)}
+      style={{
+        width: 64, fontSize: 10, padding: "2px 4px",
+        border: `1px solid ${color}44`, background: "var(--bg-2)", color: "var(--text)", borderRadius: 3,
+      }}
+    />
+  );
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4, fontSize: 11 }}>
+      <span style={{ width: 52, color: "var(--muted)" }}>{label}</span>
+      {inp("x", x, "#ff6b6b")}
+      {inp("y", y, "#6bff6b")}
+      {inp("z", z, "#6b9eff")}
+    </div>
+  );
+}
+
+function CameraPanel(props: {
+  near: number; far: number; fov: number;
+  setNear: (n: number) => void; setFar: (n: number) => void; setFov: (n: number) => void;
+  fogKind: "none" | "linear" | "exp2"; setFogKind: (k: "none" | "linear" | "exp2") => void;
+  onReset: () => void;
+}) {
+  return (
+    <div style={{ padding: 10, fontSize: 12 }}>
+      <SectionTitle>Clip planes</SectionTitle>
+      <p style={{ color: "var(--muted)", fontSize: 10, marginBottom: 8 }}>
+        Matches three.js editor camera near/far. Large maps need far ≥ 10k–100k; tiny props need near ≤ 0.01.
+      </p>
+      <label style={{ display: "block", marginBottom: 6, fontSize: 11, color: "var(--muted)" }}>
+        Near
+        <input type="number" min={0.0001} step={0.001} value={props.near}
+          onChange={(e) => props.setNear(Math.max(0.0001, Number(e.target.value) || 0.01))}
+          style={{ width: "100%", marginTop: 2, fontSize: 12 }} />
+      </label>
+      <label style={{ display: "block", marginBottom: 6, fontSize: 11, color: "var(--muted)" }}>
+        Far
+        <input type="number" min={1} step={100} value={props.far}
+          onChange={(e) => props.setFar(Math.max(1, Number(e.target.value) || 1000))}
+          style={{ width: "100%", marginTop: 2, fontSize: 12 }} />
+      </label>
+      <label style={{ display: "block", marginBottom: 6, fontSize: 11, color: "var(--muted)" }}>
+        FOV
+        <input type="number" min={10} max={120} step={1} value={props.fov}
+          onChange={(e) => props.setFov(Math.min(120, Math.max(10, Number(e.target.value) || 50)))}
+          style={{ width: "100%", marginTop: 2, fontSize: 12 }} />
+      </label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+        {[
+          { label: "Prop", n: 0.01, f: 500 },
+          { label: "Character", n: 0.05, f: 2000 },
+          { label: "Arena", n: 0.1, f: 10_000 },
+          { label: "World", n: 0.5, f: 100_000 },
+        ].map((p) => (
+          <button key={p.label} type="button" className="btn ghost" style={{ fontSize: 10, padding: "3px 8px" }}
+            onClick={() => { props.setNear(p.n); props.setFar(p.f); }}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      <SectionTitle>Fog</SectionTitle>
+      <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+        {(["none", "linear", "exp2"] as const).map((k) => (
+          <button key={k} type="button" className={`btn ghost${props.fogKind === k ? "" : ""}`}
+            style={{
+              flex: 1, fontSize: 10, padding: "4px",
+              borderColor: props.fogKind === k ? "var(--gold)" : undefined,
+              color: props.fogKind === k ? "var(--gold)" : undefined,
+            }}
+            onClick={() => props.setFogKind(k)}>
+            {k === "exp2" ? "Exp2" : k[0]!.toUpperCase() + k.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      <button type="button" className="btn ghost" style={{ width: "100%", fontSize: 11 }} onClick={props.onReset}>
+        Reset camera defaults
+      </button>
+    </div>
   );
 }
 

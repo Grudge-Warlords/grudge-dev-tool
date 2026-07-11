@@ -9,10 +9,14 @@ export interface WorkspaceSnapshot {
   browserPrefix: string;
   searchQuery: string;
   forgeLastUrl: string;
+  /** full = forge.grudge-studio.com webview; quick = in-process Forge3D */
+  forgeMode: "full" | "quick";
   localAssetsRoot: string;
   coderRoot: string;
   coderProjectDir: string;
   coderPort: number;
+  /** production = embed coder.grudge-studio.com; local = spawn GrudachainCode */
+  coderMode: "production" | "local";
   engineRoot: string;
   enginePort: number;
   engineUseLocal: boolean;
@@ -24,16 +28,18 @@ export interface WorkspaceSnapshot {
 }
 
 const DEFAULT: WorkspaceSnapshot = {
-  route: "/browser",
+  route: "/home",
   legionChat: [],
   grudachainChat: [],
   browserPrefix: "",
   searchQuery: "",
   forgeLastUrl: "",
+  forgeMode: "full",
   localAssetsRoot: "",
   coderRoot: "",
   coderProjectDir: "",
   coderPort: 5111,
+  coderMode: "production",
   engineRoot: "",
   enginePort: 5000,
   engineUseLocal: false,
