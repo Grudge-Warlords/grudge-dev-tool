@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { STUDIO_MODULE_URLS } from "../../shared/fleet";
 import { useWorkspaceField } from "../lib/useWorkspaceField";
+import { injectPuterTokenIntoWebview, resolveModuleUrl } from "../lib/studioSso";
 
 interface CoderStatus {
   running: boolean;
@@ -43,6 +44,8 @@ export default function Coder() {
   const [showPreview, setShowPreview] = useState(true);
   const [prodKey, setProdKey] = useState(0);
   const [prodLoading, setProdLoading] = useState(true);
+  const [prodSrc, setProdSrc] = useState(PROD_URL);
+  const [ssoLabel, setSsoLabel] = useState<string | null>(null);
   const prodWvRef = useRef<HTMLElement | null>(null);
 
   const refresh = useCallback(async () => {
@@ -69,6 +72,20 @@ export default function Coder() {
     return () => clearInterval(t);
   }, [refresh]);
 
+  // SSO: seed Grudge cookies + launch token when Studio is signed in
+  useEffect(() => {
+    if (mode !== "production") return;
+    let cancelled = false;
+    (async () => {
+      const { url, sso } = await resolveModuleUrl("coder");
+      if (cancelled) return;
+      setProdSrc(url);
+      setSsoLabel(sso.ok && sso.player ? sso.player.displayName || sso.player.username : null);
+      setProdKey((k) => k + 1);
+    })();
+    return () => { cancelled = true; };
+  }, [mode]);
+
   useEffect(() => {
     if (mode !== "production") return;
     setProdLoading(true);
@@ -76,11 +93,14 @@ export default function Coder() {
     if (!el) return;
     const onStop = () => setProdLoading(false);
     const onFail = () => setProdLoading(false);
+    const onDom = () => { void injectPuterTokenIntoWebview(el); };
     el.addEventListener("did-stop-loading", onStop);
     el.addEventListener("did-fail-load", onFail);
+    el.addEventListener("dom-ready", onDom);
     return () => {
       el.removeEventListener("did-stop-loading", onStop);
       el.removeEventListener("did-fail-load", onFail);
+      el.removeEventListener("dom-ready", onDom);
     };
   }, [mode, prodKey]);
 
@@ -207,16 +227,28 @@ export default function Coder() {
             {isProd ? "coder.grudge-studio.com" : running ? `:${status?.port}` : "stopped"}
           </span>
         </div>
+        {isProd && ssoLabel && (
+          <div className="coder-ai-pill ok">
+            <Sparkles size={12} />
+            <span>Signed in</span>
+            <span className="coder-ai-detail">{ssoLabel}</span>
+          </div>
+        )}
       </div>
 
       {isProd ? (
         <div className="coder-prod-wrap">
           <div className="coder-preview-bar">
-            <span className="font-mono text-xs text-muted truncate">{PROD_URL}</span>
+            <span className="font-mono text-xs text-muted truncate">{prodSrc.replace(/[?&]grudge_token=[^&]+/, "").slice(0, 80)}</span>
             <button
               type="button"
               className="btn ghost text-xs flex items-center gap-1"
-              onClick={() => setProdKey((k) => k + 1)}
+              onClick={async () => {
+                const { url, sso } = await resolveModuleUrl("coder");
+                setProdSrc(url);
+                setSsoLabel(sso.ok && sso.player ? sso.player.displayName || sso.player.username : null);
+                setProdKey((k) => k + 1);
+              }}
             >
               <RefreshCw size={12} /> Reload
             </button>
@@ -231,7 +263,7 @@ export default function Coder() {
             <webview
               key={prodKey}
               ref={prodWvRef as React.RefObject<HTMLWebViewElement>}
-              src={PROD_URL}
+              src={prodSrc}
               partition="persist:grudge-coder"
               className="coder-webview"
               allowpopups

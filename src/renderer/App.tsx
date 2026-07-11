@@ -113,6 +113,10 @@ export default function App() {
     try {
       const s: Session = await window.grudge.auth.getSession();
       setSession(s);
+      // Keep Forge + Coder webviews on the same Grudge identity
+      if (s.signedIn) {
+        void window.grudge?.auth?.syncStudioSso?.().catch(() => { /* non-fatal */ });
+      }
     } catch (err: any) {
       console.error("auth.getSession failed", err);
       setSession({ signedIn: false, grudgeId: null, puterUser: null, hasToken: false });

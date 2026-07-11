@@ -106,6 +106,7 @@ export async function resetWorkspace(): Promise<void> {
 const WEBVIEW_PARTITIONS = [
   "persist:grudge-preview",
   "persist:grudge-coder",
+  "persist:grudge-forge",
   "persist:grudge-playcanvas",
   "persist:grudge-engine-portal",
   "persist:grudge-character-viewer",

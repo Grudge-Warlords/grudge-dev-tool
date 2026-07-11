@@ -125,6 +125,12 @@ const api = {
     puterLoginExternal: () => ipcRenderer.invoke("auth:puterLoginExternal"),
     /** Paste a Puter token; uuid/username resolved via /whoami or JWT. */
     setSessionFromToken: (token: string) => ipcRenderer.invoke("auth:setSessionFromToken", token),
+    /** Sync Puter login → Grudge session cookies + launch tokens for Forge/Coder webviews. */
+    syncStudioSso: () => ipcRenderer.invoke("auth:syncStudioSso"),
+    getStudioSso: () => ipcRenderer.invoke("auth:getStudioSso"),
+    /** Puter token for injecting into module webviews (localStorage). */
+    getPuterTokenForModules: () => ipcRenderer.invoke("auth:getPuterTokenForModules"),
+    clearStudioSso: () => ipcRenderer.invoke("auth:clearStudioSso"),
   },
   // Cloudflare R2 + Worker
   cf: {

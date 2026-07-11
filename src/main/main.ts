@@ -31,6 +31,7 @@ import { FLEET_GAMES, STORE_CATEGORIES, mergeFleetGames } from "../shared/fleetG
 import { FLEET_ENDPOINTS } from "../shared/fleetConnections";
 import * as workspaceStore from "./workspaceStore";
 import * as puterAuth from "./auth/puterSession";
+import * as studioSso from "./auth/studioSso";
 import { puterLoginAuto, puterLoginViaExternalBrowser, resolvePuterUserFromToken } from "./auth/puterLogin";
 import {
   generateGrudgeUUID, parseGrudgeUUID, describeGrudgeUUID, isValidGrudgeUUID,
@@ -197,6 +198,10 @@ if (!gotLock) {
     await createMainWindow();
     createTray(() => mainWindow);
     registerIpc();
+    // Re-seed Forge/Coder webview sessions if Puter was already signed in
+    void studioSso.syncStudioSso().then((s) => {
+      if (s.ok) log.info(`[boot] studio-sso restored for ${s.player?.username}`);
+    });
     // If we were launched with a file, push it to the renderer once loaded.
     if (mainWindow) forge.flushPendingTo(mainWindow);
     // Window-scoped shortcuts (registered while the main window has focus).
@@ -360,8 +365,14 @@ function registerIpc() {
   // Puter auth + Grudge identity
   ipcMain.handle("auth:getSession", () => puterAuth.getSession());
   ipcMain.handle("auth:setSession", (_e, token: string, user: any) => puterAuth.setSession(token, user));
-  ipcMain.handle("auth:clearSession", () => puterAuth.clearSession());
-  ipcMain.handle("auth:wipeIdentity", () => puterAuth.wipeIdentity());
+  ipcMain.handle("auth:clearSession", async () => {
+    await puterAuth.clearSession();
+    await studioSso.clearStudioSso();
+  });
+  ipcMain.handle("auth:wipeIdentity", async () => {
+    await puterAuth.wipeIdentity();
+    await studioSso.clearStudioSso();
+  });
   ipcMain.handle("auth:getPuterToken", () => puterAuth.getPuterToken());
   async function finishPuterLogin(
     login: () => Promise<{ token: string; user: { uuid: string; username: string; email?: string } }>,
@@ -371,6 +382,13 @@ function registerIpc() {
       const { token, user } = await login();
       const r = await puterAuth.setSession(token, user);
       log.info(`[${label}] OK username=${user.username} grudgeId=${r.grudgeId}`);
+      // Propagate identity into Forge + Coder webviews (cookies + launch tokens)
+      try {
+        const sso = await studioSso.syncStudioSso();
+        log.info(`[${label}] studio-sso ok=${sso.ok} player=${sso.player?.username ?? "-"}`);
+      } catch (ssoErr: any) {
+        log.warn(`[${label}] studio-sso non-fatal:`, ssoErr?.message ?? ssoErr);
+      }
       return { grudgeId: r.grudgeId, user: { uuid: user.uuid, username: user.username, email: user.email } };
     } catch (err: any) {
       const msg = err?.message ?? String(err);
@@ -390,8 +408,19 @@ function registerIpc() {
     const user = await resolvePuterUserFromToken(trimmed);
     const r = await puterAuth.setSession(trimmed, user);
     log.info(`[auth:setSessionFromToken] OK username=${user.username} grudgeId=${r.grudgeId}`);
+    try {
+      await studioSso.syncStudioSso();
+    } catch (ssoErr: any) {
+      log.warn("[auth:setSessionFromToken] studio-sso non-fatal:", ssoErr?.message ?? ssoErr);
+    }
     return { grudgeId: r.grudgeId, user: { uuid: user.uuid, username: user.username, email: user.email } };
   });
+
+  // Studio module SSO (Forge + Coder webviews share Grudge session)
+  ipcMain.handle("auth:syncStudioSso", () => studioSso.syncStudioSso());
+  ipcMain.handle("auth:getStudioSso", () => studioSso.getStudioSsoState());
+  ipcMain.handle("auth:getPuterTokenForModules", () => studioSso.getPuterTokenForModules());
+  ipcMain.handle("auth:clearStudioSso", () => studioSso.clearStudioSso());
 
   // Cloudflare backend
   ipcMain.handle("cf:status", () => getCfStatus());

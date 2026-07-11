@@ -1,25 +1,41 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Hammer, Box, ExternalLink, RefreshCw, Globe, Loader2,
+  Hammer, Box, ExternalLink, RefreshCw, Globe, Loader2, ShieldCheck,
 } from "lucide-react";
 import { STUDIO_MODULE_URLS } from "../../shared/fleet";
 import { useWorkspaceField } from "../lib/useWorkspaceField";
+import { injectPuterTokenIntoWebview, resolveModuleUrl } from "../lib/studioSso";
 
 const Forge3D = React.lazy(() => import("./Forge3D"));
 
 type ForgeMode = "full" | "quick";
 
-const FULL_URL = STUDIO_MODULE_URLS.forgeEditor;
 const LANDING_URL = STUDIO_MODULE_URLS.forge;
 
 export default function Forge() {
   const [mode, setMode] = useWorkspaceField("forgeMode", "full" as ForgeMode);
   const [wvKey, setWvKey] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [src, setSrc] = useState(STUDIO_MODULE_URLS.forgeEditor);
+  const [ssoLabel, setSsoLabel] = useState<string | null>(null);
   const wvRef = useRef<HTMLElement | null>(null);
 
   const setFull = useCallback(() => setMode("full"), [setMode]);
   const setQuick = useCallback(() => setMode("quick"), [setMode]);
+
+  // SSO: seed cookies + grudge_token when Studio is signed in
+  useEffect(() => {
+    if (mode !== "full") return;
+    let cancelled = false;
+    (async () => {
+      const { url, sso } = await resolveModuleUrl("forgeEditor");
+      if (cancelled) return;
+      setSrc(url);
+      setSsoLabel(sso.ok && sso.player ? sso.player.displayName || sso.player.username : null);
+      setWvKey((k) => k + 1);
+    })();
+    return () => { cancelled = true; };
+  }, [mode]);
 
   useEffect(() => {
     if (mode !== "full") return;
@@ -28,11 +44,14 @@ export default function Forge() {
     if (!el) return;
     const onStop = () => setLoading(false);
     const onFail = () => setLoading(false);
+    const onDom = () => { void injectPuterTokenIntoWebview(el); };
     el.addEventListener("did-stop-loading", onStop);
     el.addEventListener("did-fail-load", onFail);
+    el.addEventListener("dom-ready", onDom);
     return () => {
       el.removeEventListener("did-stop-loading", onStop);
       el.removeEventListener("did-fail-load", onFail);
+      el.removeEventListener("dom-ready", onDom);
     };
   }, [mode, wvKey]);
 
@@ -45,6 +64,11 @@ export default function Forge() {
           <span className="text-muted text-[11px] hidden sm:inline truncate">
             {mode === "full" ? "Full editor · forge.grudge-studio.com" : "Quick 3D · local files & CDN"}
           </span>
+          {mode === "full" && ssoLabel && (
+            <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-emerald-400/90 border border-emerald-500/30 rounded px-1.5 py-0.5">
+              <ShieldCheck size={10} /> {ssoLabel}
+            </span>
+          )}
         </div>
 
         <div className="forge-mode-toggle" role="tablist" aria-label="Forge mode">
@@ -104,7 +128,7 @@ export default function Forge() {
             <webview
               key={wvKey}
               ref={wvRef as React.RefObject<HTMLWebViewElement>}
-              src={FULL_URL}
+              src={src}
               partition="persist:grudge-forge"
               className="forge-webview"
               allowpopups
