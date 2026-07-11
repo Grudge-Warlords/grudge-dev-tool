@@ -41,6 +41,20 @@ export const FLEET_GAMES: FleetGame[] = [
     releasesUrl: "https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.7.0",
   },
   {
+    id: "grudge-play",
+    name: "grudge-play",
+    displayName: "Grudge Play",
+    description:
+      "play.grudge.studio — 4 characters + voxel cast, Camofire & Ethereal Falls scenes, all voxel game modes.",
+    url: "https://play.grudge.studio",
+    repo: "grudge-prim-sandbox",
+    engine: "R3F + Rapier + Ecctrl",
+    status: "live",
+    category: "action",
+    topics: ["play", "voxel", "camofire", "ethereal", "avatar"],
+    thumbnail: THUMB("grudge-prim-sandbox"),
+  },
+  {
     id: "grudgewarlords",
     name: "Grudge-Warlords",
     displayName: "Grudge Warlords",
