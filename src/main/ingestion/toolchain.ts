@@ -90,7 +90,13 @@ export function toolsDir(): string {
   try {
     return join(app.getPath("userData"), "tools");
   } catch {
-    return join(process.cwd(), ".grudge-tools");
+    // Fallback when app not ready — match productName userData when possible
+    const roaming = process.env.APPDATA || process.cwd();
+    for (const name of ["Grudge Studio", "grudge-dev-tool"]) {
+      const p = join(roaming, name, "tools");
+      if (existsSync(p)) return p;
+    }
+    return join(roaming, "Grudge Studio", "tools");
   }
 }
 
