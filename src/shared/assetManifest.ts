@@ -10,9 +10,18 @@ export interface AssetEntry {
 }
 
 export const ASSET_MANIFEST: Record<string, AssetEntry> = {
-  char_enemy:   { path: "toon-shooter/characters/Character_Enemy.glb", sizeKB: 1233, tags: ["character", "enemy"] },
-  char_hazmat:  { path: "toon-shooter/characters/Character_Hazmat.glb", sizeKB: 1273, tags: ["character"] },
-  char_soldier: { path: "toon-shooter/characters/Character_Soldier.glb", sizeKB: 1283, tags: ["character", "player"] },
+  // ── Canonical Grudge6 race kits (Engine / Warlords mesh equip) ──
+  race_human:     { path: "models/grudge6/races/WK_Characters.glb",  tags: ["character", "grudge6", "race"] },
+  race_barbarian: { path: "models/grudge6/races/BRB_Characters.glb", tags: ["character", "grudge6", "race"] },
+  race_elf:       { path: "models/grudge6/races/ELF_Characters.glb", tags: ["character", "grudge6", "race"] },
+  race_dwarf:     { path: "models/grudge6/races/DWF_Characters.glb", tags: ["character", "grudge6", "race"] },
+  race_orc:       { path: "models/grudge6/races/ORC_Characters.glb", tags: ["character", "grudge6", "race"] },
+  race_undead:    { path: "models/grudge6/races/UD_Characters.glb",  tags: ["character", "grudge6", "race"] },
+
+  // Legacy toon-shooter (demos / Arena only — NOT Engine character viewer)
+  char_enemy:   { path: "toon-shooter/characters/Character_Enemy.glb", sizeKB: 1233, tags: ["character", "enemy", "toon-shooter"] },
+  char_hazmat:  { path: "toon-shooter/characters/Character_Hazmat.glb", sizeKB: 1273, tags: ["character", "toon-shooter"] },
+  char_soldier: { path: "toon-shooter/characters/Character_Soldier.glb", sizeKB: 1283, tags: ["character", "player", "toon-shooter"] },
 
   weapon_ak:             { path: "toon-shooter/guns/AK.glb", sizeKB: 57, tags: ["weapon", "ranged"] },
   weapon_pistol:         { path: "toon-shooter/guns/Pistol.glb", sizeKB: 41, tags: ["weapon", "ranged"] },

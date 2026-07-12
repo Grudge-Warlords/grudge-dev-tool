@@ -20,6 +20,37 @@ const api = {
     assetMeta: (req: any) => ipcRenderer.invoke("os:assetMeta", req),
     openExternal: (url: string) => ipcRenderer.invoke("os:openExternal", url),
   },
+  // Treaty social (friends, DMs, groups)
+  treaty: {
+    whoami: () => ipcRenderer.invoke("treaty:whoami"),
+    social: () => ipcRenderer.invoke("treaty:social"),
+    friendRequest: (query: string) => ipcRenderer.invoke("treaty:friendRequest", query),
+    friendRespond: (id: string, accept: boolean) => ipcRenderer.invoke("treaty:friendRespond", id, accept),
+    dmThreads: () => ipcRenderer.invoke("treaty:dmThreads"),
+    openDm: (friendAccountId: string) => ipcRenderer.invoke("treaty:openDm", friendAccountId),
+    dmMessages: (threadId: string) => ipcRenderer.invoke("treaty:dmMessages", threadId),
+    sendDm: (threadId: string, content: string) => ipcRenderer.invoke("treaty:sendDm", threadId, content),
+    groups: () => ipcRenderer.invoke("treaty:groups"),
+    createGroup: (name: string, description?: string, members?: string[]) =>
+      ipcRenderer.invoke("treaty:createGroup", name, description, members),
+    inviteGroup: (groupId: string, query: string) => ipcRenderer.invoke("treaty:inviteGroup", groupId, query),
+    leaveGroup: (groupId: string) => ipcRenderer.invoke("treaty:leaveGroup", groupId),
+    groupMessages: (groupId: string) => ipcRenderer.invoke("treaty:groupMessages", groupId),
+    sendGroup: (groupId: string, content: string) => ipcRenderer.invoke("treaty:sendGroup", groupId, content),
+    unread: () => ipcRenderer.invoke("treaty:unread"),
+  },
+  // Global Grudge UUID asset registry
+  registry: {
+    stats: () => ipcRenderer.invoke("registry:stats"),
+    load: () => ipcRenderer.invoke("registry:load"),
+    getByPath: (path: string) => ipcRenderer.invoke("registry:getByPath", path),
+    getByUuid: (uuid: string) => ipcRenderer.invoke("registry:getByUuid", uuid),
+    ensurePath: (path: string, meta?: any) => ipcRenderer.invoke("registry:ensurePath", path, meta),
+    lookupMany: (paths: string[]) => ipcRenderer.invoke("registry:lookupMany", paths),
+    resolve: (uuidOrPath: string) => ipcRenderer.invoke("registry:resolve", uuidOrPath),
+    uuidForPath: (path: string) => ipcRenderer.invoke("registry:uuidForPath", path),
+    backfill: (opts?: { prefix?: string; limit?: number }) => ipcRenderer.invoke("registry:backfill", opts),
+  },
   // Upload
   upload: {
     enqueue: (job: any) => ipcRenderer.invoke("upload:enqueue", job),
@@ -130,6 +161,8 @@ const api = {
     getStudioSso: () => ipcRenderer.invoke("auth:getStudioSso"),
     /** Puter token for injecting into module webviews (localStorage). */
     getPuterTokenForModules: () => ipcRenderer.invoke("auth:getPuterTokenForModules"),
+    /** Full Puter + Grudge session payload for one-login module embeds. */
+    getModuleAuthBundle: () => ipcRenderer.invoke("auth:getModuleAuthBundle"),
     clearStudioSso: () => ipcRenderer.invoke("auth:clearStudioSso"),
   },
   // Cloudflare R2 + Worker

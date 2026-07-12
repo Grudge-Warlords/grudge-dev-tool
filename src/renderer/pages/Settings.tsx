@@ -11,7 +11,6 @@ export default function Settings() {
   const [data, setData] = useState<any>(null);
   const [tools, setTools] = useState<any[]>([]);
   const [token, setToken] = useState("");
-  const [bkKey, setBkKey] = useState("");
   const [apiBase, setApiBase] = useState("");
   const [assetsApiBase, setAssetsApiBase] = useState("");
   const [conn, setConn] = useState<any>(null);
@@ -287,14 +286,6 @@ export default function Settings() {
     reload();
   }
   async function clearToken() { await window.grudge.settings.clearToken(); reload(); }
-  async function saveBkKey() {
-    if (!bkKey) return;
-    await window.grudge.settings.setBlenderKitKey(bkKey);
-    setBkKey("");
-    reload();
-  }
-  async function clearBkKey() { await window.grudge.settings.clearBlenderKitKey(); reload(); }
-
   return (
     <div>
       <h1 className="page-title">Settings</h1>
@@ -357,17 +348,6 @@ export default function Settings() {
             Leave empty for ONE TRUTH. Set only when objectstore routes to a separate host (e.g. <span className="font-mono">assets-api.grudge-studio.com</span>).
           </div>
         </details>
-      </div>
-
-      <div className="card">
-        <h3 style={{ margin: "0 0 8px" }}>BlenderKit</h3>
-        <label className="muted">BlenderKit API key</label>
-        <div className="row">
-          <input type="password" placeholder="bk_…" value={bkKey} onChange={(e) => setBkKey(e.target.value)} />
-          <button className="btn" onClick={saveBkKey}>Save</button>
-          {data?.hasBlenderKitKey && <button className="btn ghost danger" onClick={clearBkKey}>Clear</button>}
-        </div>
-        <div className="muted" style={{ marginTop: 4 }}>{data?.hasBlenderKitKey ? "✓ key stored" : "no key stored"}</div>
       </div>
 
       <div className="card">
@@ -655,10 +635,10 @@ function WorkspacePathsCard() {
     <div className="card">
       <h3 style={{ margin: "0 0 8px" }}>Workspace paths</h3>
       <p className="muted text-sm mb-3">
-        Shared across BlenderKit, Upload, Forge, Coder, and Grudge Engine — one source of truth in electron-store.
+        Shared across Upload, Forge, Coder, and Grudge Engine — one source of truth in electron-store.
       </p>
       <div className="space-y-3 text-xs">
-        <PathRow label="Local assets / BlenderKit downloads" value={localAssetsRoot} onChange={setLocalAssetsRoot}
+        <PathRow label="Local assets downloads" value={localAssetsRoot} onChange={setLocalAssetsRoot}
           onBrowse={() => pick("localAssetsRoot", "Asset download folder", setLocalAssetsRoot)} />
         <PathRow label="Forge R2 upload prefix" value={forgeLastUrl} onChange={setForgeLastUrl} />
         <PathRow label="Upload target prefix" value={uploadPrefix} onChange={setUploadPrefix} />

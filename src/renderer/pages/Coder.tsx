@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { STUDIO_MODULE_URLS } from "../../shared/fleet";
 import { useWorkspaceField } from "../lib/useWorkspaceField";
-import { injectPuterTokenIntoWebview, resolveModuleUrl } from "../lib/studioSso";
+import { resolveModuleUrl, wireWebviewSso } from "../lib/studioSso";
 
 interface CoderStatus {
   running: boolean;
@@ -44,9 +44,10 @@ export default function Coder() {
   const [showPreview, setShowPreview] = useState(true);
   const [prodKey, setProdKey] = useState(0);
   const [prodLoading, setProdLoading] = useState(true);
-  const [prodSrc, setProdSrc] = useState(PROD_URL);
+  const [prodSrc, setProdSrc] = useState<string>(PROD_URL);
   const [ssoLabel, setSsoLabel] = useState<string | null>(null);
   const prodWvRef = useRef<HTMLElement | null>(null);
+  const ssoUnsubRef = useRef<(() => void) | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -89,18 +90,19 @@ export default function Coder() {
   useEffect(() => {
     if (mode !== "production") return;
     setProdLoading(true);
-    const el = prodWvRef.current;
-    if (!el) return;
-    const onStop = () => setProdLoading(false);
-    const onFail = () => setProdLoading(false);
-    const onDom = () => { void injectPuterTokenIntoWebview(el); };
-    el.addEventListener("did-stop-loading", onStop);
-    el.addEventListener("did-fail-load", onFail);
-    el.addEventListener("dom-ready", onDom);
+    const t = window.setTimeout(() => {
+      const el = prodWvRef.current;
+      if (!el) {
+        setProdLoading(false);
+        return;
+      }
+      ssoUnsubRef.current?.();
+      ssoUnsubRef.current = wireWebviewSso(el, { onLoadingChange: setProdLoading });
+    }, 50);
     return () => {
-      el.removeEventListener("did-stop-loading", onStop);
-      el.removeEventListener("did-fail-load", onFail);
-      el.removeEventListener("dom-ready", onDom);
+      window.clearTimeout(t);
+      ssoUnsubRef.current?.();
+      ssoUnsubRef.current = null;
     };
   }, [mode, prodKey]);
 

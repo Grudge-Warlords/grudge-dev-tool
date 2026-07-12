@@ -286,37 +286,144 @@ export async function writeManifest(payload: {
   return jsonOrThrow(res);
 }
 
-export async function getAssetMeta(input: RequestUrlInput): Promise<AssetMeta> {
+/** Normalize user paste into an R2 object key. */
+export function normalizeObjectPath(raw: string): string {
+  let p = (raw || "").trim();
+  if (!p) return "";
+  // Full CDN / R2 URL → key
+  p = p.replace(/^https?:\/\/assets\.grudge-studio\.com\//i, "");
+  p = p.replace(/^https?:\/\/[^/]+\.r2\.cloudflarestorage\.com\/[^/]+\//i, "");
+  p = p.replace(/^https?:\/\/[^/]+\/objects\//i, "");
+  p = p.replace(/^\/+/, "");
+  p = p.replace(/^objects\//, "");
+  // Drop query/hash
+  p = p.split("?")[0].split("#")[0];
+  return p;
+}
+
+export async function getAssetMeta(input: RequestUrlInput): Promise<AssetMeta & { key: string; backend: string }> {
+  const path = normalizeObjectPath(input.objectPath);
+  if (!path) throw new Error("Object path is empty");
+
+  const publicCdn = `https://assets.grudge-studio.com/${path}`;
   const backend = await resolveBackend();
-  const path = input.objectPath.replace(/^\//, "");
+
+  // R2 direct (most reliable signed URL when creds exist)
   if (backend === "r2-direct") {
-    const [head, signedUrl, publicUrl] = await Promise.all([
-      r2Head(path).catch(() => ({ size: 0, contentType: null, updated: null, md5Hash: null })),
-      r2GetSignedDownloadUrl(path, 600),
-      r2PublicUrl(path),
-    ]);
-    return {
-      url: signedUrl,
-      ttlSeconds: 600,
-      size: head.size,
-      contentType: head.contentType,
-      updated: head.updated,
-      publicCdn: publicUrl ?? `https://assets.grudge-studio.com/${path}`,
-    };
+    try {
+      const [head, signedUrl, publicUrl] = await Promise.all([
+        r2Head(path).catch(() => ({ size: 0, contentType: null as string | null, updated: null as string | null, md5Hash: null })),
+        r2GetSignedDownloadUrl(path, 600),
+        r2PublicUrl(path),
+      ]);
+      return {
+        key: path,
+        backend: "r2-direct",
+        url: signedUrl,
+        ttlSeconds: 600,
+        size: head.size ?? 0,
+        contentType: head.contentType,
+        updated: head.updated,
+        publicCdn: publicUrl ?? publicCdn,
+      };
+    } catch {
+      // Still return public CDN so the tab is useful without perfect creds
+      return {
+        key: path,
+        backend: "public-cdn",
+        url: publicCdn,
+        ttlSeconds: 0,
+        size: 0,
+        contentType: null,
+        updated: null,
+        publicCdn,
+      };
+    }
   }
+
   if (backend === "cloudflare-worker") {
-    const r = await workerAssetMeta(input.objectPath);
-    return {
-      url: r.url,
-      ttlSeconds: r.ttlSeconds,
-      size: r.size,
-      contentType: r.contentType,
-      updated: r.updated,
-      publicCdn: r.publicCdn ?? `https://assets.grudge-studio.com/${path}`,
-    };
+    try {
+      const r = await workerAssetMeta(path);
+      return {
+        key: path,
+        backend: "cloudflare-worker",
+        url: r.url || publicCdn,
+        ttlSeconds: r.ttlSeconds ?? 600,
+        size: r.size ?? 0,
+        contentType: r.contentType ?? null,
+        updated: r.updated ?? null,
+        publicCdn: r.publicCdn ?? publicCdn,
+      };
+    } catch {
+      /* fall through to public CDN */
+    }
   }
-  const res = await authedFetchAssets(`/api/objectstore/asset/${path}?format=json`);
-  return jsonOrThrow<AssetMeta>(res);
+
+  // Grudge fleet API — try a few known shapes, never hard-fail without CDN
+  const tryPaths = [
+    `/api/objectstore/asset/${encodeURI(path)}?format=json`,
+    `/api/objectstore/v1/asset?path=${encodeURIComponent(path)}`,
+    `/api/objectstore/download-url`,
+  ];
+  for (const tryPath of tryPaths) {
+    try {
+      if (tryPath.includes("download-url")) {
+        const res = await authedFetchAssets(tryPath, {
+          method: "POST",
+          body: JSON.stringify({ path, key: path, objectPath: path }),
+        });
+        if (!res.ok) continue;
+        const j = (await res.json()) as any;
+        return {
+          key: path,
+          backend: "grudge",
+          url: j.url || j.signedUrl || publicCdn,
+          ttlSeconds: j.ttlSeconds ?? j.expiresIn ?? 600,
+          size: j.size ?? 0,
+          contentType: j.contentType ?? null,
+          updated: j.updated ?? null,
+          publicCdn: j.publicCdn || publicCdn,
+        };
+      }
+      const res = await authedFetchAssets(tryPath);
+      if (!res.ok) continue;
+      const j = (await res.json()) as any;
+      return {
+        key: path,
+        backend: "grudge",
+        url: j.url || j.signedUrl || publicCdn,
+        ttlSeconds: j.ttlSeconds ?? 600,
+        size: j.size ?? 0,
+        contentType: j.contentType ?? null,
+        updated: j.updated ?? null,
+        publicCdn: j.publicCdn || publicCdn,
+      };
+    } catch {
+      /* next */
+    }
+  }
+
+  // Public CDN always works for immutable assets on assets.grudge-studio.com
+  let size = 0;
+  let contentType: string | null = null;
+  try {
+    const head = await fetch(publicCdn, { method: "HEAD" });
+    if (head.ok) {
+      size = Number(head.headers.get("content-length") || 0);
+      contentType = head.headers.get("content-type");
+    }
+  } catch { /* offline-tolerant */ }
+
+  return {
+    key: path,
+    backend: "public-cdn",
+    url: publicCdn,
+    ttlSeconds: 0,
+    size,
+    contentType,
+    updated: null,
+    publicCdn,
+  };
 }
 
 // ---------------------------------------------------------------------------

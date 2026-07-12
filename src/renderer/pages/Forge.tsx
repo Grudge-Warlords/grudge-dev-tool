@@ -4,7 +4,7 @@ import {
 } from "lucide-react";
 import { STUDIO_MODULE_URLS } from "../../shared/fleet";
 import { useWorkspaceField } from "../lib/useWorkspaceField";
-import { injectPuterTokenIntoWebview, resolveModuleUrl } from "../lib/studioSso";
+import { resolveModuleUrl, wireWebviewSso } from "../lib/studioSso";
 
 const Forge3D = React.lazy(() => import("./Forge3D"));
 
@@ -16,9 +16,10 @@ export default function Forge() {
   const [mode, setMode] = useWorkspaceField("forgeMode", "full" as ForgeMode);
   const [wvKey, setWvKey] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [src, setSrc] = useState(STUDIO_MODULE_URLS.forgeEditor);
+  const [src, setSrc] = useState<string>(STUDIO_MODULE_URLS.forgeEditor);
   const [ssoLabel, setSsoLabel] = useState<string | null>(null);
   const wvRef = useRef<HTMLElement | null>(null);
+  const unsubRef = useRef<(() => void) | null>(null);
 
   const setFull = useCallback(() => setMode("full"), [setMode]);
   const setQuick = useCallback(() => setMode("quick"), [setMode]);
@@ -31,7 +32,13 @@ export default function Forge() {
       const { url, sso } = await resolveModuleUrl("forgeEditor");
       if (cancelled) return;
       setSrc(url);
-      setSsoLabel(sso.ok && sso.player ? sso.player.displayName || sso.player.username : null);
+      setSsoLabel(
+        sso.ok && sso.player
+          ? sso.player.displayName || sso.player.username
+          : sso.error
+            ? null
+            : null,
+      );
       setWvKey((k) => k + 1);
     })();
     return () => { cancelled = true; };
@@ -40,18 +47,20 @@ export default function Forge() {
   useEffect(() => {
     if (mode !== "full") return;
     setLoading(true);
-    const el = wvRef.current;
-    if (!el) return;
-    const onStop = () => setLoading(false);
-    const onFail = () => setLoading(false);
-    const onDom = () => { void injectPuterTokenIntoWebview(el); };
-    el.addEventListener("did-stop-loading", onStop);
-    el.addEventListener("did-fail-load", onFail);
-    el.addEventListener("dom-ready", onDom);
+    // Wait a tick so <webview key=…> mounts with the new src
+    const t = window.setTimeout(() => {
+      const el = wvRef.current;
+      if (!el) {
+        setLoading(false);
+        return;
+      }
+      unsubRef.current?.();
+      unsubRef.current = wireWebviewSso(el, { onLoadingChange: setLoading });
+    }, 50);
     return () => {
-      el.removeEventListener("did-stop-loading", onStop);
-      el.removeEventListener("did-fail-load", onFail);
-      el.removeEventListener("dom-ready", onDom);
+      window.clearTimeout(t);
+      unsubRef.current?.();
+      unsubRef.current = null;
     };
   }, [mode, wvKey]);
 
@@ -103,14 +112,17 @@ export default function Forge() {
               >
                 <RefreshCw size={12} />
               </button>
-              <a
+              <button
+                type="button"
                 className="btn ghost text-xs flex items-center gap-1"
-                href={LANDING_URL}
-                target="_blank"
-                rel="noreferrer"
+                title="Open Forge in system browser (with Studio SSO token)"
+                onClick={async () => {
+                  const { url } = await resolveModuleUrl("forgeEditor");
+                  void window.grudge?.os?.openExternal?.(url);
+                }}
               >
                 <ExternalLink size={12} /> Open in browser
-              </a>
+              </button>
             </>
           )}
         </div>

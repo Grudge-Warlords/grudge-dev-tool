@@ -179,7 +179,7 @@ export default function Home({ onNavigate, admin, username, grudgeId }: Props) {
           <h2 className="home-section-title mb-3">What Studio is</h2>
           <ul className="home-bullets">
             <li><strong>Information</strong> — fleet manifest, ONE TRUTH probes, UUID, docs</li>
-            <li><strong>Assets</strong> — R2/objectstore browse, search, ingest, BlenderKit, CDN URLs</li>
+            <li><strong>Assets</strong> — R2/objectstore browse, search, ingest, CDN URLs</li>
             <li><strong>Forge</strong> — full scene editor (web) + Quick 3D for local models</li>
             <li><strong>Coder</strong> — production IDE embedded, or local GrudachainCode</li>
           </ul>

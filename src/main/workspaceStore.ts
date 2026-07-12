@@ -11,6 +11,10 @@ export interface WorkspaceSnapshot {
   forgeLastUrl: string;
   /** full = forge.grudge-studio.com webview; quick = in-process Forge3D */
   forgeMode: "full" | "quick";
+  /** Pending CDN URL for Assets → 3D Studio (Browser View 3D). */
+  assetStudioPendingUrl: string;
+  /** Pending local disk path for 3D Studio. */
+  assetStudioPendingPath: string;
   localAssetsRoot: string;
   coderRoot: string;
   coderProjectDir: string;
@@ -35,6 +39,8 @@ const DEFAULT: WorkspaceSnapshot = {
   searchQuery: "",
   forgeLastUrl: "",
   forgeMode: "full",
+  assetStudioPendingUrl: "",
+  assetStudioPendingPath: "",
   localAssetsRoot: "",
   coderRoot: "",
   coderProjectDir: "",

@@ -2,6 +2,34 @@
 
 All notable changes to **Grudge Studio** (`grudge-dev-tool` repo) are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] — 2026-07-12
+
+### Added
+
+- **3D Studio** (`/assets-3d`) — local Three.js viewer + Convert→GLB; Browser **View 3D** lands here with the model loaded.
+- **Treaty tab** (`/treaty`) — friends, DMs, groups via fleet `/api/treaty/*` using Studio SSO session.
+- **Global asset UUID registry** — path-stable Grudge UUIDs for every R2 key (`sha256(grudge-asset-v1:key)`), registry SSOT at `manifests/grudge-asset-registry/v1/index.json`, Browser **Index all** backfill.
+- **Engine live equip** — Grudge6 race GLBs, race atlas textures, child-mesh equipment loadouts (no toon-shooter placeholders).
+- **Studio SSO** — one Puter login seeds Forge, Coder, Treaty (cookies + `?grudge_token=` + webview inject).
+
+### Fixed
+
+- **Request URL** — always returns public CDN URL; signed download when R2/API available (no hard 404).
+- **3D open wiring** — pending path/URL persisted in workspace; re-open while already on 3D Studio via `grudge:asset-studio-open` (single-load path).
+- **Cold-start model open** — `flushPendingTo` navigates to `/assets-3d` (not Full Forge).
+- **Treaty auth** — re-sync Studio SSO before social/DM calls when JWT missing.
+- **Request URL** tab available to all signed-in users (public CDN does not need admin).
+
+### Changed
+
+- BlenderKit tab/page removed.
+- README rewritten for ONE TRUTH, SSO, UUID registry, 3D Studio, Treaty.
+
+### Notes
+
+- Installer: `Grudge Studio-Setup-0.7.1.exe`.
+- HuggingFace: `node scripts/store-hf-token.mjs hf_…` (keytar `ai.huggingface`).
+
 ## [0.7.0] — 2026-07-11
 
 ### Added — Grudge Studio all-in-one shell
@@ -33,8 +61,6 @@ All notable changes to **Grudge Studio** (`grudge-dev-tool` repo) are documented
 
 - Web coder/forge deploys unchanged; Studio embeds them as modules.
 - Installer: `Grudge Studio-Setup-0.7.0.exe`.
-
-## [Unreleased]
 
 ## [0.6.1] — 2026-07-09
 

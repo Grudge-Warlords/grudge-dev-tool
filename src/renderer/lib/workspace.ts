@@ -8,6 +8,10 @@ export interface WorkspaceMirror {
   searchQuery?: string;
   forgeLastUrl?: string;
   forgeMode?: "full" | "quick";
+  /** Pending CDN URL for Assets → 3D Studio (from Browser View 3D). */
+  assetStudioPendingUrl?: string;
+  /** Pending local disk path for 3D Studio. */
+  assetStudioPendingPath?: string;
   localAssetsRoot?: string;
   coderRoot?: string;
   coderProjectDir?: string;

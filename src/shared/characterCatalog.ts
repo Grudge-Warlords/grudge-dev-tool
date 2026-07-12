@@ -12,7 +12,12 @@
  *   {PREFIX}Units_Body_A, {PREFIX}Units_sword_A, etc.
  *
  * Bone containers: R_hand_container, L_hand_container, L_shield_container
+ *
+ * Models: canonical RACE_GRUDGE6 GLBs (models/grudge6/races/*_Characters.glb)
+ * — same kits as Warlords UMMORPG mesh equip.
  */
+
+import { RACE_GRUDGE6 } from "./grudge6Assets";
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -76,16 +81,16 @@ export interface CharacterPrefab {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// RACE CONFIGS
+// RACE CONFIGS — canonical grudge6 kits (Warlords / RACE_GRUDGE6 SSOT)
 // ═══════════════════════════════════════════════════════════════════
 
-const RACE_META: Record<RaceId, { prefix: string; faction: FactionId; modelDir: string }> = {
-  human:     { prefix: "WK_",  faction: "crusade", modelDir: "WesternKingdoms" },
-  barbarian: { prefix: "BRB_", faction: "crusade", modelDir: "Barbarians" },
-  elf:       { prefix: "ELF_", faction: "fabled",  modelDir: "Elves" },
-  dwarf:     { prefix: "DWF_", faction: "fabled",  modelDir: "Dwarves" },
-  orc:       { prefix: "ORC_", faction: "legion",  modelDir: "Orcs" },
-  undead:    { prefix: "UD_",  faction: "legion",  modelDir: "Undead" },
+const RACE_META: Record<RaceId, { prefix: string; faction: FactionId; cdnPath: string; scale: number }> = {
+  human:     { prefix: "WK_",  faction: "crusade", cdnPath: RACE_GRUDGE6.human.cdnPath,     scale: 1.0 },
+  barbarian: { prefix: "BRB_", faction: "crusade", cdnPath: RACE_GRUDGE6.barbarian.cdnPath, scale: 1.1 },
+  elf:       { prefix: "ELF_", faction: "fabled",  cdnPath: RACE_GRUDGE6.elf.cdnPath,       scale: 1.0 },
+  dwarf:     { prefix: "DWF_", faction: "fabled",  cdnPath: RACE_GRUDGE6.dwarf.cdnPath,     scale: 0.85 },
+  orc:       { prefix: "ORC_", faction: "legion",  cdnPath: RACE_GRUDGE6.orc.cdnPath,       scale: 1.15 },
+  undead:    { prefix: "UD_",  faction: "legion",  cdnPath: RACE_GRUDGE6.undead.cdnPath,    scale: 1.0 },
 };
 
 const ICONS_BASE = "https://molochdagod.github.io/ObjectStore/icons";
@@ -202,14 +207,7 @@ function buildPrefab(race: RaceId, classId: ClassId): CharacterPrefab {
     warrior: "Warrior", mage: "Mage", ranger: "Ranger", worge: "Worge",
   };
 
-  // CDN model mapping — toon-shooter characters as placeholders until race-specific GLBs are uploaded
-  const cdnModelMap: Record<FactionId, string> = {
-    crusade: "char_soldier",
-    fabled: "char_hazmat",
-    legion: "char_enemy",
-  };
-
-  // Starting armor variant per class
+// Starting armor variant per class (Units_* letter on race kit)
   const armorVariant: Record<ClassId, { body: string; arms: string; legs: string }> = {
     warrior: { body: "A", arms: "A", legs: "A" },  // Heavy plate
     mage:    { body: "C", arms: "C", legs: "B" },  // Light robes
@@ -252,6 +250,9 @@ function buildPrefab(race: RaceId, classId: ClassId): CharacterPrefab {
     undead_worge: "The Ghoulfather, whose plague aura corrupts all nearby life.",
   };
 
+  // Canonical race kit path (no toon-shooter placeholders)
+  const modelPath = raceMeta.cdnPath.replace(/^\//, "");
+
   return {
     id: `${race}_${classId}`,
     race,
@@ -259,8 +260,9 @@ function buildPrefab(race: RaceId, classId: ClassId): CharacterPrefab {
     faction: raceMeta.faction,
     name: `${raceNames[race]} ${classNames[classId]}`,
     prefix: raceMeta.prefix,
-    modelPath: `factioncharacters/${raceMeta.modelDir}/models/${raceMeta.prefix}Characters_customizable.FBX`,
-    cdnModelKey: cdnModelMap[raceMeta.faction],
+    modelPath,
+    /** Race-specific GLB key on assets.grudge-studio.com — NOT char_soldier/hazmat/enemy */
+    cdnModelKey: modelPath,
     equipment: {
       body: armor.body,
       arms: armor.arms,

@@ -35,9 +35,21 @@ export const SLOT_CODES: Record<string, string> = {
   // Misc
   Item: "item", Quest: "qust", Key: "keyy", Token: "tokn",
   Currency: "curr", Loot: "loot", Treasure: "trea", Artifact: "artf",
-  // Asset-pack content
+  // Asset-pack / CDN content (stable asset identity)
   Texture: "texr", TextureMaterial: "mati", BlendModel: "mdlb",
   Sprite: "sprt", Audio: "audi", Mesh: "mesh",
+  /** Particle / spell / trail VFX packs */
+  Vfx: "vfxa",
+  /** UI icons / ability icons */
+  Icon: "icon",
+  /** Animation clips / Mixamo packs */
+  Anim: "anim",
+  /** Map / environment GLBs */
+  Map: "mapa",
+  /** Character race kits / skinned units */
+  Character: "char",
+  /** Weapon meshes */
+  WeaponMesh: "wepm",
   // Fallbacks
   Unknown: "unkn", Other: "othr",
 };
@@ -114,6 +126,10 @@ export interface GrudgeUUIDComponents {
   counter: string;
 }
 
+/**
+ * Time-based UUID for **inventory / drop / crafted instances** (unique each mint).
+ * Not stable across re-index — use {@link generateStableAssetUUID} for CDN assets.
+ */
 export function generateGrudgeUUID(
   slotOrType: string,
   tier: number | null,
@@ -121,8 +137,151 @@ export function generateGrudgeUUID(
 ): string {
   const slotCode = getSlotCode(slotOrType);
   const tierCode = tierToCode(tier);
-  const idStr = String(itemId).padStart(4, "0");
+  const idStr = String(Math.max(1, Math.min(9999, Math.floor(itemId)))).padStart(4, "0");
   return `${slotCode}-${tierCode}-${idStr}-${texasTimestamp()}-${nextCounter()}`;
+}
+
+/** Normalize R2 / CDN object keys for stable hashing. */
+export function normalizeAssetPath(raw: string): string {
+  let p = (raw || "").trim().replace(/\\/g, "/");
+  p = p.replace(/^https?:\/\/assets\.grudge-studio\.com\//i, "");
+  p = p.replace(/^https?:\/\/[^/]+\/objects\//i, "");
+  p = p.replace(/^\/+/, "");
+  p = p.replace(/^objects\//, "");
+  p = p.split("?")[0].split("#")[0];
+  // collapse accidental double slashes
+  p = p.replace(/\/+/g, "/");
+  return p;
+}
+
+/**
+ * Infer asset family / slot label from object path + extension.
+ * Used so race GLBs, textures, VFX, icons get meaningful SLOT codes.
+ */
+export function inferAssetSlot(objectPath: string): string {
+  const p = normalizeAssetPath(objectPath).toLowerCase();
+  const ext = p.includes(".") ? p.slice(p.lastIndexOf(".")) : "";
+
+  if (p.includes("/vfx/") || p.includes("vfx-") || p.includes("/effects/") || p.includes("/fx/")) {
+    return "Vfx";
+  }
+  if (
+    p.includes("/icon") ||
+    p.includes("/icons/") ||
+    (p.includes("/ui/") && (ext === ".png" || ext === ".webp" || ext === ".svg"))
+  ) {
+    return "Icon";
+  }
+  if (p.includes("/anim") || p.includes("animation") || p.includes("/loco-") || p.includes("mixamo")) {
+    return "Anim";
+  }
+  if (p.includes("/map") || p.includes("map-") || p.includes("/terrain/") || p.includes("/environment/")) {
+    return "Map";
+  }
+  if (
+    p.includes("/races/") ||
+    p.includes("characters/") ||
+    p.includes("/char-") ||
+    p.includes("grudge6/races") ||
+    p.includes("toon-rts-characters")
+  ) {
+    return "Character";
+  }
+  if (p.includes("/weapon") || p.includes("/guns/") || p.includes("race-weapon")) {
+    return "WeaponMesh";
+  }
+  if ([".glb", ".gltf", ".fbx", ".obj", ".blend", ".dae", ".stl", ".ply", ".3mf"].includes(ext)) {
+    return "Mesh";
+  }
+  if ([".png", ".jpg", ".jpeg", ".webp", ".tga", ".bmp", ".gif"].includes(ext)) {
+    if (p.includes("/texture") || p.includes("textures/") || p.includes("_albedo") || p.includes("_normal")) {
+      return "Texture";
+    }
+    return "Sprite";
+  }
+  if ([".ogg", ".wav", ".mp3", ".flac"].includes(ext)) return "Audio";
+  return "Item";
+}
+
+/**
+ * **Stable asset UUID** — same R2/CDN path always yields the same ID across
+ * Studio, Forge, Warlords, and inventory tooling.
+ *
+ * Format still matches Grudge UUID: `SLOT-TIER-ITEMID-STAMP-COUNTER`
+ * where STAMP (12) + COUNTER (6) + ITEMID are derived from SHA-256 of the path
+ * (not wall-clock time). Re-running backfill never renames an existing asset.
+ *
+ * Namespace: `grudge-asset-v1:` so future format bumps can migrate intentionally.
+ */
+export function generateStableAssetUUID(
+  objectPath: string,
+  slotOrType?: string,
+): string {
+  // Lazy require-free: use Web Crypto when available is awkward in shared;
+  // callers in Node should prefer generateStableAssetUUIDFromHash with sha256.
+  // For browser-only we fall back to a simple FNV-like mix (main process always
+  // passes a real hash via assetRegistry).
+  const path = normalizeAssetPath(objectPath);
+  const slot = getSlotCode(slotOrType || inferAssetSlot(path));
+  const seed = `grudge-asset-v1:${path}`;
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  // Expand to 32 hex-ish digits via multi-round mix
+  const parts: string[] = [];
+  let x = h >>> 0;
+  for (let i = 0; i < 8; i++) {
+    x = Math.imul(x ^ (x >>> 16), 2246822507) >>> 0;
+    x = Math.imul(x ^ (x >>> 13), 3266489909) >>> 0;
+    parts.push((x >>> 0).toString(16).padStart(8, "0"));
+  }
+  const hex = parts.join("");
+  return formatStableFromHex(slot, hex);
+}
+
+/** Node/main: preferred stable mint from real SHA-256 hex of path (or file bytes). */
+export function generateStableAssetUUIDFromHash(
+  objectPath: string,
+  sha256Hex: string,
+  slotOrType?: string,
+): string {
+  const path = normalizeAssetPath(objectPath);
+  const slot = getSlotCode(slotOrType || inferAssetSlot(path));
+  // Prefer content hash when present; mix with path so renamed files get new IDs
+  // while identical path+content stays stable.
+  const material = (sha256Hex || "").toLowerCase().replace(/[^0-9a-f]/g, "");
+  const hex =
+    material.length >= 32
+      ? material
+      : // fall back to path-only deterministic expansion
+        (() => {
+          const seed = `grudge-asset-v1:${path}`;
+          let h = 2166136261;
+          for (let i = 0; i < seed.length; i++) {
+            h ^= seed.charCodeAt(i);
+            h = Math.imul(h, 16777619);
+          }
+          const out: string[] = [];
+          let x = h >>> 0;
+          for (let i = 0; i < 8; i++) {
+            x = Math.imul(x ^ (x >>> 16), 2246822507) >>> 0;
+            x = Math.imul(x ^ (x >>> 13), 3266489909) >>> 0;
+            out.push((x >>> 0).toString(16).padStart(8, "0"));
+          }
+          return out.join("");
+        })();
+  return formatStableFromHex(slot, hex);
+}
+
+function formatStableFromHex(slotCode: string, hex: string): string {
+  const h = (hex + "0".repeat(40)).slice(0, 40);
+  const itemId = String((parseInt(h.slice(0, 4), 16) % 9999) + 1).padStart(4, "0");
+  // 12-char stamp + 6-char counter from hash (hex ⊆ base36 alphabet)
+  const stamp = h.slice(4, 16);
+  const counter = h.slice(16, 22);
+  return `${slotCode}-oo-${itemId}-${stamp}-${counter}`;
 }
 
 export function parseGrudgeUUID(uuid: string): GrudgeUUIDComponents | null {

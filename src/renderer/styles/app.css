@@ -731,6 +731,17 @@ pre { background: var(--bg-2); border: 1px solid var(--line); padding: 10px; bor
   background: var(--bg-2);
   color: var(--ink);
 }
+.engine-select {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 6px;
+  color: var(--ink, #e8e6e0);
+  padding: 3px 6px;
+  max-width: 100%;
+}
+.engine-select:focus {
+  outline: 1px solid rgba(212, 175, 55, 0.5);
+}
 .engine-chip {
   font-size: 9px;
   padding: 3px 6px;

@@ -1,6 +1,9 @@
 /**
- * Grudge6 race character delivery — R2 library roots and CDN wiring.
- * Used by Grudge Engine tab for D1-style asset delivery to viewer + Forge.
+ * Grudge6 race character delivery — canonical R2 / CDN wiring.
+ * SSOT matches grudge-builder shared/fleet RACE_GRUDGE6 (Warlords / home-island).
+ *
+ * Equipment is NOT separate weapon GLBs — it is child-mesh visibility on the
+ * race kit (Units_Body_A, Units_sword_A, …) via Grudge6EquipmentManager.
  */
 
 export const CDN_BASE = "https://assets.grudge-studio.com";
@@ -13,6 +16,128 @@ export type AssetCategory =
   | "effects"
   | "vfx"
   | "animations";
+
+export type RaceId = "human" | "barbarian" | "elf" | "dwarf" | "orc" | "undead";
+
+export interface Grudge6RaceConfig {
+  modelId: RaceId;
+  prefix: string;
+  label: string;
+  /** CDN-relative modular race kit (GLB) */
+  cdnPath: string;
+  /** Absolute CDN URL for the race GLB */
+  cdnUrl: string;
+  /** Optional FBX fallback */
+  fbxPath: string;
+  scale: number;
+  faction: "crusade" | "fabled" | "legion";
+  baseModelStem: string;
+  /** Race atlas under textures/grudge6/ */
+  textureFolder: string;
+  textureFile: string;
+}
+
+/**
+ * Canonical grudge6 race kits on R2.
+ * Do NOT use toon-shooter Character_Soldier / Hazmat / Enemy placeholders.
+ */
+export const RACE_GRUDGE6: Record<RaceId, Grudge6RaceConfig> = {
+  human: {
+    modelId: "human",
+    prefix: "WK_",
+    label: "Human",
+    cdnPath: "/models/grudge6/races/WK_Characters.glb",
+    cdnUrl: `${CDN_BASE}/models/grudge6/races/WK_Characters.glb`,
+    fbxPath: "/models/grudge6/races/WK_Characters.fbx",
+    scale: 1.0,
+    faction: "crusade",
+    baseModelStem: "WK_Characters",
+    textureFolder: "western-kingdoms",
+    textureFile: "WK_Standard_Units.webp",
+  },
+  barbarian: {
+    modelId: "barbarian",
+    prefix: "BRB_",
+    label: "Barbarian",
+    cdnPath: "/models/grudge6/races/BRB_Characters.glb",
+    cdnUrl: `${CDN_BASE}/models/grudge6/races/BRB_Characters.glb`,
+    fbxPath: "/models/grudge6/races/BRB_Characters.fbx",
+    scale: 1.1,
+    faction: "crusade",
+    baseModelStem: "BRB_Characters",
+    textureFolder: "barbarians",
+    textureFile: "BRB_StandardUnits_texture.webp",
+  },
+  elf: {
+    modelId: "elf",
+    prefix: "ELF_",
+    label: "Elf",
+    cdnPath: "/models/grudge6/races/ELF_Characters.glb",
+    cdnUrl: `${CDN_BASE}/models/grudge6/races/ELF_Characters.glb`,
+    fbxPath: "/models/grudge6/races/ELF_Characters.fbx",
+    scale: 1.0,
+    faction: "fabled",
+    baseModelStem: "ELF_Characters",
+    textureFolder: "elves",
+    textureFile: "ELF_HighElves_Texture.webp",
+  },
+  dwarf: {
+    modelId: "dwarf",
+    prefix: "DWF_",
+    label: "Dwarf",
+    cdnPath: "/models/grudge6/races/DWF_Characters.glb",
+    cdnUrl: `${CDN_BASE}/models/grudge6/races/DWF_Characters.glb`,
+    fbxPath: "/models/grudge6/races/DWF_Characters.fbx",
+    scale: 0.85,
+    faction: "crusade",
+    baseModelStem: "DWF_Characters",
+    textureFolder: "dwarves",
+    textureFile: "DWF_Standard_Units.webp",
+  },
+  orc: {
+    modelId: "orc",
+    prefix: "ORC_",
+    label: "Orc",
+    cdnPath: "/models/grudge6/races/ORC_Characters.glb",
+    cdnUrl: `${CDN_BASE}/models/grudge6/races/ORC_Characters.glb`,
+    fbxPath: "/models/grudge6/races/ORC_Characters.fbx",
+    scale: 1.15,
+    faction: "legion",
+    baseModelStem: "ORC_Characters",
+    textureFolder: "orcs",
+    textureFile: "ORC_StandardUnits.webp",
+  },
+  undead: {
+    modelId: "undead",
+    prefix: "UD_",
+    label: "Undead",
+    cdnPath: "/models/grudge6/races/UD_Characters.glb",
+    cdnUrl: `${CDN_BASE}/models/grudge6/races/UD_Characters.glb`,
+    fbxPath: "/models/grudge6/races/UD_Characters.fbx",
+    scale: 1.0,
+    faction: "legion",
+    baseModelStem: "UD_Characters",
+    textureFolder: "undead",
+    textureFile: "UD_Standard_Units.webp",
+  },
+};
+
+export const RACE_IDS: RaceId[] = ["human", "barbarian", "elf", "dwarf", "orc", "undead"];
+
+export function raceCdnUrl(raceId: string): string {
+  const id = (raceId in RACE_GRUDGE6 ? raceId : "human") as RaceId;
+  return RACE_GRUDGE6[id].cdnUrl;
+}
+
+export function raceTextureUrls(raceId: string): string[] {
+  const id = (raceId in RACE_GRUDGE6 ? raceId : "human") as RaceId;
+  const r = RACE_GRUDGE6[id];
+  const key = `textures/grudge6/${r.textureFolder}/${r.textureFile}`;
+  return [
+    `${CDN_BASE}/${key}`,
+    `${CDN_BASE}/textures/grudge6/${r.textureFolder}/${r.textureFile}`,
+  ];
+}
 
 export interface AssetRoot {
   id: AssetCategory;
@@ -27,29 +152,29 @@ export const GRUDGE6_ASSET_ROOTS: AssetRoot[] = [
   {
     id: "characters",
     label: "Race characters",
-    r2Prefix: "factioncharacters/",
-    description: "6 races × FBX/GLB customizable units (WK_, BRB_, ELF_, DWF_, ORC_, UD_)",
+    r2Prefix: "models/grudge6/races/",
+    description: "6 races × modular GLB (WK_/BRB_/ELF_/DWF_/ORC_/UD_ Characters.glb)",
     forgeEnabled: true,
   },
   {
     id: "weapons",
-    label: "Weapons",
+    label: "Weapon packs (legacy)",
     r2Prefix: "asset-packs/weapons/",
-    description: "Swords, axes, bows, staves — hand containers R_hand / L_hand",
+    description: "Optional external weapons — prefer child meshes on race kit",
     forgeEnabled: true,
   },
   {
     id: "armor",
-    label: "Armour",
+    label: "Armour packs (legacy)",
     r2Prefix: "asset-packs/armor/",
-    description: "Body, arms, legs, shoulders, shields",
+    description: "Optional external armor — prefer Units_* variants on race kit",
     forgeEnabled: true,
   },
   {
     id: "skins",
-    label: "Skins",
-    r2Prefix: "asset-packs/skins/",
-    description: "Material variants and race skin packs",
+    label: "Race textures",
+    r2Prefix: "textures/grudge6/",
+    description: "Race atlas webp per faction folder",
     forgeEnabled: true,
   },
   {
@@ -92,6 +217,7 @@ export function cdnUrl(r2Key: string): string {
   return `${CDN_BASE}/${key}`;
 }
 
+/** @deprecated Prefer RACE_GRUDGE6[*].cdnPath — FBX customizable path is legacy. */
 export function raceModelR2Path(modelDir: string, prefix: string): string {
-  return `factioncharacters/${modelDir}/models/${prefix}Characters_customizable.FBX`;
+  return `models/grudge6/races/${prefix.replace(/_$/, "")}_Characters.glb`;
 }

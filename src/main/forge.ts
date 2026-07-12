@@ -82,8 +82,7 @@ export function captureSecondInstanceArgv(argv: string[], mainWindow: BrowserWin
   log.info("Forge: second-instance file:", path);
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("forge:openFile", openPayload(path));
-    // Also navigate to the Forge page so the user actually sees the file.
-    mainWindow.webContents.send("nav", "/forge");
+    mainWindow.webContents.send("nav", "/assets-3d");
   } else {
     pendingOpen = openPayload(path);
   }
@@ -175,7 +174,8 @@ function deliverToForge(mainWindow: BrowserWindow | null, payload: ForgeOpenPayl
     if (!mainWindow.isVisible()) mainWindow.show();
     mainWindow.focus();
     mainWindow.webContents.send("forge:openFile", payload);
-    mainWindow.webContents.send("nav", "/forge");
+    // Assets → 3D Studio (local viewer), not Full Forge webview
+    mainWindow.webContents.send("nav", "/assets-3d");
   } else {
     pendingOpen = payload;
   }
@@ -214,11 +214,11 @@ export function flushPendingTo(mainWindow: BrowserWindow): void {
   // Wait for renderer to be ready, then deliver.
   mainWindow.webContents.once("did-finish-load", () => {
     mainWindow.webContents.send("forge:openFile", payload);
-    mainWindow.webContents.send("nav", "/forge");
+    mainWindow.webContents.send("nav", "/assets-3d");
   });
   // If it has already loaded by the time we get here (rare), fire immediately too.
   if (!mainWindow.webContents.isLoading()) {
     mainWindow.webContents.send("forge:openFile", payload);
-    mainWindow.webContents.send("nav", "/forge");
+    mainWindow.webContents.send("nav", "/assets-3d");
   }
 }

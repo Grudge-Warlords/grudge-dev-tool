@@ -48,7 +48,7 @@ export function createTray(getWindow: () => BrowserWindow | null): Tray {
     { label: "Search\u2026",        click: () => showWindow("/search") },
     { label: "Quick Upload\u2026",  click: () => showWindow("/upload") },
     { label: "Generate UUID\u2026", click: () => showWindow("/uuid") },
-    { label: "BlenderKit Library",  click: () => showWindow("/library") },
+    { label: "Asset Store",         click: () => showWindow("/library") },
     { type: "separator" },
     { label: "Open Docs",      click: () => showWindow("/docs") },
     { label: "Settings",       click: () => showWindow("/settings") },

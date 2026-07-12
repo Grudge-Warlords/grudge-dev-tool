@@ -6,7 +6,8 @@ nav_order: 5
 # API Reference — `/api/objectstore/*`
 All routes live in `grudge-builder/server/integrations/object_storage/devToolRoutes.ts`.
 
-**Recommended base URL:** `https://client.grudge-studio.com` (Vercel rewrites → Railway GCS bucket). Direct VPS: `https://api.grudge-studio.com` or local `http://localhost:5000`.
+**Recommended base URL:** `https://client.grudge-studio.com` (Vercel rewrites → Railway + ObjectStore + assets).  
+**Do not use** `https://api.grudge-studio.com` for auth/SSO (deprecated). Game data: `grudge-api-production-0d46.up.railway.app` via rewrites only. Local: `http://localhost:5000`.
 
 Use `grudge-dev doctor` to confirm JSON responses (no HTML SPA leaks). Non-public routes require `Bearer` token or `X-Admin-Password` (local dev).
 ## `GET /api/objectstore/list`

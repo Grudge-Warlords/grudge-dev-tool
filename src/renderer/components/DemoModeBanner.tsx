@@ -39,7 +39,7 @@ export default function DemoModeBanner({ feature, compact = false }: { feature: 
         <div className={`text-muted ${compact ? "text-[10px]" : "text-sm"} mb-1`}>
           The backend at <span className="font-mono text-ink">{conn.apiBaseUrl}</span> isn't reachable
           {conn.error ? <> (<span className="text-danger">{conn.error}</span>)</> : null}.
-          Local features (UUID, ingestion dry-run, BlenderKit) keep working.
+          Local features (UUID, ingestion dry-run) keep working.
         </div>
         <div className="flex gap-3 text-xs">
           <button

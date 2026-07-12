@@ -97,6 +97,43 @@ export async function r2Head(key: string): Promise<{ size: number; contentType: 
   };
 }
 
+/** Download object body as Buffer (null if missing). */
+export async function r2Get(key: string): Promise<Buffer | null> {
+  const { s3, bucket } = await getClient();
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const body = r.Body;
+    if (!body) return null;
+    // AWS SDK v3 stream → buffer
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of body as AsyncIterable<Uint8Array>) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  } catch (err: any) {
+    const name = err?.name || err?.Code || "";
+    if (name === "NoSuchKey" || name === "NotFound" || err?.$metadata?.httpStatusCode === 404) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+/** Put JSON document (registry index, pack manifests, etc.). */
+export async function r2PutJson(key: string, value: unknown): Promise<void> {
+  const { s3, bucket } = await getClient();
+  const body = JSON.stringify(value, null, 2);
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: body,
+      ContentType: "application/json; charset=utf-8",
+      CacheControl: "public, max-age=60",
+    }),
+  );
+}
+
 export async function r2GetSignedDownloadUrl(key: string, ttlSeconds: number = 600): Promise<string> {
   const { s3, bucket } = await getClient();
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn: ttlSeconds });

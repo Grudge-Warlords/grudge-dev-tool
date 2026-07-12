@@ -145,49 +145,54 @@ async function mintLaunchToken(sessionToken: string, audience: string): Promise<
 }
 
 async function setPartitionCookie(partition: string, sessionToken: string): Promise<void> {
-  const ses = session.fromPartition(partition);
+  const ses =
+    !partition || partition === "default"
+      ? session.defaultSession
+      : session.fromPartition(partition);
   const value = encodeURIComponent(sessionToken);
-  const expiry = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 12; // ~12d, matches typical session
+  const expiry = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 12; // ~12d
 
-  // Cookie on apex + subdomains so forge/coder/id share the Grudge session
-  await ses.cookies.set({
-    url: "https://grudge-studio.com/",
-    name: "gs_player_session",
-    value,
-    domain: ".grudge-studio.com",
-    path: "/",
-    secure: true,
-    httpOnly: true,
-    sameSite: "no_restriction",
-    expirationDate: expiry,
-  });
+  const hosts = [
+    "https://grudge-studio.com/",
+    "https://forge.grudge-studio.com/",
+    "https://coder.grudge-studio.com/",
+    "https://id.grudge-studio.com/",
+    "https://character.grudge-studio.com/",
+    "https://play.grudge.studio/",
+  ];
 
-  // Also set without leading-dot domain form for picky Chromium paths
+  // Apex cookie with Domain=.grudge-studio.com
   try {
     await ses.cookies.set({
-      url: "https://forge.grudge-studio.com/",
+      url: "https://grudge-studio.com/",
       name: "gs_player_session",
       value,
+      domain: ".grudge-studio.com",
       path: "/",
       secure: true,
       httpOnly: true,
       sameSite: "no_restriction",
       expirationDate: expiry,
     });
-  } catch { /* non-fatal */ }
+  } catch (err: any) {
+    log.warn(`[studio-sso] apex cookie failed: ${err?.message || err}`);
+  }
 
-  try {
-    await ses.cookies.set({
-      url: "https://coder.grudge-studio.com/",
-      name: "gs_player_session",
-      value,
-      path: "/",
-      secure: true,
-      httpOnly: true,
-      sameSite: "no_restriction",
-      expirationDate: expiry,
-    });
-  } catch { /* non-fatal */ }
+  // Host-scoped cookies (more reliable for some Chromium partition cases)
+  for (const url of hosts) {
+    try {
+      await ses.cookies.set({
+        url,
+        name: "gs_player_session",
+        value,
+        path: "/",
+        secure: true,
+        httpOnly: true,
+        sameSite: "no_restriction",
+        expirationDate: expiry,
+      });
+    } catch { /* non-fatal per host */ }
+  }
 }
 
 async function clearPartitionCookie(partition: string): Promise<void> {
@@ -227,28 +232,69 @@ export async function syncStudioSso(): Promise<StudioSsoState> {
     cachedSessionToken = token;
     cachedPlayer = player;
 
+    // Seed every Studio module partition + defaultSession so embedded
+    // webviews and in-app BrowserViews all see the same Grudge session.
     await Promise.all([
       setPartitionCookie(STUDIO_PARTITIONS.forge, token),
       setPartitionCookie(STUDIO_PARTITIONS.coder, token),
+      setPartitionCookie("persist:grudge-preview", token),
+      setPartitionCookie("persist:grudge-browser", token).catch(() => undefined),
     ]);
+    // defaultSession for any window that doesn't use a partition
+    try {
+      await setPartitionCookie("" as string, token);
+    } catch {
+      try {
+        const ses = session.defaultSession;
+        const value = encodeURIComponent(token);
+        const expiry = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 12;
+        await ses.cookies.set({
+          url: "https://forge.grudge-studio.com/",
+          name: "gs_player_session",
+          value,
+          path: "/",
+          secure: true,
+          httpOnly: true,
+          sameSite: "no_restriction",
+          expirationDate: expiry,
+        });
+        await ses.cookies.set({
+          url: "https://coder.grudge-studio.com/",
+          name: "gs_player_session",
+          value,
+          path: "/",
+          secure: true,
+          httpOnly: true,
+          sameSite: "no_restriction",
+          expirationDate: expiry,
+        });
+      } catch { /* non-fatal */ }
+    }
 
     const forgeAudience = new URL(STUDIO_MODULE_URLS.forge).origin;
     const coderAudience = new URL(STUDIO_MODULE_URLS.coder).origin;
+    const idAudience = "https://id.grudge-studio.com";
     const [forgeLaunch, coderLaunch] = await Promise.all([
       mintLaunchToken(token, forgeAudience),
       mintLaunchToken(token, coderAudience),
     ]);
+    // Also try minting with session token as fallback launch token when
+    // popup-token API is unavailable — Forge exchange may still accept
+    // full session JWTs depending on identity service version.
+    const forgeTok = forgeLaunch || token;
+    const coderTok = coderLaunch || token;
 
     lastState = {
       ok: true,
       syncedAt: Date.now(),
       player,
       hasSessionToken: true,
-      forgeUrl: withToken(STUDIO_MODULE_URLS.forge, forgeLaunch),
-      forgeEditorUrl: withToken(STUDIO_MODULE_URLS.forgeEditor, forgeLaunch),
-      coderUrl: withToken(STUDIO_MODULE_URLS.coder, coderLaunch),
+      forgeUrl: withToken(STUDIO_MODULE_URLS.forge, forgeTok),
+      forgeEditorUrl: withToken(STUDIO_MODULE_URLS.forgeEditor, forgeTok),
+      coderUrl: withToken(STUDIO_MODULE_URLS.coder, coderTok),
       error: null,
     };
+    void idAudience; // reserved for future id.grudge-studio.com embeds
     log.info(
       `[studio-sso] synced grudgeId=${player.grudgeId} username=${player.username} forgeLaunch=${!!forgeLaunch} coderLaunch=${!!coderLaunch}`,
     );
@@ -270,12 +316,60 @@ export async function getPuterTokenForModules(): Promise<string | null> {
   return puterSession.getPuterToken();
 }
 
+/**
+ * Payload for embedding Studio login into Forge/Coder webviews.
+ * Renderer injects this into the webview before/after load so users are
+ * not asked to sign in again inside each module.
+ */
+export interface ModuleAuthBundle {
+  puterToken: string | null;
+  puterUser: puterSession.PuterUser | null;
+  grudgeSessionToken: string | null;
+  player: StudioSsoState["player"];
+  /** URLs with ?grudge_token= for first navigation */
+  forgeEditorUrl: string;
+  coderUrl: string;
+  forgeUrl: string;
+}
+
+export async function getModuleAuthBundle(): Promise<ModuleAuthBundle> {
+  // Refresh if we have Puter but no Grudge session yet
+  if (!cachedSessionToken || !cachedPlayer) {
+    const s = await syncStudioSso();
+    if (!s.ok) {
+      const puterToken = await puterSession.getPuterToken();
+      const sess = await puterSession.getSession();
+      return {
+        puterToken,
+        puterUser: sess.puterUser,
+        grudgeSessionToken: null,
+        player: null,
+        forgeEditorUrl: STUDIO_MODULE_URLS.forgeEditor,
+        coderUrl: STUDIO_MODULE_URLS.coder,
+        forgeUrl: STUDIO_MODULE_URLS.forge,
+      };
+    }
+  }
+  const puterToken = await puterSession.getPuterToken();
+  const sess = await puterSession.getSession();
+  return {
+    puterToken,
+    puterUser: sess.puterUser,
+    grudgeSessionToken: cachedSessionToken,
+    player: cachedPlayer,
+    forgeEditorUrl: lastState.forgeEditorUrl,
+    coderUrl: lastState.coderUrl,
+    forgeUrl: lastState.forgeUrl,
+  };
+}
+
 export async function clearStudioSso(): Promise<void> {
   cachedSessionToken = null;
   cachedPlayer = null;
   await Promise.all([
     clearPartitionCookie(STUDIO_PARTITIONS.forge),
     clearPartitionCookie(STUDIO_PARTITIONS.coder),
+    clearPartitionCookie("persist:grudge-preview"),
   ]);
   lastState = emptyState("Signed out");
 }

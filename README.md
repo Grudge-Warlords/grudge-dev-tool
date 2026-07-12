@@ -8,14 +8,14 @@
 [![Three.js](https://img.shields.io/badge/three.js-r169-049ef4.svg)](https://threejs.org/)
 [![Node](https://img.shields.io/badge/node-22.x-339933.svg?logo=nodedotjs)](https://nodejs.org/)
 
-**Grudge Studio** — the canonical desktop app for the **ONE TRUTH** fleet: information, assets, **Forge**, and **Coder** in one shell. API base: `client.grudge-studio.com`.
+**Grudge Studio** — the canonical desktop shell for the **ONE TRUTH** fleet: information, assets, **Forge**, **Coder**, **Engine**, **Treaty**, and play modes in one Windows app.
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **Grudge Studio** | v0.7.0 | Windows tray app: Home hub, assets, Forge (full + Quick 3D), Coder (prod + local), Engine, Legion |
-| **`grudge-dev` CLI** | v0.5.x | Autonomous setup, `doctor`, `login`, `upload-pack`, `fleet`, `search` — [`cli/`](cli/) |
+| **Grudge Studio** | v0.7.1 | Tray app: Home, Object Browser + UUID registry, 3D Studio, Forge, Coder, Engine, Treaty, Games |
+| **`grudge-dev` CLI** | v0.5.x | Setup, `doctor`, `login`, `upload-pack`, `fleet`, `search` — [`cli/`](cli/) |
 
-📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/> · [Studio charter](docs/grudge-studio.md) · [CLI](docs/cli-quickstart.md) · [ONE TRUTH](docs/one-truth.md)
+📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/> · [Studio charter](docs/grudge-studio.md) · [CLI](docs/cli-quickstart.md) · [ONE TRUTH](docs/one-truth.md) · [Grudge UUID](docs/grudge-uuid.md)
 
 ⬇ **Installer:** [latest release](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) · Windows x64 · NSIS · auto-updating · product name **Grudge Studio**
 
@@ -31,10 +31,11 @@ https://client.grudge-studio.com
   ├── /api/auth/verify
   ├── /api/objectstore/v1/*.json
   ├── /api/objectstore/{list,search,upload-url,manifest,asset/*}
+  ├── /api/treaty/*          (friends, DMs, groups)
   └── /api/assets/icons/...
 ```
 
-Vercel rewrites proxy to Railway (game data), identity, objectstore, and the assets CDN. **Do not** point uploads at `api.grudge-studio.com` or `assets-api.grudge-studio.com` unless you are on a legacy split-host install.
+Vercel rewrites proxy to Railway (game data), identity, objectstore, and the assets CDN. **Do not** point uploads at `api.grudge-studio.com` unless you are on a legacy split-host install.
 
 **CLI**
 
@@ -47,30 +48,74 @@ grudge-dev login --admin-password <pw>
 
 **Grudge Studio**
 
-1. Install the `.exe` (or auto-update from prior “Forge” tray builds).
-2. **Settings → Grudge identity → ONE TRUTH** (sets `client.grudge-studio.com`, clears legacy overrides).
-3. Sign in or paste a bearer token from `id.grudge-studio.com`.
-4. **Home** and the status bar show **ONE TRUTH** score (same probes as `grudge-dev doctor`).
-5. Open **Forge** (Full or Quick 3D) and **Coder** (Production or Local) from Create.
-
-Legacy split-host override remains under **Settings → Legacy split-host override**.
+1. Install the `.exe` (or auto-update from prior tray builds).
+2. **Sign in with Puter** — Studio SSO seeds Forge, Coder, and Treaty (no second login).
+3. **Settings → Grudge identity → ONE TRUTH** (sets `client.grudge-studio.com`).
+4. Optional secrets: `npm run secret:import path\to\secrets.txt` · HF: `node scripts/store-hf-token.mjs hf_…`
+5. **Browser → Index all** once to backfill stable asset UUIDs across R2.
 
 ---
 
-## Grudge Studio — features
+## Surfaces (sidebar)
 
-Canonical hub for the Grudge team: fleet truth, object storage, Forge, and Coder without leaving the app. Registers as a Windows 3D viewer for `.glb` / `.gltf` / `.fbx` / `.obj` / `.stl` / `.ply` / `.dae` / `.3mf`.
+| Group | Tab | What it does |
+|-------|-----|--------------|
+| **Studio** | Home | ONE TRUTH meter, host map, launchers |
+| **Assets** | Browser | R2 folder tree, `> query` search, **Grudge UUID** on each file, **View 3D** → 3D Studio |
+| | Search | Server-side pack search |
+| | Upload | Ingest pipeline (admin) |
+| | Request URL | Public CDN + signed download for any object key |
+| | Store | Storefront catalog |
+| | **3D Studio** | Local Three.js viewer + **Convert → GLB**; opens models from Browser |
+| **Create** | Forge | Full editor webview (`forge.grudge-studio.com`) **or** Quick 3D |
+| | Coder | Production IDE embed + local GrudachainCode / HuggingFace |
+| | Engine | Grudge6 race kits, live mesh equipment, VFX, R2 roots |
+| **Run** | Games | Fleet launcher + play modes (TD / Drive / Arena) |
+| | **Treaty** | Friends, DMs, groups (same `/api/treaty/*` as Warlords) |
+| | Legion | Agentic RAG (`Ctrl+/`) |
+| | Preview | Embedded preview webview |
+| **System** | UUID · Docs · Settings | Mint/parse UUIDs, docs, secrets |
 
-| Surface | What it does |
-|---|---|
-| **Tray icon** | Gold-helm emblem. Left-click → GrudgeLoader. Double-click → main window. Right-click → menu. |
-| **Home** | ONE TRUTH meter, host map, launchers for Forge / Coder / Assets / Engine / Games. |
-| **Assets** | Browser · Search · Upload · Store · BlenderKit · mandatory ingestion pipeline. |
-| **Forge** | **Full** embeds `forge.grudge-studio.com/editor`; **Quick 3D** is the in-process Three.js viewer (file open / pop-out). |
-| **Coder** | **Production** embeds `coder.grudge-studio.com`; **Local** spawns GrudachainCode + HF injection. |
-| **Engine / Games / Legion** | Characters, VFX, fleet launcher, agentic RAG (`Ctrl+/`). |
-| **Connectivity** | 30s ONE TRUTH probes; status bar `ONE TRUTH N%`. |
-| **Auto-update** | `electron-updater` → GitHub releases every 4h. |
+> BlenderKit tab removed — not used.
+
+---
+
+## Browser ↔ 3D Studio ↔ Create
+
+```
+Object Storage Browser
+  ├── folder tree + file grid
+  ├── stable Grudge UUID (registry)
+  └── View 3D (eye) ──► Assets → 3D Studio (viewer)
+                          ├── Convert → GLB
+                          ├── Load CDN URL
+                          └── Full Forge (optional)
+
+Create → Forge   = production web editor (SSO)
+Create → Engine  = Grudge6 race equip playground
+```
+
+**Grudge UUID (assets)** — path-stable id for every R2 key:
+
+- Formula: `sha256("grudge-asset-v1:" + key)` → `SLOT-oo-ITEMID-STAMP-COUNTER`
+- Registry SSOT: `manifests/grudge-asset-registry/v1/index.json` on R2
+- IPC: `window.grudge.registry.{backfill,getByPath,getByUuid,resolve,uuidForPath}`
+- Use in inventory / games as durable asset identity across deploys
+
+See [docs/grudge-uuid.md](docs/grudge-uuid.md).
+
+---
+
+## Studio SSO (one login)
+
+When you sign into Studio:
+
+1. Puter session → `puter-sso` → Grudge player JWT  
+2. Cookies on module partitions (Forge, Coder, Preview)  
+3. Launch URLs with `?grudge_token=`  
+4. Webview inject of Puter + `grudge.auth.session` + `grudge:sso-hydrate`  
+
+Forge/Coder/Treaty should not ask you to sign in again while Studio is signed in.
 
 ---
 
@@ -102,13 +147,20 @@ npm run dev
 
 Requires **Node 22+** (see `.nvmrc`).
 
-### First-run (Forge)
+### Secrets (optional)
 
-1. Tray icon → sign in with Puter (or paste bearer token in Settings).
-2. **Settings → ONE TRUTH** — fleet client URL.
-3. Optional: **Cloudflare R2 + AI Gateway** card — `npm run secret:import path\to\secrets.txt` for direct R2/Worker creds (skips fleet HTTP when `auto` mode picks R2).
-4. Optional: BlenderKit API key for Asset Library + enrichment.
-5. Confirm **Toolchain** shows green for `sharp`, `gltf-transform`, and (for conversions) Blender.
+```powershell
+# Bulk import
+npm run secret:import path\to\secrets.txt
+
+# HuggingFace (Coder AI / HF router)
+node scripts/store-hf-token.mjs hf_xxxxxxxx
+
+# Verify
+npm run secret:verify
+```
+
+Keys live in Windows Credential Vault (`keytar`), not in repo files.
 
 ---
 
@@ -116,115 +168,42 @@ Requires **Node 22+** (see `.nvmrc`).
 
 | Layer | Tech |
 |-------|------|
-| **Forge main** | Electron 41 · Node 22 · TypeScript (CommonJS via `tsc`) |
-| **Forge renderer** | Vite 8 · React 18 · Tailwind 3.4 · TanStack Query 5 |
-| **3D** | Three.js r169 · `@gltf-transform/*` · `fflate` |
-| **Storage** | AWS SDK v3 S3 (R2) · fleet client HTTP (`/api/objectstore/*`) · optional Worker |
-| **Secrets** | keytar (Credential Vault) · Electron `safeStorage` fallback |
-| **CLI** | Commander · TypeScript ESM · optional keytar/sharp |
+| **Main** | Electron 41 · Node 22 · TypeScript (CommonJS via `tsc`) |
+| **Renderer** | Vite · React 18 · Tailwind · TanStack Query 5 · Three.js r169 |
+| **Physics (Quick 3D)** | Rapier 3D |
+| **Secrets** | keytar + electron-store workspace |
+| **Assets** | R2 S3 API · public CDN `assets.grudge-studio.com` |
+| **AI** | HuggingFace router · AnythingLLM · multi-provider gateway |
 
 ---
 
-## Project layout
+## Scripts
 
-```
-grudge-dev-tool/
-  cli/                           # grudge-dev v0.5.0 — ONE TRUTH doctor, upload-pack
-  src/
-    main/
-      api.ts                     # Fleet client + objectstore HTTP (ONE TRUTH default)
-      connectivity.ts            # ONE TRUTH probe tick (same six checks as doctor)
-      cf/                        # R2 direct, Worker, AI Gateway
-      ingestion/                 # Upload pipeline
-    renderer/                    # React UI (main + GrudgeLoader)
-    shared/
-      fleet.ts                   # Truth probe manifest (aligned with grudge-builder)
-      ipc.ts                     # IPC contracts
-  docs/                          # GitHub Pages (Jekyll)
-  scripts/                       # Icons, secrets import, publish-manual
-  electron-builder.yml           # NSIS + GitHub publish
-```
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Vite + Electron watch |
+| `npm run build` | Renderer + main production build |
+| `npm run typecheck` | Main + renderer `tsc --noEmit` |
+| `npm run package` | NSIS installer (`electron-builder`) |
+| `npm run publish:manual` | Bump · package · tag · `gh release create` |
+| `npm run upload-pack` | Asset pack ingest to R2 |
+| `node scripts/store-hf-token.mjs` | Store HF token in keytar |
 
 ---
 
-## Scripts (Forge root)
+## Release
 
 ```powershell
-npm run dev              # Vite + Electron hot reload
-npm run build            # Production build
-npm run package          # NSIS installer
-npm run typecheck        # tsc --noEmit (main + renderer)
-npm run upload-pack -- --root <dir> --pack-id <id> --version <ver> --dry-run
-npm run secret:import -- path\to\secrets.txt
-npm run publish:manual   # Bump, build, tag, push release
+# After commit + push of feature work:
+npm run publish:manual -- --bump patch --notes "Short release notes"
+# or
+npm run publish:manual -- --version 0.7.1 --notes "…"
 ```
 
----
-
-## Object storage (canonical)
-
-```
-asset-packs/<pack-id>/v<version>/<category>/<file>
-asset-packs/<pack-id>/manifest.json
-user-uploads/<grudgeId>/...
-```
-
-- **Public CDN:** `https://assets.grudge-studio.com/<key>`
-- **Fleet client routes:** `https://client.grudge-studio.com/api/objectstore/{list,search,upload-url,manifest,asset/<key>}`
-
-See [`docs/object-storage.md`](docs/object-storage.md) and [`docs/api-reference.md`](docs/api-reference.md).
-
----
-
-## Fleet hosts
-
-| Role | Host |
-|------|------|
-| **Fleet client (ONE TRUTH)** | [client.grudge-studio.com](https://client.grudge-studio.com) |
-| **Identity** | [id.grudge-studio.com](https://id.grudge-studio.com) |
-| **Public CDN** | [assets.grudge-studio.com](https://assets.grudge-studio.com) |
-| **JSON objectstore** | [objectstore.grudge-studio.com](https://objectstore.grudge-studio.com) |
-| **Game frontend** | [grudgewarlords.com](https://grudgewarlords.com) |
-
-Deprecated for dev-tool defaults: `api.grudge-studio.com`, `assets-api.grudge-studio.com`, `molochdagod.github.io/ObjectStore`.
-
----
-
-## Releases
-
-```powershell
-npm run publish:manual           # patch bump + NSIS + GitHub release
-npm run publish:manual:minor
-node scripts/publish-manual.mjs --version 0.5.0 --notes "ONE TRUTH refresh."
-```
-
-Tag-driven CI: push `vX.Y.Z` → `.github/workflows/release.yml` builds and publishes.
-
----
-
-## Contributing
-
-Internal Grudge Studio software. Before a PR:
-
-```powershell
-npm run typecheck
-npm run package
-```
-
-Conventional Commits: `feat:`, `fix:`, `chore:`, `release:`.
+Artifacts: `Grudge Studio-Setup-<version>.exe` + blockmap + `latest.yml` for auto-update.
 
 ---
 
 ## License
 
-UNLICENSED — internal use within Grudge Studio. BlenderKit (GPL) is invoked out-of-process and never bundled.
-
----
-
-## Links
-
-- 📚 Docs — <https://grudge-warlords.github.io/grudge-dev-tool/>
-- 📦 Releases — <https://github.com/Grudge-Warlords/grudge-dev-tool/releases>
-- 🔧 Troubleshooting — [`docs/troubleshooting.md`](docs/troubleshooting.md)
-- ⚙ Production config — [`docs/production-config.md`](docs/production-config.md)
-- 🛠 Issues — <https://github.com/Grudge-Warlords/grudge-dev-tool/issues>
+UNLICENSED — internal use within Grudge Studio.

@@ -3,7 +3,7 @@ import {
   FolderTree, Search as SearchIcon, Upload as UploadIcon, Link2,
   Fingerprint, Store, BookOpen, Settings as SettingsIcon,
   Power, Minimize2, LogOut, Loader2, Hammer, Code2, Gamepad2, Globe, ShieldCheck, Bot, Cpu,
-  Home as HomeIcon, type LucideIcon,
+  Home as HomeIcon, MessageCircle, Box, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,8 +22,9 @@ const Forge = React.lazy(() => import("./pages/Forge"));
 const Forge3D = React.lazy(() => import("./pages/Forge3D"));
 const Coder = React.lazy(() => import("./pages/Coder"));
 const GrudgeEngine = React.lazy(() => import("./pages/GrudgeEngine"));
+const Treaty = React.lazy(() => import("./pages/Treaty"));
+const AssetStudio = React.lazy(() => import("./pages/AssetStudio"));
 const Preview = React.lazy(() => import("./pages/Preview"));
-const AssetLibrary = React.lazy(() => import("./pages/AssetLibrary"));
 
 import Login from "./pages/Login";
 import StatusBar from "./components/StatusBar";
@@ -33,9 +34,9 @@ import { isAdmin, isOpenMode } from "./lib/admin";
 import { hydrateFromMain, persistRoute, readMirror } from "./lib/workspace";
 
 type Route =
-  | "/home" | "/browser" | "/search" | "/upload" | "/request"
-  | "/uuid" | "/library" | "/blenderkit" | "/forge" | "/coder" | "/engine" | "/games" | "/legion"
-  | "/preview" | "/docs" | "/settings";
+  | "/home" | "/browser" | "/search" | "/upload" | "/request" | "/assets-3d"
+  | "/uuid" | "/library" | "/forge" | "/coder" | "/engine" | "/games" | "/legion"
+  | "/treaty" | "/preview" | "/docs" | "/settings";
 
 interface NavEntry {
   route: Route;
@@ -50,13 +51,14 @@ const NAV: NavEntry[] = [
   { route: "/browser", label: "Browser", Icon: FolderTree, group: "Assets" },
   { route: "/search", label: "Search", Icon: SearchIcon, group: "Assets" },
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true, group: "Assets" },
-  { route: "/request", label: "Request URL", Icon: Link2, adminOnly: true, group: "Assets" },
+  { route: "/request", label: "Request URL", Icon: Link2, group: "Assets" },
   { route: "/library", label: "Store", Icon: Store, group: "Assets" },
-  { route: "/blenderkit", label: "BlenderKit", Icon: BookOpen, group: "Assets" },
+  { route: "/assets-3d", label: "3D Studio", Icon: Box, group: "Assets" },
   { route: "/forge", label: "Forge", Icon: Hammer, group: "Create" },
   { route: "/coder", label: "Coder", Icon: Code2, group: "Create" },
   { route: "/engine", label: "Engine", Icon: Cpu, group: "Create" },
   { route: "/games", label: "Games", Icon: Gamepad2, group: "Run" },
+  { route: "/treaty", label: "Treaty", Icon: MessageCircle, group: "Run" },
   { route: "/legion", label: "Legion", Icon: Bot, group: "Run" },
   { route: "/preview", label: "Preview", Icon: Globe, group: "Run" },
   { route: "/uuid", label: "UUID", Icon: Fingerprint, group: "System" },
@@ -74,11 +76,13 @@ interface Session {
 }
 
 const VALID_ROUTES = new Set<string>([
-  "/home", "/browser", "/search", "/upload", "/request", "/uuid", "/library", "/blenderkit", "/forge",
-  "/coder", "/engine", "/games", "/legion", "/preview", "/docs", "/settings",
+  "/home", "/browser", "/search", "/upload", "/request", "/assets-3d", "/uuid", "/library", "/forge",
+  "/coder", "/engine", "/games", "/legion", "/treaty", "/preview", "/docs", "/settings",
 ]);
 
-const FULL_HEIGHT_ROUTES = new Set<string>(["/games", "/legion", "/forge", "/engine", "/coder"]);
+const FULL_HEIGHT_ROUTES = new Set<string>([
+  "/games", "/legion", "/forge", "/engine", "/coder", "/treaty", "/assets-3d",
+]);
 
 function isForgePopoutHash(): boolean {
   const h = (window.location.hash || "").replace(/^#\/?/, "");
@@ -103,6 +107,7 @@ export default function App() {
   const [forgePopout] = useState(() => isForgePopoutHash());
   const [route, setRoute] = useState<Route>(() => {
     const saved = readMirror().route;
+    if (saved === "/blenderkit" || saved === "/library/blenderkit") return "/browser";
     return (saved && VALID_ROUTES.has(saved) ? saved : "/home") as Route;
   });
   const [session, setSession] = useState<Session | null>(null);
@@ -113,7 +118,8 @@ export default function App() {
     try {
       const s: Session = await window.grudge.auth.getSession();
       setSession(s);
-      // Keep Forge + Coder webviews on the same Grudge identity
+      // Keep Forge + Coder webviews on the same Grudge identity — one Studio
+      // login must cover every embedded module without a second sign-in.
       if (s.signedIn) {
         void window.grudge?.auth?.syncStudioSso?.().catch(() => { /* non-fatal */ });
       }
@@ -125,9 +131,22 @@ export default function App() {
     }
   }, []);
 
+  // Re-sync SSO whenever user opens module embeds (Forge/Coder/Preview)
+  useEffect(() => {
+    if (!session?.signedIn) return;
+    if (route === "/forge" || route === "/coder" || route === "/preview" || route === "/treaty") {
+      void window.grudge?.auth?.syncStudioSso?.().catch(() => { /* non-fatal */ });
+    }
+  }, [route, session?.signedIn]);
+
   useEffect(() => {
     refreshSession();
     hydrateFromMain().then((snap) => {
+      // BlenderKit tab removed — never restore that route.
+      if (snap?.route === "/blenderkit" || snap?.route === "/library/blenderkit") {
+        setRoute("/browser");
+        return;
+      }
       if (snap?.route && VALID_ROUTES.has(snap.route)) {
         setRoute(snap.route as Route);
       }
@@ -306,11 +325,12 @@ export default function App() {
                 {route === "/request" && <Request />}
                 {route === "/uuid" && <UUID />}
                 {route === "/library" && <Library />}
-                {route === "/blenderkit" && <AssetLibrary />}
+                {route === "/assets-3d" && <AssetStudio />}
                 {route === "/forge" && <Forge />}
                 {route === "/coder" && <Coder />}
                 {route === "/engine" && <GrudgeEngine />}
                 {route === "/games" && <FleetLauncher />}
+                {route === "/treaty" && <Treaty />}
                 {route === "/legion" && <Legion />}
                 {route === "/preview" && <Preview />}
                 {route === "/docs" && <Docs />}

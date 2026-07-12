@@ -1,14 +1,20 @@
 /** ONE TRUTH fleet registry — keep aligned with grudge-builder shared/fleet/manifest.ts */
 
+/** Aligned with grudge-builder shared/fleet/manifest.ts + client.grudge-studio.com/api/fleet/manifest */
 export const FLEET_URLS = {
   auth: "https://id.grudge-studio.com",
-  identityApi: "https://api.grudge-studio.com",
-  gameData: "https://grudge-builder-production.up.railway.app",
+  identityApi: "https://grudge-studio.com",
+  gameData: "https://grudge-api-production-0d46.up.railway.app",
   assets: "https://assets.grudge-studio.com",
   objectStore: "https://objectstore.grudge-studio.com/api/v1",
   client: "https://client.grudge-studio.com",
   ai: "https://ai.grudge-studio.com",
   warlords: "https://grudgewarlords.com",
+  characters: "https://character.grudge-studio.com",
+  arena: "https://grudge-arena.grudge-studio.com",
+  coder: "https://coder.grudge-studio.com",
+  forge: "https://forge.grudge-studio.com",
+  deprecatedApi: "https://api.grudge-studio.com",
 } as const;
 
 export type TruthProbeRole = "game-data" | "identity" | "assets" | "objectstore";

@@ -32,6 +32,8 @@ import { FLEET_ENDPOINTS } from "../shared/fleetConnections";
 import * as workspaceStore from "./workspaceStore";
 import * as puterAuth from "./auth/puterSession";
 import * as studioSso from "./auth/studioSso";
+import { treaty } from "./treaty";
+import * as assetRegistry from "./assetRegistry";
 import { puterLoginAuto, puterLoginViaExternalBrowser, resolvePuterUserFromToken } from "./auth/puterLogin";
 import {
   generateGrudgeUUID, parseGrudgeUUID, describeGrudgeUUID, isValidGrudgeUUID,
@@ -284,6 +286,38 @@ function registerIpc() {
   ipcMain.handle("os:list", (_e, req) => api.listObjects(req));
   ipcMain.handle("os:search", (_e, req) => api.searchObjects(req));
   ipcMain.handle("os:assetMeta", (_e, req) => api.getAssetMeta(req));
+
+  // Treaty social (friends / DMs / groups) — Studio SSO session
+  ipcMain.handle("treaty:whoami", () => treaty.whoami());
+  ipcMain.handle("treaty:social", () => treaty.social());
+  ipcMain.handle("treaty:friendRequest", (_e, query: string) => treaty.friendRequest(query));
+  ipcMain.handle("treaty:friendRespond", (_e, id: string, accept: boolean) => treaty.friendRespond(id, accept));
+  ipcMain.handle("treaty:dmThreads", () => treaty.dmThreads());
+  ipcMain.handle("treaty:openDm", (_e, friendAccountId: string) => treaty.openDm(friendAccountId));
+  ipcMain.handle("treaty:dmMessages", (_e, threadId: string) => treaty.dmMessages(threadId));
+  ipcMain.handle("treaty:sendDm", (_e, threadId: string, content: string) => treaty.sendDm(threadId, content));
+  ipcMain.handle("treaty:groups", () => treaty.groups());
+  ipcMain.handle("treaty:createGroup", (_e, name: string, description?: string, members?: string[]) =>
+    treaty.createGroup(name, description, members),
+  );
+  ipcMain.handle("treaty:inviteGroup", (_e, groupId: string, query: string) => treaty.inviteGroup(groupId, query));
+  ipcMain.handle("treaty:leaveGroup", (_e, groupId: string) => treaty.leaveGroup(groupId));
+  ipcMain.handle("treaty:groupMessages", (_e, groupId: string) => treaty.groupMessages(groupId));
+  ipcMain.handle("treaty:sendGroup", (_e, groupId: string, content: string) => treaty.sendGroup(groupId, content));
+  ipcMain.handle("treaty:unread", () => treaty.unread());
+
+  // Global asset UUID registry (stable identity for every R2 object)
+  ipcMain.handle("registry:stats", () => assetRegistry.registryStats());
+  ipcMain.handle("registry:load", () => assetRegistry.loadRegistry(true));
+  ipcMain.handle("registry:getByPath", (_e, path: string) => assetRegistry.getByPath(path));
+  ipcMain.handle("registry:getByUuid", (_e, uuid: string) => assetRegistry.getByUuid(uuid));
+  ipcMain.handle("registry:ensurePath", (_e, path: string, meta?: any) => assetRegistry.ensurePath(path, meta));
+  ipcMain.handle("registry:lookupMany", (_e, paths: string[]) => assetRegistry.lookupMany(paths));
+  ipcMain.handle("registry:resolve", (_e, uuidOrPath: string) => assetRegistry.resolveAssetUrl(uuidOrPath));
+  ipcMain.handle("registry:uuidForPath", (_e, path: string) => assetRegistry.uuidForAssetPath(path));
+  ipcMain.handle("registry:backfill", async (_e, opts?: { prefix?: string; limit?: number }) => {
+    return assetRegistry.backfillRegistry(opts);
+  });
   ipcMain.handle("os:openExternal", (_e, url: string) => shell.openExternal(url));
 
   // Upload
@@ -420,6 +454,7 @@ function registerIpc() {
   ipcMain.handle("auth:syncStudioSso", () => studioSso.syncStudioSso());
   ipcMain.handle("auth:getStudioSso", () => studioSso.getStudioSsoState());
   ipcMain.handle("auth:getPuterTokenForModules", () => studioSso.getPuterTokenForModules());
+  ipcMain.handle("auth:getModuleAuthBundle", () => studioSso.getModuleAuthBundle());
   ipcMain.handle("auth:clearStudioSso", () => studioSso.clearStudioSso());
 
   // Cloudflare backend

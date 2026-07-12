@@ -5,7 +5,7 @@ import { verifyFile, type SizeVerifyResult } from "./sizeVerify";
 import { convertFile, makeThumbnail, type ConvertResult } from "./convert";
 import { enrichAsset, type EnrichResult } from "./enrich";
 import { inspectRig, type RigResult } from "./rig";
-import { generateGrudgeUUID } from "../../shared/grudgeUUID";
+import { generateGrudgeUUID, generateStableAssetUUIDFromHash, inferAssetSlot } from "../../shared/grudgeUUID";
 
 export interface IngestOptions {
   category?: string;
@@ -148,8 +148,20 @@ export async function ingestOne(absPath: string, opts: IngestOptions): Promise<I
   try { sha = await sha256File(finalPath); } catch { /* ignore */ }
   const stat = await fs.stat(finalPath).catch(() => ({ size: 0 } as any));
 
+  // Prefer path-stable UUID when we have a pack path (inventory-safe identity).
+  // Fall back to time-based mint for ad-hoc files without a durable object key.
   const slot = SLOT_BY_FAMILY[sizeRes.family] || "Item";
-  const grudgeUUID = generateGrudgeUUID(slot, null, opts.itemId);
+  const durableKey =
+    opts.packId && opts.packVersion
+      ? `asset-packs/${opts.packId}/v${opts.packVersion}/${opts.category || "misc"}/${basename(finalPath)}`
+      : null;
+  const grudgeUUID = durableKey
+    ? generateStableAssetUUIDFromHash(
+        durableKey,
+        createHash("sha256").update(`grudge-asset-v1:${durableKey}`, "utf8").digest("hex"),
+        inferAssetSlot(durableKey) || slot,
+      )
+    : generateGrudgeUUID(slot, null, opts.itemId);
 
   // 6. optional thumbnail (image only, unless model+blender path produced one elsewhere)
   let thumbPath: string | undefined;
