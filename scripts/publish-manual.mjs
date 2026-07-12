@@ -186,10 +186,12 @@ function main() {
     process.exit(1);
   }
 
-  // 2. Sync with origin
-  console.log(`\n[publish-manual] syncing with origin/main`);
+  // 2. Sync with origin (current branch — Studio product line is often `jz`)
+  const branchRes = gitCapture(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const branch = (branchRes.stdout || "main").trim() || "main";
+  console.log(`\n[publish-manual] syncing with origin/${branch}`);
   run("git", ["fetch", "origin", "--tags"]);
-  run("git", ["pull", "--rebase", "origin", "main"]);
+  run("git", ["pull", "--rebase", "origin", branch], { allowFail: true });
 
   // 3. Compute new version
   const pkgPath = join(ROOT, "package.json");
@@ -233,11 +235,11 @@ function main() {
   run("git", ["commit", "-m", `release: v${next}`, "-m", "Co-Authored-By: Oz <oz-agent@warp.dev>"]);
   run("git", ["tag", "-a", `v${next}`, "-m", `v${next}`]);
 
-  let pushRes = run("git", ["push", "origin", "main", "--follow-tags"], { allowFail: true });
+  let pushRes = run("git", ["push", "origin", branch, "--follow-tags"], { allowFail: true });
   if (pushRes.status !== 0) {
     console.warn("[publish-manual] push race; rebasing and retrying once");
-    run("git", ["pull", "--rebase", "origin", "main"]);
-    run("git", ["push", "origin", "main", "--follow-tags"]);
+    run("git", ["pull", "--rebase", "origin", branch]);
+    run("git", ["push", "origin", branch, "--follow-tags"]);
   }
 
   // 8. Publish release
