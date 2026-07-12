@@ -3,7 +3,7 @@ import {
   FolderTree, Search as SearchIcon, Upload as UploadIcon, Link2,
   Fingerprint, Store, BookOpen, Settings as SettingsIcon,
   Power, Minimize2, LogOut, Loader2, Hammer, Code2, Gamepad2, Globe, ShieldCheck, Bot, Cpu,
-  Home as HomeIcon, MessageCircle, Box, type LucideIcon,
+  Home as HomeIcon, MessageCircle, Box, FolderKanban, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,6 +24,7 @@ const Coder = React.lazy(() => import("./pages/Coder"));
 const GrudgeEngine = React.lazy(() => import("./pages/GrudgeEngine"));
 const Treaty = React.lazy(() => import("./pages/Treaty"));
 const AssetStudio = React.lazy(() => import("./pages/AssetStudio"));
+const Projects = React.lazy(() => import("./pages/Projects"));
 const Preview = React.lazy(() => import("./pages/Preview"));
 
 import Login from "./pages/Login";
@@ -35,7 +36,7 @@ import { hydrateFromMain, persistRoute, readMirror } from "./lib/workspace";
 
 type Route =
   | "/home" | "/browser" | "/search" | "/upload" | "/request" | "/assets-3d"
-  | "/uuid" | "/library" | "/forge" | "/coder" | "/engine" | "/games" | "/legion"
+  | "/projects" | "/uuid" | "/library" | "/forge" | "/coder" | "/engine" | "/games" | "/legion"
   | "/treaty" | "/preview" | "/docs" | "/settings";
 
 interface NavEntry {
@@ -48,6 +49,7 @@ interface NavEntry {
 
 const NAV: NavEntry[] = [
   { route: "/home", label: "Home", Icon: HomeIcon, group: "Studio" },
+  { route: "/projects", label: "Projects", Icon: FolderKanban, group: "Studio" },
   { route: "/browser", label: "Browser", Icon: FolderTree, group: "Assets" },
   { route: "/search", label: "Search", Icon: SearchIcon, group: "Assets" },
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true, group: "Assets" },
@@ -76,12 +78,12 @@ interface Session {
 }
 
 const VALID_ROUTES = new Set<string>([
-  "/home", "/browser", "/search", "/upload", "/request", "/assets-3d", "/uuid", "/library", "/forge",
+  "/home", "/projects", "/browser", "/search", "/upload", "/request", "/assets-3d", "/uuid", "/library", "/forge",
   "/coder", "/engine", "/games", "/legion", "/treaty", "/preview", "/docs", "/settings",
 ]);
 
 const FULL_HEIGHT_ROUTES = new Set<string>([
-  "/games", "/legion", "/forge", "/engine", "/coder", "/treaty", "/assets-3d",
+  "/games", "/legion", "/forge", "/engine", "/coder", "/treaty", "/assets-3d", "/projects",
 ]);
 
 function isForgePopoutHash(): boolean {
@@ -319,6 +321,7 @@ export default function App() {
                     grudgeId={session.grudgeId}
                   />
                 )}
+                {route === "/projects" && <Projects />}
                 {route === "/browser" && <Browser />}
                 {route === "/search" && <Search />}
                 {route === "/upload" && <Upload />}

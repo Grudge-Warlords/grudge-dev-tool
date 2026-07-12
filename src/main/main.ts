@@ -34,6 +34,7 @@ import * as puterAuth from "./auth/puterSession";
 import * as studioSso from "./auth/studioSso";
 import { treaty } from "./treaty";
 import * as assetRegistry from "./assetRegistry";
+import * as projects from "./projects";
 import { puterLoginAuto, puterLoginViaExternalBrowser, resolvePuterUserFromToken } from "./auth/puterLogin";
 import {
   generateGrudgeUUID, parseGrudgeUUID, describeGrudgeUUID, isValidGrudgeUUID,
@@ -746,4 +747,22 @@ function registerIpc() {
   ipcMain.handle("uuid:valid", (_e, uuid: string) => isValidGrudgeUUID(uuid));
   ipcMain.handle("uuid:slots", () => SLOT_CODES);
   ipcMain.handle("uuid:tiers", () => TIER_CODES);
+
+  // Project OS — organized folders, diagnose, auto-fix, best assets
+  ipcMain.handle("projects:root", () => projects.getProjectsRoot());
+  ipcMain.handle("projects:setRoot", (_e, path: string | null) => projects.setProjectsRoot(path));
+  ipcMain.handle("projects:pickRoot", () => projects.pickProjectsRoot());
+  ipcMain.handle("projects:list", (_e, root?: string) => projects.listProjects(root));
+  ipcMain.handle("projects:scaffold", (_e, opts) => projects.scaffoldProject(opts));
+  ipcMain.handle("projects:diagnose", (_e, dir: string) => projects.diagnoseProject(dir));
+  ipcMain.handle("projects:autofix", (_e, dir: string) => projects.autoFixProject(dir));
+  ipcMain.handle("projects:open", (_e, dir: string) => { projects.openInExplorer(dir); });
+  ipcMain.handle("projects:pickOpen", () => projects.pickOpenProject());
+  ipcMain.handle("projects:read", (_e, dir: string) => projects.readManifest(dir));
+  ipcMain.handle("projects:touch", (_e, dir: string, patch?: any) => projects.touchProject(dir, patch));
+  ipcMain.handle("projects:saveDraft", (_e, dir: string, payload: any) => projects.saveProjectDraft(dir, payload));
+  ipcMain.handle("projects:layout", () => projects.projectLayoutHelp());
+  ipcMain.handle("projects:bestAssets", (_e, query: string, limit?: number) =>
+    projects.resolveBestAssets(query, limit));
+  ipcMain.handle("projects:verifyAssets", (_e, dir: string) => projects.verifyPreferredAssets(dir));
 }

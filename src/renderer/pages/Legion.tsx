@@ -16,10 +16,10 @@ interface ChatMsg {
 const WAKE_RE = /AL\s*BABY/i;
 
 const STARTER_PROMPTS = [
-  "List fleet games and their status",
-  "What R2 asset packs are available?",
-  "How do I open a GLB in Forge 3D?",
-  "Summarize ONE TRUTH connectivity checks",
+  "Scaffold a new RTS project with organized folders and best Grudge6 assets",
+  "Diagnose and auto-fix my latest project under Documents/GrudgeStudio/Projects",
+  "asset_best: character race human — return CDN URLs + Grudge UUIDs",
+  "List race_kits and fleet games; prefer assets.grudge-studio.com over inventing URLs",
 ];
 
 export default function Legion() {

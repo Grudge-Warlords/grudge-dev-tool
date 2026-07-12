@@ -2,6 +2,15 @@
 
 All notable changes to **Grudge Studio** (`grudge-dev-tool` repo) are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — Project OS & agentic auto-fix
+
+- **Projects tab** (`/projects`) — scaffold organized folders, diagnose, auto-fix, best-asset search.
+- **Canonical layout** — `grudge.project.json`, `scenes/`, `scripts/`, `assets/*`, `.grudge/drafts|diagnostics` ([docs/projects.md](docs/projects.md)).
+- **GRUDA agent tools** — `project_*`, `asset_best`, `asset_uuid`, `race_kits` with multi-round tool loop.
+- **Forge `auto_fix_scene`** — sun/ground/player + rewrite placeholder models to Grudge6 CDN kits.
+
 ## [0.7.1] — 2026-07-12
 
 ### Added

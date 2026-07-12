@@ -61,6 +61,7 @@ grudge-dev login --admin-password <pw>
 | Group | Tab | What it does |
 |-------|-----|--------------|
 | **Studio** | Home | ONE TRUTH meter, host map, launchers |
+| | **Projects** | Organized folders, diagnose / **auto-fix**, best CDN assets ([docs/projects.md](docs/projects.md)) |
 | **Assets** | Browser | R2 folder tree, `> query` search, **Grudge UUID** on each file, **View 3D** → 3D Studio |
 | | Search | Server-side pack search |
 | | Upload | Ingest pipeline (admin) |
@@ -103,6 +104,21 @@ Create → Engine  = Grudge6 race equip playground
 - Use in inventory / games as durable asset identity across deploys
 
 See [docs/grudge-uuid.md](docs/grudge-uuid.md).
+
+---
+
+## Project OS · agentic AI
+
+**Studio → Projects** scaffolds on-disk packs with a fixed tree (`scenes/`, `scripts/`, `assets/*`, `grudge.project.json`). Save practices:
+
+1. Manifest is SSOT — never dump GLBs at project root  
+2. Prefer CDN + path-stable Grudge UUIDs over large binary copies  
+3. Canonical characters: `models/grudge6/races/*_Characters.glb`  
+4. **Diagnose → Auto-fix → re-Diagnose** (UI or Legion with agentic ON)
+
+**GRUDA / Legion tools** include `project_scaffold`, `project_diagnose`, `project_autofix`, `asset_best`, `race_kits`, `r2_*`. Forge AI Worker has `auto_fix_scene` after `diagnose_scene`.
+
+See [docs/projects.md](docs/projects.md).
 
 ---
 

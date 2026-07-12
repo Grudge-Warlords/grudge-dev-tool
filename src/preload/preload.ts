@@ -228,6 +228,32 @@ const api = {
       return () => ipcRenderer.removeListener("grudachain:toggle", listener);
     },
   },
+  // Project OS — organized folders, diagnose, auto-fix, best CDN assets
+  projects: {
+    root: () => ipcRenderer.invoke("projects:root") as Promise<string>,
+    setRoot: (path: string | null) => ipcRenderer.invoke("projects:setRoot", path),
+    pickRoot: () => ipcRenderer.invoke("projects:pickRoot") as Promise<string | null>,
+    list: (root?: string) => ipcRenderer.invoke("projects:list", root),
+    scaffold: (opts: {
+      name: string;
+      kind?: string;
+      description?: string;
+      parentDir?: string;
+      withStarterScene?: boolean;
+      withStarterScript?: boolean;
+    }) => ipcRenderer.invoke("projects:scaffold", opts),
+    diagnose: (dir: string) => ipcRenderer.invoke("projects:diagnose", dir),
+    autofix: (dir: string) => ipcRenderer.invoke("projects:autofix", dir),
+    open: (dir: string) => ipcRenderer.invoke("projects:open", dir),
+    pickOpen: () => ipcRenderer.invoke("projects:pickOpen") as Promise<string | null>,
+    read: (dir: string) => ipcRenderer.invoke("projects:read", dir),
+    touch: (dir: string, patch?: any) => ipcRenderer.invoke("projects:touch", dir, patch),
+    saveDraft: (dir: string, payload: any) => ipcRenderer.invoke("projects:saveDraft", dir, payload),
+    layout: () => ipcRenderer.invoke("projects:layout") as Promise<string>,
+    bestAssets: (query: string, limit?: number) =>
+      ipcRenderer.invoke("projects:bestAssets", query, limit),
+    verifyAssets: (dir: string) => ipcRenderer.invoke("projects:verifyAssets", dir),
+  },
   // Legion orchestrator (hub + GRUDA Agent + whisper)
   legion: {
     health: () => ipcRenderer.invoke("legion:health"),
