@@ -1,6 +1,6 @@
 {
   "name": "grudge-dev-tool",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Grudge Studio — canonical information + asset provider, Forge, and Coder in one Windows app (grudge-dev CLI + tray).",
   "private": true,
   "homepage": "https://grudge-warlords.github.io/grudge-dev-tool/",
