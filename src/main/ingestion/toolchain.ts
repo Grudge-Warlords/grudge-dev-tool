@@ -1,5 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { existsSync, readdirSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { app } from "electron";
 
 export interface ToolStatus {
   name: string;
@@ -7,10 +10,11 @@ export interface ToolStatus {
   version?: string;
   path?: string;
   reason?: string;
+  /** When false, hide from Settings (retired tools). */
+  show?: boolean;
 }
 
 function which(cmd: string): string | null {
-  // Cross-platform "where/which"
   const sniff = spawnSync(process.platform === "win32" ? "where" : "which", [cmd], {
     encoding: "utf8",
     shell: false,
@@ -33,105 +37,215 @@ function probeVersion(bin: string, args: string[]): string | undefined {
   return undefined;
 }
 
-export function detectBlender(): ToolStatus {
-  const envPath = process.env.BLENDER_PATH;
-  const path = (envPath && existsSync(envPath)) ? envPath : which("blender");
-  if (!path) {
-    return {
-      name: "Blender",
-      available: false,
-      reason: "Not found on PATH. Set BLENDER_PATH or install Blender 4.x.",
-    };
+/** Resolve require() roots that work in Electron main (dist/main) and packaged builds. */
+function packageRoots(): string[] {
+  const roots: string[] = [];
+  try {
+    if (app?.isPackaged) {
+      roots.push(process.resourcesPath);
+      roots.push(join(process.resourcesPath, "app.asar"));
+      roots.push(join(process.resourcesPath, "app.asar.unpacked"));
+    }
+  } catch { /* app not ready */ }
+  // source / dev: dist/main → repo root
+  roots.push(join(__dirname, "..", ".."));
+  roots.push(process.cwd());
+  try {
+    roots.push(app.getAppPath());
+  } catch { /* */ }
+  return [...new Set(roots.filter(Boolean))];
+}
+
+function resolveFromApp(moduleId: string): { path: string; version?: string } | null {
+  for (const root of packageRoots()) {
+    try {
+      const req = createRequire(join(root, "package.json"));
+      const resolved = req.resolve(moduleId);
+      let version: string | undefined;
+      try {
+        const fs = require("node:fs") as typeof import("node:fs");
+        // Walk up from resolved file for package.json (exports map often hides package.json)
+        let dir = dirname(resolved);
+        for (let i = 0; i < 6; i++) {
+          const pkgPath = join(dir, "package.json");
+          if (fs.existsSync(pkgPath)) {
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { version?: string; name?: string };
+            if (pkg.name?.includes(moduleId.split("/").pop() || "") || pkg.version) {
+              version = pkg.version;
+              break;
+            }
+          }
+          const parent = dirname(dir);
+          if (parent === dir) break;
+          dir = parent;
+        }
+      } catch { /* */ }
+      return { path: resolved, version };
+    } catch { /* try next root */ }
   }
-  const version = probeVersion(path, ["--version"]);
-  return { name: "Blender", available: true, path, version };
+  return null;
+}
+
+export function toolsDir(): string {
+  try {
+    return join(app.getPath("userData"), "tools");
+  } catch {
+    return join(process.cwd(), ".grudge-tools");
+  }
+}
+
+export function ffmpegCandidates(): string[] {
+  const t = toolsDir();
+  const list = [
+    process.env.FFMPEG_PATH || "",
+    which("ffmpeg") || "",
+    join(t, "ffmpeg", "ffmpeg.exe"),
+    join(t, "ffmpeg", "bin", "ffmpeg.exe"),
+    "C:\\ffmpeg\\bin\\ffmpeg.exe",
+    join(process.env.LOCALAPPDATA || "", "Microsoft", "WinGet", "Links", "ffmpeg.exe"),
+    join(process.env.USERPROFILE || "", "scoop", "shims", "ffmpeg.exe"),
+    "C:\\ProgramData\\chocolatey\\bin\\ffmpeg.exe",
+  ].filter(Boolean);
+
+  // Scan tools/ffmpeg for nested release folders
+  const scanRoot = join(t, "ffmpeg");
+  if (existsSync(scanRoot)) {
+    try {
+      for (const ent of readdirSync(scanRoot, { withFileTypes: true })) {
+        if (!ent.isDirectory()) continue;
+        list.push(join(scanRoot, ent.name, "bin", "ffmpeg.exe"));
+        list.push(join(scanRoot, ent.name, "ffmpeg.exe"));
+      }
+    } catch { /* */ }
+  }
+  return list;
 }
 
 export function detectFfmpeg(): ToolStatus {
-  const path = which("ffmpeg");
-  if (!path) return { name: "ffmpeg", available: false, reason: "Not found on PATH." };
-  return { name: "ffmpeg", available: true, path, version: probeVersion(path, ["-version"]) };
+  for (const path of ffmpegCandidates()) {
+    if (path && existsSync(path)) {
+      return {
+        name: "ffmpeg",
+        available: true,
+        path,
+        version: probeVersion(path, ["-version"]),
+      };
+    }
+  }
+  return {
+    name: "ffmpeg",
+    available: false,
+    reason: "Not found. Use Settings → Toolchain → Install ffmpeg (downloads portable build).",
+  };
 }
 
 export function detectSharp(): ToolStatus {
   try {
-    const sharp = require("sharp");
-    return { name: "sharp", available: true, version: sharp.versions?.sharp };
+    // sharp is a devDependency used by icons; still probe if present
+    const hit = resolveFromApp("sharp");
+    if (hit) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const sharp = require(hit.path);
+      return { name: "sharp", available: true, version: sharp.versions?.sharp ?? hit.version, path: hit.path };
+    }
+    return { name: "sharp", available: false, reason: "Optional image toolkit not loaded" };
   } catch (err: any) {
-    return { name: "sharp", available: false, reason: err.message };
+    return { name: "sharp", available: false, reason: err?.message ?? "unavailable" };
   }
 }
 
 export function detectGltfTransform(): ToolStatus {
-  try {
-    require.resolve("@gltf-transform/core");
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pkg = require("@gltf-transform/core/package.json");
-    return { name: "gltf-transform", available: true, version: pkg.version };
-  } catch {
+  const core = resolveFromApp("@gltf-transform/core");
+  if (!core) {
     return {
       name: "gltf-transform",
       available: false,
-      reason: "@gltf-transform/core not installed (model probe / rig inspection disabled).",
+      reason: "@gltf-transform/core not resolvable — run npm install in the Studio repo.",
     };
   }
-}
-
-/**
- * Detect a local BlenderKit addon install. We never bundle GPL addon files
- * inside this app — we just point Blender at an existing on-disk install.
- *
- * Probe order:
- *   1. BLENDERKIT_PATH env var (production override)
- *   2. Blender user extensions dir on Windows: %APPDATA%\Blender Foundation\Blender\<ver>\extensions\user_default\blenderkit
- *   3. The Grudge-pinned dev path (only useful on the original dev box)
- */
-function blenderKitCandidatePaths(): string[] {
-  const candidates: string[] = [];
-  if (process.env.BLENDERKIT_PATH) candidates.push(process.env.BLENDERKIT_PATH);
-  // Blender extensions dir (4.2+) — try the four most-likely active versions.
-  const appData = process.env.APPDATA;
-  if (appData) {
-    for (const ver of ["4.5", "4.4", "4.3", "4.2"]) {
-      candidates.push(`${appData}\\Blender Foundation\\Blender\\${ver}\\extensions\\user_default\\blenderkit`);
-      candidates.push(`${appData}\\Blender Foundation\\Blender\\${ver}\\scripts\\addons\\blenderkit`);
-    }
-  }
-  // Grudge-pinned dev fallback. Removed entirely if the user opts out via env var.
-  if (!process.env.BLENDERKIT_NO_PINNED) {
-    candidates.push("F:\\blenderkit-v3.19.2.260411\\blenderkit");
-  }
-  return candidates;
-}
-
-export function detectBlenderKit(): ToolStatus {
-  const candidates = blenderKitCandidatePaths();
-  for (const path of candidates) {
-    const manifest = `${path}\\blender_manifest.toml`;
-    if (!existsSync(manifest)) continue;
-    let version: string | undefined;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const fs = require("node:fs");
-      const text: string = fs.readFileSync(manifest, "utf8");
-      const m = text.match(/version\s*=\s*"([^"]+)"/);
-      if (m) version = m[1];
-    } catch { /* ignore */ }
-    return { name: "BlenderKit", available: true, path, version };
-  }
   return {
-    name: "BlenderKit",
-    available: false,
-    reason: `Addon not found in any candidate path. Set BLENDERKIT_PATH to point at an existing install.`,
+    name: "gltf-transform",
+    available: true,
+    version: core.version,
+    path: core.path,
   };
 }
 
+export function detectOllamaBinary(): ToolStatus {
+  const candidates = [
+    process.env.OLLAMA_PATH || "",
+    which("ollama") || "",
+    join(process.env.LOCALAPPDATA || "", "Programs", "Ollama", "ollama.exe"),
+    "C:\\Program Files\\Ollama\\ollama.exe",
+    join(process.env.USERPROFILE || "", "AppData", "Local", "Programs", "Ollama", "ollama.exe"),
+  ].filter(Boolean);
+  for (const path of candidates) {
+    if (existsSync(path)) {
+      return { name: "ollama-bin", available: true, path, version: probeVersion(path, ["--version"]) };
+    }
+  }
+  return {
+    name: "ollama-bin",
+    available: false,
+    reason: "Ollama not installed. Install from https://ollama.com/download then click Setup.",
+  };
+}
+
+export function detectAnythingLlmBinary(): ToolStatus {
+  const candidates = [
+    process.env.ANYTHINGLLM_PATH || "",
+    join(process.env.LOCALAPPDATA || "", "Programs", "AnythingLLM", "AnythingLLM.exe"),
+    "C:\\Program Files\\AnythingLLM\\AnythingLLM.exe",
+  ].filter(Boolean);
+  for (const path of candidates) {
+    if (existsSync(path)) {
+      return { name: "anythingllm-bin", available: true, path };
+    }
+  }
+  return {
+    name: "anythingllm-bin",
+    available: false,
+    reason: "AnythingLLM Desktop not found. Install from https://anythingllm.com then click Start RAG.",
+  };
+}
+
+/** Retired — kept as stubs so old ingestion imports do not crash. */
+export function detectBlender(): ToolStatus {
+  return {
+    name: "Blender",
+    available: false,
+    reason: "Not used by Grudge Studio (retired).",
+    show: false,
+  };
+}
+
+/** Retired — BlenderKit pipeline removed from Studio. */
+export function detectBlenderKit(): ToolStatus {
+  return {
+    name: "BlenderKit",
+    available: false,
+    reason: "Not used by Grudge Studio (retired).",
+    show: false,
+  };
+}
+
+/**
+ * Tools shown in Settings. Blender / BlenderKit retired (not listed).
+ */
 export function detectAll(): ToolStatus[] {
   return [
-    detectSharp(),
     detectGltfTransform(),
-    detectBlender(),
     detectFfmpeg(),
-    detectBlenderKit(),
+    detectSharp(),
+    detectOllamaBinary(),
+    detectAnythingLlmBinary(),
   ];
+}
+
+/** Module require helper for modelInspect (same resolution strategy). */
+export function requireFromApp(moduleId: string): any {
+  const hit = resolveFromApp(moduleId);
+  if (!hit) throw new Error(`Cannot resolve ${moduleId}`);
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  return require(hit.path);
 }

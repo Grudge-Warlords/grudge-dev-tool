@@ -54,22 +54,23 @@ const KEY_TO_ACCOUNT = {
   // Direct AI providers (bypass Grok / exhausted Legion credits)
   GROQ_API_KEY:                 "ai.groq",
   HUGGINGFACE_API_TOKEN:        "ai.huggingface",
-  HF_TOKEN:                       "ai.huggingface",
-  huggingface_api_token:        "ai.huggingface",
+  HF_TOKEN:                     "ai.huggingface",
   OPENAI_API_KEY:               "ai.openai",
   GEMINI_API_KEY:               "ai.gemini",
   GOOGLE_API_KEY:               "ai.gemini",
   TOGETHER_API_KEY:             "ai.together",
+  TOGETHER_API_TOKEN:           "ai.together",
   GH_TOKEN:                     "ai.github",
   GH_API_TOKEN:                 "ai.github",
   GITHUB_TOKEN:                 "ai.github",
-  TOGETHER_API_TOKEN:           "ai.together",
   POLY_PIZZA_API:               "ai.poly-pizza",
   POLY_PIZZA_API_KEY:           "ai.poly-pizza",
   COLYSEUS_CLOUD_TOKEN:         "ai.colyseus",
   CLOUDFLARE_MAX_API:           "cf-api-token",
   CF_API_TOKEN:                 "cf-api-token",
   CF_AIWORKER_API:              "cf-account-id",
+  ELEVENLABS_API_KEY:           "ai.elevenlabs",
+  ELEVEN_LABS_API_KEY:          "ai.elevenlabs",
 };
 
 /** OpenAI project keys are sometimes pasted under GEMINI_API_KEY — route to OpenAI vault slot. */

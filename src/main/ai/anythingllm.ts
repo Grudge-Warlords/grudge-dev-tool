@@ -74,6 +74,9 @@ export async function anythingLlmHealth(): Promise<{
   authenticated: boolean;
   workspaceSlug: string;
   error: string | null;
+  /** True when cloud AI providers can answer without local RAG. */
+  cloudFallbackReady: boolean;
+  mode: "rag" | "cloud" | "offline";
 }> {
   const baseUrl = await getAnythingLlmBaseUrl();
   const workspaceSlug = await getWorkspaceSlug();
@@ -81,40 +84,63 @@ export async function anythingLlmHealth(): Promise<{
   let authenticated = false;
   let error: string | null = null;
 
-  try {
-    const pingRes = await fetch(`${baseUrl}/api/ping`, { signal: AbortSignal.timeout(4000) });
-    ping = pingRes.ok;
-  } catch (e: unknown) {
-    error = e instanceof Error ? e.message : "ping failed";
+  // Try several common AnythingLLM endpoints (versions differ)
+  const pingPaths = ["/api/ping", "/api/v1/system/ping", "/"];
+  for (const p of pingPaths) {
+    try {
+      const pingRes = await fetch(`${baseUrl}${p}`, { signal: AbortSignal.timeout(3500) });
+      if (pingRes.ok || pingRes.status === 401 || pingRes.status === 403) {
+        ping = true;
+        break;
+      }
+    } catch (e: unknown) {
+      error = e instanceof Error ? e.message : "ping failed";
+    }
   }
 
   const apiKey = await getAnythingLlmApiKey();
-  if (apiKey) {
+  if (apiKey && ping) {
     try {
-      const authRes = await fetch(`${baseUrl}/api/v1/auth`, {
-        headers: authHeaders(apiKey),
-        signal: AbortSignal.timeout(5000),
-      });
-      if (authRes.ok) {
-        const data = (await authRes.json()) as { authenticated?: boolean };
-        authenticated = data.authenticated === true;
-      } else {
-        error = `auth HTTP ${authRes.status}`;
+      const authPaths = ["/api/v1/auth", "/api/auth"];
+      for (const ap of authPaths) {
+        const authRes = await fetch(`${baseUrl}${ap}`, {
+          headers: authHeaders(apiKey),
+          signal: AbortSignal.timeout(5000),
+        });
+        if (authRes.ok) {
+          const data = (await authRes.json().catch(() => ({}))) as { authenticated?: boolean };
+          authenticated = data.authenticated === true || authRes.ok;
+          if (authenticated) break;
+        } else if (authRes.status !== 404) {
+          error = `auth HTTP ${authRes.status}`;
+        }
       }
     } catch (e: unknown) {
       error = e instanceof Error ? e.message : "auth failed";
     }
-  } else {
-    error = error ?? "no API key configured";
+  } else if (!apiKey) {
+    error = error ?? (ping ? "no Developer API key configured" : "AnythingLLM not running");
   }
 
+  let cloudFallbackReady = false;
+  try {
+    const { providerKeyStatus } = await import("./secrets");
+    const st = await providerKeyStatus();
+    cloudFallbackReady = Boolean(st.groq || st.openai || st.huggingface || st.gemini || st.together);
+  } catch { /* */ }
+
+  const ragOk = ping && authenticated;
+  const mode: "rag" | "cloud" | "offline" = ragOk ? "rag" : cloudFallbackReady ? "cloud" : "offline";
+
   return {
-    ok: ping && authenticated,
+    ok: ragOk,
     baseUrl,
     ping,
     authenticated,
     workspaceSlug,
-    error,
+    error: ragOk ? null : error,
+    cloudFallbackReady,
+    mode,
   };
 }
 

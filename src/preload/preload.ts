@@ -13,6 +13,12 @@ const api = {
     clearBlenderKitKey: () => ipcRenderer.invoke("settings:clearBlenderKitKey"),
     toolchain: () => ipcRenderer.invoke("settings:toolchain"),
   },
+  tools: {
+    ensureFfmpeg: () => ipcRenderer.invoke("tools:ensureFfmpeg"),
+    ensureAll: () => ipcRenderer.invoke("tools:ensureAll"),
+    startOllama: () => ipcRenderer.invoke("tools:startOllama"),
+    startAnythingLlm: () => ipcRenderer.invoke("tools:startAnythingLlm"),
+  },
   // Object storage
   os: {
     list: (req: any) => ipcRenderer.invoke("os:list", req),
@@ -290,6 +296,8 @@ const api = {
     setModel: (model: string) => ipcRenderer.invoke("ollama:setModel", model),
     getAiPref: () => ipcRenderer.invoke("ollama:getAiPref") as Promise<string>,
     setAiPref: (pref: string) => ipcRenderer.invoke("ollama:setAiPref", pref),
+    setup: () => ipcRenderer.invoke("ollama:setup"),
+    start: () => ipcRenderer.invoke("ollama:start"),
   },
   // Internal Preview tab — sandboxed <webview> for running .html files locally.
   preview: {

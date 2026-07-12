@@ -100,7 +100,13 @@ export default function GrudaChainOverlay({
   if (!open) return null;
 
   const ragOk = health?.ok;
+  const cloudOk = health?.cloudFallbackReady || health?.mode === "cloud";
   const ws = health?.workspaceSlug ?? "assistant-chats";
+  const statusLabel = ragOk
+    ? "RAG online"
+    : cloudOk
+      ? "cloud AI ready (RAG offline)"
+      : "offline — Settings → Start RAG or save provider keys";
 
   return (
     <div className="grudachain-backdrop" onClick={onClose} role="presentation">
@@ -118,9 +124,8 @@ export default function GrudaChainOverlay({
             <div className="min-w-0">
               <div className="text-sm font-semibold text-gold truncate">GRUDA Chain</div>
               <div className="text-[10px] text-muted truncate flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full ${ragOk ? "bg-ok" : "bg-danger"}`} />
-                AnythingLLM · {ws}
-                {ragOk ? " · RAG online" : " · check API key in Settings"}
+                <span className={`w-1.5 h-1.5 rounded-full ${ragOk || cloudOk ? "bg-ok" : "bg-danger"}`} />
+                {ws} · {statusLabel}
               </div>
             </div>
           </div>

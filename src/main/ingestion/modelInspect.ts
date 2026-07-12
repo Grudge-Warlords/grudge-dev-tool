@@ -77,8 +77,9 @@ export async function inspectModel(absPath: string): Promise<InspectResult> {
     return { ok: false, error: `Unsupported: ${ext}. Only .glb/.gltf.`, format: "unknown", fileSize: 0, bufferBytes: 0, nodes: [], roots: [], materials: [], skins: [], animations: [], stats: EMPTY_STATS };
   }
   try {
-    const { NodeIO } = require("@gltf-transform/core");
-    const { ALL_EXTENSIONS } = require("@gltf-transform/extensions");
+    const { requireFromApp } = await import("./toolchain");
+    const { NodeIO } = requireFromApp("@gltf-transform/core");
+    const { ALL_EXTENSIONS } = requireFromApp("@gltf-transform/extensions");
     const { stat } = require("node:fs/promises");
     const fileStat = await stat(absPath);
     const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);

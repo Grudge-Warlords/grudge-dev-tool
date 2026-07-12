@@ -479,7 +479,10 @@ export default function Settings() {
           <div className="muted text-[10px] mt-1">Or run: <span className="kbd">npm run secret:import path\to\secrets.txt</span></div>
         </div>
         <div className="mt-3 pt-3 border-t border-line">
-          <div className="muted text-xs mb-2 font-semibold text-gold">Direct AI providers (Groq → HF → OpenAI → Gemini — bypasses exhausted Grok credits)</div>
+          <div className="muted text-xs mb-2 font-semibold text-gold">Direct AI providers (Groq → HF → OpenAI → Gemini → Together)</div>
+          <p className="muted text-[10px] mb-2">
+            Keys live in Windows Credential Vault (keytar) — never in git. OpenAI <span className="font-mono">sk-proj-…</span> keys go under openai.
+          </p>
           <table className="mb-2">
             <tbody>
               {(["groq", "huggingface", "openai", "gemini", "together"] as const).map((id) => (
@@ -490,9 +493,10 @@ export default function Settings() {
                     <input
                       type="password"
                       className="text-xs w-full"
-                      placeholder={providerStatus[id] ? "paste to replace" : `${id} API key`}
+                      placeholder={providerStatus[id] ? "•••• stored — paste to replace" : `${id} API key`}
                       value={providerKeys[id] ?? ""}
                       onChange={(e) => setProviderKeys((p) => ({ ...p, [id]: e.target.value }))}
+                      autoComplete="off"
                     />
                   </td>
                   <td><button className="btn ghost text-xs" onClick={() => saveProviderKey(id)}>Save</button></td>
@@ -556,13 +560,23 @@ export default function Settings() {
 
       <div className="card">
         <h3 className="flex items-center gap-2" style={{ margin: "0 0 8px" }}>
-          <Sparkles size={16} className="text-gold" /> GrudaChain — AnythingLLM (local RAG)
+          <Sparkles size={16} className="text-gold" /> GrudaChain — local RAG + cloud AI
         </h3>
         <p className="muted text-sm mb-3">
-          Connects to AnythingLLM on <span className="kbd">localhost:3001</span> for Grudge-trained RAG.
-          Use <span className="kbd">Ctrl+/</span> anywhere in the dev tool for the AI overlay.
-          {grudaHealth?.ok ? <span className="status-ok ml-2">RAG online</span> : <span className="status-bad ml-2">offline — check API key + workspace slug</span>}
+          Prefer AnythingLLM on <span className="kbd">localhost:3001</span> for Grudge-trained RAG.
+          When RAG is offline, chat still uses <strong>Groq / OpenAI / HF / Together</strong> if keys are stored.
+          Overlay: <span className="kbd">Ctrl+/</span>.
+          {grudaHealth?.ok ? (
+            <span className="status-ok ml-2">RAG online</span>
+          ) : grudaHealth?.cloudFallbackReady || grudaHealth?.mode === "cloud" ? (
+            <span className="status-ok ml-2">cloud AI ready (RAG offline)</span>
+          ) : (
+            <span className="status-bad ml-2">offline — start RAG or save provider keys</span>
+          )}
         </p>
+        {grudaHealth?.error && !grudaHealth?.ok && (
+          <p className="muted text-[11px] mb-2">Detail: {grudaHealth.error}</p>
+        )}
         <div className="row" style={{ marginTop: 4 }}>
           <input placeholder="http://localhost:3001" value={grudaBaseUrl} onChange={(e) => setGrudaBaseUrl(e.target.value)} className="flex-1" />
         </div>
@@ -570,13 +584,31 @@ export default function Settings() {
           <input placeholder="workspace slug (e.g. assistant-chats)" value={grudaWorkspace} onChange={(e) => setGrudaWorkspace(e.target.value)} className="flex-1" />
         </div>
         <div className="muted text-[10px] mt-1">
-          Base URL: use <span className="font-mono">http://localhost:3001</span> (no <span className="font-mono">/api</span> suffix).
-          API key must be a <strong>Developer API key</strong> from AnythingLLM Settings → API Keys — browser extension keys (<span className="font-mono">brx-…</span>) do not work.
+          Base URL has no <span className="font-mono">/api</span> suffix.
+          Use a <strong>Developer API key</strong> from AnythingLLM → Settings → API Keys (not browser <span className="font-mono">brx-…</span> keys).
         </div>
         <div className="row" style={{ marginTop: 4 }}>
           <input type="password" placeholder={hasGrudaApiKey ? "API key stored (paste to replace)" : "AnythingLLM Developer API key"} value={grudaApiKey} onChange={(e) => setGrudaApiKey(e.target.value)} className="flex-1" />
           <button className="btn ghost" onClick={saveGrudaChain}>Save</button>
           {hasGrudaApiKey && <button className="btn ghost danger" onClick={clearGrudaApiKey}>Clear key</button>}
+        </div>
+        <div className="flex flex-wrap gap-2 mt-3">
+          <button
+            className="btn primary text-xs"
+            onClick={async () => {
+              toast.message("Starting AnythingLLM…");
+              try {
+                const r = await window.grudge.tools.startAnythingLlm();
+                toast[r.ok ? "success" : "message"](r.message);
+                await reload();
+              } catch (e: any) {
+                toast.error(e?.message ?? "Start RAG failed");
+              }
+            }}
+          >
+            Start RAG / AnythingLLM
+          </button>
+          <button className="btn ghost text-xs" onClick={() => void reload()}>Test RAG</button>
         </div>
       </div>
 
@@ -589,14 +621,54 @@ export default function Settings() {
 
       <div className="card">
         <h3 style={{ margin: "0 0 8px" }}>Toolchain</h3>
+        <p className="muted text-xs mb-2">
+          Model probe uses <strong>gltf-transform</strong>. Media uses <strong>ffmpeg</strong> (portable install supported).
+          Blender is not used by Studio.
+        </p>
+        <div className="flex flex-wrap gap-2 mb-3">
+          <button
+            className="btn primary text-xs"
+            onClick={async () => {
+              toast.message("Installing / starting tools…");
+              try {
+                const r = await window.grudge.tools.ensureAll();
+                if (r.ffmpeg?.ok) toast.success("ffmpeg ready", { description: r.ffmpeg.path });
+                else toast.error("ffmpeg", { description: r.ffmpeg?.message });
+                if (r.ollama?.ok) toast.success("Ollama ready");
+                else toast.message("Ollama", { description: (r.ollama?.steps || []).join(" · ") });
+                if (r.gltf?.ok) toast.success(`gltf-transform ${r.gltf.version || "ok"}`);
+                await reload();
+              } catch (e: any) {
+                toast.error(e?.message ?? "Tool setup failed");
+              }
+            }}
+          >
+            Fix / install tools
+          </button>
+          <button
+            className="btn ghost text-xs"
+            onClick={async () => {
+              try {
+                const r = await window.grudge.tools.ensureFfmpeg();
+                toast[r.ok ? "success" : "error"](r.message, { description: r.path });
+                await reload();
+              } catch (e: any) {
+                toast.error(e?.message ?? "ffmpeg install failed");
+              }
+            }}
+          >
+            Install ffmpeg
+          </button>
+          <button className="btn ghost text-xs" onClick={() => void reload()}>Refresh</button>
+        </div>
         <table>
           <thead><tr><th>Tool</th><th>Status</th><th>Version / path</th></tr></thead>
           <tbody>
-            {tools.map((t) => (
+            {tools.filter((t) => !/blender/i.test(t.name)).map((t) => (
               <tr key={t.name}>
                 <td>{t.name}</td>
                 <td className={t.available ? "status-ok" : "status-bad"}>{t.available ? "available" : "missing"}</td>
-                <td className="muted">{t.version ?? t.reason ?? t.path ?? "—"}</td>
+                <td className="muted text-[11px] break-all">{t.version ?? t.reason ?? t.path ?? "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -635,22 +707,26 @@ function WorkspacePathsCard() {
     <div className="card">
       <h3 style={{ margin: "0 0 8px" }}>Workspace paths</h3>
       <p className="muted text-sm mb-3">
-        Shared across Upload, Forge, Coder, and Grudge Engine — one source of truth in electron-store.
+        One source of truth for downloads, R2 upload prefixes, Coder, and The-ENGINE.
+        Game packs use <strong>Studio → Projects</strong> (organized folders) — not these paths.
       </p>
       <div className="space-y-3 text-xs">
         <PathRow label="Local assets downloads" value={localAssetsRoot} onChange={setLocalAssetsRoot}
-          onBrowse={() => pick("localAssetsRoot", "Asset download folder", setLocalAssetsRoot)} />
-        <PathRow label="Forge R2 upload prefix" value={forgeLastUrl} onChange={setForgeLastUrl} />
-        <PathRow label="Upload target prefix" value={uploadPrefix} onChange={setUploadPrefix} />
-        <PathRow label="Coder IDE root" value={coderRoot} onChange={setCoderRoot}
+          onBrowse={() => pick("localAssetsRoot", "Asset download folder", setLocalAssetsRoot)}
+          hint="Where Browser / Request save files to disk" />
+        <PathRow label="Forge / scene R2 prefix" value={forgeLastUrl} onChange={setForgeLastUrl}
+          hint="Object key prefix for Forge cloud saves (not Blender)" />
+        <PathRow label="Upload target prefix" value={uploadPrefix} onChange={setUploadPrefix}
+          hint="Default prefix for Assets → Upload (e.g. asset-packs/)" />
+        <PathRow label="Coder IDE root (GrudachainCode)" value={coderRoot} onChange={setCoderRoot}
           onBrowse={() => pick("coderRoot", "GrudachainCode root", setCoderRoot)} />
-        <PathRow label="Coder project workspace" value={coderProjectDir} onChange={setCoderProjectDir}
+        <PathRow label="Coder project folder" value={coderProjectDir} onChange={setCoderProjectDir}
           onBrowse={() => pick("coderProjectDir", "Project folder", setCoderProjectDir)} />
         <label className="block">
-          <span className="text-muted">Coder port</span>
+          <span className="text-muted">Coder local port</span>
           <input className="w-24 mt-1" type="number" value={coderPort} onChange={(e) => setCoderPort(Number(e.target.value))} />
         </label>
-        <PathRow label="Grudge Engine repo (The-ENGINE)" value={engineRoot} onChange={setEngineRoot}
+        <PathRow label="Grudge Engine (The-ENGINE) repo" value={engineRoot} onChange={setEngineRoot}
           onBrowse={() => pick("engineRoot", "The-ENGINE root", setEngineRoot)} />
         <label className="block">
           <span className="text-muted">Engine dev port</span>
@@ -661,12 +737,13 @@ function WorkspacePathsCard() {
   );
 }
 
-function PathRow({ label, value, onChange, onBrowse }: {
-  label: string; value: string; onChange: (v: string) => void; onBrowse?: () => void;
+function PathRow({ label, value, onChange, onBrowse, hint }: {
+  label: string; value: string; onChange: (v: string) => void; onBrowse?: () => void; hint?: string;
 }) {
   return (
     <label className="block">
       <span className="text-muted">{label}</span>
+      {hint && <div className="text-[10px] text-muted/80 mt-0.5">{hint}</div>}
       <div className="flex items-center gap-2 mt-1">
         <input className="flex-1" value={value} onChange={(e) => onChange(e.target.value)} />
         {onBrowse && (
@@ -739,6 +816,22 @@ function OllamaSettings() {
 
   useEffect(() => { void reloadOllama(); }, []);
 
+  async function setup() {
+    setBusy(true);
+    try {
+      const r = await window.grudge.ollama.setup();
+      if (r.steps?.length) {
+        toast.message("Ollama setup", { description: r.steps.slice(0, 4).join(" · ") });
+      }
+      toast[r.ok ? "success" : "error"](r.ok ? "Ollama ready" : "Ollama not ready yet");
+      await reloadOllama();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Setup failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-3">
       <table>
@@ -749,7 +842,7 @@ function OllamaSettings() {
               {health ? (health.ok ? `online · ${health.latencyMs}ms${health.version ? ` · ${health.version}` : ""}` : `offline · ${health.error}`) : "not checked"}
             </td>
           </tr>
-          <tr><td className="muted">Models</td><td>{models.length ? models.map((m) => m.name).join(", ") : "—"}</td></tr>
+          <tr><td className="muted">Models</td><td className="text-[11px]">{models.length ? models.map((m) => m.name).join(", ") : "— (setup will pull a small model)"}</td></tr>
         </tbody>
       </table>
       <div className="row">
@@ -764,13 +857,16 @@ function OllamaSettings() {
           <option value="cloudflare">Prefer Cloud AI</option>
         </select>
       </div>
-      <div className="flex gap-2">
-        <button className="btn ghost" onClick={save} disabled={busy}>Save</button>
-        <button className="btn ghost" onClick={() => testOllama(true)} disabled={busy}>Test Ollama</button>
-        <button className="btn ghost" onClick={quickPrompt} disabled={busy || !health?.ok}>Prompt Test</button>
+      <div className="flex flex-wrap gap-2">
+        <button className="btn primary text-xs" onClick={() => void setup()} disabled={busy}>
+          {busy ? "Working…" : "Setup & start Ollama"}
+        </button>
+        <button className="btn ghost text-xs" onClick={save} disabled={busy}>Save</button>
+        <button className="btn ghost text-xs" onClick={() => testOllama(true)} disabled={busy}>Test</button>
+        <button className="btn ghost text-xs" onClick={quickPrompt} disabled={busy || !health?.ok}>Prompt test</button>
       </div>
       <p className="muted text-xs">
-        Local Ollama is used for free/private Grudge AI work when available. Cloud AI remains a fallback for deployed workers and shared jobs.
+        Setup starts the local Ollama service (if installed), waits for the API, picks a model, and sets auto-fallback to cloud providers.
       </p>
     </div>
   );

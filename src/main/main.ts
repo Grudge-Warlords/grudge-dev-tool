@@ -282,6 +282,22 @@ function registerIpc() {
   ipcMain.handle("settings:setBlenderKitKey", (_e, key: string) => bk.setApiKey(key));
   ipcMain.handle("settings:clearBlenderKitKey", () => bk.clearApiKey());
   ipcMain.handle("settings:toolchain", async () => detectAll());
+  ipcMain.handle("tools:ensureFfmpeg", async () => {
+    const { ensureFfmpeg } = await import("./tools/ensureTools");
+    return ensureFfmpeg();
+  });
+  ipcMain.handle("tools:ensureAll", async () => {
+    const { ensureAllTools } = await import("./tools/ensureTools");
+    return ensureAllTools();
+  });
+  ipcMain.handle("tools:startOllama", async () => {
+    const { startOllama, setupOllamaFull } = await import("./tools/ensureTools");
+    return setupOllamaFull();
+  });
+  ipcMain.handle("tools:startAnythingLlm", async () => {
+    const { startAnythingLlm } = await import("./tools/ensureTools");
+    return startAnythingLlm();
+  });
 
   // Object storage
   ipcMain.handle("os:list", (_e, req) => api.listObjects(req));
@@ -738,6 +754,14 @@ function registerIpc() {
   ipcMain.handle("ollama:setModel", (_e, model: string) => { ollama.setPreferredModel(model); });
   ipcMain.handle("ollama:getAiPref", () => ollama.getAiPreference());
   ipcMain.handle("ollama:setAiPref", (_e, pref: any) => { ollama.setAiPreference(pref); });
+  ipcMain.handle("ollama:setup", async () => {
+    const { setupOllamaFull } = await import("./tools/ensureTools");
+    return setupOllamaFull();
+  });
+  ipcMain.handle("ollama:start", async () => {
+    const { startOllama } = await import("./tools/ensureTools");
+    return startOllama();
+  });
 
   // UUID utilities (local, no network)
   ipcMain.handle("uuid:gen", (_e, args) =>

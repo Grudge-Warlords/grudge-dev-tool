@@ -13,6 +13,7 @@ export const AI_PROVIDER_ACCOUNTS = {
   polyPizza: "ai.poly-pizza",
   colyseus: "ai.colyseus",
   cfApiToken: "cf-api-token",
+  elevenlabs: "ai.elevenlabs",
 } as const;
 
 export type AiProviderId = keyof typeof AI_PROVIDER_ACCOUNTS;
@@ -27,6 +28,7 @@ const ENV_FALLBACK: Record<AiProviderId, string[]> = {
   polyPizza: ["POLY_PIZZA_API_KEY", "Poly_Pizza_api"],
   colyseus: ["COLYSEUS_CLOUD_TOKEN"],
   cfApiToken: ["CLOUDFLARE_MAX_API", "CF_API_TOKEN"],
+  elevenlabs: ["ELEVENLABS_API_KEY", "ELEVEN_LABS_API_KEY"],
 };
 
 export async function readProviderKey(id: AiProviderId): Promise<string | null> {
