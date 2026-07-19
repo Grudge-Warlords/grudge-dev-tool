@@ -181,12 +181,17 @@ const api = {
       ipcRenderer.invoke("legion:transcribe", opts),
     whisperHealth: () => ipcRenderer.invoke("legion:whisperHealth"),
   },
-  // Fleet games launcher + store
+  // Fleet games launcher + store + ONE TRUTH health / AI workers
   fleet: {
     games: () => ipcRenderer.invoke("fleet:games"),
     endpoints: () => ipcRenderer.invoke("fleet:endpoints"),
     storeCategories: () => ipcRenderer.invoke("fleet:storeCategories"),
     objectStore: (path: string) => ipcRenderer.invoke("fleet:objectStore", path),
+    health: () => ipcRenderer.invoke("fleet:health"),
+    ops: () => ipcRenderer.invoke("fleet:ops"),
+    aiWorkers: () => ipcRenderer.invoke("fleet:aiWorkers"),
+    aiModels: () => ipcRenderer.invoke("fleet:aiModels"),
+    aiChat: (req: unknown) => ipcRenderer.invoke("fleet:aiChat", req),
   },
   // Ollama (local AI)
   ollama: {

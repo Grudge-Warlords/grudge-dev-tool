@@ -1,10 +1,13 @@
-/** Canonical Grudge economy + service URLs (aligned with RTS grudgeServices.ts). */
+/** Canonical Grudge economy + service URLs (aligned with fleet ONE TRUTH). */
 
-export const GRUDGE_ID_URL = "https://id.grudge-studio.com";
-export const GAME_API_URL = "https://api.grudge-studio.com";
-export const GAME_DATA_URL = "https://grudge-api-production-0d46.up.railway.app";
-/** Profiles/social — unified on grudge-backend (account.grudge-studio.com retired). */
-export const ACCOUNT_API_URL = "https://api.grudge-studio.com";
+import { FLEET_URLS, FLEET_GAME_DATA_URL } from "./fleet";
+
+export const GRUDGE_ID_URL = FLEET_URLS.auth;
+/** Prefer fleet client (same-origin rewrites). Railway is the implementation. */
+export const GAME_API_URL = FLEET_URLS.client;
+export const GAME_DATA_URL = FLEET_GAME_DATA_URL;
+/** Account/profile — Railway via client proxy or direct game-data */
+export const ACCOUNT_API_URL = FLEET_URLS.client;
 export const ACCOUNT_PAGE_URL = `${GRUDGE_ID_URL}/account`;
 
 /** Solana SPL mint — GBUX utility token (fleet ONE TRUTH). */
@@ -21,9 +24,10 @@ export const GBUX_PURCHASE_PACKS = [
 
 export const GRUDGE_SERVICES = [
   { id: "id", label: "Grudge ID", url: GRUDGE_ID_URL, role: "identity" },
-  { id: "api", label: "Game API", url: GAME_API_URL, role: "economy" },
-  { id: "aiHub", label: "GRUDA AI Hub (economy)", url: "https://ai.grudge-studio.com/v1/economy", role: "economy" },
-  { id: "gameData", label: "Game data / wallet", url: GAME_DATA_URL, role: "wallet" },
-  { id: "account", label: "Account API", url: ACCOUNT_API_URL, role: "profile" },
+  { id: "client", label: "Fleet client", url: GAME_API_URL, role: "economy" },
+  { id: "aiHub", label: "GRUDA AI Hub (economy)", url: `${FLEET_URLS.ai}/v1/economy`, role: "economy" },
+  { id: "gameData", label: "Game data / wallet (Railway)", url: GAME_DATA_URL, role: "wallet" },
+  { id: "account", label: "Account API (fleet)", url: ACCOUNT_API_URL, role: "profile" },
+  { id: "forge", label: "Forge editor", url: FLEET_URLS.forge, role: "editor" },
   { id: "walletPage", label: "Wallet dashboard", url: "https://grudgewarlords.com/wallet", role: "wallet" },
 ] as const;

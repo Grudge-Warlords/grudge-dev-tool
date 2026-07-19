@@ -1,0 +1,27 @@
+# grudge-observatory — structured logging + AI telemetry
+# Deploy: npx wrangler deploy
+# DB init: npx wrangler d1 execute OBS_DB --file=schema.sql
+
+name = "grudge-observatory"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+account_id = "ee475864561b02d4588180b8b9acf694"
+
+[[routes]]
+pattern = "obs.grudge-studio.com/*"
+zone_name = "grudge-studio.com"
+
+[[d1_databases]]
+binding = "OBS_DB"
+database_name = "grudge-observatory"
+database_id = ""  # fill after: npx wrangler d1 create grudge-observatory
+
+[[kv_namespaces]]
+binding = "OBS_KV"
+id = ""  # fill after: npx wrangler kv namespace create OBS_KV
+
+[triggers]
+crons = ["0 * * * *"]  # hourly rollups
+
+[vars]
+ALLOWED_ORIGINS = "https://grudgewarlords.com,https://grudge-studio.com,https://*.grudge-studio.com,https://*.vercel.app,http://localhost:5173"

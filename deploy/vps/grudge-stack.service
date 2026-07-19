@@ -1,0 +1,28 @@
+# /etc/systemd/system/grudge-stack.service
+# Install:
+#   sudo cp grudge-stack.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now grudge-stack
+# Logs:  journalctl -u grudge-stack -f
+
+[Unit]
+Description=Grudge Studio Docker Stack
+Documentation=https://github.com/MolochDaGod/grudge-dev-tool/tree/main/deploy/vps
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/grudge
+ExecStartPre=/usr/bin/docker compose pull --quiet
+ExecStart=/usr/bin/docker compose -f /opt/grudge/docker-compose.yml up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f /opt/grudge/docker-compose.yml stop
+ExecReload=/usr/bin/docker compose -f /opt/grudge/docker-compose.yml up -d --remove-orphans
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

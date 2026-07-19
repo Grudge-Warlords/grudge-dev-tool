@@ -2,16 +2,20 @@
 layout: default
 title: Home
 nav_order: 1
-description: Grudge Studio developer tooling — autonomous CLI (v0.5) + Windows Forge tray app (v0.5).
+description: Grudge Studio developer tooling — ONE TRUTH CLI + Windows Forge tray (production v0.6).
 permalink: /
 ---
 # Grudge Dev Tool
 
 {: .fs-9 }
-Grudge Studio developer tooling — **ONE TRUTH** fleet wiring, asset-pack uploads, and the Windows **Forge** tray app.
+Grudge Studio developer tooling — **ONE TRUTH** fleet wiring, asset-pack uploads, AI workers, Ollama, and the Windows **Forge** tray app.
 {: .fs-5 .fw-300 }
 
-## CLI — v0.5.0 (recommended)
+[Production deployment map →](production-deployment.md){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
+[ONE TRUTH wiring →](one-truth.md){: .btn .fs-5 .mb-2 .mr-2 }
+[Production config / secrets →](production-config.md){: .btn .fs-5 .mb-2 }
+
+## CLI — v0.6 (recommended)
 
 Autonomous setup for `client.grudge-studio.com` — no tray app required for uploads or health checks.
 
@@ -35,27 +39,26 @@ grudge-dev upload-pack --root "C:\packs\MyPack" --pack-id my-pack --dry-run
 
 ---
 
-## Download — Grudge Studio Forge tray app (v0.5.1)
+## Download — Grudge Studio Forge tray app
 
-[⬇ Download `Grudge Studio Forge-Setup-0.5.1.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.5.1/Grudge-Studio-Forge-Setup-0.5.1.exe){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
+[⬇ Latest installer (GitHub Releases)](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
 [All releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases){: .btn .fs-5 .mb-2 .mr-2 }
-[Latest release page](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .fs-5 .mb-2 .mr-2 }
 [View source on GitHub](https://github.com/Grudge-Warlords/grudge-dev-tool){: .btn .fs-5 .mb-2 }
-Windows x64 · Authenticode-signed NSIS installer · auto-updating.
+Windows x64 · NSIS installer · electron-updater · Three.js + glTF-Transform + Puter baked in.
 {: .fs-3 .text-grey-dk-100 }
 
 ### Simple connection (ONE TRUTH)
 
-One URL powers everything — no split `api` vs `assets-api` hosts:
+One fleet client powers auth, game-data, and objectstore:
 
-1. Install the tray app (or let auto-update deliver v0.5.1).
-2. **Settings → Grudge identity → Fleet client URL** — click **ONE TRUTH** (defaults to `https://client.grudge-studio.com`).
-3. Sign in or paste a bearer token from `id.grudge-studio.com`.
-4. Status bar shows **ONE TRUTH 100%** when all six fleet probes pass (same checks as `grudge-dev doctor`).
+1. Install from **Releases** (or auto-update).
+2. **Settings → Grudge identity → Fleet client URL** → **ONE TRUTH** (`https://client.grudge-studio.com`).
+3. Sign in via Puter or paste a bearer token from `id.grudge-studio.com`.
+4. Optional: import R2/AI secrets with `npm run secret:import`.
+5. Optional autonomous AI: run [Ollama](https://ollama.com) locally; Settings → AI preference `auto` or `ollama`.
+6. Fleet health / doctor score should be high (Ollama may show unknown when not installed).
 
-Legacy split-host installs can still set an optional objectstore override under **Legacy split-host override** in Settings.
-
-Already installed on v0.5.0 or older? Auto-update delivers v0.5.1 within ~4 h. Restart from the tray menu (right-click → Quit, then relaunch), then tap **ONE TRUTH** in Settings.
+**Do not** point Settings at `api.grudge-studio.com` (deprecated).
 {: .fs-3 .text-grey-dk-100 }
 
 ---

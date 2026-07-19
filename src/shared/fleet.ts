@@ -1,16 +1,45 @@
-/** ONE TRUTH fleet registry — keep aligned with grudge-builder shared/fleet/manifest.ts */
+/**
+ * ONE TRUTH fleet registry — keep aligned with:
+ *   GrudgeBuilder shared/fleet/manifest.ts
+ *   grudge-production-wiring skill
+ *   warlord-genesis FLEET_URLS
+ *
+ * Never route new work through deprecated api.grudge-studio.com.
+ */
 
 export const FLEET_CLIENT_URL = "https://client.grudge-studio.com";
 
+/** Railway Postgres game-data SSOT (characters, account, wallet, auth implementation). */
+export const FLEET_GAME_DATA_URL =
+  "https://grudge-api-production-0d46.up.railway.app";
+
 export const FLEET_URLS = {
+  /** Grudge ID public gateway (Cloudflare Worker → Railway auth) */
   auth: "https://id.grudge-studio.com",
+  /** Studio portal shell (The-ENGINE) — not game-data SSOT */
   identityApi: "https://grudge-studio.com",
-  gameData: "https://grudge-api-production-0d46.up.railway.app",
+  /** Railway Postgres SSOT */
+  gameData: FLEET_GAME_DATA_URL,
   assets: "https://assets.grudge-studio.com",
   objectStore: "https://objectstore.grudge-studio.com/api/v1",
+  /** Vercel fleet client — same-origin rewrites for auth + game-data + objectstore */
   client: FLEET_CLIENT_URL,
+  /** Legion / GRUDA AI hub */
   ai: "https://ai.grudge-studio.com",
   warlords: "https://grudgewarlords.com",
+  /** Warlord Genesis production SPA */
+  warlordGenesis: "https://warlord-genesis.vercel.app",
+  warstrat: "https://warstrat.grudge-studio.com",
+  /** Forge 3D editor (production) */
+  forge: "https://forge.grudge-studio.com",
+  /** Observatory telemetry */
+  observatory: "https://obs.grudge-studio.com",
+  /** Puter User-Pays SDK */
+  puterSdk: "https://js.puter.com/v2/",
+  /** Local Ollama default (desktop autonomous AI) */
+  ollama: "http://localhost:11434",
+  /** Deprecated — do not use for new auth or game-data */
+  deprecatedApi: "https://api.grudge-studio.com",
 } as const;
 
 export type TruthProbeRole = "game-data" | "identity" | "assets" | "objectstore";
@@ -29,13 +58,48 @@ export interface TruthProbe {
 export function buildTruthProbes(apiBase: string): TruthProbe[] {
   const base = apiBase.replace(/\/$/, "");
   return [
-    { id: "fleet-manifest", label: "Fleet manifest", url: `${base}/api/fleet/manifest`, role: "game-data" },
-    { id: "auth-verify", label: "Auth verify", url: `${base}/api/auth/verify`, role: "identity" },
-    { id: "os-items", label: "master-items.json", url: `${base}/api/objectstore/v1/master-items.json`, role: "objectstore" },
-    { id: "os-recipes", label: "master-recipes.json", url: `${base}/api/objectstore/v1/master-recipes.json`, role: "objectstore" },
-    { id: "os-fleet-truth", label: "fleet-truth.json", url: `${base}/api/objectstore/v1/_meta/fleet-truth.json`, role: "objectstore" },
-    { id: "icon-pack", label: "Pack weapon icon", url: `${base}/api/assets/icons/pack/weapons/Sword_01.png`, role: "assets" },
-    { id: "supabase-health", label: "Supabase health", url: `${base}/api/supabase/health`, role: "game-data" },
+    {
+      id: "id-health",
+      label: "Grudge ID health",
+      url: `${FLEET_URLS.auth}/api/health`,
+      role: "identity",
+    },
+    {
+      id: "railway-health",
+      label: "Railway game-data health",
+      url: `${FLEET_URLS.gameData}/api/health`,
+      role: "game-data",
+    },
+    {
+      id: "auth-me",
+      label: "Auth me (unauthed 401 ok)",
+      url: `${base}/api/auth/me`,
+      role: "identity",
+    },
+    {
+      id: "os-items",
+      label: "master-items.json",
+      url: `${base}/api/objectstore/v1/master-items.json`,
+      role: "objectstore",
+    },
+    {
+      id: "os-recipes",
+      label: "master-recipes.json",
+      url: `${base}/api/objectstore/v1/master-recipes.json`,
+      role: "objectstore",
+    },
+    {
+      id: "os-direct",
+      label: "ObjectStore direct",
+      url: `${FLEET_URLS.objectStore}/master-items.json`,
+      role: "objectstore",
+    },
+    {
+      id: "icon-cdn",
+      label: "CDN assets root",
+      url: FLEET_URLS.assets,
+      role: "assets",
+    },
   ];
 }
 
@@ -49,11 +113,19 @@ export async function probeEndpoint(probe: TruthProbe): Promise<TruthProbe> {
     });
     const ct = res.headers.get("content-type") || "";
     const htmlLeak = probe.role !== "assets" && ct.includes("text/html");
+    // /api/auth/me without token is expected 401 — still proves route exists
+    const authRouteOk =
+      probe.id === "auth-me" && (res.status === 401 || res.status === 200);
+    const ok = (res.ok || authRouteOk) && !htmlLeak;
     return {
       ...probe,
-      ok: res.ok && !htmlLeak,
+      ok,
       status: res.status,
-      detail: htmlLeak ? "HTML leak (split-brain)" : ct.split(";")[0] || method,
+      detail: htmlLeak
+        ? "HTML leak (split-brain)"
+        : authRouteOk && res.status === 401
+          ? "route live (401 unauthenticated)"
+          : ct.split(";")[0] || method,
       latencyMs: Date.now() - start,
     };
   } catch (e: unknown) {

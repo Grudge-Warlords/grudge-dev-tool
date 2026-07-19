@@ -37,7 +37,18 @@ import {
   generateGrudgeUUID, parseGrudgeUUID, describeGrudgeUUID, isValidGrudgeUUID,
   SLOT_CODES, TIER_CODES,
 } from "../shared/grudgeUUID";
+import { loadEnvFiles } from "./bootstrapEnv";
+import { seedDefaultSecrets } from "./bootstrapSecrets";
+import { runFleetHealthCheck } from "./fleet/healthCheck";
+import {
+  aiChat,
+  checkAllAiWorkers,
+  getFleetOperationsStatus,
+  listAvailableModels,
+} from "./fleet/aiWorkerManager";
 
+// Load .env / toolchain.env before credential resolution (does not override process env).
+loadEnvFiles();
 initLogger();
 forge.captureInitialArgv();
 
@@ -195,6 +206,11 @@ if (!gotLock) {
   });
 
   app.whenReady().then(async () => {
+    try {
+      await seedDefaultSecrets();
+    } catch (err) {
+      log.warn("seedDefaultSecrets failed", err);
+    }
     await createMainWindow();
     createTray(() => mainWindow);
     registerIpc();
@@ -575,6 +591,12 @@ function registerIpc() {
   ipcMain.handle("fleet:endpoints", () => FLEET_ENDPOINTS);
   ipcMain.handle("fleet:storeCategories", () => STORE_CATEGORIES);
   ipcMain.handle("fleet:objectStore", (_e, path: string) => legion.fetchObjectStoreCatalog(path));
+  // ONE TRUTH fleet health + AI worker ops (no parallel stacks)
+  ipcMain.handle("fleet:health", () => runFleetHealthCheck());
+  ipcMain.handle("fleet:ops", () => getFleetOperationsStatus());
+  ipcMain.handle("fleet:aiWorkers", () => checkAllAiWorkers());
+  ipcMain.handle("fleet:aiModels", () => listAvailableModels());
+  ipcMain.handle("fleet:aiChat", (_e, req) => aiChat(req));
 
   // Ollama (local AI)
   ipcMain.handle("ollama:health", () => ollama.ollamaHealth());

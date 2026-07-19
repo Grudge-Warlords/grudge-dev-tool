@@ -1,0 +1,30 @@
+name: Fleet probe (production)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/shared/fleet.ts"
+      - "src/main/fleet/**"
+      - "scripts/fleet-probe.mjs"
+      - ".github/workflows/fleet-probe.yml"
+  schedule:
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: ONE TRUTH live probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Probe production fleet
+        env:
+          GRUDGE_API_BASE: https://client.grudge-studio.com
+        run: node scripts/fleet-probe.mjs

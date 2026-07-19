@@ -8,6 +8,9 @@ release/
 .env.local
 .DS_Store
 Thumbs.db
+.history/
+dev.venv/
+Untitled-1.md
 
 # Secrets — never commit these even if they slip into the working tree
 secret.txt

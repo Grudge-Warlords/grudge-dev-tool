@@ -1,5 +1,5 @@
 title: Grudge Dev Tool
-description: Grudge Studio developer tooling — v0.5 CLI + Forge tray (ONE TRUTH setup, doctor, upload-pack).
+description: Grudge Studio developer tooling — ONE TRUTH CLI + Forge tray (production fleet, AI workers, Ollama).
 url: "https://grudge-warlords.github.io"
 baseurl: "/grudge-dev-tool"
 remote_theme: just-the-docs/just-the-docs
@@ -20,9 +20,18 @@ heading_anchors: true
 aux_links:
   "Source": "https://github.com/Grudge-Warlords/grudge-dev-tool"
   "Releases": "https://github.com/Grudge-Warlords/grudge-dev-tool/releases"
+  "Forge": "https://forge.grudge-studio.com"
+  "AI Hub": "https://ai.grudge-studio.com"
+  "Grudge ID": "https://id.grudge-studio.com"
 nav_external_links:
   - title: "GitHub"
     url:   "https://github.com/Grudge-Warlords/grudge-dev-tool"
+  - title: "Releases"
+    url:   "https://github.com/Grudge-Warlords/grudge-dev-tool/releases"
+  - title: "Forge editor"
+    url:   "https://forge.grudge-studio.com"
+  - title: "Warlords"
+    url:   "https://grudgewarlords.com"
 exclude:
   - Gemfile
   - Gemfile.lock

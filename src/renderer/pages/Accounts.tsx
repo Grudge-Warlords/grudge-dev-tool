@@ -365,7 +365,7 @@ export default function Accounts() {
             ))}
           </div>
           <p className="text-[10px] text-muted mt-2">
-            Purchases route through api.grudge-studio.com with ALE Legion agent fallback for fulfillment.
+            Purchases route through client.grudge-studio.com / Railway game-data with ALE Legion agent fallback for fulfillment.
           </p>
         </div>
       </div>

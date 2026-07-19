@@ -28,6 +28,12 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Fleet probe (production hosts)
+        env:
+          GRUDGE_API_BASE: https://client.grudge-studio.com
+        run: node scripts/fleet-probe.mjs
+        continue-on-error: true
+
       - name: Package (NSIS)
         env:
           # No code signing in CI for now; signed builds happen on release tag.

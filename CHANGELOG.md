@@ -6,8 +6,22 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ### Added
 
+- **Production deployment docs** — `docs/production-deployment.md` (ONE TRUTH hosts, Pages, secrets, Ollama, Forge).
+- **Fleet probe CI** — `npm run fleet:probe` + `.github/workflows/fleet-probe.yml` + build-time probe step.
+- **AI Worker Manager** — unified Ollama / Legion / Workers AI / Gateway dispatch (`src/main/fleet/aiWorkerManager.ts`).
+- **Fleet health** — full production surface probe (`src/main/fleet/healthCheck.ts`) via `fleet:health` IPC.
+- **Copilot / agent instructions** — `.github/copilot-instructions.md` + `AGENTS.md` ONE TRUTH rules.
+- **Three.js viewer entry** — `viewer.html` + Vite multi-page for pop-out asset viewing.
+- **Env bootstrap** — `bootstrapEnv` / `bootstrapSecrets` load toolchain keys without parallel secret systems.
 - **Legion fleet truth** — infra/fleet questions prepend live `fleet-truth.json` + `/api/fleet/truth-audit` snapshot (no invented workers).
 - **Canonical Railway game-data URL** — `grudge-api-production-0d46.up.railway.app`; deprecated `api.grudge-studio.com` removed from fleet registry.
+
+### Changed
+
+- **CSP connect-src** — allow Railway game-data, client/id/objectstore, local Ollama, Vercel fleet hosts (no sole reliance on deprecated API host).
+- **Economy / Accounts** — purchase path copy and service URLs use client + Railway SSOT.
+- **package.json** — `homepage` → GitHub Pages; scripts `fleet:probe`, `ci`.
+
 
 ## [0.5.3] — 2026-06-25
 

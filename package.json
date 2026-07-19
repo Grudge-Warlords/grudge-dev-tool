@@ -35,6 +35,11 @@
     "package:ci": "npm run build && electron-builder --win nsis --publish never",
     "package:dir": "npm run build && electron-builder --dir",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "doctor": "tsx cli/src/cli.ts doctor",
+    "doctor:json": "tsx cli/src/cli.ts doctor --json",
+    "fleet:probe": "tsx scripts/fleet-probe.mjs",
+    "ci": "npm run typecheck && npm run fleet:probe",
+    "rebuild:native": "npx @electron/rebuild -f -w keytar,sharp",
     "upload-pack": "tsx scripts/upload-asset-pack.ts",
     "scaffold:r3f": "node scripts/scaffold-r3f.mjs",
     "secret:import": "node scripts/import-secrets.mjs",
@@ -63,6 +68,9 @@
     "react-dom": "^18.3.1",
     "sonner": "^1.5.0",
     "three": "^0.169.0"
+  },
+  "optionalDependencies": {
+    "puppeteer": "^24.0.0"
   },
   "devDependencies": {
     "@tanstack/react-query-devtools": "^5.51.1",

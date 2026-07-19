@@ -60,7 +60,10 @@ never in files, environment variables, or the app's config directory.
 | Env Var Name | Keytar Account | Description | Default |
 |---|---|---|---|
 | `GRUDGE_API_BASE` | `default.apiBaseUrl` | Fleet client URL (ONE TRUTH) | `https://client.grudge-studio.com` |
-| `GRUDGE_ASSETS_API_BASE` | `default.assetsApiBaseUrl` | Legacy objectstore host override (optional) | *(falls through to fleet client)* |
+| `GRUDGE_GAME_DATA_URL` | — | Railway Postgres SSOT (direct) | `https://grudge-api-production-0d46.up.railway.app` |
+| `GRUDGE_ID_BASE` | — | Grudge ID gateway | `https://id.grudge-studio.com` |
+| `GRUDGE_ASSETS_API_BASE` | `default.assetsApiBaseUrl` | Legacy objectstore host override (optional) | *(leave unset)* |
+| `OLLAMA_HOST` | electron-store `grudge-ollama` | Local autonomous AI | `http://localhost:11434` |
 
 ### Optional — Cloudflare AI Gateway
 

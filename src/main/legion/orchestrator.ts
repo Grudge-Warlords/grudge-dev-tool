@@ -6,7 +6,8 @@ import { buildLegionFleetContext } from "./fleetTruth";
 const SERVICE = "grudge-dev-tool";
 
 const DEFAULT_HUB = process.env.GRUDGE_LEGION_HUB ?? FLEET_URLS.ai;
-const DEFAULT_AGENT = process.env.GRUDGE_GRUDA_AGENT ?? "https://grudaagent.vercel.app";
+/** Canonical agent UI is proxied on ai.grudge-studio.com (UI_ORIGIN remains grudaagent.vercel.app). */
+const DEFAULT_AGENT = process.env.GRUDGE_GRUDA_AGENT ?? FLEET_URLS.ai;
 const GRUDGEDOT_API = process.env.GRUDGEDOT_API ?? "https://grudgedot.vercel.app";
 
 async function readSecret(account: string, fallback: string): Promise<string> {

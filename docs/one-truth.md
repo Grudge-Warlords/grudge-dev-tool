@@ -12,17 +12,21 @@ Grudge Studio uses a single canonical host map. The dev tool (`doctor` + Forge c
 | Layer | Host | Browser proxy |
 |-------|------|-----------------|
 | Auth | `id.grudge-studio.com` | `/api/auth/*` |
-| Game state | `grudge-builder-production.up.railway.app` | `/api/characters`, `/api/fleet/*`, … |
+| Game state SSOT | `grudge-api-production-0d46.up.railway.app` | `/api/characters`, `/api/account`, `/api/auth/*` |
 | JSON catalog | `objectstore.grudge-studio.com` | `/api/objectstore/v1/*` |
 | Binary CDN | `assets.grudge-studio.com` | `/api/assets/*` |
-| **Dev client** | **`client.grudge-studio.com`** | All of the above |
+| Legion AI | `ai.grudge-studio.com` | direct / hub key |
+| Forge | `forge.grudge-studio.com` | editor |
+| **Dev client** | **`client.grudge-studio.com`** | All of the above via rewrites |
 
-**Always use `client.grudge-studio.com` as API base** in CLI and Forge Settings — not raw Railway URLs and not deprecated GitHub Pages objectstore.
+**Always use `client.grudge-studio.com` as API base** in CLI and Forge Settings — not raw Railway URLs in browser apps, and not deprecated hosts.
 
 ## Deprecated (split-brain)
 
+- `api.grudge-studio.com` (old tunnel / portal HTML)
 - `molochdagod.github.io/ObjectStore`
 - `grudge-objectstore.pages.dev`
+- `auth.grudgestudio.com` (typo host — use `id.grudge-studio.com`)
 
 `grudge-dev doctor` fails if probes return `text/html` for JSON routes.
 
