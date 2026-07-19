@@ -4,6 +4,8 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-07-19
+
 ### Added
 
 - **Forge editor tools** — hotkeys for **Undo/Redo** (Ctrl+Z / Ctrl+Y), **Copy/Cut/Paste/Duplicate** (Ctrl+C/X/V/D), **Select/Move/Rotate/Scale** (Q/W/E/R).
