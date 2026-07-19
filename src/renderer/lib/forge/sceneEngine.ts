@@ -52,6 +52,9 @@ export class SceneEngine {
   };
   timeScale = 1;
   private transformListeners = new Set<() => void>();
+  private dragListeners = new Set<(dragging: boolean) => void>();
+  private readonly raycaster = new THREE.Raycaster();
+  private readonly pointer = new THREE.Vector2();
 
   private grid: THREE.GridHelper | null = null;
   private skeletonHelpers = new Map<THREE.Object3D, THREE.SkeletonHelper>();
@@ -130,6 +133,7 @@ export class SceneEngine {
     this.transform = new TransformControls(this.camera, this.renderer.domElement);
     this.transform.addEventListener("dragging-changed", (e: any) => {
       this.controls.enabled = !e.value;
+      for (const cb of this.dragListeners) cb(!!e.value);
     });
     this.transform.addEventListener("objectChange", () => {
       for (const cb of this.transformListeners) cb();
@@ -176,6 +180,44 @@ export class SceneEngine {
   onTransformChange(cb: () => void): () => void {
     this.transformListeners.add(cb);
     return () => this.transformListeners.delete(cb);
+  }
+
+  /** Subscribe to gizmo drag start (true) / end (false). */
+  onDragChanged(cb: (dragging: boolean) => void): () => void {
+    this.dragListeners.add(cb);
+    return () => this.dragListeners.delete(cb);
+  }
+
+  /**
+   * Raycast from client coordinates against scene meshes (skips forge helpers).
+   */
+  pick(clientX: number, clientY: number, roots?: THREE.Object3D[]): THREE.Intersection | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const targets = roots?.length
+      ? roots
+      : this.scene.children.filter((c) => !c.userData?.forgeInternal && c !== this.transformHelper);
+    const hits = this.raycaster.intersectObjects(targets, true);
+    for (const hit of hits) {
+      // Skip gizmo / helpers
+      let p: THREE.Object3D | null = hit.object;
+      let skip = false;
+      while (p) {
+        if (p.userData?.forgeInternal || p === this.transformHelper) {
+          skip = true;
+          break;
+        }
+        p = p.parent;
+      }
+      if (!skip) return hit;
+    }
+    return null;
+  }
+
+  get canvas(): HTMLCanvasElement {
+    return this.renderer.domElement;
   }
 
   getBackgroundColor(): number {

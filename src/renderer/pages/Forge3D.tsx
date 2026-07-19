@@ -5,6 +5,8 @@ import {
   Move, RotateCcw, Maximize2, Camera, Download,
   FileBox, Trash2, ChevronRight, ChevronDown, Box,
   Lightbulb, Grid3x3, Sun, FolderOpen, Save, FolderInput, Undo2, Redo2, Plus,
+  Paintbrush, PaintBucket, Wrench, Mountain, Sparkles, MousePointer2,
+  Copy, ClipboardPaste, Scissors, AlignVerticalJustifyEnd,
 } from "lucide-react";
 import { SceneEngine, type GizmoMode, DEFAULT_STUDIO_LIGHTS, type StudioLightState } from "../lib/forge/sceneEngine";
 import { loadModel, type LoadedModel, isSupported } from "../lib/forge/loaders";
@@ -26,7 +28,22 @@ import {
 import ForgeWorkbench from "../components/ForgeWorkbench";
 import { findObjectByUuid } from "../lib/forge/sceneGraph";
 import { serializeScene, downloadSceneJson, parseSceneJson, applyMatrix } from "../lib/forge/sceneSerializer";
-import { TransformHistory, type TransformSnapshot } from "../lib/forge/history";
+import { TransformHistory, type EditorToolId, type HistoryEntry } from "../lib/forge/history";
+import {
+  snapshotTransform,
+  applyTransformSnapshot,
+  applyMaterialSnapshot,
+  applyGeometrySnapshot,
+  paintMesh,
+  fillObject,
+  fixMesh,
+  fixTerrain,
+  groundSnap,
+  smoothNormals,
+  findMeshByUuid,
+  findObjectByUuidDeep,
+  EDITOR_TOOL_META,
+} from "../lib/forge/editorTools";
 import { deployToFleet } from "../lib/forge/deploy";
 import type { StoreCategory } from "../../shared/fleetGames";
 
@@ -61,6 +78,9 @@ export default function Forge3D() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const sceneInputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef(new TransformHistory());
+  const clipboardRef = useRef<THREE.Object3D | null>(null);
+  const itemsRef = useRef<SceneItem[]>([]);
+  const paintStrokeRef = useRef<Set<string>>(new Set());
 
   const [items, setItems] = useState<SceneItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -71,6 +91,8 @@ export default function Forge3D() {
   const [deployCategoryId, setDeployCategoryId] = useState("characters");
   const [runIngest, setRunIngest] = useState(true);
   const [historyTick, setHistoryTick] = useState(0);
+  const [editorTool, setEditorTool] = useState<EditorToolId>("select");
+  const [paintColor, setPaintColor] = useState(0xffc62a);
   const [gizmoMode, setGizmoMode] = useState<GizmoMode>("translate");
   const [showHelpers, setShowHelpers] = useState(true);
   const [autoFrame, setAutoFrame] = useState(true);
@@ -92,6 +114,17 @@ export default function Forge3D() {
   }, [selected, selectedNodeUuid]);
   const canUndo = historyTick >= 0 && historyRef.current.canUndo;
   const canRedo = historyTick >= 0 && historyRef.current.canRedo;
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  // Sync tool → gizmo mode for transform tools
+  useEffect(() => {
+    if (editorTool === "translate" || editorTool === "rotate" || editorTool === "scale") {
+      setGizmoMode(editorTool);
+    }
+  }, [editorTool]);
 
   // -- Engine bootstrap ----------------------------------------------------
   useEffect(() => {
@@ -135,23 +168,18 @@ export default function Forge3D() {
     });
     engine.applyStudioLightState(DEFAULT_STUDIO_LIGHTS);
     engineRef.current = engine;
-    const off = engine.onTransformChange(() => {
+    // History: capture pre-state on drag start, commit on drag end (true undo)
+    const offDrag = engine.onDragChanged((dragging) => {
       const obj = (engine.transform as unknown as { object?: THREE.Object3D }).object;
       if (!obj) return;
-      historyRef.current.push({
-        uuid: obj.uuid,
-        position: obj.position.toArray() as [number, number, number],
-        rotation: [
-          THREE.MathUtils.radToDeg(obj.rotation.x),
-          THREE.MathUtils.radToDeg(obj.rotation.y),
-          THREE.MathUtils.radToDeg(obj.rotation.z),
-        ],
-        scale: obj.scale.toArray() as [number, number, number],
-      });
-      setHistoryTick((n) => n + 1);
+      if (dragging) {
+        historyRef.current.beginDrag(snapshotTransform(obj));
+      } else if (historyRef.current.endDrag()) {
+        setHistoryTick((n) => n + 1);
+      }
     });
     return () => {
-      off();
+      offDrag();
       engine.dispose();
       engineRef.current = null;
     };
@@ -348,34 +376,77 @@ export default function Forge3D() {
     setItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, bodyMorph: morph } : it)));
   }
 
-  function snapshotTransform(obj: THREE.Object3D): TransformSnapshot {
-    return {
-      uuid: obj.uuid,
-      position: obj.position.toArray() as [number, number, number],
-      rotation: [
-        THREE.MathUtils.radToDeg(obj.rotation.x),
-        THREE.MathUtils.radToDeg(obj.rotation.y),
-        THREE.MathUtils.radToDeg(obj.rotation.z),
-      ],
-      scale: obj.scale.toArray() as [number, number, number],
-    };
+  function resolveObject(uuid: string): THREE.Object3D | null {
+    return findObjectByUuidDeep(
+      itemsRef.current.map((i) => i.object),
+      uuid,
+    );
   }
 
-  function applySnapshot(snap: TransformSnapshot): void {
-    for (const it of items) {
-      const obj = findObjectByUuid(it.object, snap.uuid) ?? (it.object.uuid === snap.uuid ? it.object : null);
-      if (!obj) continue;
-      obj.position.fromArray(snap.position);
-      obj.rotation.set(
-        THREE.MathUtils.degToRad(snap.rotation[0]),
-        THREE.MathUtils.degToRad(snap.rotation[1]),
-        THREE.MathUtils.degToRad(snap.rotation[2]),
-      );
-      obj.scale.fromArray(snap.scale);
-      obj.updateMatrixWorld(true);
-      break;
+  /** Capture live state for an entry's target (for redo/undo inverse). */
+  function captureLiveFor(entry: HistoryEntry): HistoryEntry | null {
+    if (entry.kind === "transform") {
+      const obj = resolveObject(entry.uuid);
+      return obj ? snapshotTransform(obj) : null;
     }
-    setHistoryTick((n) => n + 1);
+    if (entry.kind === "material") {
+      for (const it of itemsRef.current) {
+        const mesh = findMeshByUuid(it.object, entry.uuid);
+        if (!mesh) continue;
+        const m = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+        const std = m as THREE.MeshStandardMaterial;
+        return {
+          kind: "material",
+          uuid: mesh.uuid,
+          color: std?.color?.getHex?.() ?? entry.color,
+          metalness: std?.metalness,
+          roughness: std?.roughness,
+        };
+      }
+      return null;
+    }
+    if (entry.kind === "geometry") {
+      for (const it of itemsRef.current) {
+        const mesh = findMeshByUuid(it.object, entry.uuid);
+        if (!mesh) continue;
+        const pos = mesh.geometry?.getAttribute("position");
+        const nrm = mesh.geometry?.getAttribute("normal");
+        return {
+          kind: "geometry",
+          uuid: mesh.uuid,
+          positions: pos ? Array.from(pos.array as ArrayLike<number>) : [],
+          normals: nrm ? Array.from(nrm.array as ArrayLike<number>) : null,
+        };
+      }
+    }
+    return null;
+  }
+
+  function applyHistoryEntry(entry: HistoryEntry): void {
+    if (entry.kind === "transform") {
+      const obj = resolveObject(entry.uuid);
+      if (obj) applyTransformSnapshot(obj, entry);
+      return;
+    }
+    if (entry.kind === "material") {
+      for (const it of itemsRef.current) {
+        const mesh = findMeshByUuid(it.object, entry.uuid);
+        if (mesh) {
+          applyMaterialSnapshot(mesh, entry);
+          return;
+        }
+      }
+      return;
+    }
+    if (entry.kind === "geometry") {
+      for (const it of itemsRef.current) {
+        const mesh = findMeshByUuid(it.object, entry.uuid);
+        if (mesh) {
+          applyGeometrySnapshot(mesh, entry);
+          return;
+        }
+      }
+    }
   }
 
   function selectNode(uuid: string, object: THREE.Object3D) {
@@ -384,18 +455,172 @@ export default function Forge3D() {
   }
 
   function onTransformTick() {
-    if (selectedNode) historyRef.current.push(snapshotTransform(selectedNode));
-    setHistoryTick((n) => n + 1);
+    // Numeric panel edits: snapshot immediately before React re-render settles
+    if (selectedNode) {
+      historyRef.current.push(snapshotTransform(selectedNode));
+      setHistoryTick((n) => n + 1);
+    }
   }
 
   function undoTransform() {
-    const snap = historyRef.current.undo();
-    if (snap) applySnapshot(snap);
+    const entry = historyRef.current.popUndo();
+    if (!entry) return;
+    const live = captureLiveFor(entry);
+    if (live) historyRef.current.pushLiveToRedo(live);
+    applyHistoryEntry(entry);
+    setHistoryTick((n) => n + 1);
   }
 
   function redoTransform() {
-    const snap = historyRef.current.redo();
-    if (snap) applySnapshot(snap);
+    const entry = historyRef.current.popRedo();
+    if (!entry) return;
+    const live = captureLiveFor(entry);
+    if (live) historyRef.current.pushLiveToUndo(live);
+    applyHistoryEntry(entry);
+    setHistoryTick((n) => n + 1);
+  }
+
+  function pushEntries(entries: HistoryEntry[]) {
+    for (const e of entries) historyRef.current.push(e);
+    if (entries.length) setHistoryTick((n) => n + 1);
+  }
+
+  // -- Clipboard -----------------------------------------------------------
+  function copySelected() {
+    if (!selected) {
+      toast.message("Nothing selected to copy");
+      return;
+    }
+    clipboardRef.current = selected.object.clone(true);
+    toast.success("Copied", { description: selected.name });
+  }
+
+  function cutSelected() {
+    if (!selectedId || !selected) return;
+    clipboardRef.current = selected.object.clone(true);
+    removeItem(selectedId);
+    toast.success("Cut", { description: selected.name });
+  }
+
+  function pasteClipboard() {
+    const engine = engineRef.current;
+    const src = clipboardRef.current;
+    if (!engine || !src) {
+      toast.message("Clipboard empty");
+      return;
+    }
+    const clone = src.clone(true);
+    clone.position.x += 0.5;
+    clone.position.z += 0.5;
+    const id = `e${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
+    clone.userData.itemId = id;
+    engine.scene.add(clone);
+    const rig = inspectSceneRig(clone);
+    const item: SceneItem = {
+      id,
+      name: `${src.name || "Paste"}_copy`,
+      format: "clone",
+      object: clone,
+      animations: [],
+      mixer: null,
+      triangles: 0,
+      vertices: 0,
+      bones: rig.boneCount,
+      inspection: null,
+      bytes: 0,
+      rig,
+      bodyMorph: { ...DEFAULT_BODY_MORPH },
+      sourceRest: rig.boneCount > 0 ? captureRestPose(clone) : null,
+      diskPath: null,
+    };
+    setItems((prev) => [...prev, item]);
+    setSelectedId(id);
+    setSelectedNodeUuid(clone.uuid);
+    historyRef.current.push(snapshotTransform(clone));
+    setHistoryTick((n) => n + 1);
+    toast.success("Pasted");
+  }
+
+  function duplicateSelected() {
+    copySelected();
+    pasteClipboard();
+  }
+
+  // -- Editor tools --------------------------------------------------------
+  function runPaintOnHit(clientX: number, clientY: number) {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const roots = itemsRef.current.map((i) => i.object);
+    const hit = engine.pick(clientX, clientY, roots);
+    if (!hit) return;
+    const mesh = hit.object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    // One undo entry per mesh per stroke (not every pointermove)
+    const already = paintStrokeRef.current.has(mesh.uuid);
+    const before = paintMesh(mesh, paintColor);
+    if (before && !already) {
+      paintStrokeRef.current.add(mesh.uuid);
+      pushEntries([before]);
+    }
+  }
+
+  function runFillSelected() {
+    if (!selected) {
+      toast.message("Select a mesh to fill");
+      return;
+    }
+    const undos = fillObject(selected.object, paintColor);
+    pushEntries(undos);
+    toast.success("Fill applied", { description: `${undos.length} material(s)` });
+  }
+
+  function runFixMesh() {
+    if (!selected) {
+      toast.message("Select an object to fix");
+      return;
+    }
+    const undos = fixMesh(selected.object);
+    pushEntries(undos);
+    toast.success("Mesh fixed", {
+      description: undos.length ? `${undos.length} mesh(es) · normals + NaN clean` : "Nothing to fix",
+    });
+  }
+
+  function runFixTerrain() {
+    if (!selected) {
+      toast.message("Select terrain mesh");
+      return;
+    }
+    const { geometry, transform } = fixTerrain(selected.object);
+    const entries: HistoryEntry[] = [...geometry];
+    if (transform) entries.push(transform);
+    pushEntries(entries);
+    toast.success("Terrain fixed", {
+      description: "Grounded Y=0 · height soften · normals",
+    });
+  }
+
+  function runSmooth() {
+    if (!selected) return;
+    pushEntries(smoothNormals(selected.object));
+    toast.success("Smooth normals");
+  }
+
+  function runGround() {
+    if (!selected) return;
+    const before = groundSnap(selected.object);
+    if (before) pushEntries([before]);
+    toast.success("Snapped to ground (Y=0)");
+  }
+
+  function setTool(tool: EditorToolId) {
+    setEditorTool(tool);
+    if (tool === "translate" || tool === "rotate" || tool === "scale") {
+      setGizmoMode(tool);
+    }
+    if (tool === "select") {
+      // keep current gizmo but prefer translate for selection moves
+    }
   }
 
   function saveScene() {
@@ -670,19 +895,101 @@ export default function Forge3D() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
       const k = e.key.toLowerCase();
-      if (k === "w") setGizmoMode("translate");
-      else if (k === "e") setGizmoMode("rotate");
-      else if (k === "r") setGizmoMode("scale");
-      else if (k === "f") frameSelected();
-      else if (e.ctrlKey && k === "z") { e.preventDefault(); undoTransform(); }
-      else if (e.ctrlKey && k === "y") { e.preventDefault(); redoTransform(); }
-      else if (e.key === "Delete" && selectedId) removeItem(selectedId);
+      const mod = e.ctrlKey || e.metaKey;
+
+      // Undo / redo
+      if (mod && k === "z" && !e.shiftKey) { e.preventDefault(); undoTransform(); return; }
+      if (mod && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); redoTransform(); return; }
+
+      // Clipboard
+      if (mod && k === "c") { e.preventDefault(); copySelected(); return; }
+      if (mod && k === "x") { e.preventDefault(); cutSelected(); return; }
+      if (mod && k === "v") { e.preventDefault(); pasteClipboard(); return; }
+      if (mod && k === "d") { e.preventDefault(); duplicateSelected(); return; }
+      if (mod && k === "s") { e.preventDefault(); saveScene(); return; }
+
+      // Tools
+      if (!mod && k === "q") { setTool("select"); return; }
+      if (!mod && k === "w") { setTool("translate"); return; }
+      if (!mod && k === "e") { setTool("rotate"); return; }
+      if (!mod && k === "r" && !e.shiftKey) { setTool("scale"); return; }
+      if (!mod && k === "b") { setTool("paint"); return; }
+      if (!mod && k === "g" && !e.shiftKey) { setTool("fill"); runFillSelected(); return; }
+      if (!mod && k === "m") { setTool("fix-mesh"); runFixMesh(); return; }
+      if (!mod && k === "t" && !e.shiftKey) { setTool("fix-terrain"); runFixTerrain(); return; }
+      if (!mod && e.shiftKey && k === "s") { e.preventDefault(); runSmooth(); return; }
+      if (e.key === "End") { e.preventDefault(); runGround(); return; }
+      if (!mod && k === "f") { frameSelected(); return; }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (selectedId) { e.preventDefault(); removeItem(selectedId); }
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+
+  // Viewport pointer tools (paint / select)
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const canvas = engine.canvas;
+
+    const isDraggingGizmo = () =>
+      !!(engine.transform as unknown as { dragging?: boolean }).dragging;
+
+    const onPointerDown = (ev: PointerEvent) => {
+      if (ev.button !== 0) return;
+      if (isDraggingGizmo()) return;
+
+      if (editorTool === "paint") {
+        paintStrokeRef.current = new Set();
+        ev.preventDefault();
+        runPaintOnHit(ev.clientX, ev.clientY);
+        return;
+      }
+
+      if (editorTool === "select" || editorTool === "translate" || editorTool === "rotate" || editorTool === "scale") {
+        const roots = itemsRef.current.map((i) => i.object);
+        const hit = engine.pick(ev.clientX, ev.clientY, roots);
+        if (!hit) return;
+        let node: THREE.Object3D | null = hit.object;
+        let itemId: string | null = null;
+        while (node) {
+          if (node.userData?.itemId) {
+            itemId = String(node.userData.itemId);
+            break;
+          }
+          node = node.parent;
+        }
+        if (itemId) {
+          setSelectedId(itemId);
+          setSelectedNodeUuid(hit.object.uuid);
+          engine.attach(hit.object);
+        }
+      }
+    };
+
+    const onPointerMove = (ev: PointerEvent) => {
+      if (editorTool !== "paint" || (ev.buttons & 1) === 0) return;
+      if (isDraggingGizmo()) return;
+      runPaintOnHit(ev.clientX, ev.clientY);
+    };
+
+    const onPointerUp = () => {
+      paintStrokeRef.current = new Set();
+    };
+
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [editorTool, paintColor, items.length]);
 
   // -- Background cycler ---------------------------------------------------
   function cycleBackground() {
@@ -696,6 +1003,8 @@ export default function Forge3D() {
     <div className="forge3d" style={{ height: "100%", display: "grid", gridTemplateRows: "auto 1fr", gap: 0 }}>
       <Toolbar
         gizmoMode={gizmoMode} setGizmoMode={setGizmoMode}
+        editorTool={editorTool} setTool={setTool}
+        paintColor={paintColor} setPaintColor={setPaintColor}
         showHelpers={showHelpers} setShowHelpers={setShowHelpers}
         autoFrame={autoFrame} setAutoFrame={setAutoFrame}
         onPickFiles={() => fileInputRef.current?.click()}
@@ -705,6 +1014,15 @@ export default function Forge3D() {
         onRedo={redoTransform}
         canUndo={canUndo}
         canRedo={canRedo}
+        onCopy={copySelected}
+        onCut={cutSelected}
+        onPaste={pasteClipboard}
+        onDuplicate={duplicateSelected}
+        onFill={runFillSelected}
+        onFixMesh={runFixMesh}
+        onFixTerrain={runFixTerrain}
+        onSmooth={runSmooth}
+        onGround={runGround}
         onAddPrimitive={addPrimitive}
         onFrame={frameSelected}
         onScreenshot={screenshot}
@@ -714,6 +1032,7 @@ export default function Forge3D() {
         onClear={() => items.forEach((i) => removeItem(i.id))}
         canExport={selected != null}
         canExportAll={items.length > 0}
+        hasSelection={selected != null}
       />
       <input
         ref={sceneInputRef}
@@ -863,6 +1182,10 @@ export default function Forge3D() {
 function Toolbar(props: {
   gizmoMode: GizmoMode;
   setGizmoMode: (m: GizmoMode) => void;
+  editorTool: EditorToolId;
+  setTool: (t: EditorToolId) => void;
+  paintColor: number;
+  setPaintColor: (c: number) => void;
   showHelpers: boolean;
   setShowHelpers: (v: boolean) => void;
   autoFrame: boolean;
@@ -874,6 +1197,15 @@ function Toolbar(props: {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onCopy: () => void;
+  onCut: () => void;
+  onPaste: () => void;
+  onDuplicate: () => void;
+  onFill: () => void;
+  onFixMesh: () => void;
+  onFixTerrain: () => void;
+  onSmooth: () => void;
+  onGround: () => void;
   onAddPrimitive: (kind: "box" | "sphere" | "plane") => void;
   onFrame: () => void;
   onScreenshot: () => void;
@@ -883,6 +1215,7 @@ function Toolbar(props: {
   onClear: () => void;
   canExport: boolean;
   canExportAll: boolean;
+  hasSelection: boolean;
 }) {
   const Btn = ({ active, onClick, title, children, disabled }: any) => (
     <button
@@ -899,6 +1232,7 @@ function Toolbar(props: {
       {children}
     </button>
   );
+  const hex = `#${props.paintColor.toString(16).padStart(6, "0")}`;
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 6,
@@ -907,15 +1241,38 @@ function Toolbar(props: {
     }}>
       <Btn onClick={props.onPickFiles} title="Open model"><FolderOpen size={14} />Open</Btn>
       <Btn onClick={props.onLoadScene} title="Load .forge-scene.json"><FolderInput size={14} />Scene</Btn>
-      <Btn onClick={props.onSaveScene} title="Save scene JSON"><Save size={14} />Save</Btn>
+      <Btn onClick={props.onSaveScene} title="Save scene (Ctrl+S)"><Save size={14} />Save</Btn>
       <span style={{ width: 1, height: 22, background: "var(--line)" }} />
       <Btn onClick={props.onUndo} title="Undo (Ctrl+Z)" disabled={!props.canUndo}><Undo2 size={14} /></Btn>
-      <Btn onClick={props.onRedo} title="Redo (Ctrl+Y)" disabled={!props.canRedo}><Redo2 size={14} /></Btn>
+      <Btn onClick={props.onRedo} title="Redo (Ctrl+Y / Ctrl+Shift+Z)" disabled={!props.canRedo}><Redo2 size={14} /></Btn>
+      <Btn onClick={props.onCopy} title="Copy (Ctrl+C)" disabled={!props.hasSelection}><Copy size={14} /></Btn>
+      <Btn onClick={props.onCut} title="Cut (Ctrl+X)" disabled={!props.hasSelection}><Scissors size={14} /></Btn>
+      <Btn onClick={props.onPaste} title="Paste (Ctrl+V)"><ClipboardPaste size={14} /></Btn>
+      <Btn onClick={props.onDuplicate} title="Duplicate (Ctrl+D)" disabled={!props.hasSelection}><Plus size={14} />Dup</Btn>
       <Btn onClick={() => props.onAddPrimitive("box")} title="Add box primitive"><Plus size={14} />Box</Btn>
       <span style={{ width: 1, height: 22, background: "var(--line)" }} />
-      <Btn active={props.gizmoMode === "translate"} onClick={() => props.setGizmoMode("translate")} title="Translate (W)"><Move size={14} />T</Btn>
-      <Btn active={props.gizmoMode === "rotate"} onClick={() => props.setGizmoMode("rotate")} title="Rotate (E)"><RotateCcw size={14} />R</Btn>
-      <Btn active={props.gizmoMode === "scale"} onClick={() => props.setGizmoMode("scale")} title="Scale (R)"><Maximize2 size={14} />S</Btn>
+      <Btn active={props.editorTool === "select"} onClick={() => props.setTool("select")} title={`${EDITOR_TOOL_META.select.label} (${EDITOR_TOOL_META.select.hotkey})`}><MousePointer2 size={14} /></Btn>
+      <Btn active={props.editorTool === "translate" || props.gizmoMode === "translate"} onClick={() => props.setTool("translate")} title="Translate (W)"><Move size={14} />T</Btn>
+      <Btn active={props.editorTool === "rotate" || props.gizmoMode === "rotate"} onClick={() => props.setTool("rotate")} title="Rotate (E)"><RotateCcw size={14} />R</Btn>
+      <Btn active={props.editorTool === "scale" || props.gizmoMode === "scale"} onClick={() => props.setTool("scale")} title="Scale (R)"><Maximize2 size={14} />S</Btn>
+      <span style={{ width: 1, height: 22, background: "var(--line)" }} />
+      <Btn active={props.editorTool === "paint"} onClick={() => props.setTool("paint")} title="Paint (B) — click/drag on mesh"><Paintbrush size={14} />Paint</Btn>
+      <label title="Paint / fill color" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--muted)" }}>
+        <input
+          type="color"
+          value={hex}
+          onChange={(e) => {
+            const v = e.target.value.replace("#", "");
+            props.setPaintColor(parseInt(v, 16) || 0xffc62a);
+          }}
+          style={{ width: 28, height: 24, border: "1px solid var(--line)", borderRadius: 4, padding: 0, background: "transparent", cursor: "pointer" }}
+        />
+      </label>
+      <Btn active={props.editorTool === "fill"} onClick={() => { props.setTool("fill"); props.onFill(); }} title="Fill selection (G)" disabled={!props.hasSelection}><PaintBucket size={14} />Fill</Btn>
+      <Btn onClick={props.onFixMesh} title="Fix mesh (M) — normals, NaN, shadows" disabled={!props.hasSelection}><Wrench size={14} />Mesh</Btn>
+      <Btn onClick={props.onFixTerrain} title="Fix terrain (T) — ground Y=0, soften heights" disabled={!props.hasSelection}><Mountain size={14} />Terrain</Btn>
+      <Btn onClick={props.onSmooth} title="Smooth normals (Shift+S)" disabled={!props.hasSelection}><Sparkles size={14} />Smooth</Btn>
+      <Btn onClick={props.onGround} title="Snap to ground (End)" disabled={!props.hasSelection}><AlignVerticalJustifyEnd size={14} />Ground</Btn>
       <span style={{ width: 1, height: 22, background: "var(--line)" }} />
       <Btn onClick={props.onFrame} title="Frame selection (F)"><Box size={14} />Frame</Btn>
       <Btn active={props.showHelpers} onClick={() => props.setShowHelpers(!props.showHelpers)} title="Toggle grid"><Grid3x3 size={14} />Grid</Btn>
@@ -923,10 +1280,10 @@ function Toolbar(props: {
       <Btn onClick={props.onCycleBg} title="Cycle background"><Sun size={14} />BG</Btn>
       <Btn onClick={props.onScreenshot} title="Screenshot"><Camera size={14} />PNG</Btn>
       <span style={{ flex: 1 }} />
-      <Btn onClick={props.onExportSelected} title="Export selected as GLB" >
+      <Btn onClick={props.onExportSelected} title="Export selected as GLB" disabled={!props.canExport}>
         <Download size={14} />Export GLB
       </Btn>
-      <Btn onClick={props.onExportAll} title="Export entire scene as GLB" >
+      <Btn onClick={props.onExportAll} title="Export entire scene as GLB" disabled={!props.canExportAll}>
         <FileBox size={14} />Scene GLB
       </Btn>
       <Btn onClick={props.onClear} title="Clear scene"><Trash2 size={14} />Clear</Btn>

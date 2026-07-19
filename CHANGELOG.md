@@ -4,6 +4,13 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Added
+
+- **Forge editor tools** — hotkeys for **Undo/Redo** (Ctrl+Z / Ctrl+Y), **Copy/Cut/Paste/Duplicate** (Ctrl+C/X/V/D), **Select/Move/Rotate/Scale** (Q/W/E/R).
+- **Paint / Fill** — brush paint on mesh (B), fill materials on selection (G), color picker.
+- **Fix Mesh / Fix Terrain / Smooth / Ground** — normals+NaN cleanup (M), terrain ground+soften (T), smooth normals (Shift+S), snap Y=0 (End).
+- Click-to-select in viewport; undo history captures gizmo drag pre-state correctly.
+
 ## [0.8.0] — 2026-07-19
 
 ### Added
