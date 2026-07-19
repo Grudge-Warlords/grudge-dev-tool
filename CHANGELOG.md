@@ -4,7 +4,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
-## [0.7.0] — 2026-07-19
+## [0.8.0] — 2026-07-19
 
 ### Added
 
@@ -14,6 +14,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - **Retarget anim library pack** — builds pack with `rest.glb`, `skeleton-mapping.json`, skill category folders, `anim-library-manifest.json`; upload to fleet R2.
 - **IPC** — `skeleton:extract` · `skeleton:tpose` · `skeleton:buildLibrary` · `skeleton:saveMapping`.
 - Shared SSOT: `src/shared/mixamo25.ts` (bones + `ANIM_SKILL_SLOTS`).
+- Docs: `docs/skeleton-studio.md`.
+
+### Note
+
+- Published as **0.8.0** because GitHub already shipped **v0.7.0 / v0.7.1** (Grudge Studio shell rebrand on the `jz` line). This release is the Forge tray app with Skeleton Studio on `main`.
 
 ### Added (prior unreleased)
 
