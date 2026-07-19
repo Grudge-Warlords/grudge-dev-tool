@@ -4,7 +4,18 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-19
+
 ### Added
+
+- **Skeleton Studio** (`/skeleton`) — Mixamo-like **25-bone** mouse placement, FBX/GLB load.
+- **FBX extract** — textures (baseColor/normal/…) + animation clip list tagged to Grudge skill slots (locomotion, melee, ranged, magic, hit, death).
+- **AI T-pose prep** — Blender script forces rest T-pose; optional Ollama rewrite of placement hint.
+- **Retarget anim library pack** — builds pack with `rest.glb`, `skeleton-mapping.json`, skill category folders, `anim-library-manifest.json`; upload to fleet R2.
+- **IPC** — `skeleton:extract` · `skeleton:tpose` · `skeleton:buildLibrary` · `skeleton:saveMapping`.
+- Shared SSOT: `src/shared/mixamo25.ts` (bones + `ANIM_SKILL_SLOTS`).
+
+### Added (prior unreleased)
 
 - **Production deployment docs** — `docs/production-deployment.md` (ONE TRUTH hosts, Pages, secrets, Ollama, Forge).
 - **Fleet probe CI** — `npm run fleet:probe` + `.github/workflows/fleet-probe.yml` + build-time probe step.

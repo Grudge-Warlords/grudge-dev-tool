@@ -3,7 +3,7 @@ import {
   FolderTree, Search as SearchIcon, Upload as UploadIcon, Link2,
   Fingerprint, Store, BookOpen, Settings as SettingsIcon,
   Power, Minimize2, LogOut, Loader2, Hammer, Code2, Gamepad2, Globe, ShieldCheck, Bot, User,
-  Boxes, Play,
+  Boxes, Play, Bone,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ const Accounts = React.lazy(() => import("./pages/Accounts"));
 const Docs = React.lazy(() => import("./pages/Docs"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const Forge3D = React.lazy(() => import("./pages/Forge3D"));
+const SkeletonStudio = React.lazy(() => import("./pages/SkeletonStudio"));
 const Coder = React.lazy(() => import("./pages/Coder"));
 
 const Preview = React.lazy(() => import("./pages/Preview"));
@@ -35,7 +36,7 @@ import { hydrateFromMain, persistRoute, readMirror } from "./lib/workspace";
 
 type Route =
   | "/browser" | "/search" | "/upload" | "/request"
-  | "/uuid" | "/library" | "/blenderkit" | "/forge" | "/play" | "/coder" | "/games" | "/legion" | "/ai"
+  | "/uuid" | "/library" | "/blenderkit" | "/forge" | "/skeleton" | "/play" | "/coder" | "/games" | "/legion" | "/ai"
   | "/accounts" | "/preview" | "/docs" | "/settings";
 
 interface NavEntry {
@@ -59,6 +60,7 @@ const NAV: NavEntry[] = [
   { route: "/ai", label: "Dev Portal", Icon: Bot },
   { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true },
   { route: "/forge", label: "Forge 3D", Icon: Hammer, adminOnly: true },
+  { route: "/skeleton", label: "Skeleton", Icon: Bone, adminOnly: true },
   { route: "/play", label: "Play Modes", Icon: Play, adminOnly: true },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
   { route: "/preview", label: "Preview", Icon: Globe, adminOnly: true },
@@ -77,7 +79,7 @@ interface Session {
 
 const VALID_ROUTES = new Set<string>([
   "/browser", "/search", "/upload", "/request", "/uuid", "/library", "/blenderkit",
-  "/forge", "/play", "/coder", "/games", "/ai", "/accounts", "/legion", "/preview", "/docs", "/settings",
+  "/forge", "/skeleton", "/play", "/coder", "/games", "/ai", "/accounts", "/legion", "/preview", "/docs", "/settings",
 ]);
 
 export default function App() {
@@ -209,7 +211,7 @@ export default function App() {
 }
 </nav>
   < div className = "sidebar-footer flex items-center gap-2" >
-    <span className="version flex-1" > v0.5.6 </span>
+    <span className="version flex-1" > v0.7.0 </span>
       < button
 title = "Sign out"
 className = "text-muted hover:text-gold"
@@ -243,6 +245,7 @@ onClick = {() => {
 { route === "/library" && <Library /> }
 { route === "/blenderkit" && <AssetLibrary /> }
 { route === "/forge" && <Forge3D /> }
+{ route === "/skeleton" && <SkeletonStudio /> }
 { route === "/play" && <GameModes /> }
 { route === "/coder" && <Coder /> }
 { route === "/games" && <FleetLauncher /> }

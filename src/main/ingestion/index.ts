@@ -188,3 +188,6 @@ export async function ingestOne(absPath: string, opts: IngestOptions): Promise<I
 }
 
 export { verifyFile, convertFile, makeThumbnail, enrichAsset, inspectRig };
+export { extractFbxAssets } from "./fbxExtract";
+export { prepareTPose } from "./tpose";
+export { buildRetargetLibraryPack } from "./retargetLibrary";

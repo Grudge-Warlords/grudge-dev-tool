@@ -40,6 +40,16 @@ const api = {
     one: (path: string, opts: any) => ipcRenderer.invoke("ingest:one", { path, opts }),
     convert: (path: string) => ipcRenderer.invoke("ingest:convert", { path }),
   },
+  // Skeleton Studio (Mixamo-25 placement, FBX extract, T-pose, anim library)
+  skeleton: {
+    extract: (path: string) => ipcRenderer.invoke("skeleton:extract", path),
+    tpose: (path: string, opts?: { aiHint?: string }) => ipcRenderer.invoke("skeleton:tpose", path, opts),
+    buildLibrary: (args: { modelPath: string; mapping?: unknown; packName?: string }) =>
+      ipcRenderer.invoke("skeleton:buildLibrary", args),
+    saveMapping: (args: { path: string; mapping: unknown }) =>
+      ipcRenderer.invoke("skeleton:saveMapping", args),
+  },
+
   // BlenderKit
   bk: {
     search: (opts: any) => ipcRenderer.invoke("bk:search", opts),

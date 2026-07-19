@@ -335,6 +335,34 @@ function registerIpc() {
     return convertFile(args.path, sizeRes);
   });
 
+  // Skeleton Studio — FBX textures/anims, T-pose, Mixamo-25 retarget library
+  ipcMain.handle("skeleton:extract", async (_e, path: string) => {
+    const { extractFbxAssets } = await import("./ingestion/fbxExtract");
+    return extractFbxAssets(path);
+  });
+  ipcMain.handle("skeleton:tpose", async (_e, path: string, opts?: { aiHint?: string }) => {
+    const { prepareTPose } = await import("./ingestion/tpose");
+    return prepareTPose(path, opts);
+  });
+  ipcMain.handle("skeleton:buildLibrary", async (_e, args: {
+    modelPath: string;
+    mapping?: unknown;
+    packName?: string;
+  }) => {
+    const { buildRetargetLibraryPack } = await import("./ingestion/retargetLibrary");
+    return buildRetargetLibraryPack({
+      modelPath: args.modelPath,
+      mapping: args.mapping as any,
+      packName: args.packName,
+    });
+  });
+  ipcMain.handle("skeleton:saveMapping", async (_e, args: { path: string; mapping: unknown }) => {
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(args.path, JSON.stringify(args.mapping, null, 2), "utf8");
+    return { ok: true, path: args.path };
+  });
+
+
   // BlenderKit
   ipcMain.handle("bk:search", (_e, opts) => bk.searchAssets(opts));
   ipcMain.handle("bk:download", (_e, opts) => bk.downloadAsset(opts));
