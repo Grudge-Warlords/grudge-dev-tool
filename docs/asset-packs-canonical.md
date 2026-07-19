@@ -1,12 +1,36 @@
 # Asset Packs — Canonical Registry
 The single source of truth for every asset pack the dev tool knows about. Anything not in this list cannot be uploaded under `asset-packs/`. Add a new pack ⇒ add a row here in the same PR.
+
+## Multi-era organization (production)
+
+Fleet-wide taxonomy lives on ObjectStore (not a second system):
+
+| Catalog | URL |
+|---------|-----|
+| Era taxonomy | `https://objectstore.grudge-studio.com/api/v1/era-asset-taxonomy.json` |
+| Era recognition | `…/era-recognition.json` |
+| Era characters | `…/era-characters.json` |
+| Media types (2D/3D) | `…/asset-media-types.json` |
+
+| Era | Upload roots |
+|-----|----------------|
+| **warlords** (fantasy/medieval) | `models/grudge6/`, `models/nature/`, `models/environment/sectors/{id}/`, `asset-packs/` |
+| **nexus** (modern) | `models/nexus/`, `sprites/nexus/` |
+| **armada** (sci-fi) | `grudge-armada/`, `models/armada/`, `models/ships/` |
+| **voxel** (style) | `models/voxel/` |
+| **shared 2D** | `icons/`, `sprites/`, `ui/`, `effects/`, `fonts/` |
+
+Pack manifests **must** include `"era": "warlords"|"nexus"|"armada"|"shared"` and optional `"style": "voxel"`.
+
+Classify before upload: `node scripts/recognize-era.mjs --path <r2-relative>` (ObjectStore repo).
+
 ## Bucket taxonomy (locked)
 ```
 asset-packs/<pack-id>/v<version>/<category>/<file>          # source assets
 asset-packs/<pack-id>/v<version>/_thumbs/<category>/<file>  # 256px JPEG thumbnails
 asset-packs/<pack-id>/v<version>/_originals/<category>/...  # only when --keep-source
 asset-packs/<pack-id>/v<version>/_blends/<category>/...     # raw .blend kept alongside .glb
-asset-packs/<pack-id>/manifest.json                         # full catalog with Grudge UUIDs
+asset-packs/<pack-id>/manifest.json                         # full catalog with Grudge UUIDs + era
 asset-packs/<pack-id>/CHANGELOG.txt                         # provenance
 asset-packs/<pack-id>/README.txt                            # license + author
 ```

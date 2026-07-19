@@ -110,6 +110,20 @@ Preference: Settings → AI → `auto` | `ollama` | `cloudflare`.
 | Forge bridge | `src/main/forge.ts` → `forge.grudge-studio.com` |
 | Asset bake before CDN | `grudge-asset-convert` skill / ObjectStore convert CLI |
 
+## Multi-era assets (production organization)
+
+| Era | Tone | CDN / catalog |
+|-----|------|----------------|
+| **warlords** | Fantasy / medieval | grudge6, home island, 9 sectors — `era-asset-taxonomy.json` |
+| **nexus** | Modern / post-modern | `models/nexus/` |
+| **armada** | Future / space RTS | `grudge-armada/` |
+| **voxel** | Style family | `voxelAssets.json` |
+| **2D systems** | Icons, sprites, UI, fonts, VFX | `asset-media-types.json` |
+
+Store tab categories in `src/shared/fleetGames.ts` → `STORE_CATEGORIES` map ObjectStore paths.  
+Upload: convert → recognize era → correct R2 prefix → manifest with `era` field → D1.  
+Docs: ObjectStore `docs/ERA-ASSET-TAXONOMY.md` + [asset-packs-canonical](asset-packs-canonical.md).
+
 ## Account / cloud best practices
 
 1. One human → one Grudge ID (`id.grudge-studio.com`).
