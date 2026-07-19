@@ -7,6 +7,7 @@ import {
   Lightbulb, Grid3x3, Sun, FolderOpen, Save, FolderInput, Undo2, Redo2, Plus,
   Paintbrush, PaintBucket, Wrench, Mountain, Sparkles, MousePointer2,
   Copy, ClipboardPaste, Scissors, AlignVerticalJustifyEnd,
+  Blend, Layers, FlipVertical2, Combine, LandPlot,
 } from "lucide-react";
 import { SceneEngine, type GizmoMode, DEFAULT_STUDIO_LIGHTS, type StudioLightState } from "../lib/forge/sceneEngine";
 import { loadModel, type LoadedModel, isSupported } from "../lib/forge/loaders";
@@ -34,7 +35,6 @@ import {
   applyTransformSnapshot,
   applyMaterialSnapshot,
   applyGeometrySnapshot,
-  paintMesh,
   fillObject,
   fixMesh,
   fixTerrain,
@@ -44,6 +44,20 @@ import {
   findObjectByUuidDeep,
   EDITOR_TOOL_META,
 } from "../lib/forge/editorTools";
+import {
+  DEFAULT_BRUSH,
+  paintBrushStrokeDab,
+  applyVertexColorSnapshot,
+  snapshotVertexColors,
+  sealOpenBacks,
+  flipNormals,
+  weldVertices,
+  prepareIslandAsset,
+  ensureVertexColors,
+  type PaintBrushSettings,
+  type PaintMode,
+  type PaintFalloff,
+} from "../lib/forge/paintBrush";
 import { deployToFleet } from "../lib/forge/deploy";
 import type { StoreCategory } from "../../shared/fleetGames";
 
@@ -81,6 +95,7 @@ export default function Forge3D() {
   const clipboardRef = useRef<THREE.Object3D | null>(null);
   const itemsRef = useRef<SceneItem[]>([]);
   const paintStrokeRef = useRef<Set<string>>(new Set());
+  const brushRef = useRef<PaintBrushSettings>({ ...DEFAULT_BRUSH });
 
   const [items, setItems] = useState<SceneItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -93,6 +108,12 @@ export default function Forge3D() {
   const [historyTick, setHistoryTick] = useState(0);
   const [editorTool, setEditorTool] = useState<EditorToolId>("select");
   const [paintColor, setPaintColor] = useState(0xffc62a);
+  const [brushRadius, setBrushRadius] = useState(DEFAULT_BRUSH.radius);
+  const [brushStrength, setBrushStrength] = useState(DEFAULT_BRUSH.strength);
+  const [paintMode, setPaintMode] = useState<PaintMode>("blend");
+  const [paintFalloff, setPaintFalloff] = useState<PaintFalloff>("smooth");
+  const [affectBackfaces, setAffectBackfaces] = useState(true);
+  const [tintMaterial, setTintMaterial] = useState(false);
   const [gizmoMode, setGizmoMode] = useState<GizmoMode>("translate");
   const [showHelpers, setShowHelpers] = useState(true);
   const [autoFrame, setAutoFrame] = useState(true);
@@ -118,6 +139,19 @@ export default function Forge3D() {
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
+
+  // Keep brush ref live for pointer handlers
+  useEffect(() => {
+    brushRef.current = {
+      color: paintColor,
+      radius: brushRadius,
+      strength: brushStrength,
+      mode: editorTool === "blend-paint" ? "blend" : paintMode,
+      falloff: paintFalloff,
+      affectBackfaces,
+      tintMaterial,
+    };
+  }, [paintColor, brushRadius, brushStrength, paintMode, paintFalloff, affectBackfaces, tintMaterial, editorTool]);
 
   // Sync tool → gizmo mode for transform tools
   useEffect(() => {
@@ -419,6 +453,19 @@ export default function Forge3D() {
         };
       }
     }
+    if (entry.kind === "vertexColors") {
+      for (const it of itemsRef.current) {
+        const mesh = findMeshByUuid(it.object, entry.uuid);
+        if (!mesh) continue;
+        ensureVertexColors(mesh);
+        const color = mesh.geometry.getAttribute("color");
+        return {
+          kind: "vertexColors",
+          uuid: mesh.uuid,
+          colors: color ? Array.from(color.array as ArrayLike<number>) : [],
+        };
+      }
+    }
     return null;
   }
 
@@ -443,6 +490,16 @@ export default function Forge3D() {
         const mesh = findMeshByUuid(it.object, entry.uuid);
         if (mesh) {
           applyGeometrySnapshot(mesh, entry);
+          return;
+        }
+      }
+      return;
+    }
+    if (entry.kind === "vertexColors") {
+      for (const it of itemsRef.current) {
+        const mesh = findMeshByUuid(it.object, entry.uuid);
+        if (mesh) {
+          applyVertexColorSnapshot(mesh, entry);
           return;
         }
       }
@@ -547,6 +604,10 @@ export default function Forge3D() {
   }
 
   // -- Editor tools --------------------------------------------------------
+  function isPaintTool(tool: EditorToolId = editorTool): boolean {
+    return tool === "paint" || tool === "blend-paint";
+  }
+
   function runPaintOnHit(clientX: number, clientY: number) {
     const engine = engineRef.current;
     if (!engine) return;
@@ -555,12 +616,26 @@ export default function Forge3D() {
     if (!hit) return;
     const mesh = hit.object as THREE.Mesh;
     if (!mesh.isMesh) return;
-    // One undo entry per mesh per stroke (not every pointermove)
-    const already = paintStrokeRef.current.has(mesh.uuid);
-    const before = paintMesh(mesh, paintColor);
-    if (before && !already) {
+
+    const settings: PaintBrushSettings = {
+      ...brushRef.current,
+      mode: editorTool === "blend-paint" ? "blend" : brushRef.current.mode,
+    };
+
+    // First dab on this mesh in stroke → capture full vertex-color undo
+    const capture = !paintStrokeRef.current.has(mesh.uuid);
+    const undo = paintBrushStrokeDab(
+      mesh,
+      hit.point,
+      hit.face?.normal
+        ? hit.face.normal.clone().transformDirection(mesh.matrixWorld)
+        : null,
+      settings,
+      capture,
+    );
+    if (undo && capture) {
       paintStrokeRef.current.add(mesh.uuid);
-      pushEntries([before]);
+      pushEntries([undo]);
     }
   }
 
@@ -569,9 +644,24 @@ export default function Forge3D() {
       toast.message("Select a mesh to fill");
       return;
     }
-    const undos = fillObject(selected.object, paintColor);
+    const undos: HistoryEntry[] = [];
+    // Material fill
+    undos.push(...fillObject(selected.object, paintColor));
+    // Vertex-color fill
+    selected.object.traverse((n) => {
+      const mesh = n as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const before = snapshotVertexColors(mesh);
+      if (before) undos.push(before);
+      ensureVertexColors(mesh, paintColor);
+      const color = mesh.geometry.getAttribute("color") as THREE.BufferAttribute;
+      if (!color) return;
+      const c = new THREE.Color(paintColor);
+      for (let i = 0; i < color.count; i++) color.setXYZ(i, c.r, c.g, c.b);
+      color.needsUpdate = true;
+    });
     pushEntries(undos);
-    toast.success("Fill applied", { description: `${undos.length} material(s)` });
+    toast.success("Fill applied", { description: "Materials + vertex colors" });
   }
 
   function runFixMesh() {
@@ -613,13 +703,51 @@ export default function Forge3D() {
     toast.success("Snapped to ground (Y=0)");
   }
 
+  function runSealBack() {
+    if (!selected) {
+      toast.message("Select island / open mesh");
+      return;
+    }
+    const { shellsAdded, doubleSided } = sealOpenBacks(selected.object, { addShell: true });
+    toast.success("Sealed open backs", {
+      description: `${shellsAdded} back shell(s) · ${doubleSided} double-sided mats`,
+    });
+  }
+
+  function runFlipNormals() {
+    if (!selected) return;
+    pushEntries(flipNormals(selected.object));
+    toast.success("Flipped normals / winding");
+  }
+
+  function runWeld() {
+    if (!selected) return;
+    const undos = weldVertices(selected.object, 0.002);
+    pushEntries(undos);
+    toast.success("Welded open edges", {
+      description: undos.length ? `${undos.length} mesh(es) rebuilt` : "No cracks found",
+    });
+  }
+
+  function runIslandPrep() {
+    if (!selected) {
+      toast.message("Select prop / terrain for island prep");
+      return;
+    }
+    const result = prepareIslandAsset(selected.object);
+    pushEntries(result.geometry);
+    toast.success("Island prep complete", {
+      description: `Grounded · welded ${result.welded} · ${result.shellsAdded} seals · ${result.doubleSided} double-side`,
+    });
+  }
+
   function setTool(tool: EditorToolId) {
     setEditorTool(tool);
     if (tool === "translate" || tool === "rotate" || tool === "scale") {
       setGizmoMode(tool);
     }
-    if (tool === "select") {
-      // keep current gizmo but prefer translate for selection moves
+    if (tool === "blend-paint") {
+      setPaintMode("blend");
     }
   }
 
@@ -916,11 +1044,21 @@ export default function Forge3D() {
       if (!mod && k === "e") { setTool("rotate"); return; }
       if (!mod && k === "r" && !e.shiftKey) { setTool("scale"); return; }
       if (!mod && k === "b") { setTool("paint"); return; }
+      if (!mod && k === "v" && !e.shiftKey) { setTool("blend-paint"); return; }
       if (!mod && k === "g" && !e.shiftKey) { setTool("fill"); runFillSelected(); return; }
       if (!mod && k === "m") { setTool("fix-mesh"); runFixMesh(); return; }
       if (!mod && k === "t" && !e.shiftKey) { setTool("fix-terrain"); runFixTerrain(); return; }
+      if (!mod && k === "k") { setTool("seal-back"); runSealBack(); return; }
+      if (!mod && k === "n") { setTool("flip-normals"); runFlipNormals(); return; }
+      if (!mod && k === "j") { setTool("weld"); runWeld(); return; }
+      if (!mod && k === "i") { setTool("island-prep"); runIslandPrep(); return; }
       if (!mod && e.shiftKey && k === "s") { e.preventDefault(); runSmooth(); return; }
       if (e.key === "End") { e.preventDefault(); runGround(); return; }
+      // Brush radius [ ] and strength ; '
+      if (!mod && k === "[") { setBrushRadius((r) => Math.max(0.02, +(r * 0.8).toFixed(3))); return; }
+      if (!mod && k === "]") { setBrushRadius((r) => Math.min(8, +(r * 1.25).toFixed(3))); return; }
+      if (!mod && k === ";") { setBrushStrength((s) => Math.max(0.05, +(s - 0.1).toFixed(2))); return; }
+      if (!mod && k === "'") { setBrushStrength((s) => Math.min(1, +(s + 0.1).toFixed(2))); return; }
       if (!mod && k === "f") { frameSelected(); return; }
       if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedId) { e.preventDefault(); removeItem(selectedId); }
@@ -943,7 +1081,7 @@ export default function Forge3D() {
       if (ev.button !== 0) return;
       if (isDraggingGizmo()) return;
 
-      if (editorTool === "paint") {
+      if (isPaintTool(editorTool)) {
         paintStrokeRef.current = new Set();
         ev.preventDefault();
         runPaintOnHit(ev.clientX, ev.clientY);
@@ -972,7 +1110,7 @@ export default function Forge3D() {
     };
 
     const onPointerMove = (ev: PointerEvent) => {
-      if (editorTool !== "paint" || (ev.buttons & 1) === 0) return;
+      if (!isPaintTool(editorTool) || (ev.buttons & 1) === 0) return;
       if (isDraggingGizmo()) return;
       runPaintOnHit(ev.clientX, ev.clientY);
     };
@@ -981,15 +1119,19 @@ export default function Forge3D() {
       paintStrokeRef.current = new Set();
     };
 
+    // Cursor feedback for paint tools
+    canvas.style.cursor = isPaintTool(editorTool) ? "crosshair" : "";
+
     canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     return () => {
+      canvas.style.cursor = "";
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
-  }, [editorTool, paintColor, items.length]);
+  }, [editorTool, paintColor, brushRadius, brushStrength, paintMode, items.length]);
 
   // -- Background cycler ---------------------------------------------------
   function cycleBackground() {
@@ -1005,6 +1147,12 @@ export default function Forge3D() {
         gizmoMode={gizmoMode} setGizmoMode={setGizmoMode}
         editorTool={editorTool} setTool={setTool}
         paintColor={paintColor} setPaintColor={setPaintColor}
+        brushRadius={brushRadius} setBrushRadius={setBrushRadius}
+        brushStrength={brushStrength} setBrushStrength={setBrushStrength}
+        paintMode={paintMode} setPaintMode={setPaintMode}
+        paintFalloff={paintFalloff} setPaintFalloff={setPaintFalloff}
+        affectBackfaces={affectBackfaces} setAffectBackfaces={setAffectBackfaces}
+        tintMaterial={tintMaterial} setTintMaterial={setTintMaterial}
         showHelpers={showHelpers} setShowHelpers={setShowHelpers}
         autoFrame={autoFrame} setAutoFrame={setAutoFrame}
         onPickFiles={() => fileInputRef.current?.click()}
@@ -1023,6 +1171,10 @@ export default function Forge3D() {
         onFixTerrain={runFixTerrain}
         onSmooth={runSmooth}
         onGround={runGround}
+        onSealBack={runSealBack}
+        onFlipNormals={runFlipNormals}
+        onWeld={runWeld}
+        onIslandPrep={runIslandPrep}
         onAddPrimitive={addPrimitive}
         onFrame={frameSelected}
         onScreenshot={screenshot}
@@ -1186,6 +1338,18 @@ function Toolbar(props: {
   setTool: (t: EditorToolId) => void;
   paintColor: number;
   setPaintColor: (c: number) => void;
+  brushRadius: number;
+  setBrushRadius: (r: number) => void;
+  brushStrength: number;
+  setBrushStrength: (s: number) => void;
+  paintMode: PaintMode;
+  setPaintMode: (m: PaintMode) => void;
+  paintFalloff: PaintFalloff;
+  setPaintFalloff: (f: PaintFalloff) => void;
+  affectBackfaces: boolean;
+  setAffectBackfaces: (v: boolean) => void;
+  tintMaterial: boolean;
+  setTintMaterial: (v: boolean) => void;
   showHelpers: boolean;
   setShowHelpers: (v: boolean) => void;
   autoFrame: boolean;
@@ -1206,6 +1370,10 @@ function Toolbar(props: {
   onFixTerrain: () => void;
   onSmooth: () => void;
   onGround: () => void;
+  onSealBack: () => void;
+  onFlipNormals: () => void;
+  onWeld: () => void;
+  onIslandPrep: () => void;
   onAddPrimitive: (kind: "box" | "sphere" | "plane") => void;
   onFrame: () => void;
   onScreenshot: () => void;
@@ -1233,6 +1401,8 @@ function Toolbar(props: {
     </button>
   );
   const hex = `#${props.paintColor.toString(16).padStart(6, "0")}`;
+  const paintActive = props.editorTool === "paint" || props.editorTool === "blend-paint";
+  const slider: React.CSSProperties = { width: 72, accentColor: "var(--gold)" };
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 6,
@@ -1256,8 +1426,9 @@ function Toolbar(props: {
       <Btn active={props.editorTool === "rotate" || props.gizmoMode === "rotate"} onClick={() => props.setTool("rotate")} title="Rotate (E)"><RotateCcw size={14} />R</Btn>
       <Btn active={props.editorTool === "scale" || props.gizmoMode === "scale"} onClick={() => props.setTool("scale")} title="Scale (R)"><Maximize2 size={14} />S</Btn>
       <span style={{ width: 1, height: 22, background: "var(--line)" }} />
-      <Btn active={props.editorTool === "paint"} onClick={() => props.setTool("paint")} title="Paint (B) — click/drag on mesh"><Paintbrush size={14} />Paint</Btn>
-      <label title="Paint / fill color" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--muted)" }}>
+      <Btn active={props.editorTool === "paint"} onClick={() => props.setTool("paint")} title="3D vertex brush (B)"><Paintbrush size={14} />Brush</Btn>
+      <Btn active={props.editorTool === "blend-paint"} onClick={() => props.setTool("blend-paint")} title="Blend paint (V)"><Blend size={14} />Blend</Btn>
+      <label title="Brush color" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--muted)" }}>
         <input
           type="color"
           value={hex}
@@ -1268,9 +1439,60 @@ function Toolbar(props: {
           style={{ width: 28, height: 24, border: "1px solid var(--line)", borderRadius: 4, padding: 0, background: "transparent", cursor: "pointer" }}
         />
       </label>
+      <label title="Radius ([ ])" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, color: "var(--muted)" }}>
+        R
+        <input type="range" min={0.02} max={3} step={0.01} value={props.brushRadius}
+          onChange={(e) => props.setBrushRadius(parseFloat(e.target.value))} style={slider} />
+        <span style={{ minWidth: 28 }}>{props.brushRadius.toFixed(2)}</span>
+      </label>
+      <label title="Strength (; ')" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, color: "var(--muted)" }}>
+        S
+        <input type="range" min={0.05} max={1} step={0.05} value={props.brushStrength}
+          onChange={(e) => props.setBrushStrength(parseFloat(e.target.value))} style={slider} />
+        <span style={{ minWidth: 28 }}>{props.brushStrength.toFixed(2)}</span>
+      </label>
+      <select
+        title="Paint mode"
+        value={props.paintMode}
+        onChange={(e) => props.setPaintMode(e.target.value as PaintMode)}
+        style={{ fontSize: 11, background: "var(--bg-2)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 4, padding: "3px 4px" }}
+      >
+        <option value="blend">Blend</option>
+        <option value="replace">Replace</option>
+        <option value="add">Add</option>
+        <option value="subtract">Subtract</option>
+        <option value="smooth">Smooth</option>
+        <option value="erase">Erase</option>
+      </select>
+      <select
+        title="Falloff"
+        value={props.paintFalloff}
+        onChange={(e) => props.setPaintFalloff(e.target.value as PaintFalloff)}
+        style={{ fontSize: 11, background: "var(--bg-2)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 4, padding: "3px 4px" }}
+      >
+        <option value="smooth">Smooth</option>
+        <option value="linear">Linear</option>
+        <option value="hard">Hard</option>
+      </select>
+      <label title="Paint backfaces" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, color: "var(--muted)" }}>
+        <input type="checkbox" checked={props.affectBackfaces} onChange={(e) => props.setAffectBackfaces(e.target.checked)} />
+        Back
+      </label>
+      <label title="Also tint material color" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, color: "var(--muted)" }}>
+        <input type="checkbox" checked={props.tintMaterial} onChange={(e) => props.setTintMaterial(e.target.checked)} />
+        Tint
+      </label>
+      {paintActive && (
+        <span style={{ fontSize: 10, color: "var(--gold)" }}>3D brush active — drag on mesh</span>
+      )}
       <Btn active={props.editorTool === "fill"} onClick={() => { props.setTool("fill"); props.onFill(); }} title="Fill selection (G)" disabled={!props.hasSelection}><PaintBucket size={14} />Fill</Btn>
-      <Btn onClick={props.onFixMesh} title="Fix mesh (M) — normals, NaN, shadows" disabled={!props.hasSelection}><Wrench size={14} />Mesh</Btn>
-      <Btn onClick={props.onFixTerrain} title="Fix terrain (T) — ground Y=0, soften heights" disabled={!props.hasSelection}><Mountain size={14} />Terrain</Btn>
+      <span style={{ width: 1, height: 22, background: "var(--line)" }} />
+      <Btn onClick={props.onFixMesh} title="Fix mesh (M)" disabled={!props.hasSelection}><Wrench size={14} />Mesh</Btn>
+      <Btn onClick={props.onFixTerrain} title="Fix terrain (T)" disabled={!props.hasSelection}><Mountain size={14} />Terrain</Btn>
+      <Btn onClick={props.onSealBack} title="Seal open backs (K) — island shells" disabled={!props.hasSelection}><Layers size={14} />Seal</Btn>
+      <Btn onClick={props.onFlipNormals} title="Flip normals (N)" disabled={!props.hasSelection}><FlipVertical2 size={14} />Flip</Btn>
+      <Btn onClick={props.onWeld} title="Weld cracks (J)" disabled={!props.hasSelection}><Combine size={14} />Weld</Btn>
+      <Btn onClick={props.onIslandPrep} title="Island prep (I) — ground + weld + seal" disabled={!props.hasSelection}><LandPlot size={14} />Island</Btn>
       <Btn onClick={props.onSmooth} title="Smooth normals (Shift+S)" disabled={!props.hasSelection}><Sparkles size={14} />Smooth</Btn>
       <Btn onClick={props.onGround} title="Snap to ground (End)" disabled={!props.hasSelection}><AlignVerticalJustifyEnd size={14} />Ground</Btn>
       <span style={{ width: 1, height: 22, background: "var(--line)" }} />

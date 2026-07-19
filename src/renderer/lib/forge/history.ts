@@ -13,11 +13,16 @@ export type EditorToolId =
   | "rotate"
   | "scale"
   | "paint"
+  | "blend-paint"
   | "fill"
   | "fix-mesh"
   | "fix-terrain"
   | "smooth"
-  | "ground";
+  | "ground"
+  | "seal-back"
+  | "flip-normals"
+  | "weld"
+  | "island-prep";
 
 export interface TransformSnapshot {
   kind: "transform";
@@ -42,7 +47,18 @@ export interface GeometrySnapshot {
   normals: number[] | null;
 }
 
-export type HistoryEntry = TransformSnapshot | MaterialSnapshot | GeometrySnapshot;
+/** Vertex-color buffer for 3D paint brush undo */
+export interface VertexColorSnapshot {
+  kind: "vertexColors";
+  uuid: string;
+  colors: number[];
+}
+
+export type HistoryEntry =
+  | TransformSnapshot
+  | MaterialSnapshot
+  | GeometrySnapshot
+  | VertexColorSnapshot;
 
 export class TransformHistory {
   private undoStack: HistoryEntry[] = [];

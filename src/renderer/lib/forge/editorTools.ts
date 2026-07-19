@@ -14,12 +14,17 @@ export const EDITOR_TOOL_META: Record<
   translate: { id: "translate", label: "Move", hotkey: "W", hint: "Translate gizmo" },
   rotate: { id: "rotate", label: "Rotate", hotkey: "E", hint: "Rotate gizmo" },
   scale: { id: "scale", label: "Scale", hotkey: "R", hint: "Scale gizmo" },
-  paint: { id: "paint", label: "Paint", hotkey: "B", hint: "Paint mesh under cursor" },
-  fill: { id: "fill", label: "Fill", hotkey: "G", hint: "Fill all materials on selection" },
+  paint: { id: "paint", label: "3D Brush", hotkey: "B", hint: "Vertex-color 3D brush on mesh" },
+  "blend-paint": { id: "blend-paint", label: "Blend", hotkey: "V", hint: "Blend-mode vertex paint" },
+  fill: { id: "fill", label: "Fill", hotkey: "G", hint: "Fill materials + vertex colors" },
   "fix-mesh": { id: "fix-mesh", label: "Fix Mesh", hotkey: "M", hint: "Normals, NaN, bounds" },
   "fix-terrain": { id: "fix-terrain", label: "Fix Terrain", hotkey: "T", hint: "Flatten base, ground Y=0" },
   smooth: { id: "smooth", label: "Smooth", hotkey: "Shift+S", hint: "Recompute smooth normals" },
   ground: { id: "ground", label: "Ground", hotkey: "End", hint: "Snap lowest point to Y=0" },
+  "seal-back": { id: "seal-back", label: "Seal Back", hotkey: "K", hint: "Close open backs / island shells" },
+  "flip-normals": { id: "flip-normals", label: "Flip N", hotkey: "N", hint: "Flip face winding + normals" },
+  weld: { id: "weld", label: "Weld", hotkey: "J", hint: "Weld open edge cracks" },
+  "island-prep": { id: "island-prep", label: "Island", hotkey: "I", hint: "Ground + weld + seal for islands" },
 };
 
 export function snapshotTransform(obj: THREE.Object3D): TransformSnapshot {

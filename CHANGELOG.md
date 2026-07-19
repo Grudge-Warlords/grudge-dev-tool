@@ -4,6 +4,13 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Added
+
+- **3D paint brush** — vertex-color painting with radius, strength, falloff (smooth/linear/hard), modes (blend/replace/add/subtract/smooth/erase).
+- **Blend paint tool** (V) — dedicated blend-mode brush for soft color merges on props.
+- **Island mesh tools** — Seal open backs (K), Flip normals (N), Weld cracks (J), Island prep (I) = ground + weld + double-side + back shells.
+- Brush hotkeys: `[` `]` radius · `;` `'` strength · fill also paints vertex colors.
+
 ## [0.8.1] — 2026-07-19
 
 ### Added
