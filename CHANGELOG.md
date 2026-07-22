@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-07-22
+
+### Changed
+- Asset Viewer always-on-top pop-out from GrudgeLoader/Browser/Search; grudge-web-v1 gltf-transform optimize with before/after sizes and same-key CDN re-upload; objectstore HTML/JSON harden; Play Modes webview load fix.
+
 ### Added
 
 - **Asset Viewer pop-out** — click any file in **GrudgeLoader**, **Browser**, or **Search** to open an always-on-top window (in front of all apps) with type-aware preview:
@@ -341,3 +346,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [0.3.3]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.3
 [0.3.4]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.4
 [0.3.5]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.3.5
+[0.8.2]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.8.2
