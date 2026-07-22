@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 import DemoModeBanner from "../components/DemoModeBanner";
 
 export default function Search() {
@@ -7,6 +8,16 @@ export default function Search() {
   const [pack, setPack] = useState("");
   const [items, setItems] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [cdnBase, setCdnBase] = useState("https://assets.grudge-studio.com");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const url: string = await window.grudge?.cf?.r2PublicUrl?.("");
+        if (url) setCdnBase(url.replace(/\/$/, ""));
+      } catch { /* keep default */ }
+    })();
+  }, []);
 
   async function go() {
     setError(null);
@@ -16,10 +27,21 @@ export default function Search() {
     } catch (e: any) { setError(e.message); }
   }
 
+  function openInViewer(it: any) {
+    const path = it.path ?? it.name;
+    if (!path) return;
+    void window.grudge?.viewer?.open?.({
+      name: path,
+      url: `${cdnBase}/${path.replace(/^\//, "")}`,
+      contentType: it.contentType ?? "",
+      size: it.sizeBytes ?? it.size ?? 0,
+    }).catch((e: any) => toast.error("Could not open viewer", { description: e?.message ?? String(e) }));
+  }
+
   return (
     <div>
       <h1 className="page-title">Manifest Search</h1>
-      <p className="page-sub">Server-side filter against per-pack <span className="kbd">manifest.json</span> catalogs.</p>
+      <p className="page-sub">Server-side filter against per-pack <span className="kbd">manifest.json</span> catalogs. Click a row to open the Asset Viewer.</p>
       <DemoModeBanner feature="Search" />
       <div className="card">
         <div className="row">
@@ -35,7 +57,12 @@ export default function Search() {
           <thead><tr><th>Pack</th><th>Path</th><th>Category</th><th>UUID</th><th>Size</th></tr></thead>
           <tbody>
             {items.map((it: any, i: number) => (
-              <tr key={i}>
+              <tr
+                key={i}
+                className="cursor-pointer hover:bg-bg-2"
+                title="Open in Asset Viewer"
+                onClick={() => openInViewer(it)}
+              >
                 <td>{it.packId}</td>
                 <td>{it.path}</td>
                 <td>{it.category ?? "—"}</td>

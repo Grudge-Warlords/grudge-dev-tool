@@ -191,3 +191,5 @@ export { verifyFile, convertFile, makeThumbnail, enrichAsset, inspectRig };
 export { extractFbxAssets } from "./fbxExtract";
 export { prepareTPose } from "./tpose";
 export { buildRetargetLibraryPack } from "./retargetLibrary";
+export { optimizeWebFile, OPTIMIZE_PROFILE } from "./optimizeWeb";
+export type { OptimizeWebOptions, OptimizeWebResult } from "./optimizeWeb";

@@ -1,6 +1,7 @@
 import { Tray, Menu, nativeImage, BrowserWindow, app } from "electron";
 import { join } from "node:path";
 import { showLoader, hideLoader, toggleLoader, getLoaderWindow } from "./loader";
+import { focusAllViewers } from "./viewer";
 
 let tray: Tray | null = null;
 
@@ -42,6 +43,7 @@ export function createTray(getWindow: () => BrowserWindow | null): Tray {
     { label: "Grudge Dev Tool", enabled: false },
     { type: "separator" },
     { label: "GrudgeLoader (always-on-top)", click: () => toggleLoader() },
+    { label: "Bring asset viewers to front", click: () => focusAllViewers() },
     { label: "Hide GrudgeLoader",            click: () => hideLoader() },
     { type: "separator" },
     { label: "Show Browser",       click: () => showWindow("/browser") },

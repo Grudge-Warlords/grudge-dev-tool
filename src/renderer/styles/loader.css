@@ -202,6 +202,18 @@
   border-radius: 4px;
   padding: 4px;
 }
+.loader-asset-clickable {
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.loader-asset-clickable:hover {
+  border-color: var(--gold-deep, #c9a227);
+  background: color-mix(in srgb, var(--bg-2) 80%, var(--gold, #ffc62a) 8%);
+}
+.loader-asset-clickable:focus-visible {
+  outline: 1px solid var(--gold, #ffc62a);
+  outline-offset: 1px;
+}
 .loader-asset-thumb {
   width: 32px; height: 32px;
   background: #000;

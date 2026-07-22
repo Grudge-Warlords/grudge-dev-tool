@@ -64,6 +64,7 @@
     "fflate": "^0.8.2",
     "keytar": "^7.9.0",
     "lucide-react": "^0.408.0",
+    "meshoptimizer": "^0.22.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "sonner": "^1.5.0",

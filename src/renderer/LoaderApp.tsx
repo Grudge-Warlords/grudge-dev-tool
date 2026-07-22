@@ -240,18 +240,34 @@ export default function LoaderApp() {
     if (paths?.length) void enqueueUpload(paths, pinnedTarget);
   }
 
-  async function openAssetActions(name: string) {
-    const cdn = `${cdnBase}/${name}`;
-    if (isModelPath(name)) {
-      try {
-        await window.grudge?.forge?.openRemote?.(cdn);
-        toast.success("Opened in Forge 3D", { description: name.split("/").pop() });
-        return;
-      } catch (e: any) {
-        toast.error("Forge open failed", { description: e?.message ?? String(e) });
-      }
+  /** Primary open: always-on-top Asset Viewer pop-out (models, images, audio, etc.). */
+  async function openInViewer(it: ListItem) {
+    const cdn = `${cdnBase}/${it.name}`;
+    try {
+      await window.grudge?.viewer?.open?.({
+        name: it.name,
+        url: cdn,
+        contentType: it.contentType ?? "",
+        size: it.size ?? 0,
+      });
+    } catch (e: any) {
+      toast.error("Could not open viewer", { description: e?.message ?? String(e) });
     }
-    void window.grudge.os.openExternal(cdn);
+  }
+
+  /** Secondary: send model straight into the Forge 3D editor scene. */
+  async function openInForge(name: string) {
+    const cdn = `${cdnBase}/${name}`;
+    if (!isModelPath(name)) {
+      void window.grudge.os.openExternal(cdn);
+      return;
+    }
+    try {
+      await window.grudge?.forge?.openRemote?.(cdn);
+      toast.success("Opened in Forge 3D", { description: name.split("/").pop() });
+    } catch (e: any) {
+      toast.error("Forge open failed", { description: e?.message ?? String(e) });
+    }
   }
 
   return (
@@ -309,6 +325,7 @@ export default function LoaderApp() {
         {tab === "browse" && (
           <div className="loader-section">
             <Breadcrumb prefix={prefix} onSelect={(p) => browse(p)} />
+            <div className="loader-hint">Click a file to open the frontmost Asset Viewer (models · images · audio · scenes). Box icon adds models to Forge 3D.</div>
             <div className="loader-bar">
               <input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="prefix" />
               <button type="button" onClick={() => browse(prefix)}>Go</button>
@@ -347,7 +364,20 @@ export default function LoaderApp() {
                 const showImg = isImagePath(it.name) || (it.contentType || "").startsWith("image/");
                 const cdnThumb = `${cdnBase}/${it.name}`;
                 return (
-                  <div className="loader-asset" key={it.name}>
+                  <div
+                    className="loader-asset loader-asset-clickable"
+                    key={it.name}
+                    role="button"
+                    tabIndex={0}
+                    title="Open in Asset Viewer (frontmost)"
+                    onClick={() => void openInViewer(it)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        void openInViewer(it);
+                      }
+                    }}
+                  >
                     <div className="loader-asset-thumb">
                       {showImg
                         ? <img src={cdnThumb} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
@@ -359,14 +389,22 @@ export default function LoaderApp() {
                       <div className="loader-asset-name" title={it.name}>{it.name.split("/").slice(-1)[0]}</div>
                       <div className="muted small">{(it.size / 1024).toFixed(1)} KB</div>
                     </div>
-                    <button type="button" className="copy-btn" title={`Copy ${cmdFormat}`} onClick={() => copy(cmd, cmdFormat)}>
+                    <button
+                      type="button"
+                      className="copy-btn"
+                      title={`Copy ${cmdFormat}`}
+                      onClick={(e) => { e.stopPropagation(); copy(cmd, cmdFormat); }}
+                    >
                       {copied === cmd ? "✓" : "⧉"}
                     </button>
                     <button
                       type="button"
                       className="copy-btn"
-                      title={isModelPath(it.name) ? "Open in Forge 3D" : "Open CDN"}
-                      onClick={() => void openAssetActions(it.name)}
+                      title={isModelPath(it.name) ? "Add to Forge 3D scene" : "Open CDN externally"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void openInForge(it.name);
+                      }}
                     >
                       {isModelPath(it.name) ? <Box size={12} /> : <ExternalLink size={12} />}
                     </button>

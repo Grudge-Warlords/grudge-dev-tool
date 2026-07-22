@@ -73,6 +73,63 @@ const api = {
     hide: () => ipcRenderer.invoke("loader:hide"),
     toggle: () => ipcRenderer.invoke("loader:toggle"),
   },
+  // Pop-out Asset Viewer (always-on-top, in front of all windows)
+  viewer: {
+    /** Open asset in a frontmost pop-out window with preview / transform / Forge actions. */
+    open: (asset: { name: string; url: string; contentType?: string; size?: number }) =>
+      ipcRenderer.invoke("viewer:open", asset) as Promise<{ ok: true; token: string }>,
+    getAsset: (token: string) =>
+      ipcRenderer.invoke("viewer:getAsset", token) as Promise<{
+        name: string; url: string; contentType: string; size: number;
+      } | null>,
+    sendToForge: (args: { url: string; name?: string }) =>
+      ipcRenderer.invoke("viewer:sendToForge", args) as Promise<{ ok: true; path: string; name: string } | { ok: false; error: string }>,
+    convertModel: (args: { url: string; name: string; targetFormat: "glb" | "gltf" }) =>
+      ipcRenderer.invoke("viewer:convertModel", args) as Promise<{ ok: true; path: string; name: string } | { ok: false; error: string }>,
+    saveConvertedFile: (args: { path: string; defaultName: string }) =>
+      ipcRenderer.invoke("viewer:saveConvertedFile", args) as Promise<
+        { ok: true; savedPath: string } | { ok: false; error: string } | { canceled: true }
+      >,
+    /** grudge-web-v1 gltf-transform optimize — returns before/after sizes + temp .web.glb path. */
+    optimizeForWeb: (args: {
+      url: string;
+      name: string;
+      opts?: {
+        maxTextureSize?: number;
+        textureQuality?: number;
+        meshoptLevel?: "medium" | "high";
+        skipMeshopt?: boolean;
+        skipTextures?: boolean;
+      };
+    }) =>
+      ipcRenderer.invoke("viewer:optimizeForWeb", args) as Promise<{
+        ok: boolean;
+        error?: string;
+        profile?: string;
+        path?: string;
+        name?: string;
+        objectKey?: string;
+        beforeBytes: number;
+        afterBytes: number;
+        reductionPct: number;
+        steps?: string[];
+        warnings?: string[];
+        stats?: {
+          before: { meshes: number; materials: number; textures: number; animations: number };
+          after: { meshes: number; materials: number; textures: number; animations: number };
+        };
+      }>,
+    /** Overwrite the same CDN/object key with the optimized local file. */
+    reuploadOptimized: (args: { localPath: string; objectKey: string; contentType?: string }) =>
+      ipcRenderer.invoke("viewer:reuploadOptimized", args) as Promise<
+        { ok: true; objectKey: string; bytes: number; cdnUrl: string } | { ok: false; error: string }
+      >,
+    readOptimizedBytes: (path: string) =>
+      ipcRenderer.invoke("viewer:readOptimizedBytes", path) as Promise<
+        { ok: true; name: string; bytes: Uint8Array; mime: string } | { ok: false; error: string }
+      >,
+    focusAll: () => ipcRenderer.invoke("viewer:focusAll"),
+  },
   // Connectivity
   connectivity: {
     get: () => ipcRenderer.invoke("connectivity:get"),

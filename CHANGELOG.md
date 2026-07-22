@@ -6,6 +6,13 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ### Added
 
+- **Asset Viewer pop-out** — click any file in **GrudgeLoader**, **Browser**, or **Search** to open an always-on-top window (in front of all apps) with type-aware preview:
+  - 3D models / Three.js scene JSON — viewport + **Transform** (pos/rot/scale), animations, wireframe/grid/HDRI, **Add to Forge Scene**, convert GLB/glTF, screenshot
+  - Images, audio, video, text, fonts — full-screen viewers
+- **Optimize for web (`grudge-web-v1`)** — Asset Viewer action using `@gltf-transform` (dedup → prune → resample → WebP textures via sharp → meshopt). Shows **before/after size**, steps, warnings; **Save locally** or **Re-upload same CDN key** (overwrite).
+- IPC: `viewer:open` · `viewer:getAsset` · `viewer:sendToForge` · `viewer:convertModel` · `viewer:saveConvertedFile` · `viewer:optimizeForWeb` · `viewer:reuploadOptimized` · `viewer:readOptimizedBytes` · `viewer:focusAll`
+- Tray: **Bring asset viewers to front**
+
 - **3D paint brush** — vertex-color painting with radius, strength, falloff (smooth/linear/hard), modes (blend/replace/add/subtract/smooth/erase).
 - **Blend paint tool** (V) — dedicated blend-mode brush for soft color merges on props.
 - **Island mesh tools** — Seal open backs (K), Flip normals (N), Weld cracks (J), Island prep (I) = ground + weld + double-side + back shells.

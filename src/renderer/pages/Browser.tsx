@@ -157,6 +157,14 @@ export default function Browser() {
   const copy = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => toast.success(`Copied ${label}`));
   };
+  const openInViewer = (it: { name: string; size: number; contentType: string }) => {
+    void window.grudge?.viewer?.open?.({
+      name: it.name,
+      url: cdnUrl(it.name),
+      contentType: it.contentType ?? "",
+      size: it.size ?? 0,
+    }).catch((e: any) => toast.error("Could not open viewer", { description: e?.message ?? String(e) }));
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -198,11 +206,32 @@ export default function Browser() {
                 <div className="text-xs text-muted mb-2">Server search · {search.data?.items?.length ?? 0} matches</div>
                 <div className="grid grid-cols-1 gap-1">
                   {(search.data?.items ?? []).map((it: any, i: number) => (
-                    <div key={i} className="border border-line bg-bg-2 rounded p-2 flex items-center gap-2">
+                    <div
+                      key={i}
+                      className="border border-line bg-bg-2 rounded p-2 flex items-center gap-2 cursor-pointer hover:border-gold/50"
+                      title="Open in Asset Viewer"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openInViewer({
+                        name: it.path,
+                        size: it.sizeBytes ?? 0,
+                        contentType: it.contentType ?? "",
+                      })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openInViewer({
+                            name: it.path,
+                            size: it.sizeBytes ?? 0,
+                            contentType: it.contentType ?? "",
+                          });
+                        }
+                      }}
+                    >
                       {fileIcon(it.contentType ?? "")}
                       <span className="text-xs truncate flex-1">{it.path}</span>
                       <span className="text-[10px] text-muted">{it.packId}</span>
-                      <button className="copy-btn" onClick={() => copy(it.path, "path")}>
+                      <button className="copy-btn" onClick={(e) => { e.stopPropagation(); copy(it.path, "path"); }}>
                         <Copy size={11} />
                       </button>
                     </div>
@@ -236,7 +265,20 @@ export default function Browser() {
                   {filtered.map((it) => {
                     const isImg = it.contentType.startsWith("image/");
                     return (
-                      <div key={it.name} className="border border-line bg-bg-2 rounded p-2 flex flex-col gap-1 group">
+                      <div
+                        key={it.name}
+                        className="border border-line bg-bg-2 rounded p-2 flex flex-col gap-1 group cursor-pointer hover:border-gold/50"
+                        title="Open in Asset Viewer"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openInViewer(it)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openInViewer(it);
+                          }
+                        }}
+                      >
                         <div className="aspect-square bg-black rounded overflow-hidden flex items-center justify-center">
                           {isImg ? (
                             <img src={cdnUrl(it.name)} alt="" loading="lazy" className="w-full h-full object-cover" />
@@ -250,14 +292,17 @@ export default function Browser() {
                           <button
                             className="ml-auto copy-btn opacity-0 group-hover:opacity-100"
                             title="Copy CDN URL"
-                            onClick={() => copy(cdnUrl(it.name), "CDN URL")}
+                            onClick={(e) => { e.stopPropagation(); copy(cdnUrl(it.name), "CDN URL"); }}
                           >
                             <Copy size={11} />
                           </button>
                           <button
                             className="copy-btn opacity-0 group-hover:opacity-100"
-                            title="Open"
-                            onClick={() => window.grudge?.os?.openExternal?.(cdnUrl(it.name))}
+                            title="Open externally"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.grudge?.os?.openExternal?.(cdnUrl(it.name));
+                            }}
                           >
                             <ExternalLink size={11} />
                           </button>

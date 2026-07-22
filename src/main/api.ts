@@ -145,69 +145,167 @@ async function authedFetchAssets(
   return fetch(`${base}${path}`, { ...init, headers });
 }
 
+/**
+ * Safe JSON parse for fleet REST.
+ * Root cause of mass `os:list` / treaty IPC spam in main.log:
+ * SPA hosts often return HTML (`<!DOCTYPE…`) when rewrites miss → res.json() throws.
+ */
+async function readBodyText(res: Response): Promise<string> {
+  try {
+    return await res.text();
+  } catch {
+    return "";
+  }
+}
+
+function looksLikeHtml(text: string, contentType: string | null): boolean {
+  const ct = (contentType || "").toLowerCase();
+  if (ct.includes("text/html")) return true;
+  const head = text.trimStart().slice(0, 32).toLowerCase();
+  return head.startsWith("<!doctype") || head.startsWith("<html");
+}
+
 async function jsonOrThrow<T>(res: Response): Promise<T> {
+  const ct = res.headers.get("content-type");
+  const text = await readBodyText(res);
+
+  if (looksLikeHtml(text, ct)) {
+    throw new Error(
+      `HTTP ${res.status} returned HTML instead of JSON (route miss or SPA fallback). ` +
+        `Check fleet rewrites / objectstore base URL.`,
+    );
+  }
+
   if (!res.ok) {
     let detail = "";
     try {
-      const body = (await res.json()) as { error?: unknown } | null;
+      const body = text ? (JSON.parse(text) as { error?: unknown }) : null;
       if (body && typeof body === "object" && typeof body.error === "string") {
         detail = body.error;
       }
     } catch { /* ignore */ }
     throw new Error(`HTTP ${res.status} ${res.statusText}${detail ? ` — ${detail}` : ""}`);
   }
-  return res.json() as Promise<T>;
+
+  if (!text.trim()) {
+    throw new Error(`HTTP ${res.status} empty body (expected JSON)`);
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(
+      `HTTP ${res.status} invalid JSON (content-type=${ct || "unknown"}). ` +
+        `Body starts: ${text.slice(0, 80).replace(/\s+/g, " ")}`,
+    );
+  }
+}
+
+/** Empty list when objectstore is unreachable — keeps UI usable, logs once. */
+function emptyListResponse(reason: string, prefix = ""): ListResponse {
+  console.warn(`[api] objectstore list degraded: ${reason}`);
+  return { items: [], folders: [], nextCursor: null, prefix, count: 0 };
 }
 
 // ---------------------------------------------------------------------------
 // Object-storage API — routes through GrudgeBuilder or the Cloudflare Worker
 // based on the backend mode.
 // ---------------------------------------------------------------------------
-export async function listObjects(req: ListRequest & { delimiter?: string }): Promise<ListResponse & { folders?: string[] }> {
+export async function listObjects(req: ListRequest & { delimiter?: string }): Promise<ListResponse> {
   const backend = await resolveBackend();
   if (backend === "r2-direct") {
-    return r2List({ prefix: req.prefix, delimiter: req.delimiter, cursor: req.cursor, limit: req.limit });
+    try {
+      return await r2List({ prefix: req.prefix, delimiter: req.delimiter, cursor: req.cursor, limit: req.limit });
+    } catch (e) {
+      return emptyListResponse(e instanceof Error ? e.message : String(e), req.prefix);
+    }
   }
   if (backend === "cloudflare-worker") {
-    return workerList({ prefix: req.prefix, delimiter: req.delimiter, cursor: req.cursor, limit: req.limit });
+    try {
+      return await workerList({ prefix: req.prefix, delimiter: req.delimiter, cursor: req.cursor, limit: req.limit });
+    } catch (e) {
+      return emptyListResponse(e instanceof Error ? e.message : String(e), req.prefix);
+    }
   }
+
   const params = new URLSearchParams({ prefix: req.prefix });
   if (req.delimiter) params.set("delimiter", req.delimiter);
   if (req.cursor) params.set("cursor", req.cursor);
   if (req.limit) params.set("limit", String(req.limit));
-  const res = await authedFetchAssets(`/api/objectstore/list?${params}`);
-  return jsonOrThrow<ListResponse>(res);
+
+  // Primary: fleet client same-origin rewrite
+  try {
+    const res = await authedFetchAssets(`/api/objectstore/list?${params}`);
+    return await jsonOrThrow<ListResponse>(res);
+  } catch (primaryErr) {
+    const msg = primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
+    // Fallback: R2 direct if credentials configured
+    try {
+      const haveDirect =
+        Boolean(await readCf("endpoint")) &&
+        Boolean(await readCf("accessKeyId")) &&
+        Boolean(await readCf("secret")) &&
+        Boolean(await readCf("bucket"));
+      if (haveDirect) {
+        return await r2List({
+          prefix: req.prefix,
+          delimiter: req.delimiter,
+          cursor: req.cursor,
+          limit: req.limit,
+        });
+      }
+    } catch (r2Err) {
+      return emptyListResponse(
+        `client rewrite failed (${msg}); r2 fallback failed (${r2Err instanceof Error ? r2Err.message : r2Err})`,
+        req.prefix,
+      );
+    }
+    return emptyListResponse(`client rewrite failed: ${msg}`, req.prefix);
+  }
 }
 
 export async function searchObjects(req: SearchRequest): Promise<SearchResponse> {
   const backend = await resolveBackend();
   if (backend === "cloudflare-worker") {
-    return workerSearch(req);
+    try {
+      return await workerSearch(req);
+    } catch {
+      return { count: 0, items: [] };
+    }
   }
   if (backend === "r2-direct") {
     // Direct R2 has no full-text manifest search; emulate via listing under the
     // 'asset-packs/' prefix and client-side filter by query substring.
-    const all = await r2List({ prefix: "asset-packs/", delimiter: undefined, limit: 1000 });
-    const q = (req.q ?? "").toLowerCase();
-    const filtered = q ? all.items.filter((x) => x.name.toLowerCase().includes(q)) : all.items;
-    return {
-      count: filtered.length,
-      items: filtered.slice(0, req.limit ?? 200).map((x) => ({
-        path: x.name,
-        sizeBytes: x.size,
-        contentType: x.contentType,
-        category: x.name.split("/")[2] ?? null,
-        packId: x.name.split("/")[1] ?? null,
-      })),
-    };
+    try {
+      const all = await r2List({ prefix: "asset-packs/", delimiter: undefined, limit: 1000 });
+      const q = (req.q ?? "").toLowerCase();
+      const filtered = q ? all.items.filter((x) => x.name.toLowerCase().includes(q)) : all.items;
+      return {
+        count: filtered.length,
+        items: filtered.slice(0, req.limit ?? 200).map((x) => ({
+          path: x.name,
+          sizeBytes: x.size,
+          contentType: x.contentType,
+          category: x.name.split("/")[2] ?? null,
+          packId: x.name.split("/")[1] ?? null,
+        })),
+      };
+    } catch {
+      return { count: 0, items: [] };
+    }
   }
   const params = new URLSearchParams();
   if (req.q) params.set("q", req.q);
   if (req.category) params.set("category", req.category);
   if (req.pack) params.set("pack", req.pack);
   if (req.limit) params.set("limit", String(req.limit));
-  const res = await authedFetchAssets(`/api/objectstore/search?${params}`);
-  return jsonOrThrow<SearchResponse>(res);
+  try {
+    const res = await authedFetchAssets(`/api/objectstore/search?${params}`);
+    return await jsonOrThrow<SearchResponse>(res);
+  } catch {
+    // Degrade gracefully — UI shows empty results instead of IPC error storm
+    return { count: 0, items: [] };
+  }
 }
 
 export interface UploadUrlResponse {

@@ -18,7 +18,7 @@ const Model3DViewer = React.lazy(() => import("./viewers/Model3DViewer"));
 
 const KIND_ICON: Record<AssetKind, LucideIcon> = {
   image: ImageIcon, video: VideoIcon, audio: Music,
-  model3d: Box, text: FileText, pdf: FileText, font: FileType2,
+  model3d: Box, scene3d: Layers3, text: FileText, pdf: FileText, font: FileType2,
   unknown: FileQuestion,
 };
 
@@ -91,12 +91,12 @@ style = {{ ...iconBtn, color: "var(--gold)", borderColor: "var(--gold)" }}
         > <Maximize2 size={ 14 } /></button >
   {/* Send to Forge — only relevant for 3-D assets */ }
 {
-  kind === "model3d" && (
+  (kind === "model3d" || kind === "scene3d") && (
     <button
-            title="Open in Forge3D editor"
+            title="Add to Forge 3D scene"
   onClick = {() => {
     (window as any).grudge?.viewer?.sendToForge({ url: asset.url, name: asset.name })
-      .then((r: any) => { if (r?.ok) toast.success("Sent to Forge3D editor"); else toast.error(r?.error ?? "Failed"); })
+      .then((r: any) => { if (r?.ok) toast.success("Added to Forge 3D scene"); else toast.error(r?.error ?? "Failed"); })
       .catch(() => toast.error("Could not send to Forge"));
   }
 }
@@ -111,7 +111,7 @@ style = {{ ...iconBtn, color: "var(--ok)", borderColor: "var(--ok)" }}
       { kind === "image" && <ImageViewer asset={ asset } />}
 { kind === "video" && <VideoViewer asset={ asset } /> }
 { kind === "audio" && <AudioViewer asset={ asset } /> }
-{ kind === "model3d" && <Model3DViewer asset={ asset } /> }
+{ (kind === "model3d" || kind === "scene3d") && <Model3DViewer asset={ asset } /> }
 { kind === "text" && <TextViewer asset={ asset } /> }
 { kind === "pdf" && <PdfViewer asset={ asset } /> }
 { kind === "font" && <FontViewer asset={ asset } /> }

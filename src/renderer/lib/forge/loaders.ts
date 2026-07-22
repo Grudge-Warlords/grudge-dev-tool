@@ -24,7 +24,7 @@ export interface LoadedModel {
 }
 
 export type ModelFormat =
-  | "glb" | "gltf" | "obj" | "fbx" | "stl" | "ply" | "dae" | "3mf";
+  | "glb" | "gltf" | "obj" | "fbx" | "stl" | "ply" | "dae" | "3mf" | "three-json";
 
 const EXT_TO_FORMAT: Record<string, ModelFormat> = {
   glb: "glb", gltf: "gltf",
@@ -33,7 +33,16 @@ const EXT_TO_FORMAT: Record<string, ModelFormat> = {
   dae: "dae", "3mf": "3mf",
 };
 
+function isThreeJsonName(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  return lower.endsWith(".scene.json")
+    || lower.endsWith(".three.json")
+    || lower.endsWith(".scene")
+    || (lower.includes("/scenes/") && lower.endsWith(".json"));
+}
+
 export function detectFormat(filename: string): ModelFormat | null {
+  if (isThreeJsonName(filename)) return "three-json";
   const ext = filename.toLowerCase().split(".").pop() ?? "";
   return EXT_TO_FORMAT[ext] ?? null;
 }
@@ -139,6 +148,24 @@ export async function loadModel(file: File): Promise<LoadedModel> {
         const obj = await new ThreeMFLoader().loadAsync(url);
         const stats = tallyStats(obj);
         return { object: obj, animations: [], gltf: null, format, ...stats };
+      }
+      case "three-json": {
+        // Three.js ObjectLoader scene dumps (.scene.json / scenes/*.json)
+        const text = await (await fetch(url)).text();
+        const data = JSON.parse(text);
+        const loader = new THREE.ObjectLoader();
+        const parsed = loader.parse(data) as THREE.Object3D;
+        const root = parsed.type === "Scene"
+          ? (() => {
+              const g = new THREE.Group();
+              g.name = "three-scene";
+              // Prefer children only so we don't nest Scene cameras/lights blindly
+              while (parsed.children.length) g.add(parsed.children[0]);
+              return g;
+            })()
+          : parsed;
+        const stats = tallyStats(root);
+        return { object: root, animations: [], gltf: null, format, ...stats };
       }
     }
   } finally {

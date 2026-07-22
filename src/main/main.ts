@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import * as windowState from "./windowState";
 import { createTray, disposeTray } from "./tray";
 import { showLoader, hideLoader, toggleLoader, getLoaderWindow, disposeLoader } from "./loader";
+import * as viewer from "./viewer";
 import * as api from "./api";
 import { uploader } from "./uploader";
 import * as bk from "./blenderkit/daemon";
@@ -265,6 +266,7 @@ app.on("before-quit", () => {
   stopConnectivity();
   disposeTray();
   disposeLoader();
+  viewer.disposeAllViewers();
   bk.shutdownSpawned();
   coder.shutdownCoder();
 });
@@ -373,6 +375,27 @@ function registerIpc() {
   ipcMain.handle("loader:show", () => { showLoader(); });
   ipcMain.handle("loader:hide", () => { hideLoader(); });
   ipcMain.handle("loader:toggle", () => { toggleLoader(); });
+
+  // Pop-out Asset Viewer (always-on-top, from Loader / Browser / AssetPreview)
+  ipcMain.handle("viewer:open", (_e, asset) => {
+    const parent = BrowserWindow.fromWebContents(_e.sender) ?? mainWindow;
+    return viewer.openViewer(asset, parent && !parent.isDestroyed() ? parent : null);
+  });
+  ipcMain.handle("viewer:getAsset", (_e, token: string) => viewer.getViewerAsset(token));
+  ipcMain.handle("viewer:sendToForge", (_e, args: { url: string; name?: string }) =>
+    viewer.sendToForge(args, mainWindow && !mainWindow.isDestroyed() ? mainWindow : null));
+  ipcMain.handle("viewer:convertModel", (_e, args: { url: string; name: string; targetFormat: "glb" | "gltf" }) =>
+    viewer.convertModel(args));
+  ipcMain.handle("viewer:saveConvertedFile", (_e, args: { path: string; defaultName: string }) => {
+    const parent = BrowserWindow.fromWebContents(_e.sender);
+    return viewer.saveConvertedFile(args, parent && !parent.isDestroyed() ? parent : mainWindow);
+  });
+  ipcMain.handle("viewer:optimizeForWeb", (_e, args: { url: string; name: string; opts?: any }) =>
+    viewer.optimizeForWeb(args));
+  ipcMain.handle("viewer:reuploadOptimized", (_e, args: { localPath: string; objectKey: string; contentType?: string }) =>
+    viewer.reuploadOptimized(args));
+  ipcMain.handle("viewer:readOptimizedBytes", (_e, path: string) => viewer.readOptimizedBytes(path));
+  ipcMain.handle("viewer:focusAll", () => { viewer.focusAllViewers(); return { ok: true }; });
 
   // Connectivity
   ipcMain.handle("connectivity:get", () => getConnectivity());

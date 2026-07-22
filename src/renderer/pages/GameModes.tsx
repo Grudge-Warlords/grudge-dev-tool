@@ -34,34 +34,55 @@ export default function GameModes() {
 
   const active = modes.find((m) => m.id === activeId) ?? modes[0] ?? null;
 
+  const loadGenRef = useRef(0);
+
   const selectMode = useCallback((game: FleetGame) => {
     setActiveId(game.id as PlayModeId);
     writeMirror({ playModeId: game.id });
     void window.grudge.workspace.patch({ playModeId: game.id });
-    const wv = wvRef.current;
-    if (wv && game.url) {
-      void wv.loadURL(game.url).catch(() => { wv.src = game.url; });
-    }
+    // Navigation is owned by the effect below — avoid double loadURL races
+    // that produce GUEST_VIEW_MANAGER_CALL ERR_ABORTED (-3) spam in main.log.
   }, []);
 
   useEffect(() => {
     const wv = wvRef.current;
     if (!wv || !active?.url) return;
+    const gen = ++loadGenRef.current;
+    const target = active.url;
+
     const refreshNav = () => {
       try { setCanBack(wv.canGoBack()); setCanFwd(wv.canGoForward()); } catch { /* ignore */ }
     };
-    const onStart = () => setLoading(true);
-    const onStop = () => { setLoading(false); refreshNav(); };
-    const onFail = (e: { errorCode: number; errorDescription?: string }) => {
+    const onStart = () => {
+      if (gen !== loadGenRef.current) return;
+      setLoading(true);
+    };
+    const onStop = () => {
+      if (gen !== loadGenRef.current) return;
       setLoading(false);
+      refreshNav();
+    };
+    const onFail = (e: { errorCode: number; errorDescription?: string }) => {
+      if (gen !== loadGenRef.current) return;
+      setLoading(false);
+      // -3 ERR_ABORTED: superseded navigation — expected when switching modes fast
       if (e.errorCode === -3) return;
       toast.error(`Load failed: ${e.errorDescription ?? e.errorCode}`);
     };
     wv.addEventListener("did-start-loading", onStart);
     wv.addEventListener("did-stop-loading", onStop);
     wv.addEventListener("did-fail-load", onFail as unknown as EventListener);
-    wv.src = active.url;
+
+    // Debounce slight to coalesce rapid mode clicks
+    const t = window.setTimeout(() => {
+      if (gen !== loadGenRef.current) return;
+      void wv.loadURL(target).catch(() => {
+        if (gen === loadGenRef.current) wv.src = target;
+      });
+    }, 50);
+
     return () => {
+      window.clearTimeout(t);
       wv.removeEventListener("did-start-loading", onStart);
       wv.removeEventListener("did-stop-loading", onStop);
       wv.removeEventListener("did-fail-load", onFail as unknown as EventListener);

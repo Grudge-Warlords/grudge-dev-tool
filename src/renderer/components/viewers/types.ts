@@ -14,7 +14,7 @@ export interface AssetRef {
 
 /** Coarse asset category used to pick which viewer component to mount. */
 export type AssetKind =
-  | "image" | "video" | "audio" | "model3d"
+  | "image" | "video" | "audio" | "model3d" | "scene3d"
   | "text"  | "pdf"   | "font"  | "unknown";
 
 const EXT: Record<AssetKind, string[]> = {
@@ -22,6 +22,8 @@ const EXT: Record<AssetKind, string[]> = {
   video:  ["mp4", "webm", "mov", "m4v", "ogv"],
   audio:  ["mp3", "wav", "ogg", "flac", "m4a", "aac", "opus"],
   model3d:["glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf"],
+  /** Three.js ObjectLoader / scene dumps — handled by Model3D path when possible. */
+  scene3d:["scene"],
   text:   ["txt", "json", "md", "markdown", "yml", "yaml", "ts", "tsx", "js", "jsx",
            "mjs", "cjs", "css", "scss", "html", "htm", "xml", "csv", "tsv", "log",
            "ini", "toml", "env", "gitignore", "rs", "go", "py", "sh", "ps1"],
@@ -30,12 +32,21 @@ const EXT: Record<AssetKind, string[]> = {
   unknown:[],
 };
 
+function isThreeSceneName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.endsWith(".scene.json")
+    || lower.endsWith(".three.json")
+    || (lower.includes("/scenes/") && lower.endsWith(".json"));
+}
+
 /** Look at extension first (more reliable than R2's contentType which often
  *  returns application/octet-stream), then fall back to MIME-prefix sniffing. */
 export function classify(ref: AssetRef): AssetKind {
+  if (isThreeSceneName(ref.name)) return "scene3d";
   const dotIdx = ref.name.lastIndexOf(".");
   const ext = dotIdx !== -1 ? ref.name.slice(dotIdx + 1).toLowerCase() : "";
   for (const [kind, list] of Object.entries(EXT) as [AssetKind, string[]][]) {
+    if (kind === "text" && isThreeSceneName(ref.name)) continue;
     if (list.includes(ext)) return kind;
   }
   const ct = (ref.contentType ?? "").toLowerCase();
@@ -43,8 +54,8 @@ export function classify(ref: AssetRef): AssetKind {
   if (ct.startsWith("video/"))  return "video";
   if (ct.startsWith("audio/"))  return "audio";
   if (ct === "application/pdf") return "pdf";
-  if (ct.startsWith("text/") || ct.includes("json") || ct.includes("xml")) return "text";
   if (ct.includes("gltf") || ct.includes("model/")) return "model3d";
+  if (ct.startsWith("text/") || ct.includes("json") || ct.includes("xml")) return "text";
   return "unknown";
 }
 

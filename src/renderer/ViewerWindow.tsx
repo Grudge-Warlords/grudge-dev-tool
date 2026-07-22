@@ -38,7 +38,7 @@ const G = () => (window as any).grudge;
 
 function KindBadge({ kind }: { kind: AssetKind }) {
     const colours: Record<AssetKind, string> = {
-        model3d: "#ffc62a", image: "#46d586", video: "#7c6bff", audio: "#ff9f1c",
+        model3d: "#ffc62a", scene3d: "#ffc62a", image: "#46d586", video: "#7c6bff", audio: "#ff9f1c",
         text: "#88aaff", pdf: "#ff5577", font: "#dd88ff", unknown: "#9aa6c8",
     };
     return (
@@ -230,8 +230,32 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     const [animSpeed, setAnimSpeed] = useState(1);
     const [allPlaying, setAllPlaying] = useState(false);
 
-    // Converting state
+    // Transform state (position / rotation deg / uniform+per-axis scale)
+    const [pos, setPos] = useState<[number, number, number]>([0, 0, 0]);
+    const [rot, setRot] = useState<[number, number, number]>([0, 0, 0]);
+    const [scl, setScl] = useState<[number, number, number]>([1, 1, 1]);
+    const [uniformScale, setUniformScale] = useState(1);
+    const transformRef = useRef({
+        pos: [0, 0, 0] as [number, number, number],
+        rot: [0, 0, 0] as [number, number, number],
+        scl: [1, 1, 1] as [number, number, number],
+    });
+
+    // Converting / optimize state
     const [converting, setConverting] = useState(false);
+    const [optimizing, setOptimizing] = useState(false);
+    const [reuploading, setReuploading] = useState(false);
+    const [optResult, setOptResult] = useState<{
+        path: string;
+        name: string;
+        objectKey: string;
+        beforeBytes: number;
+        afterBytes: number;
+        reductionPct: number;
+        steps: string[];
+        warnings: string[];
+        profile: string;
+    } | null>(null);
 
     // ── Create SceneEngine once ──────────────────────────────────────────────
     useEffect(() => {
@@ -284,6 +308,12 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
                 });
                 engineRef.current.scene.add(loaded.object);
                 objectRef.current = loaded.object;
+                // Reset transform UI to identity for the newly loaded object
+                loaded.object.position.set(0, 0, 0);
+                loaded.object.rotation.set(0, 0, 0);
+                loaded.object.scale.set(1, 1, 1);
+                setPos([0, 0, 0]); setRot([0, 0, 0]); setScl([1, 1, 1]); setUniformScale(1);
+                transformRef.current = { pos: [0, 0, 0], rot: [0, 0, 0], scl: [1, 1, 1] };
                 engineRef.current.frame(loaded.object);
 
                 // Animations
@@ -398,11 +428,72 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
         if (mixerRef.current) mixerRef.current.timeScale = speed;
     }, []);
 
+    // ── Transform handlers ────────────────────────────────────────────────────
+
+    const applyTransform = useCallback((
+        nextPos: [number, number, number],
+        nextRot: [number, number, number],
+        nextScl: [number, number, number],
+    ) => {
+        transformRef.current = { pos: nextPos, rot: nextRot, scl: nextScl };
+        const obj = objectRef.current;
+        if (!obj) return;
+        obj.position.set(nextPos[0], nextPos[1], nextPos[2]);
+        obj.rotation.set(
+            THREE.MathUtils.degToRad(nextRot[0]),
+            THREE.MathUtils.degToRad(nextRot[1]),
+            THREE.MathUtils.degToRad(nextRot[2]),
+        );
+        obj.scale.set(nextScl[0], nextScl[1], nextScl[2]);
+        obj.updateMatrixWorld(true);
+    }, []);
+
+    const setPosAxis = useCallback((i: number, v: number) => {
+        const t = transformRef.current;
+        const next: [number, number, number] = [...t.pos];
+        next[i] = v;
+        setPos(next);
+        applyTransform(next, t.rot, t.scl);
+    }, [applyTransform]);
+
+    const setRotAxis = useCallback((i: number, v: number) => {
+        const t = transformRef.current;
+        const next: [number, number, number] = [...t.rot];
+        next[i] = v;
+        setRot(next);
+        applyTransform(t.pos, next, t.scl);
+    }, [applyTransform]);
+
+    const setSclAxis = useCallback((i: number, v: number) => {
+        const safe = Number.isFinite(v) && v !== 0 ? v : 0.001;
+        const t = transformRef.current;
+        const next: [number, number, number] = [...t.scl];
+        next[i] = safe;
+        setScl(next);
+        applyTransform(t.pos, t.rot, next);
+    }, [applyTransform]);
+
+    const setUniform = useCallback((v: number) => {
+        const safe = Number.isFinite(v) && v > 0 ? v : 0.001;
+        setUniformScale(safe);
+        const t = transformRef.current;
+        const next: [number, number, number] = [safe, safe, safe];
+        setScl(next);
+        applyTransform(t.pos, t.rot, next);
+    }, [applyTransform]);
+
+    const resetTransform = useCallback(() => {
+        const identity: [number, number, number] = [0, 0, 0];
+        const unit: [number, number, number] = [1, 1, 1];
+        setPos(identity); setRot(identity); setScl(unit); setUniformScale(1);
+        applyTransform(identity, identity, unit);
+    }, [applyTransform]);
+
     // ── Action handlers ───────────────────────────────────────────────────────
 
     async function sendToForge() {
         const result = await G()?.viewer?.sendToForge({ url: asset.url, name: asset.name });
-        if (result?.ok) toast.success("Sent to Forge3D editor");
+        if (result?.ok) toast.success("Added to Forge 3D scene", { description: "Main window → Forge 3D" });
         else toast.error(result?.error ?? "Failed to send to Forge");
     }
 
@@ -418,6 +509,92 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
             toast.error(e?.message ?? "Conversion error");
         } finally {
             setConverting(false);
+        }
+    }
+
+    function formatBytes(n: number): string {
+        if (n < 1024) return `${n} B`;
+        if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+        return `${(n / 1024 / 1024).toFixed(2)} MB`;
+    }
+
+    async function optimizeForWeb() {
+        setOptimizing(true);
+        setOptResult(null);
+        try {
+            const r = await G()?.viewer?.optimizeForWeb({ url: asset.url, name: asset.name });
+            if (!r?.ok || !r.path) {
+                toast.error(r?.error ?? "Optimize failed");
+                if (r?.warnings?.length) {
+                    toast.message("Optimize warnings", { description: r.warnings.slice(0, 3).join(" · ") });
+                }
+                return;
+            }
+            setOptResult({
+                path: r.path,
+                name: r.name ?? "optimized.web.glb",
+                objectKey: r.objectKey ?? asset.name,
+                beforeBytes: r.beforeBytes ?? 0,
+                afterBytes: r.afterBytes ?? 0,
+                reductionPct: r.reductionPct ?? 0,
+                steps: r.steps ?? [],
+                warnings: r.warnings ?? [],
+                profile: r.profile ?? "grudge-web-v1",
+            });
+            const delta = (r.reductionPct ?? 0) >= 0
+                ? `−${r.reductionPct}%`
+                : `+${Math.abs(r.reductionPct ?? 0)}%`;
+            toast.success(`Optimized ${delta}`, {
+                description: `${formatBytes(r.beforeBytes)} → ${formatBytes(r.afterBytes)}`,
+            });
+            if (r.warnings?.length) {
+                toast.message("Optimize notes", { description: r.warnings.slice(0, 2).join(" · ") });
+            }
+        } catch (e: any) {
+            toast.error(e?.message ?? "Optimize error");
+        } finally {
+            setOptimizing(false);
+        }
+    }
+
+    async function saveOptimizedLocally() {
+        if (!optResult?.path) return;
+        try {
+            const s = await G()?.viewer?.saveConvertedFile({
+                path: optResult.path,
+                defaultName: optResult.name || "optimized.web.glb",
+            });
+            if (s?.ok) toast.success(`Saved ${s.savedPath.split(/[\\/]/).pop()}`);
+            else if (!s?.canceled) toast.error(s?.error ?? "Save failed");
+        } catch (e: any) {
+            toast.error(e?.message ?? "Save error");
+        }
+    }
+
+    async function reuploadOptimized() {
+        if (!optResult?.path || !optResult.objectKey) return;
+        const key = optResult.objectKey;
+        if (!confirm(
+            `Overwrite CDN object?\n\n${key}\n\n${formatBytes(optResult.beforeBytes)} → ${formatBytes(optResult.afterBytes)} (${optResult.reductionPct}% smaller)\n\nThis replaces the existing file at the same key.`,
+        )) return;
+        setReuploading(true);
+        try {
+            const r = await G()?.viewer?.reuploadOptimized({
+                localPath: optResult.path,
+                objectKey: key,
+                contentType: "model/gltf-binary",
+            });
+            if (!r?.ok) {
+                toast.error(r?.error ?? "Re-upload failed");
+                return;
+            }
+            toast.success("Re-uploaded to same CDN key", {
+                description: `${r.objectKey} · ${formatBytes(r.bytes)}`,
+            });
+        } catch (e: any) {
+            toast.error(e?.message ?? "Re-upload error");
+        } finally {
+            setReuploading(false);
         }
     }
 
@@ -515,6 +692,40 @@ style = {{
           }}>⊕ Reset Camera </button>
     </Section>
 
+{/* Transform — position / rotate / scale */ }
+{
+    !loading && !error && (
+        <Section title="Transform" >
+            <AxisRow label="Pos" values={ pos } step={ 0.1 } onChange={ setPosAxis } />
+            <AxisRow label="Rot°" values={ rot } step={ 1 } onChange={ setRotAxis } />
+            <AxisRow label="Scl" values={ scl } step={ 0.05 } onChange={ setSclAxis } />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                <span style={{ fontSize: 11, color: "var(--muted)", width: 36 }}>Uni</span>
+                <input
+                    type="range" min={ 0.05 } max={ 5 } step={ 0.05 }
+                    value={ uniformScale }
+                    onChange={(e) => setUniform(Number(e.target.value))}
+                    style={{ flex: 1 }}
+                />
+                <input
+                    type="number" step={ 0.05 } value={ Number(uniformScale.toFixed(3)) }
+                    onChange={(e) => setUniform(Number(e.target.value))}
+                    style={{
+                        width: 52, fontSize: 11, padding: "2px 4px",
+                        background: "var(--bg-2)", border: "1px solid var(--line)",
+                        borderRadius: 4, color: "var(--text)",
+                    }}
+                />
+            </div>
+            <button onClick={ resetTransform } style={{
+                marginTop: 8, width: "100%", padding: "4px 0",
+                background: "var(--bg-2)", border: "1px solid var(--line)",
+                borderRadius: 5, color: "var(--muted)", fontSize: 11, cursor: "pointer",
+            }}>↺ Reset Transform</button>
+        </Section>
+    )
+}
+
 {/* Stats */ }
 {
     stats && (
@@ -591,18 +802,75 @@ style = {{
     </Section>
         )}
 
+{/* Optimize for web (gltf-transform) */ }
+<Section title="Optimize (gltf-transform)" >
+    <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8, lineHeight: 1.35 }}>
+        Profile <span style={{ color: "var(--gold)" }}>grudge-web-v1</span>
+        : dedup · prune · resample · WebP textures · meshopt
+    </div>
+    <ActionBtn
+        onClick={ optimizeForWeb }
+        disabled={ optimizing || converting }
+        icon="⚡"
+        label={ optimizing ? "Optimizing…" : "Optimize for web" }
+        color="var(--gold)"
+    />
+    {optResult && (
+        <div style={{
+            marginTop: 8, padding: 10, borderRadius: 6,
+            background: "var(--bg-2)", border: "1px solid var(--line)",
+            fontSize: 11,
+        }}>
+            <div style={{ color: "var(--gold)", fontWeight: 700, marginBottom: 6 }}>
+                {optResult.profile} · {optResult.reductionPct >= 0 ? "−" : "+"}{Math.abs(optResult.reductionPct)}%
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 8 }}>
+                <tbody>
+                    <StatRow label="Before" value={formatBytes(optResult.beforeBytes)} />
+                    <StatRow label="After" value={formatBytes(optResult.afterBytes)} />
+                    <StatRow
+                        label="Saved"
+                        value={formatBytes(Math.max(0, optResult.beforeBytes - optResult.afterBytes))}
+                    />
+                </tbody>
+            </table>
+            {optResult.steps.length > 0 && (
+                <div style={{ color: "var(--muted)", fontSize: 10, marginBottom: 8, wordBreak: "break-word" }}>
+                    {optResult.steps.join(" → ")}
+                </div>
+            )}
+            {optResult.warnings.length > 0 && (
+                <div style={{ color: "#ff9f1c", fontSize: 10, marginBottom: 8 }}>
+                    {optResult.warnings.slice(0, 3).join(" · ")}
+                </div>
+            )}
+            <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 6, wordBreak: "break-all" }}>
+                CDN key: {optResult.objectKey}
+            </div>
+            <ActionBtn onClick={saveOptimizedLocally} icon="💾" label="Save optimized locally" color="var(--ok)" />
+            <ActionBtn
+                onClick={reuploadOptimized}
+                disabled={reuploading}
+                icon="☁"
+                label={reuploading ? "Re-uploading…" : "Re-upload same CDN key"}
+                color="var(--gold)"
+            />
+        </div>
+    )}
+</Section>
+
 {/* Actions */ }
 <Section title="Actions" >
-    <ActionBtn onClick={ sendToForge } icon = "⚔" label = "Open in Forge Editor" color = "var(--gold)" />
+    <ActionBtn onClick={ sendToForge } icon = "⚔" label = "Add to Forge Scene" color = "var(--gold)" />
         <ActionBtn
             onClick={ () => convertAndSave("glb") }
-disabled = { converting }
+disabled = { converting || optimizing }
 icon = "⇄" label = { converting? "Converting…": "Convert → GLB" }
 color = "var(--ok)"
     />
     <ActionBtn
             onClick={ () => convertAndSave("gltf") }
-disabled = { converting }
+disabled = { converting || optimizing }
 icon = "⇄" label = { converting? "Converting…": "Convert → glTF" }
 color = "var(--ok)"
     />
@@ -611,6 +879,36 @@ color = "var(--ok)"
         </div>
         </div>
   );
+}
+
+function AxisRow({
+    label, values, step, onChange,
+}: {
+    label: string;
+    values: [number, number, number];
+    step: number;
+    onChange: (i: number, v: number) => void;
+}) {
+    const colours = ["#ff6b6b", "#6bff6b", "#6b9eff"];
+    return (
+        <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+            <span style={{ fontSize: 11, color: "var(--muted)", width: 36 }}>{label}</span>
+            {values.map((v, i) => (
+                <input
+                    key={i}
+                    type="number"
+                    step={step}
+                    value={Number(v.toFixed(4))}
+                    onChange={(e) => onChange(i, Number(e.target.value))}
+                    style={{
+                        width: 58, fontSize: 11, padding: "2px 4px", fontFamily: "ui-monospace, monospace",
+                        background: "var(--bg-2)", border: "1px solid var(--line)",
+                        borderRadius: 4, color: colours[i],
+                    }}
+                />
+            ))}
+        </div>
+    );
 }
 
 function StatRow({ label, value }: { label: string; value: string }) {
@@ -747,6 +1045,7 @@ if (!asset) {
   }
 
 const kind = classify(asset);
+const is3d = kind === "model3d" || kind === "scene3d";
 
 return (
     <div style= {{
@@ -754,7 +1053,7 @@ return (
         background: "var(--bg-0)", color: "var(--text)", overflow: "hidden",
     }}>
     <ViewerHeader asset={ asset } kind = { kind } />
-        { kind === "model3d"
+        { is3d
         ? <Model3DViewerFull asset={ asset } />
         : <FlatViewer asset={ asset } kind = { kind } />}
 </div>
