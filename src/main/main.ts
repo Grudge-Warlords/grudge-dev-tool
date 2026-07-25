@@ -38,6 +38,7 @@ import {
   generateGrudgeUUID, parseGrudgeUUID, describeGrudgeUUID, isValidGrudgeUUID,
   SLOT_CODES, TIER_CODES,
 } from "../shared/grudgeUUID";
+import { isCanonicalAdmin } from "../shared/adminAllowlist";
 import { loadEnvFiles } from "./bootstrapEnv";
 import { seedDefaultSecrets } from "./bootstrapSecrets";
 import { runFleetHealthCheck } from "./fleet/healthCheck";
@@ -253,6 +254,30 @@ if (!gotLock) {
 
     // Auto-update (no-op in dev).
     setupAutoUpdater(() => mainWindow);
+
+    // Auto-plug GRUDACHAIN Ollama + agentic local AI on open.
+    // If session is already grudachain/admin, run full agentic ensure (prefer ollama + model pull).
+    void (async () => {
+      try {
+        const session = await puterAuth.getSession();
+        const adminUser = session.puterUser;
+        const agentic = session.signedIn && isCanonicalAdmin(adminUser);
+        const status = await ollama.ensureRunning({
+          reason: "app-open",
+          agentic,
+          username: adminUser?.username,
+          email: adminUser?.email,
+        });
+        log.info(
+          `[ollama] app-open ensure ok=${status.ok} backend=${status.backend} agenticReady=${status.agenticReady}`,
+        );
+        for (const w of allWindows()) {
+          if (!w.isDestroyed()) w.webContents.send("ollama:status", status);
+        }
+      } catch (err) {
+        log.warn("[ollama] app-open ensure failed", err);
+      }
+    })();
   });
 }
 
@@ -269,6 +294,7 @@ app.on("before-quit", () => {
   viewer.disposeAllViewers();
   bk.shutdownSpawned();
   coder.shutdownCoder();
+  ollama.shutdown();
 });
 
 // ---------------------------------------------------------------------------
@@ -453,6 +479,13 @@ function registerIpc() {
       const { token, user } = await login();
       const r = await puterAuth.setSession(token, user);
       log.info(`[${label}] OK username=${user.username} grudgeId=${r.grudgeId}`);
+      // Auto-plug GRUDACHAIN Ollama agentic stack for grudachain / molochdadev admins.
+      void ollama.onAdminSignedIn(user).then((status) => {
+        if (!status) return;
+        BrowserWindow.getAllWindows().forEach((w) => {
+          if (!w.isDestroyed()) w.webContents.send("ollama:status", status);
+        });
+      });
       return { grudgeId: r.grudgeId, user: { uuid: user.uuid, username: user.username, email: user.email } };
     } catch (err: any) {
       const msg = err?.message ?? String(err);
@@ -472,6 +505,12 @@ function registerIpc() {
     const user = await resolvePuterUserFromToken(trimmed);
     const r = await puterAuth.setSession(trimmed, user);
     log.info(`[auth:setSessionFromToken] OK username=${user.username} grudgeId=${r.grudgeId}`);
+    void ollama.onAdminSignedIn(user).then((status) => {
+      if (!status) return;
+      BrowserWindow.getAllWindows().forEach((w) => {
+        if (!w.isDestroyed()) w.webContents.send("ollama:status", status);
+      });
+    });
     return { grudgeId: r.grudgeId, user: { uuid: user.uuid, username: user.username, email: user.email } };
   });
 
@@ -649,7 +688,7 @@ function registerIpc() {
   ipcMain.handle("fleet:aiModels", () => listAvailableModels());
   ipcMain.handle("fleet:aiChat", (_e, req) => aiChat(req));
 
-  // Ollama (local AI)
+  // Ollama / GRUDACHAIN local agentic AI
   ipcMain.handle("ollama:health", () => ollama.ollamaHealth());
   ipcMain.handle("ollama:models", () => ollama.ollamaModels());
   ipcMain.handle("ollama:chat", (_e, opts) => ollama.ollamaChat(opts));
@@ -660,6 +699,20 @@ function registerIpc() {
   ipcMain.handle("ollama:setModel", (_e, model: string) => { ollama.setPreferredModel(model); });
   ipcMain.handle("ollama:getAiPref", () => ollama.getAiPreference());
   ipcMain.handle("ollama:setAiPref", (_e, pref: any) => { ollama.setAiPreference(pref); });
+  ipcMain.handle("ollama:status", () => ollama.getStatus());
+  ipcMain.handle("ollama:ensure", (_e, opts?: { agentic?: boolean; reason?: string }) =>
+    ollama.ensureRunning({ reason: opts?.reason ?? "ipc", agentic: opts?.agentic === true }),
+  );
+  ipcMain.handle("ollama:start", () => ollama.ensureRunning({ reason: "ipc-start", agentic: true }));
+  ipcMain.handle("ollama:stop", () => {
+    ollama.shutdown();
+    return ollama.getStatus();
+  });
+  ipcMain.handle("ollama:download", () => {
+    ollama.openDownloadPage();
+    return { ok: true };
+  });
+  ipcMain.handle("ollama:pull", async (_e, model: string) => ollama.pullModel(model));
 
   // UUID utilities (local, no network)
   ipcMain.handle("uuid:gen", (_e, args) =>

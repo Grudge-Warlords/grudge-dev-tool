@@ -260,7 +260,7 @@ const api = {
     aiModels: () => ipcRenderer.invoke("fleet:aiModels"),
     aiChat: (req: unknown) => ipcRenderer.invoke("fleet:aiChat", req),
   },
-  // Ollama (local AI)
+  // Ollama / GRUDACHAIN local agentic AI
   ollama: {
     health: () => ipcRenderer.invoke("ollama:health"),
     models: () => ipcRenderer.invoke("ollama:models"),
@@ -272,6 +272,18 @@ const api = {
     setModel: (model: string) => ipcRenderer.invoke("ollama:setModel", model),
     getAiPref: () => ipcRenderer.invoke("ollama:getAiPref") as Promise<string>,
     setAiPref: (pref: string) => ipcRenderer.invoke("ollama:setAiPref", pref),
+    status: () => ipcRenderer.invoke("ollama:status"),
+    ensure: (opts?: { agentic?: boolean; reason?: string }) =>
+      ipcRenderer.invoke("ollama:ensure", opts),
+    start: () => ipcRenderer.invoke("ollama:start"),
+    stop: () => ipcRenderer.invoke("ollama:stop"),
+    download: () => ipcRenderer.invoke("ollama:download"),
+    pull: (model: string) => ipcRenderer.invoke("ollama:pull", model),
+    onStatus: (cb: (status: unknown) => void) => {
+      const handler = (_: unknown, status: unknown) => cb(status);
+      ipcRenderer.on("ollama:status", handler);
+      return () => ipcRenderer.removeListener("ollama:status", handler);
+    },
   },
   // Internal Preview tab — sandboxed <webview> for running .html files locally.
   preview: {

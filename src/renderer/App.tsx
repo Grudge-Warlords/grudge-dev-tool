@@ -116,7 +116,7 @@ interface Session {
 }
 
 const VALID_ROUTES = new Set<string>(NAV.map((n) => n.route));
-const APP_VERSION = "0.9.0";
+const APP_VERSION = "0.9.1";
 
 export default function App() {
   const [route, setRoute] = useState<Route>(() => {
@@ -146,6 +146,19 @@ export default function App() {
       }
     });
     const off = window.grudge?.onNav?.((r: Route) => setRoute(r));
+    // When session is already grudachain/admin (or becomes admin), ensure Ollama agentic stack.
+    void (async () => {
+      try {
+        const s = await window.grudge.auth.getSession();
+        if (s?.signedIn && isAdmin(s)) {
+          await window.grudge.ollama?.ensure?.({ agentic: true, reason: "renderer-admin-session" });
+        } else {
+          await window.grudge.ollama?.ensure?.({ agentic: false, reason: "renderer-open" });
+        }
+      } catch {
+        /* main process also ensures on open */
+      }
+    })();
     return () => off?.();
   }, [refreshSession]);
 

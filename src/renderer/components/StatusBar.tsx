@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Wifi, WifiOff, RefreshCw, Download, FileText, ShieldCheck } from "lucide-react";
+import { Wifi, WifiOff, RefreshCw, Download, FileText, ShieldCheck, Bot } from "lucide-react";
 
 export interface ConnectivityState {
   reachable: boolean;
@@ -40,10 +40,17 @@ export default function StatusBar({
 }) {
   const [conn, setConn] = useState<ConnectivityState | null>(null);
   const [upd, setUpd] = useState<UpdaterStatus | null>(null);
+  const [ollama, setOllama] = useState<{
+    ok?: boolean;
+    backend?: string;
+    agenticReady?: boolean;
+    version?: string;
+  } | null>(null);
 
   useEffect(() => {
     let off1: (() => void) | undefined;
     let off2: (() => void) | undefined;
+    let off3: (() => void) | undefined;
     void (async () => {
       try {
         const initial = await window.grudge?.connectivity?.get?.();
@@ -51,12 +58,20 @@ export default function StatusBar({
       } catch {
         /* ignore */
       }
+      try {
+        const st = await window.grudge?.ollama?.status?.();
+        if (st) setOllama(st);
+      } catch {
+        /* ignore */
+      }
       off1 = window.grudge?.connectivity?.onChange?.((s: ConnectivityState) => setConn(s));
       off2 = window.grudge?.updater?.onStatus?.((s: UpdaterStatus) => setUpd(s));
+      off3 = window.grudge?.ollama?.onStatus?.((s: any) => setOllama(s));
     })();
     return () => {
       off1?.();
       off2?.();
+      off3?.();
     };
   }, []);
 
@@ -110,6 +125,23 @@ export default function StatusBar({
           ADMIN
         </span>
       )}
+      <span
+        className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
+          ollama?.ok
+            ? "bg-ok/10 text-ok border-ok/30"
+            : "bg-muted/10 text-muted border-line"
+        }`}
+        title={
+          ollama?.ok
+            ? `GRUDACHAIN Ollama online · ${ollama.backend ?? "?"} · v${ollama.version ?? "?"}${
+                ollama.agenticReady ? " · agentic ready" : ""
+              }`
+            : "GRUDACHAIN Ollama offline — will auto-start on open / admin sign-in"
+        }
+      >
+        <Bot size={10} />
+        {ollama?.ok ? (ollama.agenticReady ? "OLLAMA · AGENTIC" : "OLLAMA") : "OLLAMA …"}
+      </span>
       <button
         type="button"
         className="ml-auto flex items-center gap-1 hover:text-gold transition-colors"

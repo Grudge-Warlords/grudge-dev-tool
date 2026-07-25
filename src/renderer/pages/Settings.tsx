@@ -471,6 +471,7 @@ function OllamaSettings() {
   const [pref, setPref] = useState<"auto" | "ollama" | "cloudflare">("auto");
   const [models, setModels] = useState<any[]>([]);
   const [health, setHealth] = useState<any>(null);
+  const [runtime, setRuntime] = useState<any>(null);
   const [busy, setBusy] = useState(false);
 
   async function reloadOllama() {
@@ -483,6 +484,10 @@ function OllamaSettings() {
       setPref((p as any) || "auto");
       await testOllama(false);
       try { setModels(await window.grudge.ollama.models()); } catch { setModels([]); }
+      try {
+        const st = await window.grudge.ollama.status?.();
+        if (st) setRuntime(st);
+      } catch { /* ignore */ }
     } catch { /* ignore */ }
   }
 
@@ -494,6 +499,29 @@ function OllamaSettings() {
       if (showToast) toast[h.ok ? "success" : "error"](h.ok ? "Ollama reachable" : "Ollama unavailable", {
         description: h.ok ? `${h.latencyMs}ms${h.version ? ` · ${h.version}` : ""}` : h.error,
       });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function ensureStack(agentic = true) {
+    setBusy(true);
+    try {
+      const st = await window.grudge.ollama.ensure?.({ agentic, reason: "settings-ui" });
+      setRuntime(st);
+      setHealth({ ok: st?.ok, latencyMs: st?.latencyMs, version: st?.version, error: st?.error });
+      if (st?.ok) {
+        try { setModels(await window.grudge.ollama.models()); } catch { /* ignore */ }
+        toast.success("GRUDACHAIN Ollama ready", {
+          description: `${st.backend} · agentic=${st.agenticReady ? "yes" : "no"} · ${(st.steps ?? []).slice(-2).join(" · ")}`,
+        });
+      } else {
+        toast.error("Could not start Ollama", {
+          description: st?.error ?? (st?.steps ?? []).slice(-3).join(" · ") ?? "Docker or native Ollama required",
+        });
+      }
+    } catch (e: any) {
+      toast.error("Ensure failed", { description: e?.message ?? String(e) });
     } finally {
       setBusy(false);
     }
@@ -523,7 +551,11 @@ function OllamaSettings() {
     }
   }
 
-  useEffect(() => { void reloadOllama(); }, []);
+  useEffect(() => {
+    void reloadOllama();
+    const off = window.grudge.ollama?.onStatus?.((s: any) => setRuntime(s));
+    return () => off?.();
+  }, []);
 
   return (
     <div className="space-y-3">
@@ -533,6 +565,22 @@ function OllamaSettings() {
             <td className="muted">Status</td>
             <td className={health?.ok ? "status-ok" : "status-bad"}>
               {health ? (health.ok ? `online · ${health.latencyMs}ms${health.version ? ` · ${health.version}` : ""}` : `offline · ${health.error}`) : "not checked"}
+            </td>
+          </tr>
+          <tr>
+            <td className="muted">Backend</td>
+            <td className="font-mono text-xs">
+              {runtime?.backend ?? "—"}
+              {runtime?.container?.running ? " · GRUDACHAIN docker up" : ""}
+              {runtime?.container && !runtime.container.portsPublished && runtime.container.exists
+                ? " · ports not published (will recreate)"
+                : ""}
+            </td>
+          </tr>
+          <tr>
+            <td className="muted">Agentic</td>
+            <td className={runtime?.agenticReady ? "status-ok" : "muted"}>
+              {runtime?.agenticReady ? "ready (models loaded)" : "not ready"}
             </td>
           </tr>
           <tr><td className="muted">Models</td><td>{models.length ? models.map((m) => m.name).join(", ") : "—"}</td></tr>
@@ -550,13 +598,21 @@ function OllamaSettings() {
           <option value="cloudflare">Prefer Cloud AI</option>
         </select>
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <button className="btn ghost" onClick={save} disabled={busy}>Save</button>
+        <button className="btn primary" onClick={() => ensureStack(true)} disabled={busy}>
+          Start GRUDACHAIN + Agentic
+        </button>
         <button className="btn ghost" onClick={() => testOllama(true)} disabled={busy}>Test Ollama</button>
         <button className="btn ghost" onClick={quickPrompt} disabled={busy || !health?.ok}>Prompt Test</button>
+        <button className="btn ghost" onClick={() => window.grudge.ollama.download?.()} disabled={busy}>
+          Download Ollama
+        </button>
       </div>
       <p className="muted text-xs">
-        Local Ollama is used for free/private Grudge AI work when available. Cloud AI remains a fallback for deployed workers and shared jobs.
+        <strong>GRUDACHAIN</strong> Docker container (<code>ollama/ollama</code> on port 11434) starts automatically
+        when Forge opens and again when you sign in as <code>grudachain</code> / admin. Agentic mode prefers local
+        Ollama and pulls a default model if the container has none. Cloud AI remains a fallback for fleet workers.
       </p>
     </div>
   );

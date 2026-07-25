@@ -4,11 +4,23 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
-## [0.9.0] � 2026-07-25
+## [0.9.1] — 2026-07-25
 
 ### Added
-- **Studio Hub** � unified entry for Forge, Asset Viewer, Fleet Launcher, Agent AI workspace.
-- **Agent AI make/deploy** � agentic prompts for convert, publish, and fleet ops from the desktop shell.
+- **GRUDACHAIN Ollama auto-start** — on app open, ensure Docker container `GRUDACHAIN` (`ollama/ollama`) with host port **11434** (recreates if ports not published); native `ollama serve` fallback.
+- **Admin agentic plug-in** — signing in as `grudachain` / `molochdadev` (or allowlisted emails) sets AI preference to Ollama, pulls default model if empty, broadcasts status to all windows.
+- Status bar **OLLAMA · AGENTIC** pill; Settings **Start GRUDACHAIN + Agentic** control.
+- IPC: `ollama:status` · `ollama:ensure` · `ollama:start` · `ollama:stop` · `ollama:pull` · `ollama:download`.
+
+### Changed
+- README documents GRUDACHAIN container, admin sign-in auto-start, and v0.9.1 installer.
+- Bump app version to **0.9.1**.
+
+## [0.9.0] — 2026-07-25
+
+### Added
+- **Studio Hub** — unified entry for Forge, Asset Viewer, Fleet Launcher, Agent AI workspace.
+- **Agent AI make/deploy** — agentic prompts for convert, publish, and fleet ops from the desktop shell.
 
 ### Fixed
 - Restore shell UI, StatusBar, and AssetPreview after corrupted JSX.
