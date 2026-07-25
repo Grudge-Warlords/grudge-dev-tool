@@ -23,13 +23,46 @@ import { executeOrchestratorStep } from "../lib/devPortalExec";
 import { FLEET_URLS } from "../../shared/fleet";
 import type { LocalPod } from "../../shared/devPortal";
 
-type Tab = "projects" | "orchestrator" | "terminal" | "pods";
+type Tab = "projects" | "orchestrator" | "terminal" | "pods" | "deploy";
 
 const VIS_ICON: Record<string, React.ReactNode> = {
   private: <Lock size={12} />,
   team: <Users size={12} />,
   public: <Globe size={12} />,
 };
+
+/** One-click agentic tasks for make / deploy against ONE TRUTH fleet */
+const DEPLOY_PRESETS: Array<{ label: string; task: string }> = [
+  {
+    label: "Deploy GLB pack to R2",
+    task:
+      "Convert and optimize all GLB/FBX in the current workspace for web, then upload to assets.grudge-studio.com via objectstore upload-url. Report CDN paths.",
+  },
+  {
+    label: "Publish hero to Warlords",
+    task:
+      "Package the selected character mesh + baked anims for grudge6 SI scale, verify feet/hips, upload to CDN, and patch Railway character model3d for the active account.",
+  },
+  {
+    label: "Fleet health + doctor",
+    task:
+      "Run ONE TRUTH probes against client.grudge-studio.com, Railway game-data, id.grudge-studio.com, objectstore, and assets CDN. Summarize failures and fix env if possible.",
+  },
+  {
+    label: "Seed production NPCs",
+    task:
+      "Using GrudgeBuilder factionHeroCampaign SSOT, verify grudachain has 27 production NPCs with campaign missions and report roster + cNFT escrow status.",
+  },
+  {
+    label: "Forge scene → deploy",
+    task:
+      "Export the current Forge scene as production GLB, optimize for web, upload to R2 under scenes/, and return a deep link for forge.grudge-studio.com and client play.",
+  },
+  {
+    label: "Make anything",
+    task: "",
+  },
+];
 
 const POD_STATUS_COLOR: Record<string, string> = {
   running: "text-green-400",
@@ -38,7 +71,7 @@ const POD_STATUS_COLOR: Record<string, string> = {
 };
 
 export default function AIWorkspace() {
-  const [tab, setTab] = useState<Tab>("orchestrator");
+  const [tab, setTab] = useState<Tab>("deploy");
   const [projects, setProjects] = useState<GrudaProject[]>([]);
   const [user, setUser] = useState<{ userId: string; grudgeId?: string; username?: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -222,6 +255,7 @@ export default function AIWorkspace() {
   const selected = projects.find((p) => p.id === selectedId) ?? null;
 
   const tabs: Array<{ id: Tab; label: string; Icon: React.ComponentType<{ size?: number | string }> }> = [
+    { id: "deploy", label: "Make & Deploy", Icon: Hammer },
     { id: "orchestrator", label: "Orchestrator", Icon: Sparkles },
     { id: "terminal", label: "Terminal", Icon: Terminal },
     { id: "pods", label: "Pods", Icon: Boxes },
@@ -233,13 +267,14 @@ export default function AIWorkspace() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="page-title flex items-center gap-2">
-            <Bot size={22} /> GRUDA Dev Portal
+            <Bot size={22} /> Agent AI · Make & Deploy
           </h1>
           <p className="page-sub">
-            Smart orchestrator, terminal, npm, VS Code, WebGL Forge, and dev pods — backed by{" "}
+            Describe anything to build or ship. Orchestrator + local pods +{" "}
             <a href={FLEET_URLS.ai} className="text-gold" onClick={(e) => { e.preventDefault(); openGrudaAgentWorkspace(); }}>
               ai.grudge-studio.com
             </a>
+            {" "}· fleet: Railway · R2 · ObjectStore · Warlords
           </p>
         </div>
         <button type="button" className="btn" onClick={() => openGrudaAgentWorkspace(selected?.slug)}>
@@ -287,6 +322,86 @@ export default function AIWorkspace() {
           <Hammer size={12} /> Forge 3D / WebGL
         </button>
       </div>
+
+      {tab === "deploy" && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="card space-y-3">
+            <h2 className="text-gold font-semibold flex items-center gap-2">
+              <Hammer size={16} /> Make & deploy anything
+            </h2>
+            <p className="text-xs text-muted">
+              Presets fill the agent task, then run against GRUDA + local toolchain. Use orchestrator for multi-step
+              npm/forge/upload pipelines.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {DEPLOY_PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  className="btn ghost text-[11px] py-1"
+                  onClick={() => {
+                    if (p.task) {
+                      setAgentTask(p.task);
+                      setOrchTask(p.task);
+                    }
+                    setTab(p.task ? "orchestrator" : "orchestrator");
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <textarea
+              className="w-full min-h-[100px] text-sm"
+              placeholder="e.g. Bake this FBX pack to SI-scale GLB, upload to R2 models/warlords/…, register in D1, and open in Forge…"
+              value={agentTask}
+              onChange={(e) => {
+                setAgentTask(e.target.value);
+                setOrchTask(e.target.value);
+              }}
+            />
+            <div className="flex gap-2">
+              <button type="button" className="btn flex-1" disabled={busy} onClick={() => void onAgentRun()}>
+                Run agent
+              </button>
+              <button type="button" className="btn" disabled={busy} onClick={() => void onOrchestratorRun()}>
+                Plan deploy
+              </button>
+            </div>
+            {agentOut && (
+              <pre className="text-[11px] whitespace-pre-wrap max-h-48 overflow-auto border border-line rounded p-2 bg-bg-2">
+                {agentOut}
+              </pre>
+            )}
+          </div>
+          <div className="card text-xs space-y-2">
+            <h3 className="text-sm text-ink font-semibold">Fleet deploy targets</h3>
+            <ul className="space-y-1 text-muted font-mono text-[10px]">
+              <li>Game data · {FLEET_URLS.gameData}</li>
+              <li>Assets CDN · {FLEET_URLS.assets}</li>
+              <li>ObjectStore · {FLEET_URLS.objectStore}</li>
+              <li>Warlords · {FLEET_URLS.warlords}</li>
+              <li>Forge · {FLEET_URLS.forge}</li>
+              <li>Client · {FLEET_URLS.client}</li>
+              <li>AI · {FLEET_URLS.ai}</li>
+            </ul>
+            <p className="text-muted">
+              Workspace: <span className="font-mono text-ink">{workspaceDir || "—"}</span>
+            </p>
+            <div className="flex flex-wrap gap-1">
+              <button type="button" className="btn ghost text-[10px]" onClick={() => void window.grudge.app.openRoute("/browser")}>
+                Open Assets
+              </button>
+              <button type="button" className="btn ghost text-[10px]" onClick={() => void window.grudge.app.openRoute("/forge")}>
+                Open Forge
+              </button>
+              <button type="button" className="btn ghost text-[10px]" onClick={() => void window.grudge.app.openRoute("/upload")}>
+                Upload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {tab === "orchestrator" && (
         <div className="grid gap-4 lg:grid-cols-2">

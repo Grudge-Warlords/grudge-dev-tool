@@ -45,6 +45,8 @@
     "secret:import": "node scripts/import-secrets.mjs",
     "secret:set": "node scripts/set-secret.mjs",
     "secret:verify": "node scripts/verify-creds.mjs",
+    "secret:session": "node scripts/verify-session-admin.mjs",
+    "verify:stack": "npm run secret:verify && npm run secret:session && npm run doctor && npm run fleet:probe",
     "publish:manual": "node scripts/publish-manual.mjs --bump patch",
     "publish:manual:minor": "node scripts/publish-manual.mjs --bump minor",
     "publish:manual:major": "node scripts/publish-manual.mjs --bump major",

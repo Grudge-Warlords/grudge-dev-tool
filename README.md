@@ -1,5 +1,15 @@
 # Grudge Dev Tool
 
+**Best-in-class Grudge Studio asset viewer, opener, and editor** — ObjectStore/R2 browser, always-on-top 3D Asset Viewer, Forge scene edit, Skeleton Studio, and **Agent AI Make & Deploy** against ONE TRUTH (Railway DB · CDN · ObjectStore · Warlords).
+
+| Surface | Role |
+|---------|------|
+| **Studio Hub** | Fleet health probes + launch pad |
+| **Assets (Browser)** | R2 tree · click → inline + pop-out viewer · send to Forge |
+| **Forge 3D** | Scene editor · paint · deploy |
+| **Agent AI** | Make & deploy presets · orchestrator · terminal · pods |
+| **Upload** | Convert / optimize / push packs |
+
 [![Release](https://img.shields.io/github/v/release/Grudge-Warlords/grudge-dev-tool?display_name=tag&sort=semver)](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest)
 [![Pages](https://img.shields.io/github/actions/workflow/status/Grudge-Warlords/grudge-dev-tool/pages.yml?label=docs)](https://grudge-warlords.github.io/grudge-dev-tool/)
 [![Build](https://img.shields.io/github/actions/workflow/status/Grudge-Warlords/grudge-dev-tool/release.yml?label=build)](https://github.com/Grudge-Warlords/grudge-dev-tool/actions/workflows/release.yml)

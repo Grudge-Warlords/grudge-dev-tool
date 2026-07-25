@@ -6,6 +6,8 @@ import {
   Box, Music, Search as SearchIcon, Copy, ExternalLink, Home,
 } from "lucide-react";
 import DemoModeBanner from "../components/DemoModeBanner";
+import AssetPreview from "../components/AssetPreview";
+import type { AssetRef } from "../components/viewers/types";
 import { readMirror } from "../lib/workspace";
 
 interface ListResp {
@@ -106,6 +108,7 @@ function Breadcrumb({ prefix, onSelect }: { prefix: string; onSelect: (p: string
 export default function Browser() {
   const [selected, setSelected] = useState<string>(() => readMirror().browserPrefix ?? ROOT_PREFIX);
   const [filter, setFilter] = useState<string>("");
+  const [preview, setPreview] = useState<AssetRef | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -157,20 +160,29 @@ export default function Browser() {
   const copy = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => toast.success(`Copied ${label}`));
   };
+  const toRef = (it: { name: string; size: number; contentType: string }): AssetRef => ({
+    name: it.name,
+    url: cdnUrl(it.name),
+    contentType: it.contentType ?? "",
+    size: it.size ?? 0,
+  });
+
   const openInViewer = (it: { name: string; size: number; contentType: string }) => {
-    void window.grudge?.viewer?.open?.({
-      name: it.name,
-      url: cdnUrl(it.name),
-      contentType: it.contentType ?? "",
-      size: it.size ?? 0,
-    }).catch((e: any) => toast.error("Could not open viewer", { description: e?.message ?? String(e) }));
+    const asset = toRef(it);
+    setPreview(asset);
+    void window.grudge?.viewer?.open?.(asset).catch((e: any) =>
+      toast.error("Could not open pop-out viewer", { description: e?.message ?? String(e) }),
+    );
   };
 
   return (
     <div className="flex flex-col h-full">
       <div className="mb-3">
-        <h1 className="page-title">Object Storage Browser</h1>
-        <p className="page-sub">Click a folder on the left. Use <span className="kbd">&gt; query</span> for server-side search.</p>
+        <h1 className="page-title">Grudge Studio Assets</h1>
+        <p className="page-sub">
+          Browse R2 / ObjectStore. Click a file to preview + pop-out Asset Viewer (always on top).
+          Use <span className="kbd">&gt; query</span> for server-side search · send 3D to Forge.
+        </p>
       </div>
 
       <DemoModeBanner feature="Browser" />
@@ -319,6 +331,8 @@ export default function Browser() {
           </div>
         </section>
       </div>
+
+      <AssetPreview asset={preview} open={!!preview} onClose={() => setPreview(null)} />
     </div>
   );
 }
