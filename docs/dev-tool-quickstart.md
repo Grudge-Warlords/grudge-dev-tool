@@ -7,66 +7,89 @@ nav_order: 4
 
 ## 1. Install
 
-Download `Grudge Dev Tool-Setup-x.y.z.exe` from the team release feed and run it. It installs to `%LOCALAPPDATA%\Programs\Grudge Dev Tool\` by default and adds:
+Download **`Grudge Studio Forge-Setup-0.9.1.exe`** from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) (or the direct [v0.9.1 asset](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.9.1/Grudge.Studio.Forge-Setup-0.9.1.exe)) and run it. It installs under `%LOCALAPPDATA%\Programs\` by default and adds:
 
-- A Start-menu shortcut **Grudge Dev Tool**
+- A Start-menu shortcut **Grudge Studio Forge**
 - An optional desktop shortcut
-- An entry in the system tray (bottom-right notification area)
+- An entry in the system tray
 
 ## 2. First launch
 
-The window stays hidden — only the tray icon appears. Left-click the icon to open the window; right-click for the context menu.
+The window may start hidden — only the tray icon appears. Left-click the icon to open the window; right-click for the context menu.
 
-## 3. Settings
+On open, Forge **auto-ensures** the **GRUDACHAIN** Ollama container (Docker) or native `ollama serve` so local agentic AI is available.
 
-Open **Settings** in the sidebar. You must:
+## 3. Sign in as admin (grudachain)
 
-1. Set **API base URL** to **`https://client.grudge-studio.com`** (ONE TRUTH Vercel rewrites). Legacy `api.grudge-studio.com` still works for direct VPS calls but the client host is preferred for objectstore + fleet probes.
-2. Paste a **Grudge bearer token**. Mint one at `id.grudge-studio.com`. The token is stored in Windows Credential Vault via `keytar`; nothing on disk in plaintext.
-3. Optional: paste a **BlenderKit API key** to enable the Asset Library page and the `enrich` ingestion stage.
-4. Check the **Toolchain** table. Each tool shows green/red:
-   - `sharp` — image probe + thumbnails. Required.
-   - `gltf-transform` — model probe + rig inspection. Required for model uploads.
-   - `Blender` — required for `.blend`/`.fbx`/`.obj` → `.glb` conversion.
-   - `ffmpeg` — required for `.wav` → `.ogg`.
-   - `BlenderKit` — pinned to `F:\blenderkit-v3.19.2.260411\blenderkit\` (override with `BLENDERKIT_PATH`).
+1. Sign in with Puter as **`grudachain`** (or another allowlisted admin).
+2. Admin sign-in runs a full **agentic** ensure: prefer Ollama, pull a default model if the container has none.
+3. Status bar shows gold **ADMIN** + **OLLAMA · AGENTIC** when ready.
 
-## 4. Browse
+Canonical admins: `grudachain`, `molochdadev` (plus allowlisted emails baked into the build).
 
-Open **Browser**. Type a prefix (e.g. `asset-packs/classic64/`) and click *List*. Use *Load more* to paginate.
+## 4. Settings
 
-## 5. Search
+Open **Settings** in the sidebar:
 
-Open **Search**. Free-text query + optional `category` and `pack` filter. Hits the per-pack `manifest.json` server-side.
+1. Set **Fleet client URL** to **`https://client.grudge-studio.com`** (ONE TRUTH). Prefer the **ONE TRUTH** button over legacy hosts.
+2. Confirm **Ollama / GRUDACHAIN** — Status online, Backend `docker-grudachain` or `native`. Use **Start GRUDACHAIN + Agentic** if offline.
+3. Optional: paste a **BlenderKit API key** for the Asset Library and `enrich` stage.
+4. Check the **Toolchain** table (`sharp`, `gltf-transform`, Blender, ffmpeg).
 
-## 6. Upload
+### GRUDACHAIN Ollama (local agentic AI)
+
+| Item | Value |
+|------|--------|
+| Container | `GRUDACHAIN` |
+| Image | `ollama/ollama:latest` |
+| Host port | `11434` |
+| Volume | `grudachain-ollama` |
+| API | `http://localhost:11434` |
+
+Requires **Docker Desktop** (preferred) or native Ollama at `%LOCALAPPDATA%\Programs\Ollama\ollama.exe`.
+
+```powershell
+docker ps --filter name=GRUDACHAIN
+curl http://127.0.0.1:11434/api/version
+```
+
+## 5. Studio Hub & Agent AI
+
+- **Studio Hub** — fleet health probes and launch pad.
+- **Agent AI** — make/deploy presets (CDN packs, heroes, fleet doctor, seed NPCs). Uses Ollama when agentic is ready, with cloud fallbacks.
+
+## 6. Browse
+
+Open **Browser**. Type a prefix (e.g. `asset-packs/classic64/`) and click *List*. Click assets for the always-on-top **Asset Viewer**.
+
+## 7. Search
+
+Open **Search**. Free-text query + optional `category` and `pack` filter.
+
+## 8. Upload
 
 Open **Upload**. Drag files in. Set the target prefix, click *Start upload*. Each file passes through the ingestion pipeline before the PUT.
 
-## 7. Request URL
+## 9. Forge 3D & Skeleton
 
-Open **Request URL**. Paste an object path; get a signed GET URL (10-min TTL) plus the public CDN URL.
+- **Forge 3D** — scene editor, paint tools, convert → GLB → R2.
+- **Skeleton Studio** — Mixamo-style bone placement, FBX extract, T-pose prep.
 
-## 8. UUID
+## 10. Request URL / UUID
 
-Open **UUID** to generate or parse Grudge UUIDs locally (no network).
+- **Request URL** — signed GET + public CDN URL.
+- **UUID** — generate or parse Grudge UUIDs locally (no network).
 
-## 9. BlenderKit
+## 11. Preview (admin-only)
 
-Open **BlenderKit Library**. Search the catalog; results stream from the local daemon via `http://127.0.0.1:<port>/v1.8/...`. Requires the API key from step 3.
+Open **Preview** to load any HTTP/HTTPS URL or local `.html` file inside a sandboxed Electron `<webview>`. Guest WebContents: `nodeIntegration=false`, `contextIsolation=true`, `sandbox=true`.
 
-## 10. Preview (admin-only)
+## 12. Admin gating
 
-Open **Preview** to load any HTTP/HTTPS URL or local `.html` file inside a sandboxed Electron `<webview>`. The URL bar accepts bare hostnames; use **Open `.html`…** to browse for a local build artifact (e.g. a Vite `dist/index.html`). The page ships with back / forward / reload / stop, devtools toggle, and an "open in default browser" escape hatch. Cookies and localStorage persist between visits in the `persist:grudge-preview` partition.
+Admin-only surfaces (**Upload · Request URL · Forge 3D · Coder · Games · Preview · Settings · Agent AI**) are hidden for non-admin sessions. Gold **ADMIN** pill appears in the sidebar and status bar.
 
-The guest WebContents runs with `nodeIntegration=false`, `contextIsolation=true`, `sandbox=true`, no preload, and `webSecurity=true` — enforced in the main process via `will-attach-webview`, so previewing untrusted HTML is safe.
-
-## 11. Admin gating
-
-A subset of pages (**Upload · Request URL · Forge 3D · Coder · Games · Preview · Settings**) are admin-only and hidden from the sidebar for non-admin sessions. Admin state is resolved at build time from the two `VITE_ADMIN_*` env vars listed in `.env.example`; the public NSIS installer ships with the allowlist baked in. When admin is active you'll see a gold `ADMIN` pill in the sidebar header, next to the username, and in the bottom status bar.
-
-For dev / support, set `localStorage["grudge:admin-override"] = "true"` in DevTools to force admin on a single machine. Open-mode builds (no allowlist set at compile time) treat every signed-in user as admin and surface an `open-mode build` hint under the user card. Admin is purely a UX gate — the backend and Cloudflare Worker still enforce real permissions on every privileged call.
+For dev support: `localStorage["grudge:admin-override"] = "1"` in DevTools (dev builds only). Backend still enforces real permissions.
 
 ## Quitting
 
-The window's red-X only hides it. Use the tray menu → **Quit** to fully exit.
+The window's red-X only hides it. Use the tray menu → **Quit** to fully exit (native Ollama child stops; Docker **GRUDACHAIN** is left running as a shared service).

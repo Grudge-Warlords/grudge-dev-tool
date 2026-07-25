@@ -1,5 +1,5 @@
 title: Grudge Dev Tool
-description: Grudge Studio developer tooling — ONE TRUTH CLI + Forge tray (production fleet, AI workers, Ollama).
+description: Grudge Studio developer tooling — ONE TRUTH CLI + Forge tray v0.9.1 (GRUDACHAIN Ollama, Agent AI, Studio Hub).
 url: "https://grudge-warlords.github.io"
 baseurl: "/grudge-dev-tool"
 remote_theme: just-the-docs/just-the-docs

@@ -21,7 +21,7 @@ description: ONE TRUTH production deploy map for Grudge Dev Tool, Forge, AI work
 | Legion AI | `https://ai.grudge-studio.com` | AI hub / workers |
 | Forge editor | `https://forge.grudge-studio.com` | 3D editor surface |
 | Dev Tool docs | `https://grudge-warlords.github.io/grudge-dev-tool/` | This site (GitHub Pages) |
-| Local Ollama | `http://localhost:11434` | Autonomous desktop AI (optional) |
+| Local Ollama | `http://localhost:11434` | **GRUDACHAIN** Docker / native agentic AI (auto-start in Forge v0.9.1+) |
 
 **Never use** `api.grudge-studio.com` for new wiring (deprecated split-brain).
 
@@ -34,7 +34,7 @@ description: ONE TRUTH production deploy map for Grudge Dev Tool, Forge, AI work
 | Legion (`GRUDGE_AI_KEY`, `GRUDGE_LEGION_HUB`) | keytar / env | ai.grudge-studio.com |
 | Puter (`puter-token`) | keytar after browser login | User-pays cloud |
 | Grudge ID JWT | keytar / localStorage keys | Account + characters |
-| Ollama (`OLLAMA_HOST`) | env / electron-store | Local vibe coding |
+| Ollama (`OLLAMA_HOST`, `GRUDACHAIN_OLLAMA_*`) | env / electron-store | Local agentic AI (container `GRUDACHAIN`) |
 
 ```powershell
 # Import production block (never commit .env with real secrets)
@@ -67,18 +67,20 @@ baseurl: "/grudge-dev-tool"
 
 Repo Settings → Pages → **GitHub Actions** (not branch deploy).
 
-## Desktop Forge release
+## Desktop Forge release (current: **v0.9.1**)
 
 ```powershell
 npm ci --legacy-peer-deps
 npm run typecheck
-npm run ci              # typecheck + fleet probe
-npm run package         # NSIS installer → release/
-# or tagged release (CI):
-git tag v0.6.1 && git push origin v0.6.1
+npm run package:ci      # NSIS installer → release/Grudge Studio Forge-Setup-0.9.1.exe
+# or tagged release (CI + local artifact):
+git tag v0.9.1 && git push origin v0.9.1
+gh release create v0.9.1 "release/Grudge Studio Forge-Setup-0.9.1.exe" --latest
 ```
 
 Installer embeds: Electron main/renderer, Three.js, glTF-Transform, Puter, keytar, FBX2glTF tool resource.
+
+**Latest:** [v0.9.1 — GRUDACHAIN Ollama auto-start](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.9.1)
 
 ## CLI (`cli/`)
 
@@ -88,15 +90,24 @@ grudge-dev setup
 grudge-dev doctor
 ```
 
-## AI workers & Ollama
+## AI workers & GRUDACHAIN Ollama
 
 | Path | Module |
 |------|--------|
 | Unified dispatch | `src/main/fleet/aiWorkerManager.ts` |
 | CF Workers AI + Gateway | `src/main/cf/aiGateway.ts` |
-| Local Ollama | `src/main/ollama.ts` |
+| **GRUDACHAIN Ollama lifecycle** | `src/main/ollama.ts` — ensure on app open + admin sign-in |
 | Legion hub | `GRUDGE_LEGION_HUB` → `ai.grudge-studio.com` |
 | Puter AI | renderer `puter.ai.chat` (browser context) |
+
+### Auto-start behavior (Forge v0.9.1+)
+
+1. **App open** → `ollama.ensureRunning({ reason: "app-open" })`  
+   - Docker container **`GRUDACHAIN`** with `-p 11434:11434` + volume `grudachain-ollama`  
+   - Recreates container if host ports were never published  
+   - Falls back to native `ollama serve`
+2. **Admin sign-in** (`grudachain` / `molochdadev`) → agentic ensure (prefer Ollama, pull default model if empty)
+3. Status bar: **OLLAMA · AGENTIC** when models are available
 
 Preference: Settings → AI → `auto` | `ollama` | `cloudflare`.  
 `auto` uses Ollama when `localhost:11434` is healthy.
