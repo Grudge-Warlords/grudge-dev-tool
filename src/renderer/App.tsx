@@ -116,7 +116,7 @@ interface Session {
 }
 
 const VALID_ROUTES = new Set<string>(NAV.map((n) => n.route));
-const APP_VERSION = "0.8.2";
+const APP_VERSION = "0.9.0";
 
 export default function App() {
   const [route, setRoute] = useState<Route>(() => {

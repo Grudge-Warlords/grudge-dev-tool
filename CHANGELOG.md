@@ -4,6 +4,19 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-07-25
+
+### Added
+- **Studio Hub** — unified entry for Forge, Asset Viewer, Fleet Launcher, Agent AI workspace.
+- **Agent AI make/deploy** — agentic prompts for convert, publish, and fleet ops from the desktop shell.
+
+### Fixed
+- Restore shell UI, StatusBar, and AssetPreview after corrupted JSX.
+- Production package path for NSIS **Grudge Studio Forge-Setup-0.9.0.exe**.
+
+### Changed
+- Bump app version to **0.9.0** (Asset Viewer + Studio Hub production build).
+
 ## [0.8.2] â€” 2026-07-22
 
 ### Changed
