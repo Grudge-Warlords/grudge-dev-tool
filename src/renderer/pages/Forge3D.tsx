@@ -8,6 +8,7 @@ import {
   Paintbrush, PaintBucket, Wrench, Mountain, Sparkles, MousePointer2,
   Copy, ClipboardPaste, Scissors, AlignVerticalJustifyEnd,
   Blend, Layers, FlipVertical2, Combine, LandPlot,
+  Wand2, Image as ImageIcon, Bot,
 } from "lucide-react";
 import { SceneEngine, type GizmoMode, DEFAULT_STUDIO_LIGHTS, type StudioLightState } from "../lib/forge/sceneEngine";
 import { loadModel, type LoadedModel, isSupported } from "../lib/forge/loaders";
@@ -39,6 +40,7 @@ import {
   applyTransformSnapshot,
   applyMaterialSnapshot,
   applyGeometrySnapshot,
+  snapshotMaterial,
   fillObject,
   fixMesh,
   fixTerrain,
@@ -63,6 +65,17 @@ import {
   type PaintFalloff,
 } from "../lib/forge/paintBrush";
 import { deployToFleet } from "../lib/forge/deploy";
+import {
+  aiSuggestTextures,
+  aiPlanEdit,
+  applyMaterialSuggestion,
+  type AiEditCommand,
+} from "../lib/forge/forgeAi";
+import {
+  applySmartTextures,
+  filterImagePaths,
+  siblingTexturePrefixes,
+} from "../lib/forge/textureFinder";
 import type { StoreCategory } from "../../shared/fleetGames";
 
 const BG_PRESETS = [0x0a0e1a, 0x111418, 0x1a1a25, 0xffffff, 0x444a55];
@@ -131,6 +144,9 @@ export default function Forge3D() {
   const [fleetPrefixes, setFleetPrefixes] = useState<Array<{ id: string; label: string; prefix: string }>>([]);
   const [animSettings, setAnimSettings] = useState<ForgeAnimSettings>(DEFAULT_FORGE_ANIM);
   const [hotkeyHelp, setHotkeyHelp] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiEditOpen, setAiEditOpen] = useState(false);
+  const [aiEditPrompt, setAiEditPrompt] = useState("make it gold metal and ground it");
 
   const selected = useMemo(() => items.find((i) => i.id === selectedId) ?? null, [items, selectedId]);
   const selectedNode = useMemo(() => {
@@ -578,20 +594,28 @@ export default function Forge3D() {
 
   function undoTransform() {
     const entry = historyRef.current.popUndo();
-    if (!entry) return;
+    if (!entry) {
+      toast.message("Nothing to undo");
+      return;
+    }
     const live = captureLiveFor(entry);
     if (live) historyRef.current.pushLiveToRedo(live);
     applyHistoryEntry(entry);
     setHistoryTick((n) => n + 1);
+    toast.success("Undo", { description: entry.kind });
   }
 
   function redoTransform() {
     const entry = historyRef.current.popRedo();
-    if (!entry) return;
+    if (!entry) {
+      toast.message("Nothing to redo");
+      return;
+    }
     const live = captureLiveFor(entry);
     if (live) historyRef.current.pushLiveToUndo(live);
     applyHistoryEntry(entry);
     setHistoryTick((n) => n + 1);
+    toast.success("Redo", { description: entry.kind });
   }
 
   function pushEntries(entries: HistoryEntry[]) {
@@ -602,25 +626,33 @@ export default function Forge3D() {
   // -- Clipboard -----------------------------------------------------------
   function copySelected() {
     if (!selected) {
-      toast.message("Nothing selected to copy");
+      toast.message("Nothing selected — click a model first (Ctrl+C)");
       return;
     }
     clipboardRef.current = selected.object.clone(true);
-    toast.success("Copied", { description: selected.name });
+    // Also stash a short text tag so OS paste apps see *something*
+    try {
+      void navigator.clipboard?.writeText?.(`grudge-forge-copy:${selected.name}`);
+    } catch { /* ignore */ }
+    toast.success("Copied", { description: `${selected.name} · Ctrl+V to paste` });
   }
 
   function cutSelected() {
-    if (!selectedId || !selected) return;
+    if (!selectedId || !selected) {
+      toast.message("Nothing selected to cut (Ctrl+X)");
+      return;
+    }
+    const name = selected.name;
     clipboardRef.current = selected.object.clone(true);
     removeItem(selectedId);
-    toast.success("Cut", { description: selected.name });
+    toast.success("Cut", { description: `${name} · Ctrl+V to paste` });
   }
 
   function pasteClipboard() {
     const engine = engineRef.current;
     const src = clipboardRef.current;
     if (!engine || !src) {
-      toast.message("Clipboard empty");
+      toast.message("Clipboard empty — copy with Ctrl+C first");
       return;
     }
     const clone = src.clone(true);
@@ -652,12 +684,204 @@ export default function Forge3D() {
     setSelectedNodeUuid(clone.uuid);
     historyRef.current.push(snapshotTransform(clone));
     setHistoryTick((n) => n + 1);
-    toast.success("Pasted");
+    engine.attach(clone);
+    engine.pulseSelect(clone);
+    toast.success("Pasted", { description: item.name });
   }
 
   function duplicateSelected() {
+    if (!selected) {
+      toast.message("Nothing selected to duplicate (Ctrl+D)");
+      return;
+    }
     copySelected();
     pasteClipboard();
+  }
+
+  // -- AI Texture / AI Edit ------------------------------------------------
+  async function runAiTexture() {
+    if (!selected) {
+      toast.message("Select a model for AI Texture (Ctrl+Shift+T)");
+      return;
+    }
+    if (aiBusy) return;
+    setAiBusy(true);
+    const toastId = toast.loading("AI Texture…", { description: "Suggesting PBR + searching maps" });
+    try {
+      // Snapshot materials for undo
+      const undos: HistoryEntry[] = [];
+      selected.object.traverse((n) => {
+        const mesh = n as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const snap = snapshotMaterial(mesh);
+        if (snap) undos.push(snap);
+      });
+
+      const { suggestion, via } = await aiSuggestTextures(selected.object, selected.name);
+      applyMaterialSuggestion(selected.object, suggestion);
+      setPaintColor(suggestion.colorHex);
+
+      // Fleet search for texture maps using AI keywords + sibling prefixes
+      const keys: string[] = [];
+      const prefixes = selected.diskPath
+        ? siblingTexturePrefixes(selected.diskPath.replace(/\\/g, "/"))
+        : ["textures/", "models/textures/", "maps/", "icons/"];
+      for (const term of suggestion.searchTerms.slice(0, 6)) {
+        try {
+          const res = await window.grudge.os.search?.({ query: term, limit: 30 });
+          for (const it of res?.items ?? res?.results ?? []) {
+            const name = it?.name ?? it?.key ?? it?.path;
+            if (name) keys.push(String(name));
+          }
+        } catch { /* search optional */ }
+      }
+      for (const prefix of prefixes.slice(0, 4)) {
+        try {
+          const res = await window.grudge.os.list({ prefix, delimiter: "", limit: 80 });
+          for (const it of res.items ?? []) {
+            if (it?.name) keys.push(String(it.name));
+          }
+        } catch { /* ignore */ }
+      }
+      const images = filterImagePaths([...new Set(keys)]);
+      let mapCount = 0;
+      if (images.length) {
+        const reports = await applySmartTextures(selected.object, images, async (key) => {
+          try {
+            return await window.grudge.cf.r2PublicUrl(key);
+          } catch {
+            return key;
+          }
+        });
+        mapCount = reports.reduce((n, r) => n + r.applied.length, 0);
+      }
+
+      if (undos.length) pushEntries(undos);
+      toast.success("AI Texture applied", {
+        id: toastId,
+        description: [
+          via,
+          `#${suggestion.colorHex.toString(16)}`,
+          `m${suggestion.metalness.toFixed(2)} r${suggestion.roughness.toFixed(2)}`,
+          mapCount ? `${mapCount} maps` : `${images.length} candidates`,
+          suggestion.notes,
+        ].filter(Boolean).join(" · "),
+      });
+    } catch (e: unknown) {
+      toast.error("AI Texture failed", {
+        id: toastId,
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  function applyAiCommand(cmd: AiEditCommand, root: THREE.Object3D) {
+    switch (cmd.op) {
+      case "fill": {
+        const hex = cmd.colorHex ?? (typeof cmd.value === "number" ? cmd.value : paintColor);
+        const undos = fillObject(root, Number(hex));
+        pushEntries(undos);
+        setPaintColor(Number(hex));
+        break;
+      }
+      case "metalness":
+      case "roughness": {
+        const v = Math.min(1, Math.max(0, Number(cmd.value) || 0));
+        root.traverse((n) => {
+          const mesh = n as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          const before = snapshotMaterial(mesh);
+          if (before) historyRef.current.push(before);
+          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          for (const m of mats) {
+            const std = m as THREE.MeshStandardMaterial;
+            if (!std?.isMeshStandardMaterial) continue;
+            if (cmd.op === "metalness") std.metalness = v;
+            else std.roughness = v;
+            std.needsUpdate = true;
+          }
+        });
+        setHistoryTick((n) => n + 1);
+        break;
+      }
+      case "ground": {
+        const before = snapshotTransform(root);
+        groundSnap(root);
+        historyRef.current.push(before);
+        setHistoryTick((n) => n + 1);
+        break;
+      }
+      case "scale": {
+        const s = Number(cmd.value) || 1;
+        historyRef.current.push(snapshotTransform(root));
+        root.scale.multiplyScalar(s);
+        root.updateMatrixWorld(true);
+        setHistoryTick((n) => n + 1);
+        break;
+      }
+      case "rotate_y": {
+        const deg = Number(cmd.value) || 0;
+        historyRef.current.push(snapshotTransform(root));
+        root.rotation.y += THREE.MathUtils.degToRad(deg);
+        root.updateMatrixWorld(true);
+        setHistoryTick((n) => n + 1);
+        break;
+      }
+      case "offset": {
+        const arr = Array.isArray(cmd.value) ? cmd.value : [0, 0, 0];
+        historyRef.current.push(snapshotTransform(root));
+        root.position.x += Number(arr[0]) || 0;
+        root.position.y += Number(arr[1]) || 0;
+        root.position.z += Number(arr[2]) || 0;
+        root.updateMatrixWorld(true);
+        setHistoryTick((n) => n + 1);
+        break;
+      }
+      case "frame":
+        engineRef.current?.frame(root);
+        break;
+      case "note":
+        toast.message("AI note", { description: String(cmd.value ?? "") });
+        break;
+      default:
+        break;
+    }
+  }
+
+  async function runAiEdit(instruction?: string) {
+    if (!selected) {
+      toast.message("Select a model for AI Edit (Ctrl+Shift+E)");
+      return;
+    }
+    const prompt = (instruction ?? aiEditPrompt).trim();
+    if (!prompt) {
+      setAiEditOpen(true);
+      return;
+    }
+    if (aiBusy) return;
+    setAiBusy(true);
+    setAiEditOpen(false);
+    const toastId = toast.loading("AI Edit…", { description: prompt.slice(0, 80) });
+    try {
+      const { plan, via } = await aiPlanEdit(selected.object, selected.name, prompt);
+      for (const cmd of plan.commands) {
+        applyAiCommand(cmd, selected.object);
+      }
+      engineRef.current?.pulseSelect(selected.object);
+      toast.success(plan.summary || "AI Edit done", {
+        id: toastId,
+        description: `${via} · ${plan.commands.length} step(s)`,
+      });
+    } catch (e: unknown) {
+      toast.error("AI Edit failed", {
+        id: toastId,
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setAiBusy(false);
+    }
   }
 
   // -- Editor tools --------------------------------------------------------
@@ -1145,17 +1369,29 @@ export default function Forge3D() {
         return;
       }
 
-      // Undo / redo
-      if (mod && k === "z" && !e.shiftKey) { e.preventDefault(); undoTransform(); return; }
-      if (mod && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); redoTransform(); return; }
+      // Undo / redo (Ctrl/Cmd+Z, Ctrl+Y, Ctrl+Shift+Z)
+      if (mod && k === "z" && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); undoTransform(); return; }
+      if (mod && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); e.stopPropagation(); redoTransform(); return; }
 
-      // Clipboard
-      if (mod && k === "c") { e.preventDefault(); copySelected(); return; }
-      if (mod && k === "x") { e.preventDefault(); cutSelected(); return; }
-      if (mod && k === "v") { e.preventDefault(); pasteClipboard(); return; }
-      if (mod && k === "d") { e.preventDefault(); duplicateSelected(); return; }
-      if (mod && k === "s") { e.preventDefault(); saveScene(); return; }
-      if (mod && k === "o") { e.preventDefault(); fileInputRef.current?.click(); return; }
+      // Clipboard (Ctrl/Cmd+C/X/V/D)
+      if (mod && k === "c" && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); copySelected(); return; }
+      if (mod && k === "x" && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); cutSelected(); return; }
+      if (mod && k === "v" && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); pasteClipboard(); return; }
+      if (mod && k === "d" && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); duplicateSelected(); return; }
+      if (mod && k === "s" && !e.shiftKey) { e.preventDefault(); saveScene(); return; }
+      if (mod && k === "o" && !e.shiftKey) { e.preventDefault(); fileInputRef.current?.click(); return; }
+
+      // AI Texture / AI Edit
+      if ((mod && e.shiftKey && k === "t") || (e.altKey && k === "t")) {
+        e.preventDefault();
+        void runAiTexture();
+        return;
+      }
+      if ((mod && e.shiftKey && k === "e") || (e.altKey && k === "e")) {
+        e.preventDefault();
+        setAiEditOpen(true);
+        return;
+      }
 
       // Frame / camera
       if (!mod && e.shiftKey && k === "f") { e.preventDefault(); frameAll(); return; }
@@ -1303,6 +1539,9 @@ export default function Forge3D() {
         onCut={cutSelected}
         onPaste={pasteClipboard}
         onDuplicate={duplicateSelected}
+        onAiTexture={() => void runAiTexture()}
+        onAiEdit={() => setAiEditOpen(true)}
+        aiBusy={aiBusy}
         onFill={runFillSelected}
         onFixMesh={runFixMesh}
         onFixTerrain={runFixTerrain}
@@ -1467,10 +1706,60 @@ export default function Forge3D() {
               runIngest={runIngest}
               setRunIngest={setRunIngest}
               scriptHost={scriptHost}
+              onAiTexture={() => void runAiTexture()}
+              onAiEdit={() => setAiEditOpen(true)}
+              aiBusy={aiBusy}
             />
           )}
         </Panel>
       </div>
+
+      {aiEditOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => !aiBusy && setAiEditOpen(false)}
+        >
+          <div
+            className="card max-w-md w-[92%] border border-gold/30"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-2 text-gold font-semibold text-sm">
+              <Bot size={16} /> AI Edit
+            </div>
+            <p className="text-[11px] text-muted mb-2">
+              Describe the change — e.g. “make it gold metal”, “ground and scale 1.5”, “fill blue matte”.
+              Hotkey: <span className="font-mono text-gold">Ctrl+Shift+E</span> / <span className="font-mono text-gold">Alt+E</span>
+            </p>
+            <textarea
+              className="w-full text-xs min-h-[72px] mb-2"
+              value={aiEditPrompt}
+              onChange={(e) => setAiEditPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  void runAiEdit(aiEditPrompt);
+                }
+              }}
+              placeholder="What should we change?"
+              autoFocus
+            />
+            <div className="flex gap-2 justify-end">
+              <button type="button" className="btn ghost text-xs" disabled={aiBusy} onClick={() => setAiEditOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn text-xs"
+                disabled={aiBusy || !selected}
+                onClick={() => void runAiEdit(aiEditPrompt)}
+              >
+                {aiBusy ? "Working…" : "Run AI Edit"}
+              </button>
+            </div>
+            <p className="text-[10px] text-muted mt-2">Ctrl+Enter to run · uses Ollama / Legion / Workers AI</p>
+          </div>
+        </div>
+      )}
 
       {hotkeyHelp && (
         <div
@@ -1542,6 +1831,9 @@ function Toolbar(props: {
   onCut: () => void;
   onPaste: () => void;
   onDuplicate: () => void;
+  onAiTexture: () => void;
+  onAiEdit: () => void;
+  aiBusy: boolean;
   onFill: () => void;
   onFixMesh: () => void;
   onFixTerrain: () => void;
@@ -1590,12 +1882,26 @@ function Toolbar(props: {
       <Btn onClick={props.onLoadScene} title="Load .forge-scene.json"><FolderInput size={14} />Scene</Btn>
       <Btn onClick={props.onSaveScene} title="Save scene (Ctrl+S)"><Save size={14} />Save</Btn>
       <span style={{ width: 1, height: 22, background: "var(--line)" }} />
-      <Btn onClick={props.onUndo} title="Undo (Ctrl+Z)" disabled={!props.canUndo}><Undo2 size={14} /></Btn>
-      <Btn onClick={props.onRedo} title="Redo (Ctrl+Y / Ctrl+Shift+Z)" disabled={!props.canRedo}><Redo2 size={14} /></Btn>
-      <Btn onClick={props.onCopy} title="Copy (Ctrl+C)" disabled={!props.hasSelection}><Copy size={14} /></Btn>
-      <Btn onClick={props.onCut} title="Cut (Ctrl+X)" disabled={!props.hasSelection}><Scissors size={14} /></Btn>
-      <Btn onClick={props.onPaste} title="Paste (Ctrl+V)"><ClipboardPaste size={14} /></Btn>
+      <Btn onClick={props.onUndo} title="Undo (Ctrl+Z)" disabled={!props.canUndo}><Undo2 size={14} />Undo</Btn>
+      <Btn onClick={props.onRedo} title="Redo (Ctrl+Y / Ctrl+Shift+Z)" disabled={!props.canRedo}><Redo2 size={14} />Redo</Btn>
+      <Btn onClick={props.onCopy} title="Copy (Ctrl+C)" disabled={!props.hasSelection}><Copy size={14} />Copy</Btn>
+      <Btn onClick={props.onCut} title="Cut (Ctrl+X)" disabled={!props.hasSelection}><Scissors size={14} />Cut</Btn>
+      <Btn onClick={props.onPaste} title="Paste (Ctrl+V)"><ClipboardPaste size={14} />Paste</Btn>
       <Btn onClick={props.onDuplicate} title="Duplicate (Ctrl+D)" disabled={!props.hasSelection}><Plus size={14} />Dup</Btn>
+      <Btn
+        onClick={props.onAiTexture}
+        title="AI Texture — PBR + find maps (Ctrl+Shift+T / Alt+T)"
+        disabled={!props.hasSelection || props.aiBusy}
+      >
+        <ImageIcon size={14} />AI Tex
+      </Btn>
+      <Btn
+        onClick={props.onAiEdit}
+        title="AI Edit — natural language (Ctrl+Shift+E / Alt+E)"
+        disabled={!props.hasSelection || props.aiBusy}
+      >
+        <Wand2 size={14} />AI Edit
+      </Btn>
       <Btn onClick={() => props.onAddPrimitive("box")} title="Add box primitive"><Plus size={14} />Box</Btn>
       <span style={{ width: 1, height: 22, background: "var(--line)" }} />
       <Btn active={props.editorTool === "select"} onClick={() => props.setTool("select")} title={`${EDITOR_TOOL_META.select.label} (${EDITOR_TOOL_META.select.hotkey})`}><MousePointer2 size={14} /></Btn>

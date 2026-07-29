@@ -78,6 +78,9 @@ interface Props {
   setRunIngest: (v: boolean) => void;
   /** Optional host for in-panel scripting (engine + scene hooks). */
   scriptHost?: ForgeScriptHost | null;
+  onAiTexture?: () => void;
+  onAiEdit?: () => void;
+  aiBusy?: boolean;
 }
 
 type Tab = "scene" | "rig" | "animation" | "textures" | "script" | "modeling" | "deploy";
@@ -495,9 +498,31 @@ export default function ForgeWorkbench(props: Props) {
             <p className="text-muted text-[10px]">
               Smart match by mesh/material name + PBR suffixes (albedo, normal, roughness, metal, ao, emissive).
             </p>
+            {props.onAiTexture && (
+              <button
+                type="button"
+                className="btn text-xs w-full"
+                disabled={texBusy || props.aiBusy}
+                onClick={() => props.onAiTexture?.()}
+                title="Ctrl+Shift+T / Alt+T"
+              >
+                {props.aiBusy ? "AI Texture…" : "AI Texture (Ctrl+Shift+T)"}
+              </button>
+            )}
+            {props.onAiEdit && (
+              <button
+                type="button"
+                className="btn ghost text-xs w-full"
+                disabled={props.aiBusy}
+                onClick={() => props.onAiEdit?.()}
+                title="Ctrl+Shift+E / Alt+E"
+              >
+                AI Edit (Ctrl+Shift+E)
+              </button>
+            )}
             <button
               type="button"
-              className="btn text-xs w-full"
+              className="btn ghost text-xs w-full"
               disabled={texBusy}
               onClick={() => texInputRef.current?.click()}
             >

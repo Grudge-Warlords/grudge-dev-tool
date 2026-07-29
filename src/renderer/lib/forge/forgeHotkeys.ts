@@ -37,11 +37,18 @@ export const FORGE_HOTKEYS: HotkeyDef[] = [
   { keys: "[ ]", action: "Brush radius down / up", group: "tools" },
   { keys: "; '", action: "Brush strength down / up", group: "tools" },
   // Edit
-  { keys: "Ctrl+Z", action: "Undo", group: "edit" },
+  { keys: "Ctrl+Z", action: "Undo last change", group: "edit" },
   { keys: "Ctrl+Y / Ctrl+Shift+Z", action: "Redo", group: "edit" },
-  { keys: "Ctrl+C / X / V", action: "Copy / Cut / Paste", group: "edit" },
-  { keys: "Ctrl+D", action: "Duplicate", group: "edit" },
+  { keys: "Ctrl+C", action: "Copy selection", group: "edit" },
+  { keys: "Ctrl+X", action: "Cut selection", group: "edit" },
+  { keys: "Ctrl+V", action: "Paste", group: "edit" },
+  { keys: "Ctrl+D", action: "Duplicate selection", group: "edit" },
   { keys: "Delete", action: "Remove selection", group: "edit" },
+  // AI
+  { keys: "Ctrl+Shift+T", action: "AI Texture — suggest PBR + find maps", group: "edit" },
+  { keys: "Ctrl+Shift+E", action: "AI Edit — natural-language scene edit", group: "edit" },
+  { keys: "Alt+T", action: "AI Texture (same as Ctrl+Shift+T)", group: "edit" },
+  { keys: "Alt+E", action: "AI Edit (same as Ctrl+Shift+E)", group: "edit" },
   // File
   { keys: "Ctrl+S", action: "Save scene JSON", group: "file" },
   { keys: "Ctrl+O", action: "Open model file", group: "file" },

@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Added
+- **Forge edit hotkeys** — clear **Ctrl+C/X/V** copy-cut-paste, **Ctrl+Z/Y** undo-redo with toasts; toolbar labels.
+- **AI Texture** (`Ctrl+Shift+T` / `Alt+T`) — Ollama/Legion/Workers AI suggests PBR + searches fleet maps.
+- **AI Edit** (`Ctrl+Shift+E` / `Alt+E`) — natural-language material/transform plan with apply dialog.
+
 ## [0.9.3] — 2026-07-29
 
 ### Added
