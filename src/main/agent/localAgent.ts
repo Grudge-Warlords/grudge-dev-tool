@@ -88,20 +88,59 @@ function extractJson(text: string): unknown {
   throw new Error("Orchestrator response was not JSON");
 }
 
-/** Chat with local stack: ensure Ollama, then aiChat routing. */
+/**
+ * Free-agentic cascade (no Settings paste required):
+ *  1. Ollama local (free)
+ *  2. Puter User-Pays (free for developer — signed-in user)
+ *  3. OPENAI / ANTHROPIC / GEMINI from env/vault (baked secrets)
+ *  4. Workers AI / Legion via aiChat
+ */
 export async function localAgentChat(
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
 ): Promise<{ text: string; source: string; provider?: string; model?: string }> {
+  const errors: string[] = [];
+
   // Warm Ollama if possible (non-fatal)
   try {
     const h = await ollama.ollamaHealth();
     if (!h.ok) {
       await ollama.ensureRunning({ reason: "local-agent", agentic: true }).catch(() => null);
     }
-  } catch {
-    /* continue to cloud */
+    const h2 = await ollama.ollamaHealth();
+    if (h2.ok) {
+      const r = await ollama.ollamaChat({ messages });
+      const text = r.message?.content ?? "";
+      if (text) {
+        return { text, source: "free:ollama", provider: "ollama", model: "ollama" };
+      }
+    }
+  } catch (e: unknown) {
+    errors.push(`ollama: ${e instanceof Error ? e.message : e}`);
   }
 
+  // Puter free User-Pays
+  try {
+    const { puterAiChat } = await import("../ai/puterAi");
+    const r = await puterAiChat({ messages, max_tokens: 1200, temperature: 0.35 });
+    if (r.text) {
+      return { text: r.text, source: r.source, provider: "puter", model: r.model };
+    }
+  } catch (e: unknown) {
+    errors.push(`puter: ${e instanceof Error ? e.message : e}`);
+  }
+
+  // Direct keys from env (OPENAI / Anthropic / Gemini)
+  try {
+    const { directLlmChat } = await import("../ai/directLlm");
+    const r = await directLlmChat({ messages, max_tokens: 1200, temperature: 0.35 });
+    if (r.text) {
+      return { text: r.text, source: r.source, provider: r.source, model: r.model };
+    }
+  } catch (e: unknown) {
+    errors.push(`direct: ${e instanceof Error ? e.message : e}`);
+  }
+
+  // Workers AI / Legion hub routing
   try {
     const res = await aiChat({
       messages,
@@ -109,27 +148,21 @@ export async function localAgentChat(
       max_tokens: 1200,
       track: true,
     });
-    return {
-      text: res.text,
-      source: `in-app:${res.provider}`,
-      provider: res.provider,
-      model: res.model,
-    };
-  } catch (e1: unknown) {
-    // Direct ollama as last resort
-    try {
-      const r = await ollama.ollamaChat({ messages });
+    if (res.text) {
       return {
-        text: r.message?.content ?? "",
-        source: "in-app:ollama-direct",
-        provider: "ollama",
+        text: res.text,
+        source: `in-app:${res.provider}`,
+        provider: res.provider,
+        model: res.model,
       };
-    } catch (e2: unknown) {
-      const m1 = e1 instanceof Error ? e1.message : String(e1);
-      const m2 = e2 instanceof Error ? e2.message : String(e2);
-      throw new Error(`In-app agent AI unavailable. Ollama/Workers/Legion all failed.\n${m1}\n${m2}`);
     }
+  } catch (e: unknown) {
+    errors.push(`aiChat: ${e instanceof Error ? e.message : e}`);
   }
+
+  throw new Error(
+    `Free agentic AI unavailable. Sign in with Puter, start Ollama, or bake OPENAI/ANTHROPIC/GEMINI/CF keys in env.\n${errors.join("\n")}`,
+  );
 }
 
 export async function runLocalAgent(opts: {

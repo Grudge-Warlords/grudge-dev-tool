@@ -4,6 +4,17 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.9.6] — 2026-07-29
+
+### Added
+- **Free agentic cascade** — Ollama → **Puter User-Pays AI** (signed-in session) → env OpenAI/Anthropic/Gemini → Workers AI → Legion.
+- **Env secret bake-in** — loads `.env` from package, home, Desktop, AppData; seeds keytar automatically (CF, R2, Legion, LLM keys). No Settings paste required.
+- **Puter AI main-process client** — OpenAI-compatible `api.puter.com` using session token.
+
+### Changed
+- Login copy emphasizes free Puter AI + identity.
+- Agent AI UI documents free cascade and auto secrets.
+
 ## [0.9.5] — 2026-07-29
 
 ### Fixed

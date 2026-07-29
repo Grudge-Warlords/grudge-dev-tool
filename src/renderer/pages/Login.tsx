@@ -17,9 +17,10 @@ export default function Login({ onSignedIn }: Props) {
   async function signIn() {
     setBusy("signin"); setErr(null);
     try {
-      toast.info("Opening Puter sign-in\u2026", {
-        description: "Sign in in the Forge window. If that fails, we retry in your default browser.",
-        duration: 6000,
+      toast.info("Opening Puter sign-in…", {
+        description:
+          "Sign in for free User-Pays AI + Grudge identity. In-app window first; system browser if needed.",
+        duration: 7000,
       });
       const r = await window.grudge.auth.puterLogin();
       toast.success(`Signed in as ${r.user.username} \u00b7 ${r.grudgeId}`);

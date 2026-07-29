@@ -59,9 +59,17 @@ import {
   localAgentChat,
 } from "./agent/localAgent";
 
-// Load .env / toolchain.env before credential resolution (does not override process env).
-loadEnvFiles();
+// Load .env from package / home / AppData (does not override existing process env).
+const envLoad = loadEnvFiles();
 initLogger();
+try {
+  const log = require("./logger").default as { info: (m: string) => void };
+  log.info(
+    `[bootstrapEnv] loaded ${envLoad.keysLoaded} key(s) from ${envLoad.files.length} file(s)`,
+  );
+} catch {
+  /* logger optional at this point */
+}
 forge.captureInitialArgv();
 
 // ---------------------------------------------------------------------------
@@ -219,7 +227,8 @@ if (!gotLock) {
 
   app.whenReady().then(async () => {
     try {
-      await seedDefaultSecrets();
+      const seed = await seedDefaultSecrets();
+      log.info(`[bootstrapSecrets] ready — seeded: ${seed.seeded.join(", ") || "none (vault already full or env empty)"}`);
     } catch (err) {
       log.warn("seedDefaultSecrets failed", err);
     }

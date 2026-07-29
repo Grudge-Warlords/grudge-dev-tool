@@ -303,8 +303,9 @@ export default function AIWorkspace() {
             <Bot size={22} /> Agent AI · Make & Deploy
           </h1>
           <p className="page-sub">
-            Runs <strong className="text-gold">inside this app</strong> (Ollama → Workers AI → Legion).
-            No browser required. Fleet: Railway · R2 · ObjectStore · Forge tools.
+            Free agentic cascade <strong className="text-gold">inside this app</strong>:
+            Ollama → Puter (User-Pays) → env OpenAI/Anthropic/Gemini → Workers AI → Legion.
+            Sign in with Puter for free AI. Secrets load from your environment automatically.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

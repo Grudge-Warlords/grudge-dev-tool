@@ -1,6 +1,6 @@
 {
   "name": "grudge-dev-tool",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "description": "Grudge Studio — ONE TRUTH shell for assets, games, Forge AI (texture/edit/scene completion), and Agent AI (grudge-dev CLI + Windows tray).",
   "private": true,
   "homepage": "https://grudge-warlords.github.io/grudge-dev-tool/",

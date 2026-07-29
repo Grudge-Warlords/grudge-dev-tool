@@ -185,8 +185,14 @@ export async function aiChat(req: AiChatRequest): Promise<AiChatResponse> {
       input_tokens = result.usage?.prompt_tokens;
       output_tokens = result.usage?.completion_tokens;
     } else if (provider === "puter") {
-      // Puter AI calls through the puter.js SDK (requires puter context)
-      throw new Error("Puter AI dispatch requires browser context — use puter.ai.chat() directly");
+      const { puterAiChat } = await import("../ai/puterAi");
+      const r = await puterAiChat({
+        messages: req.messages,
+        model: req.model,
+        max_tokens: req.max_tokens,
+        temperature: req.temperature,
+      });
+      text = r.text;
     } else {
       // Generic gateway passthrough
       const result = await aiGatewayProxy<any>({ provider, path, body: { messages: req.messages, max_tokens: req.max_tokens } });
