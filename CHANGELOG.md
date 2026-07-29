@@ -4,6 +4,19 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.9.2] — 2026-07-29
+
+### Changed
+- **Shell UX** — primary Work rail (Home · Assets · Games · Forge · Agent AI); secondary tools under collapsible **More tools**.
+- Default route is **Home (Studio Hub)** instead of the asset browser.
+- **Studio Hub** reworked as a command center: big actions, featured games with Play, compact systems chips, probe details collapsed.
+- **Games hub** — search/filter, Live now strip, primary **Play** buttons, **Play in Studio** tab (merged former Play Modes).
+- Full-height layout for Games / Forge / Browser / AI so systems stay operable without nested scroll traps.
+- Branding: sidebar title **Grudge Studio**; version **0.9.2**.
+
+### Removed
+- Standalone sidebar entry for Play Modes (now Games → Play in Studio).
+
 ## [0.9.1] — 2026-07-25
 
 ### Added

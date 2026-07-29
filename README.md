@@ -4,12 +4,13 @@
 
 | Surface | Role |
 |---------|------|
-| **Studio Hub** | Fleet health probes + launch pad |
-| **Assets (Browser)** | R2 tree · click → inline + pop-out viewer · send to Forge |
-| **Forge 3D** | Scene editor · paint · deploy |
+| **Home (Studio Hub)** | Command center — Play / Assets / Forge / AI · featured games · systems health |
+| **Assets** | R2 tree · click → pop-out viewer · send to Forge |
+| **Games** | Fleet catalog (Play) + **Play in Studio** webview modes |
+| **Forge 3D** | Scene editor · paint · deploy (admin) |
 | **Agent AI** | Make & deploy presets · orchestrator · terminal · pods |
-| **GRUDACHAIN Ollama** | Local agentic AI container — auto-starts on open & admin sign-in |
-| **Upload** | Convert / optimize / push packs |
+| **GRUDACHAIN Ollama** | Local agentic AI — auto-starts on open & admin sign-in |
+| **More tools** | Search · Upload · Store · Skeleton · Coder · Docs · Settings… |
 
 [![Release](https://img.shields.io/github/v/release/Grudge-Warlords/grudge-dev-tool?display_name=tag&sort=semver)](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest)
 [![Pages](https://img.shields.io/github/actions/workflow/status/Grudge-Warlords/grudge-dev-tool/pages.yml?label=docs)](https://grudge-warlords.github.io/grudge-dev-tool/)
@@ -24,11 +25,11 @@ Grudge Studio developer tooling for the **ONE TRUTH** fleet — one URL (`client
 | Package | Version | What it is |
 |---------|---------|------------|
 | **`grudge-dev` CLI** | v0.5.0 | Autonomous setup, `doctor`, `login`, `upload-pack`, `fleet`, `search` — lives in [`cli/`](cli/) |
-| **Forge tray app** | **v0.9.1** | Windows tray + Studio Hub, Asset Viewer, Forge 3D, Agent AI, **GRUDACHAIN Ollama auto-start**, auto-update |
+| **Forge tray app** | **v0.9.2** | Windows tray + simplified shell (Home · Assets · Games · Forge · AI), Asset Viewer, **GRUDACHAIN Ollama**, auto-update |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/> · [CLI quickstart](docs/cli-quickstart.md) · [ONE TRUTH](docs/one-truth.md) · [Tray quickstart](docs/dev-tool-quickstart.md)
 
-⬇ **Forge installer (latest):** [`Grudge.Studio.Forge-Setup-0.9.1.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.9.1/Grudge.Studio.Forge-Setup-0.9.1.exe) · Windows x64 · NSIS · auto-updating · [release notes](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.9.1)
+⬇ **Forge installer (latest):** [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) · Windows x64 · NSIS · auto-updating · (v0.9.2 shell UX on `main`)
 
 ---
 
@@ -100,7 +101,7 @@ Windows tray app for the Grudge Studio team: browse object storage, search the a
 | Surface | What it does |
 |---|---|
 | **Tray icon** | Gold-helm emblem. Left-click → GrudgeLoader. Double-click → main window. Right-click → menu. |
-| **Main window** | Studio Hub · Browser · Search · Upload · Forge 3D · Agent AI · Coder · Settings — status bar shows ONE TRUTH score, admin pill, Ollama agentic, logs, update progress. |
+| **Main window** | **Work** rail: Home · Assets · Games · Forge · Agent AI; **More tools** for Search/Upload/Store/Coder/Settings. Status bar: ONE TRUTH · Ollama · logs · updates. |
 | **Forge 3D** | Three.js editor/viewer with PBR, IBL, TransformControls, animation clips, `Convert → GLB → Upload to R2`. |
 | **Agent AI** | Make & deploy presets against ONE TRUTH (CDN packs, heroes, fleet doctor, seed NPCs). |
 | **GrudgeLoader** | Always-on-top overlay: pinned folders, prefix browse, drag-drop bulk upload. |

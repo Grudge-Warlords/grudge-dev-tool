@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   FolderTree,
   Search as SearchIcon,
@@ -20,8 +20,10 @@ import {
   Bot,
   User,
   Boxes,
-  Play,
   Bone,
+  Home as HomeIcon,
+  ChevronDown,
+  ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -43,7 +45,6 @@ const SkeletonStudio = React.lazy(() => import("./pages/SkeletonStudio"));
 const Coder = React.lazy(() => import("./pages/Coder"));
 const Preview = React.lazy(() => import("./pages/Preview"));
 const AssetLibrary = React.lazy(() => import("./pages/AssetLibrary"));
-const GameModes = React.lazy(() => import("./pages/GameModes"));
 const StudioHub = React.lazy(() => import("./pages/StudioHub"));
 
 import Login from "./pages/Login";
@@ -63,7 +64,6 @@ type Route =
   | "/studio"
   | "/forge"
   | "/skeleton"
-  | "/play"
   | "/coder"
   | "/games"
   | "/legion"
@@ -78,27 +78,32 @@ interface NavEntry {
   label: string;
   Icon: LucideIcon;
   adminOnly?: boolean;
+  /** Primary rail (always visible) vs secondary "More" tools */
+  primary?: boolean;
 }
 
+/**
+ * Primary = daily workflows. Secondary = less frequent tools.
+ * Keeps the sidebar short so games/systems stay operable.
+ */
 const NAV: NavEntry[] = [
-  { route: "/accounts", label: "Account", Icon: User },
-  { route: "/studio", label: "Studio Hub", Icon: Globe },
-  { route: "/browser", label: "Assets", Icon: FolderTree },
+  { route: "/studio", label: "Home", Icon: HomeIcon, primary: true },
+  { route: "/browser", label: "Assets", Icon: FolderTree, primary: true },
+  { route: "/games", label: "Games", Icon: Gamepad2, primary: true },
+  { route: "/forge", label: "Forge", Icon: Hammer, primary: true, adminOnly: true },
+  { route: "/ai", label: "Agent AI", Icon: Bot, primary: true },
   { route: "/search", label: "Search", Icon: SearchIcon },
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true },
   { route: "/request", label: "Request URL", Icon: Link2, adminOnly: true },
-  { route: "/uuid", label: "UUID", Icon: Fingerprint },
   { route: "/library", label: "Store", Icon: Store },
-  { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
-  { route: "/games", label: "Games", Icon: Gamepad2 },
-  { route: "/ai", label: "Agent AI", Icon: Bot },
-  { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true },
-  { route: "/forge", label: "Forge 3D", Icon: Hammer, adminOnly: true },
   { route: "/skeleton", label: "Skeleton", Icon: Bone, adminOnly: true },
-  { route: "/play", label: "Play Modes", Icon: Play, adminOnly: true },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
+  { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
+  { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true },
   { route: "/preview", label: "Preview", Icon: Globe, adminOnly: true },
+  { route: "/uuid", label: "UUID", Icon: Fingerprint },
   { route: "/docs", label: "Docs", Icon: BookOpen },
+  { route: "/accounts", label: "Account", Icon: User },
   { route: "/settings", label: "Settings", Icon: SettingsIcon, adminOnly: true },
 ];
 
@@ -116,15 +121,43 @@ interface Session {
 }
 
 const VALID_ROUTES = new Set<string>(NAV.map((n) => n.route));
-const APP_VERSION = "0.9.1";
+/** Legacy routes remapped after shell simplification */
+const ROUTE_ALIASES: Record<string, Route> = {
+  "/play": "/games",
+  "/home": "/studio",
+};
+
+const FULL_HEIGHT_ROUTES = new Set<string>([
+  "/games",
+  "/forge",
+  "/skeleton",
+  "/coder",
+  "/ai",
+  "/legion",
+  "/preview",
+  "/browser",
+]);
+
+const APP_VERSION =
+  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "0.9.2";
+
+function resolveRoute(raw: string | undefined | null): Route {
+  if (!raw) return "/studio";
+  if (ROUTE_ALIASES[raw]) return ROUTE_ALIASES[raw];
+  if (VALID_ROUTES.has(raw)) return raw as Route;
+  return "/studio";
+}
 
 export default function App() {
-  const [route, setRoute] = useState<Route>(() => {
-    const saved = readMirror().route;
-    return (saved && VALID_ROUTES.has(saved) ? saved : "/browser") as Route;
-  });
+  const [route, setRoute] = useState<Route>(() => resolveRoute(readMirror().route));
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [moreOpen, setMoreOpen] = useState(() => {
+    const saved = readMirror().route;
+    const r = resolveRoute(saved);
+    const entry = NAV.find((n) => n.route === r);
+    return Boolean(entry && !entry.primary);
+  });
 
   const refreshSession = useCallback(async () => {
     try {
@@ -141,12 +174,9 @@ export default function App() {
   useEffect(() => {
     void refreshSession();
     void hydrateFromMain().then((snap) => {
-      if (snap?.route && VALID_ROUTES.has(snap.route)) {
-        setRoute(snap.route as Route);
-      }
+      if (snap?.route) setRoute(resolveRoute(snap.route));
     });
-    const off = window.grudge?.onNav?.((r: Route) => setRoute(r));
-    // When session is already grudachain/admin (or becomes admin), ensure Ollama agentic stack.
+    const off = window.grudge?.onNav?.((r: string) => setRoute(resolveRoute(r)));
     void (async () => {
       try {
         const s = await window.grudge.auth.getSession();
@@ -163,7 +193,7 @@ export default function App() {
   }, [refreshSession]);
 
   useEffect(() => {
-    persistRoute(route);
+    void persistRoute(route);
   }, [route]);
 
   async function signOut() {
@@ -179,6 +209,16 @@ export default function App() {
     }
   }
 
+  const admin = session ? isAdmin(session) : false;
+
+  const { primaryNav, moreNav } = useMemo(() => {
+    const visible = NAV.filter((n) => admin || !n.adminOnly);
+    return {
+      primaryNav: visible.filter((n) => n.primary),
+      moreNav: visible.filter((n) => !n.primary),
+    };
+  }, [admin]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen text-muted gap-3">
@@ -192,12 +232,25 @@ export default function App() {
     return <Login onSignedIn={refreshSession} />;
   }
 
-  const admin = isAdmin(session);
-  const visibleNav = NAV.filter((n) => admin || !n.adminOnly);
   const currentEntry = NAV.find((n) => n.route === route);
   if (currentEntry?.adminOnly && !admin) {
-    queueMicrotask(() => setRoute(visibleNav[0]?.route ?? "/browser"));
+    queueMicrotask(() => setRoute("/studio"));
   }
+
+  const go = (r: Route) => {
+    setRoute(r);
+    const entry = NAV.find((n) => n.route === r);
+    if (entry && !entry.primary) setMoreOpen(true);
+  };
+
+  const fullHeight = FULL_HEIGHT_ROUTES.has(route);
+
+  const suspenseFallback = (
+    <div className="flex items-center justify-center h-full text-muted gap-2 min-h-[200px]">
+      <Loader2 size={20} className="animate-spin text-gold" />
+      <span className="text-xs">Loading…</span>
+    </div>
+  );
 
   return (
     <div className="app">
@@ -205,16 +258,15 @@ export default function App() {
         <div className="brand">
           <img src="./logo-256.png" alt="Grudge" width={36} height={36} />
           <div>
-            <div className="brand-title">Grudge Dev Tool</div>
+            <div className="brand-title">Grudge Studio</div>
             <div className="brand-sub flex items-center gap-1.5">
               {admin ? (
                 <>
                   <ShieldCheck size={11} className="text-gold" />
                   <span className="text-gold">Admin</span>
-                  <span className="opacity-60">· Viewer · Forge · Agent</span>
                 </>
               ) : (
-                <span>Viewer · Assets · Studio</span>
+                <span>Assets · Games · AI</span>
               )}
             </div>
           </div>
@@ -247,20 +299,51 @@ export default function App() {
           )}
         </div>
 
-        <nav>
-          {visibleNav.map((n) => (
-            <button
-              key={n.route}
-              type="button"
-              className={"nav-item" + (route === n.route ? " active" : "")}
-              onClick={() => setRoute(n.route)}
-            >
-              <span className="nav-icon flex items-center justify-center">
-                <n.Icon size={16} />
-              </span>
-              <span className="nav-label">{n.label}</span>
-            </button>
-          ))}
+        <nav className="sidebar-nav-scroll">
+          <div className="nav-group">
+            <div className="nav-group-label">Work</div>
+            {primaryNav.map((n) => (
+              <button
+                key={n.route}
+                type="button"
+                className={"nav-item" + (route === n.route ? " active" : "")}
+                onClick={() => go(n.route)}
+              >
+                <span className="nav-icon flex items-center justify-center">
+                  <n.Icon size={16} />
+                </span>
+                <span className="nav-label">{n.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {moreNav.length > 0 && (
+            <div className="nav-group">
+              <button
+                type="button"
+                className="nav-group-toggle"
+                onClick={() => setMoreOpen((v) => !v)}
+                aria-expanded={moreOpen}
+              >
+                <span className="nav-group-label mb-0">More tools</span>
+                {moreOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              </button>
+              {moreOpen &&
+                moreNav.map((n) => (
+                  <button
+                    key={n.route}
+                    type="button"
+                    className={"nav-item nav-item--sub" + (route === n.route ? " active" : "")}
+                    onClick={() => go(n.route)}
+                  >
+                    <span className="nav-icon flex items-center justify-center">
+                      <n.Icon size={15} />
+                    </span>
+                    <span className="nav-label">{n.label}</span>
+                  </button>
+                ))}
+            </div>
+          )}
         </nav>
 
         <div className="sidebar-footer flex items-center gap-2">
@@ -278,10 +361,10 @@ export default function App() {
           </button>
           <button
             type="button"
-            title="Quit Grudge Dev Tool"
+            title="Quit Grudge Studio"
             className="text-muted hover:text-danger"
             onClick={() => {
-              if (confirm("Quit Grudge Dev Tool?")) window.grudge?.app?.quit?.();
+              if (confirm("Quit Grudge Studio?")) window.grudge?.app?.quit?.();
             }}
           >
             <Power size={14} />
@@ -289,18 +372,21 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="content flex flex-col">
-        <div className="flex-1 overflow-auto">
+      <main className={"content flex flex-col" + (fullHeight ? " content--full" : "")}>
+        <div
+          className={
+            "flex-1 min-h-0 " + (fullHeight ? "overflow-hidden flex flex-col" : "overflow-auto")
+          }
+        >
           <ErrorBoundary>
-            <React.Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full text-muted gap-2">
-                  <Loader2 size={20} className="animate-spin text-gold" />
-                  <span className="text-xs">Loading…</span>
-                </div>
-              }
-            >
-              {route === "/studio" && <StudioHub onNavigate={(r) => setRoute(r as Route)} />}
+            <React.Suspense fallback={suspenseFallback}>
+              {route === "/studio" && (
+                <StudioHub
+                  onNavigate={(r) => go(resolveRoute(r))}
+                  admin={admin}
+                  username={session.puterUser?.username}
+                />
+              )}
               {route === "/browser" && <Browser />}
               {route === "/search" && <Search />}
               {route === "/upload" && <Upload />}
@@ -310,9 +396,8 @@ export default function App() {
               {route === "/blenderkit" && <AssetLibrary />}
               {route === "/forge" && <Forge3D />}
               {route === "/skeleton" && <SkeletonStudio />}
-              {route === "/play" && <GameModes />}
               {route === "/coder" && <Coder />}
-              {route === "/games" && <FleetLauncher />}
+              {route === "/games" && <FleetLauncher admin={admin} />}
               {route === "/ai" && <AIWorkspace />}
               {route === "/accounts" && <Accounts />}
               {route === "/legion" && <Legion />}

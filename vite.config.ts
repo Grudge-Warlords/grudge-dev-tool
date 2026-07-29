@@ -1,6 +1,11 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+
+const pkg = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as {
+  version: string;
+};
 
 // Renderer Vite config. HTML entries:
 //   - index.html  -> the main multi-page shell
@@ -30,6 +35,7 @@ export default defineConfig(({ mode }) => {
       // Force-inline when unset so packaged NSIS is never open-mode by accident
       "import.meta.env.VITE_ADMIN_USERNAMES": JSON.stringify(adminUsers),
       "import.meta.env.VITE_ADMIN_EMAILS": JSON.stringify(adminEmails),
+      __APP_VERSION__: JSON.stringify(pkg.version),
     },
     build: {
       outDir: resolve(__dirname, "dist/renderer"),

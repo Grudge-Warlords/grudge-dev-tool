@@ -21,7 +21,7 @@ interface WebviewEl extends HTMLElement {
 
 const WEBVIEW_PARTITION = "persist:grudge-playcanvas";
 
-export default function GameModes() {
+export default function GameModes({ embedded = false }: { embedded?: boolean }) {
   const modes = getPlayModes();
   const wvRef = useRef<WebviewEl | null>(null);
   const [activeId, setActiveId] = useState<PlayModeId | null>(() => {
@@ -90,15 +90,17 @@ export default function GameModes() {
   }, [active?.url]);
 
   return (
-    <div className="flex flex-col h-full min-h-[480px]">
-      <div className="mb-3">
-        <h1 className="page-title flex items-center gap-2">
-          <Gamepad2 size={20} /> Play Modes
-        </h1>
-        <p className="page-sub">
-          Launch and smoke-test live fleet playables in a sandboxed webview — Warlords, Survival, RTS, Drive, Forge, Arena, and more.
-        </p>
-      </div>
+    <div className={"flex flex-col h-full " + (embedded ? "min-h-0" : "min-h-[480px]")}>
+      {!embedded && (
+        <div className="mb-3 shrink-0">
+          <h1 className="page-title flex items-center gap-2">
+            <Gamepad2 size={20} /> Play Modes
+          </h1>
+          <p className="page-sub">
+            Launch and smoke-test live fleet playables in a sandboxed webview — Warlords, Survival, RTS, Drive, Forge, Arena, and more.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-1 gap-3 min-h-0">
         <aside className="w-56 shrink-0 border border-line rounded-md bg-bg-1 overflow-y-auto p-2 space-y-1">
@@ -166,10 +168,12 @@ export default function GameModes() {
         </section>
       </div>
 
-      <div className="mt-2 text-[10px] text-muted flex items-center gap-2">
-        <RefreshCw size={10} />
-        Embedded via Electron webview ({WEBVIEW_PARTITION}). Use External for full browser or Preview tab for local HTML.
-      </div>
+      {!embedded && (
+        <div className="mt-2 text-[10px] text-muted flex items-center gap-2 shrink-0">
+          <RefreshCw size={10} />
+          Embedded via Electron webview ({WEBVIEW_PARTITION}). Use External for full browser or Preview tab for local HTML.
+        </div>
+      )}
     </div>
   );
 }

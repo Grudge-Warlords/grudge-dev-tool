@@ -1,246 +1,375 @@
 /**
- * Studio Hub — ONE TRUTH control center for assets, DB, games, and agent AI.
+ * Studio Hub — command center for fleet systems + games.
+ * Intentionally short: big actions, live games, compact health.
  */
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   FolderTree,
   Hammer,
   Bot,
-  Upload,
-  Database,
-  ExternalLink,
+  Gamepad2,
   ShieldCheck,
   Globe,
-  Search,
-  Boxes,
-  Play,
+  Database,
+  Package,
   RefreshCw,
+  ExternalLink,
+  Play,
+  ChevronDown,
+  ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { FLEET_URLS, buildTruthProbes, type TruthProbe } from "../../shared/fleet";
+import { FLEET_URLS, TRUTH_HEALTH_THRESHOLD, buildTruthProbes, type TruthProbe } from "../../shared/fleet";
+import { FLEET_GAMES, type FleetGame } from "../../shared/fleetGames";
 
-const QUICK: Array<{
+/** Daily work — not every tool in the app. */
+const PRIMARY: Array<{
   id: string;
   label: string;
   desc: string;
-  route?: string;
-  href?: string;
+  route: string;
   Icon: LucideIcon;
+  adminOnly?: boolean;
 }> = [
   {
+    id: "games",
+    label: "Play Games",
+    desc: "Fleet catalog · Warlords · Arena · live playables",
+    route: "/games",
+    Icon: Gamepad2,
+  },
+  {
     id: "assets",
-    label: "Object Storage Browser",
-    desc: "Browse R2 CDN assets · click to open Viewer · send to Forge",
+    label: "Assets",
+    desc: "Browse R2 · open Viewer · send to Forge",
     route: "/browser",
     Icon: FolderTree,
   },
   {
-    id: "search",
-    label: "Asset Search",
-    desc: "Server-side objectstore search across packs",
-    route: "/search",
-    Icon: Search,
-  },
-  {
-    id: "upload",
-    label: "Upload / Convert",
-    desc: "Ingest GLB/FBX, bake, optimize web, push to R2",
-    route: "/upload",
-    Icon: Upload,
-  },
-  {
     id: "forge",
-    label: "Forge 3D Editor",
-    desc: "Scene edit · paint · deploy · add viewer assets",
+    label: "Forge 3D",
+    desc: "Scene edit · paint · deploy",
     route: "/forge",
     Icon: Hammer,
+    adminOnly: true,
   },
   {
     id: "ai",
-    label: "Agent AI / Dev Portal",
-    desc: "Orchestrator · make & deploy anything via GRUDA + fleet",
+    label: "Agent AI",
+    desc: "Make & deploy · orchestrator · Ollama",
     route: "/ai",
     Icon: Bot,
   },
-  {
-    id: "blenderkit",
-    label: "BlenderKit Library",
-    desc: "Search / download models into local pipeline",
-    route: "/blenderkit",
-    Icon: Boxes,
-  },
-  {
-    id: "warlords",
-    label: "Grudge Warlords",
-    desc: "Production game client · heroes · combat lab",
-    href: FLEET_URLS.warlords,
-    Icon: Play,
-  },
-  {
-    id: "client",
-    label: "Fleet Client (ONE TRUTH)",
-    desc: "client.grudge-studio.com · rewrites · health",
-    href: FLEET_URLS.client,
-    Icon: Globe,
-  },
-  {
-    id: "railway",
-    label: "Game Data API",
-    desc: "Railway Postgres SSOT · characters · accounts",
-    href: `${FLEET_URLS.gameData}/api/health`,
-    Icon: Database,
-  },
-  {
-    id: "id",
-    label: "Grudge ID",
-    desc: "Identity / SSO · id.grudge-studio.com",
-    href: FLEET_URLS.auth,
-    Icon: ShieldCheck,
-  },
 ];
+
+/** Core production playables pinned on Home. */
+const FEATURED_IDS = [
+  "grudgewarlords",
+  "grudge-arena",
+  "rts-grudge",
+  "grudges-survival",
+  "grudge-drive",
+  "studio-forge",
+  "dungeon-crawler",
+] as const;
+
+interface ConnSnap {
+  reachable?: boolean;
+  online?: boolean;
+  apiBaseUrl?: string;
+  latencyMs?: number | null;
+  truthScore?: number | null;
+  error?: string | null;
+}
 
 export default function StudioHub({
   onNavigate,
+  admin = false,
+  username,
 }: {
   onNavigate?: (route: string) => void;
+  admin?: boolean;
+  username?: string | null;
 }) {
+  const [conn, setConn] = useState<ConnSnap | null>(null);
   const [probes, setProbes] = useState<TruthProbe[]>([]);
   const [checking, setChecking] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
-  async function runProbes() {
-    setChecking(true);
-    const list = buildTruthProbes(FLEET_URLS.client);
-    const next: TruthProbe[] = [];
-    for (const p of list) {
-      const t0 = performance.now();
-      try {
-        const res = await fetch(p.url, { method: "GET", mode: "cors" });
-        next.push({
-          ...p,
-          ok: res.ok || res.status === 401,
-          status: res.status,
-          latencyMs: Math.round(performance.now() - t0),
-          detail: res.ok || res.status === 401 ? "ok" : res.statusText,
-        });
-      } catch (e: unknown) {
-        next.push({
-          ...p,
-          ok: false,
-          status: null,
-          latencyMs: Math.round(performance.now() - t0),
-          detail: e instanceof Error ? e.message : "fetch failed",
-        });
-      }
+  const featured = FEATURED_IDS.map((id) => FLEET_GAMES.find((g) => g.id === id)).filter(
+    (g): g is FleetGame => Boolean(g),
+  );
+
+  const refreshConn = useCallback(async () => {
+    try {
+      const s = await window.grudge?.connectivity?.get?.();
+      if (s) setConn(s);
+    } catch {
+      /* offline */
     }
+  }, []);
+
+  const runProbes = useCallback(async () => {
+    setChecking(true);
+    try {
+      await window.grudge?.connectivity?.probe?.();
+    } catch {
+      /* optional IPC */
+    }
+    await refreshConn();
+
+    const list = buildTruthProbes(FLEET_URLS.client);
+    const next = await Promise.all(
+      list.map(async (p) => {
+        const t0 = performance.now();
+        try {
+          const res = await fetch(p.url, {
+            method: p.role === "assets" ? "HEAD" : "GET",
+            mode: "cors",
+          });
+          const authOk = p.id === "auth-me" && (res.status === 401 || res.status === 200);
+          return {
+            ...p,
+            ok: res.ok || authOk || res.status === 401,
+            status: res.status,
+            latencyMs: Math.round(performance.now() - t0),
+            detail: res.ok || authOk ? "ok" : res.statusText || String(res.status),
+          } satisfies TruthProbe;
+        } catch (e: unknown) {
+          return {
+            ...p,
+            ok: false,
+            status: null,
+            latencyMs: Math.round(performance.now() - t0),
+            detail: e instanceof Error ? e.message : "unreachable",
+          } satisfies TruthProbe;
+        }
+      }),
+    );
     setProbes(next);
     setChecking(false);
     const score = Math.round((next.filter((x) => x.ok).length / Math.max(1, next.length)) * 100);
-    toast.message(`Fleet probe ${score}%`, {
-      description: `${next.filter((x) => x.ok).length}/${next.length} endpoints reachable`,
+    toast.message(`Fleet ${score}%`, {
+      description: `${next.filter((x) => x.ok).length}/${next.length} systems reachable`,
     });
-  }
+  }, [refreshConn]);
 
   useEffect(() => {
+    void refreshConn();
     void runProbes();
-  }, []);
+    const off = window.grudge?.connectivity?.onChange?.((s: ConnSnap) => setConn(s));
+    return () => off?.();
+  }, [refreshConn, runProbes]);
 
-  const score =
+  const probeScore =
     probes.length === 0
       ? null
       : Math.round((probes.filter((x) => x.ok).length / probes.length) * 100);
+  const score = conn?.truthScore ?? probeScore;
+  const healthy = score != null && score >= TRUTH_HEALTH_THRESHOLD;
+  const scoreCls =
+    score == null ? "text-muted" : healthy ? "text-ok" : score >= 50 ? "text-gold" : "text-danger";
+
+  const actions = PRIMARY.filter((a) => !a.adminOnly || admin);
+
+  function openGame(g: FleetGame) {
+    if (g.url) window.grudge?.os?.openExternal?.(g.url);
+  }
 
   return (
-    <div className="p-4 max-w-5xl mx-auto space-y-6">
-      <header>
-        <h1 className="page-title flex items-center gap-2">
-          <Globe size={22} className="text-gold" />
-          Grudge Studio Hub
-        </h1>
-        <p className="page-sub">
-          Best-in-class asset viewer, opener, and editor — wired to ONE TRUTH databases, CDN
-          assets, and agentic AI for make & deploy.
-        </p>
+    <div className="hub">
+      <header className="hub-hero">
+        <div className="min-w-0">
+          <p className="hub-kicker">Command center</p>
+          <h1 className="page-title mb-1">Grudge Studio</h1>
+          <p className="page-sub mb-0 max-w-xl">
+            Play games, browse assets, edit in Forge, deploy with Agent AI — one shell on ONE TRUTH.
+            {username ? (
+              <span className="block text-[11px] font-mono mt-1 opacity-80">{username}</span>
+            ) : null}
+          </p>
+        </div>
+
+        <div className={`hub-truth ${healthy ? "ok" : score != null ? "warn" : ""}`}>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <span className="text-[10px] uppercase tracking-wider text-muted flex items-center gap-1">
+              <ShieldCheck size={12} className="text-gold" /> ONE TRUTH
+            </span>
+            <button
+              type="button"
+              className="text-muted hover:text-gold p-0.5"
+              title="Re-check fleet"
+              disabled={checking}
+              onClick={() => void runProbes()}
+            >
+              <RefreshCw size={12} className={checking ? "animate-spin" : ""} />
+            </button>
+          </div>
+          <div className={`text-3xl font-bold tabular-nums ${scoreCls}`}>
+            {score != null ? `${score}%` : "—"}
+          </div>
+          <div className="text-[11px] text-muted mt-1">
+            {conn?.online
+              ? conn.reachable
+                ? `live · ${conn.latencyMs ?? 0}ms`
+                : "partial"
+              : conn
+                ? "offline"
+                : "checking…"}
+          </div>
+          <div className="text-[10px] font-mono text-muted/80 truncate mt-0.5" title={conn?.apiBaseUrl}>
+            {(conn?.apiBaseUrl ?? FLEET_URLS.client).replace(/^https:\/\//, "")}
+          </div>
+          {score != null && score < TRUTH_HEALTH_THRESHOLD && (
+            <p className="text-[10px] text-gold mt-2 leading-snug">
+              Below {TRUTH_HEALTH_THRESHOLD}% — Settings → ONE TRUTH or{" "}
+              <span className="font-mono">grudge-dev doctor</span>
+            </p>
+          )}
+        </div>
       </header>
 
-      <section className="card flex flex-wrap items-center gap-3">
-        <div className="flex-1 min-w-[180px]">
-          <div className="text-[10px] uppercase tracking-wider text-muted">Fleet health</div>
-          <div className="text-lg font-semibold text-gold">
-            {score == null ? "…" : `ONE TRUTH ${score}%`}
-          </div>
-          <div className="text-[11px] text-muted font-mono truncate">{FLEET_URLS.client}</div>
-        </div>
-        <button type="button" className="btn" disabled={checking} onClick={() => void runProbes()}>
-          <RefreshCw size={14} className={checking ? "animate-spin" : ""} /> Re-probe
-        </button>
-      </section>
-
-      {probes.length > 0 && (
-        <div className="grid sm:grid-cols-2 gap-2">
-          {probes.map((p) => (
-            <div
-              key={p.id}
-              className={`border rounded px-3 py-2 text-xs flex items-center gap-2 ${
-                p.ok ? "border-ok/30 bg-ok/5" : "border-danger/30 bg-danger/5"
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${p.ok ? "bg-ok" : "bg-danger"}`} />
-              <div className="min-w-0 flex-1">
-                <div className="text-ink truncate">{p.label}</div>
-                <div className="text-muted font-mono truncate text-[10px]">{p.url}</div>
-              </div>
-              <span className="text-muted">{p.latencyMs ?? "—"}ms</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <section>
-        <h2 className="text-sm font-semibold text-ink mb-2">Open · View · Edit · Deploy</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {QUICK.map((q) => (
+      <section className="hub-section">
+        <h2 className="hub-section-title">Do this</h2>
+        <div className="hub-actions">
+          {actions.map((a) => (
             <button
-              key={q.id}
+              key={a.id}
               type="button"
-              className="card text-left hover:border-gold/40 transition border border-line p-3 flex gap-3"
-              onClick={() => {
-                if (q.route && onNavigate) onNavigate(q.route);
-                else if (q.href) window.grudge?.os?.openExternal?.(q.href);
-              }}
+              className="hub-action"
+              onClick={() => onNavigate?.(a.route)}
             >
-              <q.Icon size={20} className="text-gold shrink-0 mt-0.5" />
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-ink flex items-center gap-1">
-                  {q.label}
-                  {q.href && <ExternalLink size={11} className="text-muted" />}
-                </div>
-                <div className="text-[11px] text-muted leading-snug">{q.desc}</div>
-              </div>
+              <a.Icon size={22} className="text-gold shrink-0" />
+              <span className="hub-action-title">{a.label}</span>
+              <span className="hub-action-desc">{a.desc}</span>
             </button>
           ))}
         </div>
       </section>
 
-      <section className="card text-xs text-muted space-y-1">
-        <div className="text-ink font-semibold text-sm mb-1">How to work</div>
-        <p>
-          1. <strong className="text-ink">Assets</strong> — open Object Storage Browser; click any file
-          to pop-out the always-on-top Asset Viewer (3D / image / audio / text).
-        </p>
-        <p>
-          2. <strong className="text-ink">Edit</strong> — send GLB/scene to Forge 3D; Skeleton Studio
-          for rigs; convert/optimize on upload.
-        </p>
-        <p>
-          3. <strong className="text-ink">Database</strong> — Railway game-data holds characters /
-          accounts (grudachain vault); ObjectStore holds definitions JSON.
-        </p>
-        <p>
-          4. <strong className="text-ink">Agent AI</strong> — describe what to make or deploy; orchestrator
-          plans steps against fleet URLs and local pods.
-        </p>
+      <section className="hub-section">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h2 className="hub-section-title mb-0">Featured games</h2>
+          <button type="button" className="btn ghost text-xs" onClick={() => onNavigate?.("/games")}>
+            All games
+          </button>
+        </div>
+        <div className="hub-games">
+          {featured.map((g) => (
+            <div key={g.id} className="hub-game-card">
+              <div className="flex items-start gap-2 min-w-0">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-ink truncate">{g.displayName}</div>
+                  <div className="text-[10px] text-muted truncate">
+                    {g.engine} · {g.status}
+                  </div>
+                </div>
+                <span
+                  className={
+                    "shrink-0 text-[9px] uppercase px-1.5 py-0.5 rounded border " +
+                    (g.status === "live"
+                      ? "border-ok/40 text-ok bg-ok/10"
+                      : "border-line text-muted")
+                  }
+                >
+                  {g.status}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted line-clamp-2 mt-1 mb-2 flex-1">{g.description}</p>
+              <button type="button" className="btn text-xs w-full flex items-center justify-center gap-1" onClick={() => openGame(g)}>
+                <Play size={12} /> Play
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="hub-section">
+        <h2 className="hub-section-title">Systems</h2>
+        <div className="hub-systems">
+          <SystemChip
+            Icon={Globe}
+            label="Fleet client"
+            url={FLEET_URLS.client}
+            ok={probes.find((p) => p.id === "auth-me" || p.id === "os-items")?.ok}
+          />
+          <SystemChip Icon={ShieldCheck} label="Identity" url={FLEET_URLS.auth} ok={probes.find((p) => p.id === "id-health")?.ok} />
+          <SystemChip
+            Icon={Database}
+            label="Game data"
+            url={FLEET_URLS.gameData}
+            ok={probes.find((p) => p.id === "railway-health")?.ok}
+          />
+          <SystemChip Icon={Package} label="Assets CDN" url={FLEET_URLS.assets} ok={probes.find((p) => p.id === "icon-cdn")?.ok} />
+          <SystemChip
+            Icon={FolderTree}
+            label="ObjectStore"
+            url={FLEET_URLS.objectStore}
+            ok={probes.find((p) => p.id === "os-direct" || p.id === "os-items")?.ok}
+          />
+        </div>
+
+        <button
+          type="button"
+          className="hub-details-toggle mt-3"
+          onClick={() => setDetailsOpen((v) => !v)}
+        >
+          {detailsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          Probe details
+          {probes.length > 0 && (
+            <span className="text-muted font-normal">
+              · {probes.filter((p) => p.ok).length}/{probes.length} ok
+            </span>
+          )}
+        </button>
+
+        {detailsOpen && probes.length > 0 && (
+          <div className="hub-probe-grid mt-2">
+            {probes.map((p) => (
+              <div
+                key={p.id}
+                className={
+                  "hub-probe " + (p.ok ? "ok" : "bad")
+                }
+              >
+                <span className={"hub-probe-dot " + (p.ok ? "ok" : "bad")} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-ink truncate text-xs">{p.label}</div>
+                  <div className="text-muted font-mono truncate text-[10px]">{p.url.replace(/^https:\/\//, "")}</div>
+                </div>
+                <span className="text-muted text-[10px] tabular-nums">{p.latencyMs ?? "—"}ms</span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
+  );
+}
+
+function SystemChip({
+  Icon,
+  label,
+  url,
+  ok,
+}: {
+  Icon: LucideIcon;
+  label: string;
+  url: string;
+  ok?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={"hub-system-chip " + (ok === true ? "ok" : ok === false ? "bad" : "")}
+      title={url}
+      onClick={() => window.grudge?.os?.openExternal?.(url)}
+    >
+      <span className={"hub-probe-dot " + (ok === true ? "ok" : ok === false ? "bad" : "idle")} />
+      <Icon size={13} className="text-gold shrink-0" />
+      <span className="truncate">{label}</span>
+      <ExternalLink size={10} className="opacity-50 shrink-0" />
+    </button>
   );
 }
