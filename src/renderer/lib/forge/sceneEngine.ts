@@ -275,24 +275,104 @@ export class SceneEngine {
     return mesh;
   }
 
-  /** Frame an Object3D — center on its bounding box and fit camera to it. */
-  frame(object: THREE.Object3D, paddingFactor = 1.4): void {
+  /**
+   * Frame an Object3D — center on its bounding box and fit the camera.
+   * Uses perspective aspect so tall/wide models don't clip.
+   */
+  frame(object: THREE.Object3D, paddingFactor = 1.35): void {
     const box = new THREE.Box3().setFromObject(object);
+    this.frameBox(box, paddingFactor);
+  }
+
+  /** Frame several roots as one selection bounds. */
+  frameMany(objects: THREE.Object3D[], paddingFactor = 1.35): void {
+    if (!objects.length) return;
+    const box = new THREE.Box3();
+    for (const o of objects) {
+      if (!o.visible) continue;
+      box.expandByObject(o);
+    }
+    this.frameBox(box, paddingFactor);
+  }
+
+  /** Frame the whole scene (skips forge helpers + transform gizmo). */
+  frameAll(paddingFactor = 1.4): void {
+    const roots = this.scene.children.filter(
+      (c) => !c.userData?.forgeInternal && c !== this.transformHelper && c.visible,
+    );
+    this.frameMany(roots, paddingFactor);
+  }
+
+  /** Reset camera to default studio home (origin look). */
+  focusHome(): void {
+    this.camera.position.set(3, 2.5, 4);
+    this.camera.near = 0.01;
+    this.camera.far = 5000;
+    this.camera.updateProjectionMatrix();
+    this.controls.target.set(0, 0.5, 0);
+    this.controls.update();
+  }
+
+  /** Core framing from a world-space AABB. */
+  frameBox(box: THREE.Box3, paddingFactor = 1.35): void {
     if (box.isEmpty()) return;
     const size = new THREE.Vector3();
     const center = new THREE.Vector3();
     box.getSize(size);
     box.getCenter(center);
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const fov = (this.camera.fov * Math.PI) / 180;
-    const dist = (maxDim / 2 / Math.tan(fov / 2)) * paddingFactor;
-    const dir = new THREE.Vector3(1, 0.6, 1).normalize();
+    // Guard zero-size (single point / empty mesh)
+    const maxDim = Math.max(size.x, size.y, size.z, 0.05);
+    const fov = THREE.MathUtils.degToRad(this.camera.fov);
+    const aspect = Math.max(0.1, this.camera.aspect);
+    // Fit both height and width against perspective frustum
+    const fitH = maxDim / (2 * Math.tan(fov / 2));
+    const fitW = maxDim / (2 * Math.tan(fov / 2) * aspect);
+    const dist = Math.max(fitH, fitW) * paddingFactor;
+    // Prefer current orbit direction if camera is already framed; else default 3/4 view
+    const dir = new THREE.Vector3()
+      .subVectors(this.camera.position, this.controls.target);
+    if (dir.lengthSq() < 1e-6) dir.set(1, 0.65, 1);
+    dir.normalize();
     this.camera.position.copy(center).addScaledVector(dir, dist);
-    this.camera.near = Math.max(0.001, maxDim / 1000);
-    this.camera.far = dist * 10;
+    this.camera.near = Math.max(0.001, maxDim / 500);
+    this.camera.far = Math.max(this.camera.near * 100, dist * 20 + maxDim * 10);
     this.camera.updateProjectionMatrix();
     this.controls.target.copy(center);
+    this.controls.minDistance = Math.max(0.01, maxDim * 0.05);
+    this.controls.maxDistance = Math.max(50, dist * 8);
     this.controls.update();
+  }
+
+  /** Soft selection outline: toggle emissive flash on meshes under root. */
+  pulseSelect(root: THREE.Object3D | null, hex = 0xffc62a): void {
+    // Clear previous pulse tags
+    this.scene.traverse((n) => {
+      const m = n as THREE.Mesh;
+      if (!m.isMesh || !m.userData?.forgePulse) return;
+      const mat = m.material as THREE.MeshStandardMaterial;
+      if (mat?.isMeshStandardMaterial && m.userData.forgePulseEmissive != null) {
+        mat.emissive.setHex(m.userData.forgePulseEmissive);
+        mat.emissiveIntensity = m.userData.forgePulseIntensity ?? 0;
+      }
+      delete m.userData.forgePulse;
+      delete m.userData.forgePulseEmissive;
+      delete m.userData.forgePulseIntensity;
+    });
+    if (!root) return;
+    root.traverse((n) => {
+      const m = n as THREE.Mesh;
+      if (!m.isMesh) return;
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      for (const raw of mats) {
+        const mat = raw as THREE.MeshStandardMaterial;
+        if (!mat?.isMeshStandardMaterial) continue;
+        m.userData.forgePulse = true;
+        m.userData.forgePulseEmissive = mat.emissive.getHex();
+        m.userData.forgePulseIntensity = mat.emissiveIntensity;
+        mat.emissive.setHex(hex);
+        mat.emissiveIntensity = Math.max(mat.emissiveIntensity, 0.35);
+      }
+    });
   }
 
   /** Build an AnimationMixer for the given root and register the clips. */

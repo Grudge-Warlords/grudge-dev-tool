@@ -24,8 +24,12 @@ import {
   DEFAULT_FORGE_ANIM,
   applyLoopMode,
   crossfadeTo,
+  stopMixer,
   type ForgeAnimSettings,
 } from "../lib/forge/forgeAnimation";
+import { buildProceduralClip } from "../lib/forge/animApply";
+import { FORGE_HOTKEYS, hotkeysByGroup } from "../lib/forge/forgeHotkeys";
+import type { ForgeScriptHost } from "../lib/forge/forgeScript";
 import ForgeWorkbench from "../components/ForgeWorkbench";
 import { findObjectByUuid } from "../lib/forge/sceneGraph";
 import { serializeScene, downloadSceneJson, parseSceneJson, applyMatrix } from "../lib/forge/sceneSerializer";
@@ -126,6 +130,7 @@ export default function Forge3D() {
   const [busyUpload, setBusyUpload] = useState(false);
   const [fleetPrefixes, setFleetPrefixes] = useState<Array<{ id: string; label: string; prefix: string }>>([]);
   const [animSettings, setAnimSettings] = useState<ForgeAnimSettings>(DEFAULT_FORGE_ANIM);
+  const [hotkeyHelp, setHotkeyHelp] = useState(false);
 
   const selected = useMemo(() => items.find((i) => i.id === selectedId) ?? null, [items, selectedId]);
   const selectedNode = useMemo(() => {
@@ -135,6 +140,43 @@ export default function Forge3D() {
   }, [selected, selectedNodeUuid]);
   const canUndo = historyTick >= 0 && historyRef.current.canUndo;
   const canRedo = historyTick >= 0 && historyRef.current.canRedo;
+
+  const scriptHost = useMemo<ForgeScriptHost>(() => ({
+    get engine() {
+      const e = engineRef.current;
+      if (!e) throw new Error("Engine not ready");
+      return e;
+    },
+    get items() {
+      return itemsRef.current;
+    },
+    get selectedId() {
+      return selectedId;
+    },
+    getSelected() {
+      return itemsRef.current.find((i) => i.id === selectedId) ?? null;
+    },
+    setSelectedId(id) {
+      setSelectedId(id);
+    },
+    mergeAnimations(itemId, clips) {
+      mergeAnimations(itemId, clips);
+    },
+    playClip(item, clip) {
+      playClip(item as SceneItem, clip);
+    },
+    frame(object) {
+      if (object) engineRef.current?.frame(object);
+      else frameSelected();
+    },
+    frameAll() {
+      engineRef.current?.frameAll();
+    },
+    log(msg) {
+      console.info("[forge-script]", msg);
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- host is a stable façade over refs/state
+  }), [selectedId]);
 
   useEffect(() => {
     itemsRef.current = items;
@@ -327,17 +369,25 @@ export default function Forge3D() {
       setSelectedId(id);
       setSelectedNodeUuid(null);
       if (autoFrame) engineRef.current.frame(loaded.object);
+      engineRef.current.pulseSelect(loaded.object);
       const rigHint = rig.fingerprintLabel ? ` · ${rig.fingerprintLabel}` : rig.boneCount > 0 ? ` · ${rig.boneCount} bones` : "";
       toast.success(`Loaded ${loadFile.name}`, {
         description: `${loaded.triangles.toLocaleString()} triangles · ${loaded.animations.length} clip${loaded.animations.length === 1 ? "" : "s"}${rigHint}`,
       });
+      if (animSettings.autoPlayFirst && mixer && loaded.animations[0]) {
+        const action = mixer.clipAction(loaded.animations[0]);
+        applyLoopMode(action, animSettings.loop);
+        action.play();
+        setActiveClip(action);
+        setPaused(false);
+      }
     } catch (err: any) {
       console.error("Forge3D load failed", err);
       toast.error(`Failed to load ${file.name}`, { description: err?.message ?? String(err) });
     } finally {
       setLoading(false);
     }
-  }, [autoFrame]);
+  }, [autoFrame, animSettings.autoPlayFirst, animSettings.loop]);
 
   const onPickFiles = useCallback((files: FileList | null) => {
     if (!files) return;
@@ -400,10 +450,17 @@ export default function Forge3D() {
     setItems((prev) => prev.map((it) => {
       if (it.id !== itemId) return it;
       if (it.mixer && engineRef.current) engineRef.current.removeMixer(it.mixer);
-      const mixer = engineRef.current?.buildMixer(it.object, clips) ?? null;
+      // Always create a mixer when clips exist (rigged skeleton or unrigged object tracks)
+      const mixer =
+        clips.length > 0
+          ? (engineRef.current?.buildMixer(it.object, clips) ?? new THREE.AnimationMixer(it.object))
+          : null;
+      if (mixer && engineRef.current && !engineRef.current.mixers.includes(mixer)) {
+        engineRef.current.mixers.push(mixer);
+      }
       return { ...it, animations: clips, mixer };
     }));
-    toast.success(`Merged ${clips.length} animation clip${clips.length === 1 ? "" : "s"}`);
+    toast.success(`Set ${clips.length} animation clip${clips.length === 1 ? "" : "s"}`);
   }
 
   function updateBodyMorph(itemId: string, morph: BodyMorphConfig) {
@@ -905,8 +962,17 @@ export default function Forge3D() {
 
   // -- Animation control ---------------------------------------------------
   function playClip(item: SceneItem, clip: THREE.AnimationClip) {
-    if (!item.mixer) return;
-    const action = item.mixer.clipAction(clip);
+    let mixer = item.mixer;
+    if (!mixer && engineRef.current) {
+      mixer = engineRef.current.buildMixer(item.object, item.animations.length ? item.animations : [clip]);
+      if (!mixer) {
+        mixer = new THREE.AnimationMixer(item.object);
+        engineRef.current.mixers.push(mixer);
+      }
+      setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, mixer } : it)));
+    }
+    if (!mixer) return;
+    const action = mixer.clipAction(clip);
     applyLoopMode(action, animSettings.loop);
     crossfadeTo(activeClip, action, animSettings.crossfadeMs / 1000);
     setActiveClip(action);
@@ -914,17 +980,37 @@ export default function Forge3D() {
   }
 
   function togglePlayPause() {
-    if (!activeClip) return;
+    if (!activeClip) {
+      // No active clip — play first on selection
+      if (selected?.animations[0]) playClip(selected, selected.animations[0]);
+      return;
+    }
     activeClip.paused = !activeClip.paused;
     setPaused(activeClip.paused);
   }
 
   function stopClip() {
-    if (activeClip) {
-      activeClip.stop();
-      setActiveClip(null);
-      setPaused(false);
-    }
+    if (selected?.mixer) stopMixer(selected.mixer);
+    else if (activeClip) activeClip.stop();
+    setActiveClip(null);
+    setPaused(false);
+  }
+
+  function playClipIndex(index: number) {
+    if (!selected?.animations[index]) return;
+    playClip(selected, selected.animations[index]);
+  }
+
+  function addProceduralSpin() {
+    if (!selected) return;
+    const clip = buildProceduralClip(selected.object, "spin-y");
+    mergeAnimations(selected.id, [...selected.animations, clip]);
+    // Play after state flush
+    queueMicrotask(() => {
+      const it = itemsRef.current.find((i) => i.id === selected.id);
+      const c = it?.animations[it.animations.length - 1];
+      if (it && c) playClip(it, c);
+    });
   }
 
   // -- Remove + frame ------------------------------------------------------
@@ -938,12 +1024,33 @@ export default function Forge3D() {
       }
       return prev.filter((i) => i.id !== id);
     });
-    if (selectedId === id) setSelectedId(null);
+    if (selectedId === id) {
+      setSelectedId(null);
+      engineRef.current?.pulseSelect(null);
+    }
     if (activeClip) stopClip();
   }
 
   function frameSelected() {
-    if (selected && engineRef.current) engineRef.current.frame(selected.object);
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (selectedNode) {
+      engine.frame(selectedNode);
+      engine.pulseSelect(selectedNode);
+      return;
+    }
+    if (selected) {
+      engine.frame(selected.object);
+      engine.pulseSelect(selected.object);
+    }
+  }
+
+  function frameAll() {
+    engineRef.current?.frameAll();
+  }
+
+  function cameraHome() {
+    engineRef.current?.focusHome();
   }
 
   function screenshot() {
@@ -1027,6 +1134,17 @@ export default function Forge3D() {
       const k = e.key.toLowerCase();
       const mod = e.ctrlKey || e.metaKey;
 
+      // Help overlay
+      if (!mod && (k === "?" || (e.shiftKey && k === "/"))) {
+        e.preventDefault();
+        setHotkeyHelp((v) => !v);
+        return;
+      }
+      if (k === "escape" && hotkeyHelp) {
+        setHotkeyHelp(false);
+        return;
+      }
+
       // Undo / redo
       if (mod && k === "z" && !e.shiftKey) { e.preventDefault(); undoTransform(); return; }
       if (mod && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); redoTransform(); return; }
@@ -1037,6 +1155,23 @@ export default function Forge3D() {
       if (mod && k === "v") { e.preventDefault(); pasteClipboard(); return; }
       if (mod && k === "d") { e.preventDefault(); duplicateSelected(); return; }
       if (mod && k === "s") { e.preventDefault(); saveScene(); return; }
+      if (mod && k === "o") { e.preventDefault(); fileInputRef.current?.click(); return; }
+
+      // Frame / camera
+      if (!mod && e.shiftKey && k === "f") { e.preventDefault(); frameAll(); return; }
+      if (!mod && k === "f") { e.preventDefault(); frameSelected(); return; }
+      if (e.key === "Home") { e.preventDefault(); cameraHome(); return; }
+      if (!mod && k === "h") { setShowHelpers((v) => !v); return; }
+
+      // Animation
+      if (!mod && k === " ") { e.preventDefault(); togglePlayPause(); return; }
+      if (!mod && k === "0") { e.preventDefault(); stopClip(); return; }
+      if (!mod && e.shiftKey && k === "a") { e.preventDefault(); addProceduralSpin(); return; }
+      if (!mod && !e.shiftKey && k >= "1" && k <= "9") {
+        e.preventDefault();
+        playClipIndex(Number(k) - 1);
+        return;
+      }
 
       // Tools
       if (!mod && k === "q") { setTool("select"); return; }
@@ -1059,7 +1194,6 @@ export default function Forge3D() {
       if (!mod && k === "]") { setBrushRadius((r) => Math.min(8, +(r * 1.25).toFixed(3))); return; }
       if (!mod && k === ";") { setBrushStrength((s) => Math.max(0.05, +(s - 0.1).toFixed(2))); return; }
       if (!mod && k === "'") { setBrushStrength((s) => Math.min(1, +(s + 0.1).toFixed(2))); return; }
-      if (!mod && k === "f") { frameSelected(); return; }
       if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedId) { e.preventDefault(); removeItem(selectedId); }
       }
@@ -1105,6 +1239,9 @@ export default function Forge3D() {
           setSelectedId(itemId);
           setSelectedNodeUuid(hit.object.uuid);
           engine.attach(hit.object);
+          engine.pulseSelect(hit.object);
+          // Double-click frames the hit object
+          if (ev.detail >= 2) engine.frame(hit.object);
         }
       }
     };
@@ -1275,6 +1412,14 @@ export default function Forge3D() {
             <Box size={12} />
             {items.length} object{items.length === 1 ? "" : "s"} ·
             {" "}{items.reduce((a, i) => a + i.triangles, 0).toLocaleString()} tris
+            <button
+              type="button"
+              className="text-gold hover:underline ml-1"
+              title="Hotkeys (?)"
+              onClick={() => setHotkeyHelp(true)}
+            >
+              ?
+            </button>
           </div>
           <input
             ref={fileInputRef}
@@ -1321,10 +1466,42 @@ export default function Forge3D() {
               setDeployCategoryId={setDeployCategoryId}
               runIngest={runIngest}
               setRunIngest={setRunIngest}
+              scriptHost={scriptHost}
             />
           )}
         </Panel>
       </div>
+
+      {hotkeyHelp && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => setHotkeyHelp(false)}
+        >
+          <div
+            className="card max-w-lg w-[90%] max-h-[80vh] overflow-auto border border-gold/30"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-gold font-semibold text-sm">Forge hotkeys</h2>
+              <button type="button" className="btn ghost text-xs" onClick={() => setHotkeyHelp(false)}>Esc</button>
+            </div>
+            {Object.entries(hotkeysByGroup()).map(([group, list]) => (
+              <div key={group} className="mb-3">
+                <div className="text-[10px] uppercase tracking-wide text-muted mb-1">{group}</div>
+                <div className="space-y-1">
+                  {list.map((h) => (
+                    <div key={h.keys + h.action} className="flex justify-between gap-3 text-xs">
+                      <span className="font-mono text-gold shrink-0">{h.keys}</span>
+                      <span className="text-muted text-right">{h.action}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <p className="text-[10px] text-muted mt-2">Press <span className="font-mono">?</span> to toggle · {FORGE_HOTKEYS.length} bindings</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,29 +1,39 @@
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import {
   Bone, Play, Pause, Upload, RefreshCcw, Layers, Settings2, Wand2, Box, Sun,
+  Image as ImageIcon, Terminal, Sparkles,
 } from "lucide-react";
+import { toast } from "sonner";
 import ForgeSceneTree from "./ForgeSceneTree";
 import ForgeTransformPanel from "./ForgeTransformPanel";
 import ForgeLightingPanel from "./ForgeLightingPanel";
 import type { StudioLightState } from "../lib/forge/sceneEngine";
 import type { StoreCategory } from "../../shared/fleetGames";
 import {
-  retargetClips,
   captureRestPose,
   applyBodyMorph,
   DEFAULT_BODY_MORPH,
   type BodyMorphConfig,
 } from "../lib/forge/boneAliases";
 import {
-  DEFAULT_FORGE_ANIM,
-  applyLoopMode,
-  crossfadeTo,
   type ForgeAnimSettings,
   type AnimLoopMode,
 } from "../lib/forge/forgeAnimation";
-import { inspectSceneRig, type RigInspectResult } from "../lib/forge/rigInspect";
+import { type RigInspectResult } from "../lib/forge/rigInspect";
 import { loadModel } from "../lib/forge/loaders";
+import {
+  applyAnimationsToTarget,
+  buildProceduralClip,
+  UNRIGGED_PRESETS,
+  type UnriggedPreset,
+} from "../lib/forge/animApply";
+import {
+  applySmartTextures,
+  filterImagePaths,
+  siblingTexturePrefixes,
+} from "../lib/forge/textureFinder";
+import { runForgeScript, SCRIPT_EXAMPLES, type ForgeScriptHost } from "../lib/forge/forgeScript";
 
 export interface ForgeSceneItem {
   id: string;
@@ -66,9 +76,11 @@ interface Props {
   setDeployCategoryId: (id: string) => void;
   runIngest: boolean;
   setRunIngest: (v: boolean) => void;
+  /** Optional host for in-panel scripting (engine + scene hooks). */
+  scriptHost?: ForgeScriptHost | null;
 }
 
-type Tab = "scene" | "rig" | "animation" | "modeling" | "deploy";
+type Tab = "scene" | "rig" | "animation" | "textures" | "script" | "modeling" | "deploy";
 
 const MORPH_SLIDERS: Array<{ key: keyof BodyMorphConfig; label: string; min: number; max: number; step: number }> = [
   { key: "torsoLength", label: "Torso", min: 0.7, max: 1.4, step: 0.01 },
@@ -83,11 +95,18 @@ const MORPH_SLIDERS: Array<{ key: keyof BodyMorphConfig; label: string; min: num
 ];
 
 export default function ForgeWorkbench(props: Props) {
-  const [tab, setTab] = React.useState<Tab>("scene");
-  const [deepInspect, setDeepInspect] = React.useState<string | null>(null);
-  const [deepBusy, setDeepBusy] = React.useState(false);
+  const [tab, setTab] = useState<Tab>("scene");
+  const [deepInspect, setDeepInspect] = useState<string | null>(null);
+  const [deepBusy, setDeepBusy] = useState(false);
+  const [texBusy, setTexBusy] = useState(false);
+  const [texReport, setTexReport] = useState<string | null>(null);
+  const [scriptCode, setScriptCode] = useState(SCRIPT_EXAMPLES[0]?.code ?? "api.help();");
+  const [scriptLog, setScriptLog] = useState<string>("");
+  const [scriptBusy, setScriptBusy] = useState(false);
   const animInputRef = useRef<HTMLInputElement>(null);
+  const texInputRef = useRef<HTMLInputElement>(null);
   const { item, animSettings, onAnimSettings, onBodyMorph, onAnimationsMerged } = props;
+  const isRigged = item.bones > 0 || !!item.rig?.hasSkinnedMesh;
 
   async function runDeepInspect() {
     if (!item.diskPath) return;
@@ -126,11 +145,19 @@ export default function ForgeWorkbench(props: Props) {
 
   async function importAnimFile(file: File) {
     const loaded = await loadModel(file);
-    if (!loaded.animations.length) return;
-    const retargeted = retargetClips(loaded.animations, item.object, loaded.object, {
+    if (!loaded.animations.length) {
+      toast.info("No clips in file");
+      return;
+    }
+    const result = applyAnimationsToTarget(loaded.animations, item.object, {
+      source: loaded.object,
       dropRootChain: animSettings.dropRootChain,
+      fallbackPreset: "spin-y",
     });
-    onAnimationsMerged([...item.animations, ...retargeted]);
+    onAnimationsMerged([...item.animations, ...result.clips]);
+    toast.success(`Applied ${result.clips.length} clip(s)`, {
+      description: `${result.mode}${result.warnings[0] ? ` · ${result.warnings[0]}` : ""}`,
+    });
   }
 
   function retargetFromItem(sourceId: string) {
@@ -139,14 +166,102 @@ export default function ForgeWorkbench(props: Props) {
     const source = src.sourceRest
       ? src.sourceRest
       : captureRestPose(src.object);
-    const retargeted = retargetClips(src.animations, item.object, source, {
+    const result = applyAnimationsToTarget(src.animations, item.object, {
+      source,
       dropRootChain: animSettings.dropRootChain,
+      fallbackPreset: "bob",
     });
-    onAnimationsMerged([...item.animations, ...retargeted.map((c) => {
+    const named = result.clips.map((c) => {
       const clip = c.clone();
       clip.name = `${src.name}:${clip.name}`;
       return clip;
-    })]);
+    });
+    onAnimationsMerged([...item.animations, ...named]);
+    toast.success(`Set ${named.length} clip(s) on ${isRigged ? "rig" : "static mesh"}`, {
+      description: result.mode,
+    });
+  }
+
+  function addProcedural(preset: UnriggedPreset) {
+    const clip = buildProceduralClip(item.object, preset);
+    onAnimationsMerged([...item.animations, clip]);
+    toast.success(`Added ${preset}`, { description: isRigged ? "Also works on rig roots" : "Unrigged object clip" });
+  }
+
+  async function smartFindTexturesFromDisk(files: FileList | null) {
+    if (!files?.length) return;
+    setTexBusy(true);
+    try {
+      const urls: string[] = [];
+      for (const f of Array.from(files)) {
+        if (/\.(png|jpe?g|webp|bmp)$/i.test(f.name)) urls.push(URL.createObjectURL(f));
+      }
+      const reports = await applySmartTextures(item.object, urls);
+      const applied = reports.reduce((n, r) => n + r.applied.length, 0);
+      setTexReport(
+        reports.map((r) =>
+          `${r.meshName} / ${r.materialName}: ${r.applied.map((a) => `${a.role}←${a.name}`).join(", ") || "—"}`,
+        ).join("\n") || "No matches",
+      );
+      toast.success(`Applied ${applied} texture map(s)`, { description: `${reports.length} material(s)` });
+    } catch (e: unknown) {
+      toast.error("Texture apply failed", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setTexBusy(false);
+    }
+  }
+
+  async function smartFindTexturesFromFleet() {
+    setTexBusy(true);
+    try {
+      const prefixes = item.diskPath
+        ? siblingTexturePrefixes(item.diskPath.replace(/\\/g, "/"))
+        : ["textures/", "models/textures/", "maps/"];
+      const keys: string[] = [];
+      for (const prefix of prefixes.slice(0, 4)) {
+        try {
+          const res = await window.grudge.os.list({ prefix, delimiter: "", limit: 100 });
+          for (const it of res.items ?? []) {
+            if (it?.name) keys.push(String(it.name));
+          }
+        } catch { /* try next prefix */ }
+      }
+      const images = filterImagePaths(keys);
+      if (!images.length) {
+        toast.info("No textures found near model path", { description: prefixes[0] });
+        setTexReport("No image keys under sibling prefixes");
+        return;
+      }
+      const reports = await applySmartTextures(item.object, images, async (key) => {
+        const url: string = await window.grudge.cf.r2PublicUrl(key);
+        return url;
+      });
+      const applied = reports.reduce((n, r) => n + r.applied.length, 0);
+      setTexReport(
+        `Scanned ${images.length} images\n` +
+        reports.map((r) =>
+          `${r.meshName}: ${r.applied.map((a) => a.role).join(", ") || "—"}`,
+        ).join("\n"),
+      );
+      toast.success(`Fleet textures: ${applied} map(s)`, { description: `${images.length} candidates` });
+    } catch (e: unknown) {
+      toast.error("Fleet texture search failed", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setTexBusy(false);
+    }
+  }
+
+  async function runScript() {
+    if (!props.scriptHost) {
+      toast.error("Script host not available");
+      return;
+    }
+    setScriptBusy(true);
+    const result = await runForgeScript(scriptCode, props.scriptHost);
+    setScriptLog(result.logs.join("\n") + (result.error ? `\n// ${result.error}` : ""));
+    setScriptBusy(false);
+    if (result.ok) toast.success("Script ok");
+    else toast.error("Script error", { description: result.error });
   }
 
   function applyMorph(patch: Partial<BodyMorphConfig>) {
@@ -174,6 +289,8 @@ export default function ForgeWorkbench(props: Props) {
         <TabBtn id="scene" label="Scene" icon={Box} />
         <TabBtn id="rig" label="Rig" icon={Bone} />
         <TabBtn id="animation" label="Anim" icon={Play} />
+        <TabBtn id="textures" label="Tex" icon={ImageIcon} />
+        <TabBtn id="script" label="Script" icon={Terminal} />
         <TabBtn id="modeling" label="Morph" icon={Wand2} />
         <TabBtn id="deploy" label="Deploy" icon={Upload} />
       </div>
@@ -233,6 +350,14 @@ export default function ForgeWorkbench(props: Props) {
 
         {tab === "animation" && (
           <div className="space-y-3">
+            <div className="text-[10px] text-muted border border-line rounded p-2 bg-bg-2/40">
+              Target: <strong className="text-gold">{isRigged ? "Rigged" : "Unrigged / static"}</strong>
+              {isRigged
+                ? " — retarget bone clips onto this skeleton."
+                : " — bone packs remap to object spin/pose, or use procedural presets."}
+              {" "}Hotkeys: <span className="font-mono text-ink">1–9</span> play · <span className="font-mono text-ink">Space</span> pause · <span className="font-mono text-ink">0</span> stop · <span className="font-mono text-ink">Shift+A</span> spin
+            </div>
+
             <div className="text-gold font-semibold flex items-center gap-1"><Settings2 size={12} /> Playback</div>
             <label className="block">
               <span className="text-muted">Time scale</span>
@@ -281,8 +406,31 @@ export default function ForgeWorkbench(props: Props) {
               />
               <span>Show skeleton helper</span>
             </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={animSettings.autoPlayFirst}
+                onChange={(e) => onAnimSettings({ ...animSettings, autoPlayFirst: e.target.checked })}
+              />
+              <span>Auto-play first clip on load</span>
+            </label>
 
-            <div className="text-gold font-semibold flex items-center gap-1"><Layers size={12} /> Retarget</div>
+            <div className="text-gold font-semibold flex items-center gap-1"><Sparkles size={12} /> Procedural (any mesh)</div>
+            <div className="grid grid-cols-2 gap-1">
+              {UNRIGGED_PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="btn ghost text-[10px] py-1"
+                  title={p.hint}
+                  onClick={() => addProcedural(p.id)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="text-gold font-semibold flex items-center gap-1"><Layers size={12} /> Set / retarget clips</div>
             <button type="button" className="btn ghost text-xs w-full" onClick={() => animInputRef.current?.click()}>
               Import animation GLB/FBX…
             </button>
@@ -303,7 +451,7 @@ export default function ForgeWorkbench(props: Props) {
                 defaultValue=""
                 onChange={(e) => { if (e.target.value) retargetFromItem(e.target.value); e.target.value = ""; }}
               >
-                <option value="">Retarget clips from scene item…</option>
+                <option value="">Apply clips from scene item…</option>
                 {retargetSources.map((s) => (
                   <option key={s.id} value={s.id}>{s.name} ({s.animations.length} clips)</option>
                 ))}
@@ -314,13 +462,14 @@ export default function ForgeWorkbench(props: Props) {
               <>
                 <div className="text-gold font-semibold mt-2">Clips ({item.animations.length})</div>
                 <div className="max-h-40 overflow-auto border border-line rounded">
-                  {item.animations.map((clip) => {
+                  {item.animations.map((clip, idx) => {
                     const isActive = props.activeClip?.getClip() === clip;
                     return (
                       <div key={clip.uuid} className={`flex items-center gap-1 p-1 ${isActive ? "bg-gold/10" : ""}`}>
-                        <button type="button" className="text-gold" onClick={() => props.onPlay(clip)}>
+                        <button type="button" className="text-gold" onClick={() => props.onPlay(clip)} title={`Play (hotkey ${idx < 9 ? idx + 1 : "—"})`}>
                           {isActive && !props.paused ? <Pause size={10} /> : <Play size={10} />}
                         </button>
+                        <span className="text-muted font-mono w-3">{idx < 9 ? idx + 1 : ""}</span>
                         <span className="truncate flex-1" title={clip.name}>{clip.name}</span>
                         <span className="text-muted">{clip.duration.toFixed(1)}s</span>
                       </div>
@@ -334,6 +483,83 @@ export default function ForgeWorkbench(props: Props) {
                   <button type="button" className="btn ghost text-xs flex-1" onClick={props.onStop}>Stop</button>
                 </div>
               </>
+            )}
+            {item.animations.length === 0 && (
+              <p className="text-muted text-[10px]">No clips yet — import a pack, retarget from another item, or add a procedural motion.</p>
+            )}
+          </div>
+        )}
+
+        {tab === "textures" && (
+          <div className="space-y-3">
+            <p className="text-muted text-[10px]">
+              Smart match by mesh/material name + PBR suffixes (albedo, normal, roughness, metal, ao, emissive).
+            </p>
+            <button
+              type="button"
+              className="btn text-xs w-full"
+              disabled={texBusy}
+              onClick={() => texInputRef.current?.click()}
+            >
+              {texBusy ? "Applying…" : "Pick texture files…"}
+            </button>
+            <input
+              ref={texInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                void smartFindTexturesFromDisk(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              className="btn ghost text-xs w-full"
+              disabled={texBusy}
+              onClick={() => void smartFindTexturesFromFleet()}
+            >
+              {texBusy ? "Searching…" : "Find on fleet (sibling folders)"}
+            </button>
+            {texReport && (
+              <pre className="text-[9px] max-h-40 overflow-auto bg-bg-2 p-2 rounded font-mono whitespace-pre-wrap">
+                {texReport}
+              </pre>
+            )}
+          </div>
+        )}
+
+        {tab === "script" && (
+          <div className="space-y-2">
+            <p className="text-muted text-[10px]">
+              Run JS against the live scene via <span className="font-mono text-gold">api</span>. No Node access.
+            </p>
+            <select
+              className="w-full text-xs"
+              defaultValue=""
+              onChange={(e) => {
+                const ex = SCRIPT_EXAMPLES.find((x) => x.label === e.target.value);
+                if (ex) setScriptCode(ex.code);
+                e.target.value = "";
+              }}
+            >
+              <option value="">Examples…</option>
+              {SCRIPT_EXAMPLES.map((ex) => (
+                <option key={ex.label} value={ex.label}>{ex.label}</option>
+              ))}
+            </select>
+            <textarea
+              className="w-full font-mono text-[10px] min-h-[120px]"
+              value={scriptCode}
+              onChange={(e) => setScriptCode(e.target.value)}
+              spellCheck={false}
+            />
+            <button type="button" className="btn text-xs w-full" disabled={scriptBusy || !props.scriptHost} onClick={() => void runScript()}>
+              {scriptBusy ? "Running…" : "Run script"}
+            </button>
+            {scriptLog && (
+              <pre className="text-[9px] max-h-32 overflow-auto bg-bg-2 p-2 rounded font-mono whitespace-pre-wrap">{scriptLog}</pre>
             )}
           </div>
         )}
@@ -419,4 +645,4 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export { DEFAULT_FORGE_ANIM };
+export { DEFAULT_FORGE_ANIM } from "../lib/forge/forgeAnimation";

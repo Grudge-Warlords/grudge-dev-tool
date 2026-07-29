@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { BodyMorphConfig } from "./boneAliases";
-import type { ForgeAnimSettings } from "./forgeAnimation";
+import { DEFAULT_FORGE_ANIM, type ForgeAnimSettings } from "./forgeAnimation";
 import type { StudioLightState } from "./sceneEngine";
 
 export const FORGE_SCENE_VERSION = 1 as const;
@@ -106,5 +106,10 @@ export function parseSceneJson(raw: string): ForgeSceneDocument {
     throw new Error(`Unsupported scene version: ${doc.version}`);
   }
   if (!Array.isArray(doc.entities)) throw new Error("Invalid scene: missing entities");
+  // Back-compat: older scenes omit newer anim flags
+  doc.settings.animSettings = {
+    ...DEFAULT_FORGE_ANIM,
+    ...(doc.settings.animSettings ?? {}),
+  };
   return doc;
 }

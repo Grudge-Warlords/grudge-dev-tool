@@ -4,6 +4,19 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.9.3] — 2026-07-29
+
+### Added
+- **Forge frame core** — aspect-aware framing, `frameAll`, camera **Home**, selection pulse, double-click to frame.
+- **Hotkeys** — `F` / `Shift+F` / `Home` / `H` / `Space` / `1–9` clips / `0` stop / `Shift+A` procedural spin / `Ctrl+O` open / `?` help overlay.
+- **Anim apply** — smart apply for **rigged** (retarget/bind) and **unrigged** (object remap + procedural presets: spin, bob, float, breathe, wobble, pulse).
+- **Texture finder** — match albedo/normal/rough/metal/ao/emissive by mesh+material name; pick local files or scan fleet sibling folders.
+- **Scripting** — workbench **Script** tab with `api.frame`, `api.play`, `api.addProcedural`, `api.applyAnimsFrom`, `api.findAndApplyTextures`, etc.
+
+### Changed
+- Forge Workbench tabs: Scene · Rig · Anim · **Tex** · **Script** · Morph · Deploy.
+- Animation mixer always rebuilt when clips are set (static props can play object tracks).
+
 ## [0.9.2] — 2026-07-29
 
 ### Changed
