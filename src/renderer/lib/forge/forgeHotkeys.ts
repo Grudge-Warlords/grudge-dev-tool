@@ -47,8 +47,10 @@ export const FORGE_HOTKEYS: HotkeyDef[] = [
   // AI
   { keys: "Ctrl+Shift+T", action: "AI Texture — suggest PBR + find maps", group: "edit" },
   { keys: "Ctrl+Shift+E", action: "AI Edit — natural-language scene edit", group: "edit" },
+  { keys: "Ctrl+Shift+C", action: "Scene Completion — weld / patch / rig plan", group: "edit" },
   { keys: "Alt+T", action: "AI Texture (same as Ctrl+Shift+T)", group: "edit" },
   { keys: "Alt+E", action: "AI Edit (same as Ctrl+Shift+E)", group: "edit" },
+  { keys: "Alt+C", action: "Scene Completion (same as Ctrl+Shift+C)", group: "edit" },
   // File
   { keys: "Ctrl+S", action: "Save scene JSON", group: "file" },
   { keys: "Ctrl+O", action: "Open model file", group: "file" },

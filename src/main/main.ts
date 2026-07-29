@@ -48,6 +48,10 @@ import {
   getFleetOperationsStatus,
   listAvailableModels,
 } from "./fleet/aiWorkerManager";
+import {
+  planSceneCompletion,
+  sceneCompletionWorkerInfo,
+} from "./fleet/sceneCompletionWorker";
 
 // Load .env / toolchain.env before credential resolution (does not override process env).
 loadEnvFiles();
@@ -687,6 +691,9 @@ function registerIpc() {
   ipcMain.handle("fleet:aiWorkers", () => checkAllAiWorkers());
   ipcMain.handle("fleet:aiModels", () => listAvailableModels());
   ipcMain.handle("fleet:aiChat", (_e, req) => aiChat(req));
+  // Scene Completion AI Worker — weld / patch / skeleton plans
+  ipcMain.handle("fleet:sceneCompletionInfo", () => sceneCompletionWorkerInfo());
+  ipcMain.handle("fleet:sceneCompletionPlan", (_e, req) => planSceneCompletion(req));
 
   // Ollama / GRUDACHAIN local agentic AI
   ipcMain.handle("ollama:health", () => ollama.ollamaHealth());

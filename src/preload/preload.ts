@@ -259,6 +259,8 @@ const api = {
     aiWorkers: () => ipcRenderer.invoke("fleet:aiWorkers"),
     aiModels: () => ipcRenderer.invoke("fleet:aiModels"),
     aiChat: (req: unknown) => ipcRenderer.invoke("fleet:aiChat", req),
+    sceneCompletionInfo: () => ipcRenderer.invoke("fleet:sceneCompletionInfo"),
+    sceneCompletionPlan: (req: unknown) => ipcRenderer.invoke("fleet:sceneCompletionPlan", req),
   },
   // Ollama / GRUDACHAIN local agentic AI
   ollama: {

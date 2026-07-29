@@ -76,6 +76,11 @@ import {
   filterImagePaths,
   siblingTexturePrefixes,
 } from "../lib/forge/textureFinder";
+import {
+  collectSceneMeshStats,
+  executeSceneCompletionPlan,
+} from "../lib/forge/sceneCompletionExec";
+import type { SceneCompletionPlan } from "../../shared/sceneCompletion";
 import type { StoreCategory } from "../../shared/fleetGames";
 
 const BG_PRESETS = [0x0a0e1a, 0x111418, 0x1a1a25, 0xffffff, 0x444a55];
@@ -147,6 +152,10 @@ export default function Forge3D() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiEditOpen, setAiEditOpen] = useState(false);
   const [aiEditPrompt, setAiEditPrompt] = useState("make it gold metal and ground it");
+  const [completionOpen, setCompletionOpen] = useState(false);
+  const [completionMode, setCompletionMode] = useState<"auto" | "mesh-repair" | "island" | "character-rig" | "full">("auto");
+  const [completionGoal, setCompletionGoal] = useState("prep for production game import");
+  const [completionLog, setCompletionLog] = useState<string>("");
 
   const selected = useMemo(() => items.find((i) => i.id === selectedId) ?? null, [items, selectedId]);
   const selectedNode = useMemo(() => {
@@ -850,6 +859,90 @@ export default function Forge3D() {
     }
   }
 
+  async function runSceneCompletion(opts?: {
+    mode?: "auto" | "mesh-repair" | "island" | "character-rig" | "full";
+    goal?: string;
+  }) {
+    if (!selected) {
+      toast.message("Select a model for Scene Completion (Ctrl+Shift+C)");
+      return;
+    }
+    if (aiBusy) return;
+    setAiBusy(true);
+    setCompletionOpen(false);
+    const mode = opts?.mode ?? completionMode;
+    const goal = opts?.goal ?? completionGoal;
+    const logs: string[] = [];
+    const log = (msg: string) => {
+      logs.push(msg);
+      setCompletionLog(logs.join("\n"));
+    };
+    const toastId = toast.loading("Scene Completion…", {
+      description: `${mode} · planning weld / patch / rig`,
+    });
+    try {
+      const stats = collectSceneMeshStats(selected.object, selected.name);
+      log(`stats: ${stats.meshCount} meshes · ${stats.boneCount} bones · skinned=${stats.hasSkinnedMesh}`);
+      const plan = (await window.grudge.fleet.sceneCompletionPlan({
+        name: selected.name,
+        stats,
+        goal,
+        mode,
+      })) as SceneCompletionPlan;
+
+      log(`plan: ${plan.summary} (${plan.source}${plan.provider ? ` · ${plan.provider}` : ""})`);
+      plan.risks?.forEach((r) => log(`risk: ${r}`));
+      plan.bestPractices?.slice(0, 4).forEach((b) => log(`bp: ${b}`));
+
+      const results = executeSceneCompletionPlan(plan, {
+        root: selected.object,
+        name: selected.name,
+        pushHistory: (entries) => pushEntries(entries),
+        frame: (obj) => engineRef.current?.frame(obj),
+        ensureMixer: () => {
+          if (!selected.mixer && engineRef.current) {
+            const mixer = engineRef.current.buildMixer(selected.object, selected.animations);
+            if (mixer) {
+              setItems((prev) =>
+                prev.map((it) => (it.id === selected.id ? { ...it, mixer } : it)),
+              );
+            }
+          }
+        },
+        log,
+      });
+
+      // Refresh rig inspect after skeleton steps
+      const rig = inspectSceneRig(selected.object);
+      setItems((prev) =>
+        prev.map((it) => (it.id === selected.id ? { ...it, rig, bones: rig.boneCount } : it)),
+      );
+      engineRef.current?.pulseSelect(selected.object);
+
+      const okN = results.filter((r) => r.ok).length;
+      const failN = results.length - okN;
+      toast.success(`Scene Completion · ${okN}/${results.length} steps`, {
+        id: toastId,
+        description: [
+          plan.summary,
+          plan.source,
+          plan.provider,
+          failN ? `${failN} failed` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      });
+    } catch (e: unknown) {
+      toast.error("Scene Completion failed", {
+        id: toastId,
+        description: e instanceof Error ? e.message : String(e),
+      });
+      log(`error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   async function runAiEdit(instruction?: string) {
     if (!selected) {
       toast.message("Select a model for AI Edit (Ctrl+Shift+E)");
@@ -1381,7 +1474,7 @@ export default function Forge3D() {
       if (mod && k === "s" && !e.shiftKey) { e.preventDefault(); saveScene(); return; }
       if (mod && k === "o" && !e.shiftKey) { e.preventDefault(); fileInputRef.current?.click(); return; }
 
-      // AI Texture / AI Edit
+      // AI Texture / AI Edit / Scene Completion
       if ((mod && e.shiftKey && k === "t") || (e.altKey && k === "t")) {
         e.preventDefault();
         void runAiTexture();
@@ -1390,6 +1483,11 @@ export default function Forge3D() {
       if ((mod && e.shiftKey && k === "e") || (e.altKey && k === "e")) {
         e.preventDefault();
         setAiEditOpen(true);
+        return;
+      }
+      if ((mod && e.shiftKey && k === "c") || (e.altKey && k === "c" && !mod)) {
+        e.preventDefault();
+        setCompletionOpen(true);
         return;
       }
 
@@ -1541,6 +1639,7 @@ export default function Forge3D() {
         onDuplicate={duplicateSelected}
         onAiTexture={() => void runAiTexture()}
         onAiEdit={() => setAiEditOpen(true)}
+        onSceneComplete={() => setCompletionOpen(true)}
         aiBusy={aiBusy}
         onFill={runFillSelected}
         onFixMesh={runFixMesh}
@@ -1708,11 +1807,70 @@ export default function Forge3D() {
               scriptHost={scriptHost}
               onAiTexture={() => void runAiTexture()}
               onAiEdit={() => setAiEditOpen(true)}
+              onSceneComplete={() => setCompletionOpen(true)}
               aiBusy={aiBusy}
+              completionLog={completionLog}
             />
           )}
         </Panel>
       </div>
+
+      {completionOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => !aiBusy && setCompletionOpen(false)}
+        >
+          <div
+            className="card max-w-md w-[92%] border border-gold/30"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-2 text-gold font-semibold text-sm">
+              <Sparkles size={16} /> Scene Completion AI Worker
+            </div>
+            <p className="text-[11px] text-muted mb-2">
+              Plan + run weld, seal/patch, mesh fix, island prep, and Mixamo-25 skeleton checks.
+              Hotkey: <span className="font-mono text-gold">Ctrl+Shift+C</span> / <span className="font-mono text-gold">Alt+C</span>
+            </p>
+            <label className="block text-[11px] text-muted mb-1">Mode</label>
+            <select
+              className="w-full text-xs mb-2"
+              value={completionMode}
+              onChange={(e) => setCompletionMode(e.target.value as typeof completionMode)}
+            >
+              <option value="auto">Auto (heuristic + AI)</option>
+              <option value="mesh-repair">Mesh repair (weld / patch)</option>
+              <option value="island">Island prep</option>
+              <option value="character-rig">Character rig / Mixamo-25</option>
+              <option value="full">Full + AI refine</option>
+            </select>
+            <label className="block text-[11px] text-muted mb-1">Goal</label>
+            <input
+              className="w-full text-xs mb-3"
+              value={completionGoal}
+              onChange={(e) => setCompletionGoal(e.target.value)}
+              placeholder="prep for warlords character"
+            />
+            <div className="flex gap-2 justify-end">
+              <button type="button" className="btn ghost text-xs" disabled={aiBusy} onClick={() => setCompletionOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn text-xs"
+                disabled={aiBusy || !selected}
+                onClick={() => void runSceneCompletion()}
+              >
+                {aiBusy ? "Running…" : "Plan & execute"}
+              </button>
+            </div>
+            {completionLog && (
+              <pre className="mt-3 text-[9px] max-h-36 overflow-auto bg-bg-2 p-2 rounded font-mono whitespace-pre-wrap">
+                {completionLog}
+              </pre>
+            )}
+          </div>
+        </div>
+      )}
 
       {aiEditOpen && (
         <div
@@ -1833,6 +1991,7 @@ function Toolbar(props: {
   onDuplicate: () => void;
   onAiTexture: () => void;
   onAiEdit: () => void;
+  onSceneComplete: () => void;
   aiBusy: boolean;
   onFill: () => void;
   onFixMesh: () => void;
@@ -1901,6 +2060,13 @@ function Toolbar(props: {
         disabled={!props.hasSelection || props.aiBusy}
       >
         <Wand2 size={14} />AI Edit
+      </Btn>
+      <Btn
+        onClick={props.onSceneComplete}
+        title="Scene Completion — weld / patch / rig (Ctrl+Shift+C / Alt+C)"
+        disabled={!props.hasSelection || props.aiBusy}
+      >
+        <Sparkles size={14} />Complete
       </Btn>
       <Btn onClick={() => props.onAddPrimitive("box")} title="Add box primitive"><Plus size={14} />Box</Btn>
       <span style={{ width: 1, height: 22, background: "var(--line)" }} />

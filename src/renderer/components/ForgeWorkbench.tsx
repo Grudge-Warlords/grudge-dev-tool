@@ -80,7 +80,9 @@ interface Props {
   scriptHost?: ForgeScriptHost | null;
   onAiTexture?: () => void;
   onAiEdit?: () => void;
+  onSceneComplete?: () => void;
   aiBusy?: boolean;
+  completionLog?: string;
 }
 
 type Tab = "scene" | "rig" | "animation" | "textures" | "script" | "modeling" | "deploy";
@@ -519,6 +521,22 @@ export default function ForgeWorkbench(props: Props) {
               >
                 AI Edit (Ctrl+Shift+E)
               </button>
+            )}
+            {props.onSceneComplete && (
+              <button
+                type="button"
+                className="btn ghost text-xs w-full"
+                disabled={props.aiBusy}
+                onClick={() => props.onSceneComplete?.()}
+                title="Ctrl+Shift+C / Alt+C — weld, patch, skeleton"
+              >
+                {props.aiBusy ? "Completing…" : "Scene Completion (Ctrl+Shift+C)"}
+              </button>
+            )}
+            {props.completionLog && (
+              <pre className="text-[9px] max-h-28 overflow-auto bg-bg-2 p-2 rounded font-mono whitespace-pre-wrap">
+                {props.completionLog}
+              </pre>
             )}
             <button
               type="button"
