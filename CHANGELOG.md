@@ -4,11 +4,17 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.9.4] — 2026-07-29
+
 ### Added
-- **Forge edit hotkeys** — clear **Ctrl+C/X/V** copy-cut-paste, **Ctrl+Z/Y** undo-redo with toasts; toolbar labels.
+- **Forge edit hotkeys** — **Ctrl+C/X/V** copy-cut-paste, **Ctrl+Z/Y** undo-redo with toasts; labeled toolbar actions.
 - **AI Texture** (`Ctrl+Shift+T` / `Alt+T`) — Ollama/Legion/Workers AI suggests PBR + searches fleet maps.
 - **AI Edit** (`Ctrl+Shift+E` / `Alt+E`) — natural-language material/transform plan with apply dialog.
 - **Scene Completion AI Worker** (`Ctrl+Shift+C` / `Alt+C`) — plans + runs weld, seal/patch, mesh fix, island prep, Mixamo-25 skeleton inspect; heuristic fallback + AI refine; docs in `docs/scene-completion-ai-worker.md`.
+- IPC: `fleet:sceneCompletionPlan` · `fleet:sceneCompletionInfo`.
+
+### Changed
+- Product version **0.9.4** — Forge AI tooling + shell UX line for production installs.
 
 ## [0.9.3] — 2026-07-29
 

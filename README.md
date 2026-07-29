@@ -25,11 +25,11 @@ Grudge Studio developer tooling for the **ONE TRUTH** fleet — one URL (`client
 | Package | Version | What it is |
 |---------|---------|------------|
 | **`grudge-dev` CLI** | v0.5.0 | Autonomous setup, `doctor`, `login`, `upload-pack`, `fleet`, `search` — lives in [`cli/`](cli/) |
-| **Forge tray app** | **v0.9.2** | Windows tray + simplified shell (Home · Assets · Games · Forge · AI), Asset Viewer, **GRUDACHAIN Ollama**, auto-update |
+| **Forge tray app** | **v0.9.4** | Windows tray · simplified shell · Forge AI (texture / edit / scene completion) · Asset Viewer · **GRUDACHAIN Ollama** · auto-update |
 
-📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/> · [CLI quickstart](docs/cli-quickstart.md) · [ONE TRUTH](docs/one-truth.md) · [Tray quickstart](docs/dev-tool-quickstart.md)
+📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/> · [CLI quickstart](docs/cli-quickstart.md) · [ONE TRUTH](docs/one-truth.md) · [Scene Completion AI](docs/scene-completion-ai-worker.md) · [Tray quickstart](docs/dev-tool-quickstart.md)
 
-⬇ **Forge installer (latest):** [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) · Windows x64 · NSIS · auto-updating · (v0.9.2 shell UX on `main`)
+⬇ **Forge installer (latest):** [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) · Windows x64 · NSIS · auto-updating · **v0.9.4**
 
 ---
 
@@ -152,7 +152,7 @@ Requires **Node 22+** (see `.nvmrc`).
 
 ```powershell
 npm run package:ci
-# → release/Grudge Studio Forge-Setup-0.9.1.exe
+# → release/Grudge Studio Forge-Setup-0.9.4.exe
 # → release/win-unpacked/Grudge Studio Forge.exe
 ```
 

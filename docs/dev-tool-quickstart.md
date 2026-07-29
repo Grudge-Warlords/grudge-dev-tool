@@ -7,7 +7,7 @@ nav_order: 4
 
 ## 1. Install
 
-Download **`Grudge Studio Forge-Setup-0.9.1.exe`** from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) (or the direct [v0.9.1 asset](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.9.1/Grudge.Studio.Forge-Setup-0.9.1.exe)) and run it. It installs under `%LOCALAPPDATA%\Programs\` by default and adds:
+Download the latest **`Grudge Studio Forge-Setup-*.exe`** from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) (current line: **v0.9.4**) and run it. It installs under `%LOCALAPPDATA%\Programs\` by default and adds:
 
 - A Start-menu shortcut **Grudge Studio Forge**
 - An optional desktop shortcut

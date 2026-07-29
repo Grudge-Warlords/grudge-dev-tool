@@ -2,7 +2,7 @@
 layout: default
 title: Home
 nav_order: 1
-description: Grudge Studio developer tooling — ONE TRUTH CLI + Windows Forge tray (production v0.9.1).
+description: Grudge Studio developer tooling — ONE TRUTH CLI + Windows Forge tray (production v0.9.4).
 permalink: /
 ---
 # Grudge Dev Tool
@@ -11,19 +11,19 @@ permalink: /
 Grudge Studio developer tooling — **ONE TRUTH** fleet wiring, asset-pack uploads, **GRUDACHAIN Ollama** agentic AI, and the Windows **Forge** tray app.
 {: .fs-5 .fw-300 }
 
-[⬇ Download Forge v0.9.1 →](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.9.1/Grudge.Studio.Forge-Setup-0.9.1.exe){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
+[⬇ Download latest Forge →](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
 [Production deployment map →](production-deployment.md){: .btn .fs-5 .mb-2 .mr-2 }
 [ONE TRUTH wiring →](one-truth.md){: .btn .fs-5 .mb-2 }
 
-## Production — Forge tray **v0.9.1**
+## Production — Forge tray **v0.9.4**
 
-Windows x64 NSIS · electron-updater · Studio Hub · Asset Viewer · Agent AI · **GRUDACHAIN Ollama auto-start**.
+Windows x64 NSIS · electron-updater · Studio Hub · Asset Viewer · Forge AI (texture / edit / scene completion) · Agent AI · **GRUDACHAIN Ollama auto-start**.
 
 | Surface | Role |
 |---------|------|
-| **Studio Hub** | Fleet health probes + launch pad |
+| **Studio Hub** | Fleet health + games + systems command center |
 | **Assets (Browser)** | R2 tree · pop-out viewer · send to Forge |
-| **Forge 3D** | Scene editor · paint · deploy |
+| **Forge 3D** | Scene editor · weld/patch · AI Texture/Edit · Scene Completion · deploy |
 | **Agent AI** | Make & deploy presets · orchestrator |
 | **GRUDACHAIN Ollama** | Docker `ollama/ollama` on **:11434** — starts on open + `grudachain` admin sign-in |
 | **Upload** | Convert / optimize / push packs |
@@ -32,7 +32,7 @@ Windows x64 NSIS · electron-updater · Studio Hub · Asset Viewer · Agent AI �
 [All releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases){: .btn .fs-5 .mb-2 .mr-2 }
 [View source on GitHub](https://github.com/Grudge-Warlords/grudge-dev-tool){: .btn .fs-5 .mb-2 }
 
-**Direct v0.9.1:** [`Grudge.Studio.Forge-Setup-0.9.1.exe`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/download/v0.9.1/Grudge.Studio.Forge-Setup-0.9.1.exe)
+**Tag:** [`v0.9.4`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.9.4) · [Scene Completion AI worker](scene-completion-ai-worker.md)
 {: .fs-3 .text-grey-dk-100 }
 
 ### First connection (ONE TRUTH + agentic)
