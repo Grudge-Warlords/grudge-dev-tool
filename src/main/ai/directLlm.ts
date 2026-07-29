@@ -120,14 +120,97 @@ export async function geminiDirectChat(opts: {
   return { text, model, source: "gemini-env" };
 }
 
-/** Try OpenAI → Anthropic → Gemini using baked keys. */
+/** Groq free-tier friendly OpenAI-compatible API. */
+export async function groqDirectChat(opts: {
+  messages: Array<{ role: string; content: string }>;
+  model?: string;
+  max_tokens?: number;
+  temperature?: number;
+}): Promise<{ text: string; model: string; source: string }> {
+  const key = await readLlmKey("groq");
+  if (!key) throw new Error("GROQ_API_KEY not in env/vault");
+  const model = opts.model ?? "llama-3.3-70b-versatile";
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: opts.messages,
+      max_tokens: opts.max_tokens ?? 1024,
+      temperature: opts.temperature ?? 0.4,
+    }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Groq HTTP ${res.status}: ${t.slice(0, 200)}`);
+  }
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  return {
+    text: data.choices?.[0]?.message?.content ?? "",
+    model,
+    source: "groq-env",
+  };
+}
+
+/** Together.ai OpenAI-compatible (often free credits). */
+export async function togetherDirectChat(opts: {
+  messages: Array<{ role: string; content: string }>;
+  model?: string;
+  max_tokens?: number;
+  temperature?: number;
+}): Promise<{ text: string; model: string; source: string }> {
+  const key = await readLlmKey("together");
+  if (!key) throw new Error("TOGETHER_API_TOKEN not in env/vault");
+  const model = opts.model ?? "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo";
+  const res = await fetch("https://api.together.xyz/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: opts.messages,
+      max_tokens: opts.max_tokens ?? 1024,
+      temperature: opts.temperature ?? 0.4,
+    }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Together HTTP ${res.status}: ${t.slice(0, 200)}`);
+  }
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  return {
+    text: data.choices?.[0]?.message?.content ?? "",
+    model,
+    source: "together-env",
+  };
+}
+
+/** Try free/fast providers first, then paid keys. */
 export async function directLlmChat(opts: {
   messages: Array<{ role: string; content: string }>;
   max_tokens?: number;
   temperature?: number;
 }): Promise<{ text: string; model: string; source: string }> {
   const errors: string[] = [];
-  for (const fn of [openaiDirectChat, anthropicDirectChat, geminiDirectChat] as const) {
+  // Prefer free/fast agentic: Groq → Together → Gemini → OpenAI → Anthropic
+  for (const fn of [
+    groqDirectChat,
+    togetherDirectChat,
+    geminiDirectChat,
+    openaiDirectChat,
+    anthropicDirectChat,
+  ] as const) {
     try {
       return await fn(opts);
     } catch (e: unknown) {

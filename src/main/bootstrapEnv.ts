@@ -9,9 +9,8 @@ function parseEnv(content: string): number {
     if (!line || line.startsWith("#")) continue;
     const m = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
     if (!m) continue;
-    const key = m[1].toUpperCase().startsWith("VITE_") ? m[1] : m[1];
-    // Normalize common keys to uppercase for process.env
-    const envKey = /^[A-Z0-9_]+$/.test(m[1]) ? m[1] : m[1];
+    // Always uppercase so groq_api_key → GROQ_API_KEY
+    const envKey = m[1].toUpperCase();
     if (process.env[envKey]) continue;
     let value = m[2].trim();
     // strip surrounding quotes

@@ -47,6 +47,21 @@ const KEY_TO_ACCOUNT = {
   GRUDGE_AI_KEY:                "legion.fleetApiKey",
   GRUDGE_LEGION_HUB:            "legion.hubUrl",
   GRUDGE_GRUDA_AGENT:           "legion.grudaAgentUrl",
+  // LLM / free agentic
+  OPENAI_API_KEY:               "llm.openai",
+  ANTHROPIC_API_KEY:            "llm.anthropic",
+  GEMINI_API_KEY:               "llm.gemini",
+  GEMINI_CLI_API:               "llm.gemini",
+  GROQ_API_KEY:                 "llm.groq",
+  TOGETHER_API_TOKEN:           "llm.together",
+  TOGETHER_API_KEY:             "llm.together",
+  ELEVEN_LABS_API:              "llm.elevenlabs",
+  ELEVENLABS_API_KEY:           "llm.elevenlabs",
+  POLY_PIZZA_API:               "assets.polypizza",
+  POLYPIZZA_API:                "assets.polypizza",
+  HF_TOKEN:                     "llm.huggingface",
+  PUTER_AUTH_TOKEN:             "puter-token",
+  PUTER_TOKEN:                  "puter-token",
 };
 
 function getFlag(name) {

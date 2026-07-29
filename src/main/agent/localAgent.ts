@@ -91,8 +91,8 @@ function extractJson(text: string): unknown {
 /**
  * Free-agentic cascade (no Settings paste required):
  *  1. Ollama local (free)
- *  2. Puter User-Pays (free for developer — signed-in user)
- *  3. OPENAI / ANTHROPIC / GEMINI from env/vault (baked secrets)
+ *  2. Puter User-Pays (signed-in)
+ *  3. Groq / Together / Gemini / OpenAI / Anthropic from env/vault
  *  4. Workers AI / Legion via aiChat
  */
 export async function localAgentChat(

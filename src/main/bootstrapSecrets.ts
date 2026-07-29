@@ -45,8 +45,12 @@ const ENV_TO_KEYTAR: Array<{ env: string | string[]; account: string; cf?: CfAcc
   // LLM keys for free/paid agentic fallbacks
   { env: "OPENAI_API_KEY", account: "llm.openai" },
   { env: "ANTHROPIC_API_KEY", account: "llm.anthropic" },
-  { env: ["GEMINI_API_KEY", "GOOGLE_AI_API_KEY"], account: "llm.gemini" },
+  { env: ["GEMINI_API_KEY", "GOOGLE_AI_API_KEY", "GEMINI_CLI_API"], account: "llm.gemini" },
   { env: ["HF_TOKEN", "HUGGINGFACE_TOKEN", "HUGGING_FACE_HUB_TOKEN"], account: "llm.huggingface" },
+  { env: ["GROQ_API_KEY", "GROQ_KEY"], account: "llm.groq" },
+  { env: ["TOGETHER_API_TOKEN", "TOGETHER_API_KEY", "TOGETHER_TOKEN"], account: "llm.together" },
+  { env: ["ELEVEN_LABS_API", "ELEVENLABS_API_KEY", "ELEVEN_LABS_API_KEY"], account: "llm.elevenlabs" },
+  { env: ["POLY_PIZZA_API", "POLYPIZZA_API", "POLY_PIZZA_API_KEY"], account: "assets.polypizza" },
   { env: ["PUTER_AUTH_TOKEN", "PUTER_TOKEN", "PUTER_API_TOKEN"], account: "puter-token" },
   { env: "ALE_AI", account: "llm.ale" },
 ];
@@ -98,11 +102,9 @@ export async function seedDefaultSecrets(): Promise<{ seeded: string[]; skipped:
       skipped.push(Array.isArray(row.env) ? row.env[0] : row.env);
       continue;
     }
+    // Env wins: always (re)seed vault from process.env so desktop stays in sync
+    // with the operator's machine secrets without Settings UI.
     const empty = await vaultEmpty(row.account);
-    if (!empty) {
-      skipped.push(`${Array.isArray(row.env) ? row.env[0] : row.env}:already`);
-      continue;
-    }
     try {
       if (row.cf) {
         await writeCf(row.cf, value);
@@ -122,7 +124,9 @@ export async function seedDefaultSecrets(): Promise<{ seeded: string[]; skipped:
       } else {
         await storeAccount(row.account, value);
       }
-      seeded.push(Array.isArray(row.env) ? row.env[0] : row.env);
+      seeded.push(
+        `${Array.isArray(row.env) ? row.env[0] : row.env}${empty ? "" : ":refresh"}`,
+      );
     } catch (e: unknown) {
       log.warn(
         `[bootstrapSecrets] failed ${Array.isArray(row.env) ? row.env[0] : row.env}: ${
@@ -159,14 +163,17 @@ export async function seedDefaultSecrets(): Promise<{ seeded: string[]; skipped:
 
 /** Read a seeded LLM key (env first, then vault). */
 export async function readLlmKey(
-  which: "openai" | "anthropic" | "gemini" | "huggingface" | "ale",
+  which: "openai" | "anthropic" | "gemini" | "huggingface" | "ale" | "groq" | "together" | "elevenlabs",
 ): Promise<string | null> {
   const envMap: Record<string, string[]> = {
     openai: ["OPENAI_API_KEY"],
     anthropic: ["ANTHROPIC_API_KEY"],
-    gemini: ["GEMINI_API_KEY", "GOOGLE_AI_API_KEY"],
+    gemini: ["GEMINI_API_KEY", "GOOGLE_AI_API_KEY", "GEMINI_CLI_API"],
     huggingface: ["HF_TOKEN", "HUGGINGFACE_TOKEN", "HUGGING_FACE_HUB_TOKEN"],
     ale: ["ALE_AI"],
+    groq: ["GROQ_API_KEY", "GROQ_KEY"],
+    together: ["TOGETHER_API_TOKEN", "TOGETHER_API_KEY", "TOGETHER_TOKEN"],
+    elevenlabs: ["ELEVEN_LABS_API", "ELEVENLABS_API_KEY", "ELEVEN_LABS_API_KEY"],
   };
   for (const k of envMap[which] ?? []) {
     if (process.env[k]?.trim()) return process.env[k]!.trim();
