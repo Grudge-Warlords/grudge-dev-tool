@@ -71,49 +71,50 @@ async function aiChat(
   system: string,
   user: string,
 ): Promise<{ text: string; via: string }> {
-  // Prefer Ollama when online (local/agentic), else fleet Workers AI / Legion.
+  const messages = [
+    { role: "system" as const, content: system },
+    { role: "user" as const, content: user },
+  ];
+
+  // 1) Unified in-app agent (Ollama → Workers AI → Legion) — main process
   try {
-    const st = await window.grudge?.ollama?.status?.();
-    if (st?.ok) {
-      const r = await window.grudge.ollama.chat({
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-      });
-      const text =
-        r?.message?.content ??
-        r?.response ??
-        r?.result?.response ??
-        (typeof r === "string" ? r : JSON.stringify(r));
-      return { text: String(text), via: "ollama" };
+    if (window.grudge?.agent?.chat) {
+      const r = await window.grudge.agent.chat({ messages });
+      const text = r?.text ?? r?.response ?? "";
+      if (text) return { text: String(text), via: r?.source ?? "agent" };
     }
   } catch {
-    /* try cloud */
+    /* continue */
   }
 
+  // 2) fleet:aiChat
   try {
-    const r = await window.grudge.ai.chat({
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
+    const r = await window.grudge.fleet.aiChat({
+      messages,
       max_tokens: 700,
       temperature: 0.35,
     });
-    const text = r?.result?.response ?? r?.response ?? "";
-    return { text: String(text), via: r?.via ?? "ai" };
-  } catch (e) {
-    // Last resort: Legion chat
-    const r = await window.grudge.legion.chat({
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      role: "dev",
-    });
-    return { text: String(r?.response ?? ""), via: "legion" };
+    if (r?.text) return { text: String(r.text), via: `fleet:${r.provider ?? "ai"}` };
+  } catch {
+    /* continue */
   }
+
+  // 3) Direct ollama IPC
+  try {
+    await window.grudge.ollama?.ensure?.({ agentic: false, reason: "forge-ai" });
+    const r = await window.grudge.ollama.chat({ messages });
+    const text = r?.message?.content ?? r?.response ?? "";
+    if (text) return { text: String(text), via: "ollama" };
+  } catch {
+    /* continue */
+  }
+
+  // 4) Legion (now has local fallback inside main)
+  const r = await window.grudge.legion.chat({
+    messages,
+    role: "dev",
+  });
+  return { text: String(r?.response ?? ""), via: r?.source ?? "legion" };
 }
 
 function parseHex(v: unknown, fallback: number): number {

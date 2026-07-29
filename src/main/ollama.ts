@@ -19,12 +19,48 @@ import { isCanonicalAdmin } from "../shared/adminAllowlist";
 
 const execFileAsync = promisify(execFile);
 
-const DEFAULT_HOST = "http://localhost:11434";
+const DEFAULT_HOST = "http://127.0.0.1:11434";
 const CONTAINER_NAME = process.env.GRUDACHAIN_OLLAMA_CONTAINER ?? "GRUDACHAIN";
 const CONTAINER_IMAGE = process.env.GRUDACHAIN_OLLAMA_IMAGE ?? "ollama/ollama:latest";
 const CONTAINER_VOLUME = process.env.GRUDACHAIN_OLLAMA_VOLUME ?? "grudachain-ollama";
 const HOST_PORT = Number(process.env.OLLAMA_PORT ?? 11434);
 const DEFAULT_MODEL = process.env.OLLAMA_DEFAULT_MODEL ?? "llama3.2";
+
+/**
+ * Normalize Ollama base URL for client fetch().
+ * Docker/native often set OLLAMA_HOST=0.0.0.0:11434 (bind address) which is NOT
+ * a valid fetch origin — rewrite to http://127.0.0.1:port.
+ */
+export function normalizeOllamaBaseUrl(raw: string | null | undefined): string {
+  let h = (raw ?? DEFAULT_HOST).trim();
+  if (!h) h = DEFAULT_HOST;
+  // Strip trailing slash
+  h = h.replace(/\/+$/, "");
+  // Bare host:port or host without scheme
+  if (!/^https?:\/\//i.test(h)) {
+    h = `http://${h}`;
+  }
+  try {
+    const u = new URL(h);
+    // 0.0.0.0 / :: bind addresses are not routable as clients
+    if (u.hostname === "0.0.0.0" || u.hostname === "::" || u.hostname === "[::]") {
+      u.hostname = "127.0.0.1";
+    }
+    if (u.hostname === "localhost") {
+      u.hostname = "127.0.0.1";
+    }
+    // Default port if missing
+    if (!u.port && (u.protocol === "http:" || u.protocol === "https:")) {
+      // keep implicit 80/443 only if user meant that; Ollama always uses 11434 by default
+      if (u.protocol === "http:" && !h.match(/:\d+/)) {
+        u.port = String(HOST_PORT);
+      }
+    }
+    return u.origin; // scheme + host + port, no path
+  } catch {
+    return DEFAULT_HOST;
+  }
+}
 
 type AiPref = "auto" | "ollama" | "cloudflare";
 
@@ -72,16 +108,24 @@ async function getStore(): Promise<OllamaStore> {
 }
 
 function hostUrl(): string {
-  return (process.env.OLLAMA_HOST ?? DEFAULT_HOST).replace(/\/$/, "");
+  return normalizeOllamaBaseUrl(process.env.OLLAMA_HOST ?? DEFAULT_HOST);
 }
 
 export async function getOllamaHost(): Promise<string> {
   const s = await getStore();
-  return (s.get("host", hostUrl()) as string).replace(/\/$/, "");
+  const stored = s.get("host", hostUrl()) as string;
+  const fixed = normalizeOllamaBaseUrl(stored);
+  // Heal bad persisted values (0.0.0.0 / missing scheme) so next reads work
+  if (fixed !== stored) {
+    s.set("host", fixed);
+    log.info(`[ollama] normalized host ${stored} → ${fixed}`);
+  }
+  return fixed;
 }
 
 export function setOllamaHost(host: string): void {
-  void getStore().then((s) => s.set("host", host.replace(/\/$/, "")));
+  const fixed = normalizeOllamaBaseUrl(host);
+  void getStore().then((s) => s.set("host", fixed));
 }
 
 export async function getPreferredModel(): Promise<string> {
@@ -319,9 +363,10 @@ async function probeHealth(host: string): Promise<{
   version?: string;
   error?: string;
 }> {
+  const base = normalizeOllamaBaseUrl(host);
   const start = Date.now();
   try {
-    const res = await fetch(`${host}/api/version`, { signal: AbortSignal.timeout(4000) });
+    const res = await fetch(`${base}/api/version`, { signal: AbortSignal.timeout(4000) });
     if (!res.ok) {
       return { ok: false, latencyMs: Date.now() - start, error: `HTTP ${res.status}` };
     }
@@ -337,8 +382,9 @@ async function probeHealth(host: string): Promise<{
 }
 
 async function listModelNames(host: string): Promise<string[]> {
+  const base = normalizeOllamaBaseUrl(host);
   try {
-    const res = await fetch(`${host}/api/tags`, { signal: AbortSignal.timeout(8000) });
+    const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return [];
     const data = (await res.json()) as { models?: Array<{ name: string }> };
     return (data.models ?? []).map((m) => m.name);
@@ -365,10 +411,17 @@ export async function ollamaHealth(): Promise<{
 
 export async function ollamaModels(): Promise<Array<{ name: string; size?: number }>> {
   const host = await getOllamaHost();
-  const res = await fetch(`${host}/api/tags`, { signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`Ollama models: HTTP ${res.status}`);
-  const data = (await res.json()) as { models?: Array<{ name: string; size?: number }> };
-  return data.models ?? [];
+  try {
+    const res = await fetch(`${host}/api/tags`, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error(`Ollama models: HTTP ${res.status}`);
+    const data = (await res.json()) as { models?: Array<{ name: string; size?: number }> };
+    return data.models ?? [];
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Don't crash renderer IPC on bad host — return empty list
+    log.warn(`[ollama] models failed host=${host}: ${msg}`);
+    throw new Error(`Ollama models unavailable (${host}): ${msg}`);
+  }
 }
 
 export async function ollamaChat(opts: {

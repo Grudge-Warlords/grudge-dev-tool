@@ -4,6 +4,15 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.9.5] — 2026-07-29
+
+### Fixed
+- **Agent AI in-app** — no browser dependency; `agent:run` / `agent:orchestrate` / `agent:chat` via Ollama → Workers AI → Legion.
+- **Ollama host** — normalize `0.0.0.0:11434` / missing scheme to `http://127.0.0.1:11434` (fixes `Failed to parse URL from 0.0.0.0:11434/api/tags`).
+- **Legion chat** — hub/agent failure falls back to local agent stack.
+- **GRUDA Hub optional** — projects/agent work offline with local identity + local AI.
+- Agent AI UI: **Start local AI** button; removed "Open full GRUDA Agent" external browser link.
+
 ## [0.9.4] — 2026-07-29
 
 ### Added

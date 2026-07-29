@@ -52,6 +52,12 @@ import {
   planSceneCompletion,
   sceneCompletionWorkerInfo,
 } from "./fleet/sceneCompletionWorker";
+import {
+  runLocalAgent,
+  runLocalOrchestrator,
+  localAgentStatus,
+  localAgentChat,
+} from "./agent/localAgent";
 
 // Load .env / toolchain.env before credential resolution (does not override process env).
 loadEnvFiles();
@@ -695,9 +701,29 @@ function registerIpc() {
   ipcMain.handle("fleet:sceneCompletionInfo", () => sceneCompletionWorkerInfo());
   ipcMain.handle("fleet:sceneCompletionPlan", (_e, req) => planSceneCompletion(req));
 
+  // In-app Agent AI (no browser) — Ollama → Workers AI → Legion
+  ipcMain.handle("agent:status", () => localAgentStatus());
+  ipcMain.handle("agent:run", (_e, opts: { task: string; projectId?: string; role?: string }) =>
+    runLocalAgent(opts ?? { task: "" }),
+  );
+  ipcMain.handle("agent:orchestrate", (_e, opts: { task: string; projectId?: string }) =>
+    runLocalOrchestrator(opts ?? { task: "" }),
+  );
+  ipcMain.handle(
+    "agent:chat",
+    (_e, opts: { messages: Array<{ role: "system" | "user" | "assistant"; content: string }> }) =>
+      localAgentChat(opts?.messages ?? []),
+  );
+
   // Ollama / GRUDACHAIN local agentic AI
   ipcMain.handle("ollama:health", () => ollama.ollamaHealth());
-  ipcMain.handle("ollama:models", () => ollama.ollamaModels());
+  ipcMain.handle("ollama:models", async () => {
+    try {
+      return await ollama.ollamaModels();
+    } catch {
+      return [];
+    }
+  });
   ipcMain.handle("ollama:chat", (_e, opts) => ollama.ollamaChat(opts));
   ipcMain.handle("ollama:generate", (_e, opts) => ollama.ollamaGenerate(opts));
   ipcMain.handle("ollama:getHost", () => ollama.getOllamaHost());

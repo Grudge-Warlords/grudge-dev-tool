@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  Bot, FolderGit2, Lock, Globe, Users, ExternalLink, Plus, Sparkles,
-  Terminal, Boxes, Code2, Hammer, Play, RefreshCw, ChevronRight,
+  Bot, FolderGit2, Lock, Globe, Users, Plus, Sparkles,
+  Terminal, Boxes, Code2, Hammer, Play, RefreshCw, ChevronRight, Cpu,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -14,14 +14,16 @@ import {
   createHubPod,
   openGrudaAgentWorkspace,
   hubMe,
+  ensureLocalAgent,
   type GrudaProject,
   type OrchestratorResult,
   type OrchestratorPlanStep,
   type HubPod,
+  type AgentBackend,
 } from "../lib/grudaHub";
 import { executeOrchestratorStep } from "../lib/devPortalExec";
-import { FLEET_URLS } from "../../shared/fleet";
 import type { LocalPod } from "../../shared/devPortal";
+import { FLEET_URLS } from "../../shared/fleet";
 
 type Tab = "projects" | "orchestrator" | "terminal" | "pods" | "deploy";
 
@@ -73,9 +75,15 @@ const POD_STATUS_COLOR: Record<string, string> = {
 export default function AIWorkspace() {
   const [tab, setTab] = useState<Tab>("deploy");
   const [projects, setProjects] = useState<GrudaProject[]>([]);
-  const [user, setUser] = useState<{ userId: string; grudgeId?: string; username?: string } | null>(null);
+  const [user, setUser] = useState<{
+    userId: string;
+    grudgeId?: string;
+    username?: string;
+    backend?: AgentBackend;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [aiStatus, setAiStatus] = useState<string>("");
   const [newName, setNewName] = useState("");
   const [agentTask, setAgentTask] = useState("");
   const [orchTask, setOrchTask] = useState("");
@@ -92,6 +100,8 @@ export default function AIWorkspace() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
+      // Warm local AI (Ollama) — non-blocking for UI
+      void ensureLocalAgent().then((r) => setAiStatus(r.detail));
       const [me, list, dir] = await Promise.all([
         hubMe(),
         listProjects(),
@@ -101,10 +111,10 @@ export default function AIWorkspace() {
       setProjects(list);
       setWorkspaceDir(dir);
     } catch (e: unknown) {
-      setUser(null);
+      setUser({ userId: "local", username: "local", backend: "offline" });
       setProjects([]);
-      toast.error("GRUDA Hub unavailable", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.message("Running in local Agent AI mode", {
+        description: e instanceof Error ? e.message : "Hub optional — agent runs in-app",
       });
     } finally {
       setLoading(false);
@@ -163,9 +173,17 @@ export default function AIWorkspace() {
     if (!task) return;
     setBusy(true);
     try {
+      void ensureLocalAgent();
       const res = await runAgent(task, selectedId ?? undefined);
-      setAgentOut(res.response);
-      toast.success("Agent run complete", { description: `Run ${res.runId.slice(0, 8)}…` });
+      setAgentOut(
+        [
+          res.response,
+          res.source ? `\n\n— via ${res.source}` : "",
+        ].join(""),
+      );
+      toast.success("Agent run complete", {
+        description: `${res.source ?? "in-app"} · ${res.runId.slice(0, 8)}…`,
+      });
     } catch (e: unknown) {
       toast.error("Agent failed", { description: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -179,11 +197,26 @@ export default function AIWorkspace() {
     setBusy(true);
     setStepLogs({});
     try {
+      void ensureLocalAgent();
       const res = await runOrchestrator(task, selectedId ?? undefined);
       setOrchResult(res);
-      toast.success("Orchestrator plan ready", { description: `${res.plan.length} steps` });
+      toast.success("Orchestrator plan ready", {
+        description: `${res.plan.length} steps · ${res.source ?? "in-app"}`,
+      });
     } catch (e: unknown) {
       toast.error("Orchestrator failed", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onEnsureAi() {
+    setBusy(true);
+    try {
+      const r = await ensureLocalAgent();
+      setAiStatus(r.detail);
+      if (r.ok) toast.success("Local AI ready", { description: r.detail });
+      else toast.message("Local AI partial", { description: r.detail });
     } finally {
       setBusy(false);
     }
@@ -270,27 +303,37 @@ export default function AIWorkspace() {
             <Bot size={22} /> Agent AI · Make & Deploy
           </h1>
           <p className="page-sub">
-            Describe anything to build or ship. Orchestrator + local pods +{" "}
-            <a href={FLEET_URLS.ai} className="text-gold" onClick={(e) => { e.preventDefault(); openGrudaAgentWorkspace(); }}>
-              ai.grudge-studio.com
-            </a>
-            {" "}· fleet: Railway · R2 · ObjectStore · Warlords
+            Runs <strong className="text-gold">inside this app</strong> (Ollama → Workers AI → Legion).
+            No browser required. Fleet: Railway · R2 · ObjectStore · Forge tools.
           </p>
         </div>
-        <button type="button" className="btn" onClick={() => openGrudaAgentWorkspace(selected?.slug)}>
-          <ExternalLink size={14} /> Open full GRUDA Agent
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn ghost text-xs" disabled={busy} onClick={() => void onEnsureAi()}>
+            <Cpu size={14} /> Start local AI
+          </button>
+          <button type="button" className="btn" onClick={() => openGrudaAgentWorkspace(selected?.slug)}>
+            <Bot size={14} /> Focus Agent panel
+          </button>
+        </div>
       </div>
 
-      {user && (
-        <div className="card text-xs text-muted flex flex-wrap gap-2 items-center">
-          <span>
-            Signed in as <span className="text-gold font-mono">{user.username ?? user.userId}</span>
-            {user.grudgeId && <> · <span className="font-mono">{user.grudgeId}</span></>}
-          </span>
-          <span className="font-mono text-[10px]">cwd: {workspaceDir}</span>
-        </div>
-      )}
+      <div className="card text-xs text-muted flex flex-wrap gap-2 items-center">
+        <span>
+          {user ? (
+            <>
+              Identity <span className="text-gold font-mono">{user.username ?? user.userId}</span>
+              {user.grudgeId && <> · <span className="font-mono">{user.grudgeId}</span></>}
+              {user.backend && <> · <span className="text-gold">{user.backend}</span></>}
+            </>
+          ) : (
+            <span>Local agent mode</span>
+          )}
+        </span>
+        <span className="font-mono text-[10px]">cwd: {workspaceDir || "—"}</span>
+        {aiStatus && (
+          <span className="w-full text-[10px] font-mono text-gold/90 mt-1">{aiStatus}</span>
+        )}
+      </div>
 
       <div className="flex gap-1 flex-wrap border-b border-line pb-1">
         {tabs.map(({ id, label, Icon }) => (

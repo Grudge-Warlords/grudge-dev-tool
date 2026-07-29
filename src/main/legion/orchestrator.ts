@@ -151,38 +151,69 @@ export async function legionChat(opts: {
   model?: string;
   injectFleetTruth?: boolean;
 }): Promise<{ response: string; source: string }> {
-  const hub = await getLegionHubUrl();
   const messages = await messagesWithFleetTruth(opts);
-  const res = await fetch(`${hub}/api/chat`, {
-    method: "POST",
-    headers: await authHeaders(),
-    body: JSON.stringify({
-      messages,
-      role: opts.role ?? "dev",
-      model: opts.model,
-    }),
-    signal: AbortSignal.timeout(120_000),
-  });
-  if (!res.ok) {
+  const errors: string[] = [];
+
+  // 1) Legion hub /api/chat
+  try {
+    const hub = await getLegionHubUrl();
+    const res = await fetch(`${hub}/api/chat`, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({
+        messages,
+        role: opts.role ?? "dev",
+        model: opts.model,
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { response?: string; message?: string; content?: string };
+      return {
+        response: data.response ?? data.message ?? data.content ?? "",
+        source: "legion-hub",
+      };
+    }
+    errors.push(`hub HTTP ${res.status}`);
+  } catch (e: unknown) {
+    errors.push(`hub: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // 2) Gruda agent URL /api/chat
+  try {
     const agent = await getGrudaAgentUrl();
     const fallback = await fetch(`${agent}/api/chat`, {
       method: "POST",
       headers: await authHeaders(),
       body: JSON.stringify({ messages, model: opts.model }),
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(60_000),
     });
-    if (!fallback.ok) {
-      const t = await res.text().catch(() => "");
-      throw new Error(`Legion chat failed: ${res.status} — ${t.slice(0, 200)}`);
+    if (fallback.ok) {
+      const fb = (await fallback.json()) as { response?: string; message?: string };
+      return { response: fb.response ?? fb.message ?? "", source: "gruda-agent" };
     }
-    const fb = (await fallback.json()) as { response?: string; message?: string };
-    return { response: fb.response ?? fb.message ?? "", source: "gruda-agent" };
+    errors.push(`agent HTTP ${fallback.status}`);
+  } catch (e: unknown) {
+    errors.push(`agent: ${e instanceof Error ? e.message : String(e)}`);
   }
-  const data = (await res.json()) as { response?: string; message?: string; content?: string };
-  return {
-    response: data.response ?? data.message ?? data.content ?? "",
-    source: "legion-hub",
-  };
+
+  // 3) In-app stack (Ollama → Workers AI) — no browser
+  try {
+    const { localAgentChat } = await import("../agent/localAgent");
+    const typed = messages.map((m) => ({
+      role: (m.role === "assistant" || m.role === "system" ? m.role : "user") as
+        | "system"
+        | "user"
+        | "assistant",
+      content: m.content,
+    }));
+    const local = await localAgentChat(typed);
+    return { response: local.text, source: local.source };
+  } catch (e: unknown) {
+    errors.push(`local: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  throw new Error(`Legion chat failed (all backends):\n${errors.join("\n")}`);
 }
 
 export async function grudaAgentModels(): Promise<string[]> {

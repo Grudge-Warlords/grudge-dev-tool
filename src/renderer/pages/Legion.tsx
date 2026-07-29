@@ -57,17 +57,51 @@ export default function Legion() {
     setBusy(true);
     setMessages((m) => [...m, { role: "user", content: msg }]);
     try {
+      // Warm local Ollama so chat does not depend on browser/hub alone
+      void window.grudge.ollama?.ensure?.({ agentic: true, reason: "legion-chat" });
       const history = messages.filter((x) => x.role !== "system").slice(-8);
-      const res = await window.grudge.legion.chat({
-        message: msg,
-        messages: [...history, { role: "user", content: msg }],
-        role: "dev",
-        model: "google/gemini-3.5-flash",
-      });
-      setMessages((m) => [...m, { role: "assistant", content: res.response || "(no response)", source: res.source }]);
+      // Prefer in-app agent stack first
+      let res: { response?: string; text?: string; source?: string } | null = null;
+      try {
+        if (window.grudge.agent?.chat) {
+          const local = await window.grudge.agent.chat({
+            messages: [
+              { role: "system", content: "You are ALE Legion / Brother Keeper inside Grudge Studio desktop." },
+              ...history.map((h) => ({ role: h.role, content: h.content })),
+              { role: "user", content: msg },
+            ],
+          });
+          res = { response: local?.text, source: local?.source ?? "in-app" };
+        }
+      } catch {
+        res = null;
+      }
+      if (!res?.response) {
+        res = await window.grudge.legion.chat({
+          message: msg,
+          messages: [...history, { role: "user", content: msg }],
+          role: "dev",
+        });
+      }
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content: res?.response || res?.text || "(no response)",
+          source: res?.source,
+        },
+      ]);
     } catch (e: any) {
-      toast.error("Legion chat failed", { description: e?.message });
-      setMessages((m) => [...m, { role: "assistant", content: `Error: ${e?.message}` }]);
+      toast.error("Legion chat failed", {
+        description: e?.message ?? "Start Ollama (Settings) or configure Workers AI",
+      });
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content: `Error: ${e?.message}\n\nTip: click Agent AI → Start local AI, or install Ollama / enable Docker GRUDACHAIN.`,
+        },
+      ]);
     } finally {
       setBusy(false);
     }

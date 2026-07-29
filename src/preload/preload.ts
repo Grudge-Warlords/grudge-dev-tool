@@ -262,6 +262,16 @@ const api = {
     sceneCompletionInfo: () => ipcRenderer.invoke("fleet:sceneCompletionInfo"),
     sceneCompletionPlan: (req: unknown) => ipcRenderer.invoke("fleet:sceneCompletionPlan", req),
   },
+  // In-app Agent AI (desktop only — never opens a browser)
+  agent: {
+    status: () => ipcRenderer.invoke("agent:status"),
+    run: (opts: { task: string; projectId?: string; role?: string }) =>
+      ipcRenderer.invoke("agent:run", opts),
+    orchestrate: (opts: { task: string; projectId?: string }) =>
+      ipcRenderer.invoke("agent:orchestrate", opts),
+    chat: (opts: { messages: Array<{ role: string; content: string }> }) =>
+      ipcRenderer.invoke("agent:chat", opts),
+  },
   // Ollama / GRUDACHAIN local agentic AI
   ollama: {
     health: () => ipcRenderer.invoke("ollama:health"),
