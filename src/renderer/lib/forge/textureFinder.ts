@@ -78,15 +78,17 @@ function detectRole(filename: string): { role: TextureRole; weight: number } | n
 function nameAffinity(fileStem: string, meshName: string, matName: string): number {
   const ft = new Set(tokens(fileStem));
   const mt = [...tokens(meshName), ...tokens(matName)];
-  if (!mt.length) return 1;
+  if (!mt.length) return 1.5; // bare folder textures still usable
   let hit = 0;
   for (const t of mt) {
-    if (ft.has(t)) hit++;
-    // partial: texture starts with mesh token
+    if (ft.has(t)) hit += 2;
     for (const f of ft) {
-      if (f.includes(t) || t.includes(f)) hit += 0.35;
+      if (f.includes(t) || t.includes(f)) hit += 0.5;
     }
   }
+  // Bonus when texture stem equals mesh/file stem loosely
+  const meshStem = tokens(meshName)[0];
+  if (meshStem && ft.has(meshStem)) hit += 3;
   return hit;
 }
 

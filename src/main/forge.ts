@@ -1,7 +1,8 @@
 import { BrowserWindow, net } from "electron";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, readdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, extname, join } from "node:path";
+import { basename, dirname, extname, join, resolve, sep } from "node:path";
+import { pathToFileURL } from "node:url";
 import log from "./logger";
 
 /**
@@ -169,6 +170,127 @@ export async function openRemoteModel(url: string, mainWindow: BrowserWindow | n
     pendingPath = path;
   }
   return { path, name };
+}
+
+const IMAGE_EXTS = new Set([
+  ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tga", ".gif", ".ktx2", ".basis",
+]);
+const TEXTURE_DIR_NAMES = new Set([
+  "textures", "texture", "maps", "map", "materials", "material", "mat",
+  "pbr", "images", "image", "tex", "sourceimages", "source_images",
+]);
+
+export interface SiblingTextureHit {
+  path: string;
+  name: string;
+  /** Directory relative hint for scoring */
+  dir: string;
+}
+
+/**
+ * Find texture image files next to a model (same folder) and at pack roots.
+ * Walks up a few parents and peeks into common texture folder names.
+ */
+export async function listSiblingTextures(modelPathInput: unknown): Promise<{
+  modelPath: string;
+  modelDir: string;
+  files: SiblingTextureHit[];
+  searchDirs: string[];
+}> {
+  const modelPath = resolve(resolveModelPath(modelPathInput));
+  const modelDir = dirname(modelPath);
+  const searchDirs: string[] = [];
+  const seen = new Set<string>();
+  const files: SiblingTextureHit[] = [];
+
+  const addDir = (d: string) => {
+    const abs = resolve(d);
+    if (seen.has(abs.toLowerCase())) return;
+    seen.add(abs.toLowerCase());
+    searchDirs.push(abs);
+  };
+
+  // Same folder as asset
+  addDir(modelDir);
+  // Common subfolders of same dir
+  for (const name of TEXTURE_DIR_NAMES) {
+    addDir(join(modelDir, name));
+  }
+
+  // Walk up (pack root often holds shared textures/)
+  let cur = modelDir;
+  for (let up = 0; up < 4; up++) {
+    const parent = dirname(cur);
+    if (!parent || parent === cur) break;
+    addDir(parent);
+    for (const name of TEXTURE_DIR_NAMES) {
+      addDir(join(parent, name));
+    }
+    cur = parent;
+  }
+
+  for (const dir of searchDirs) {
+    try {
+      const st = await stat(dir);
+      if (!st.isDirectory()) continue;
+      const entries = await readdir(dir, { withFileTypes: true });
+      for (const ent of entries) {
+        if (!ent.isFile()) continue;
+        const ext = extname(ent.name).toLowerCase();
+        if (!IMAGE_EXTS.has(ext)) continue;
+        files.push({
+          path: join(dir, ent.name),
+          name: ent.name,
+          dir,
+        });
+      }
+    } catch {
+      /* skip unreadable */
+    }
+  }
+
+  log.info(
+    `[forge] sibling textures for ${basename(modelPath)}: ${files.length} images in ${searchDirs.length} dirs`,
+  );
+  return { modelPath, modelDir, files, searchDirs };
+}
+
+const IMAGE_MIME: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".bmp": "image/bmp",
+  ".gif": "image/gif",
+  ".tga": "image/targa",
+};
+
+/** Read a local image for renderer TextureLoader (base64 data URL). */
+export async function readLocalImage(pathInput: unknown): Promise<{
+  path: string;
+  name: string;
+  mime: string;
+  dataUrl: string;
+  size: number;
+}> {
+  const path = resolve(typeof pathInput === "string" ? pathInput : resolveModelPath(pathInput));
+  const ext = extname(path).toLowerCase();
+  if (!IMAGE_EXTS.has(ext)) throw new Error(`Not an image: ${ext}`);
+  const data = await readFile(path);
+  const mime = IMAGE_MIME[ext] ?? "application/octet-stream";
+  // TGA not browser-native — still return base64; TextureLoader may fail, skip later
+  const b64 = data.toString("base64");
+  return {
+    path,
+    name: basename(path),
+    mime,
+    dataUrl: `data:${mime};base64,${b64}`,
+    size: data.byteLength,
+  };
+}
+
+export function fileUrlForPath(diskPath: string): string {
+  return pathToFileURL(resolve(diskPath)).href;
 }
 
 /** When the main window is created and the user already had a pending file, push it. */

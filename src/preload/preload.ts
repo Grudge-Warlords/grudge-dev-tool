@@ -212,6 +212,12 @@ const api = {
     consumeInitialFile: () => ipcRenderer.invoke("forge:consumeInitialFile"),
     /** Read a file from disk and hand the bytes back to the renderer. */
     readFile: (path: string) => ipcRenderer.invoke("forge:readFile", path),
+    /** List texture images next to a model (same folder + pack roots). */
+    listSiblingTextures: (modelPath: string) =>
+      ipcRenderer.invoke("forge:listSiblingTextures", modelPath),
+    /** Read local image as data URL for Three.js TextureLoader. */
+    readLocalImage: (imagePath: string) =>
+      ipcRenderer.invoke("forge:readLocalImage", imagePath),
     writeTempFile: (args: { name: string; bytes: Uint8Array }) =>
       ipcRenderer.invoke("forge:writeTempFile", args) as Promise<string>,
     /** Download a public CDN model and open it in Forge 3D. */

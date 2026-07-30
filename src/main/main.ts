@@ -568,6 +568,10 @@ function registerIpc() {
   // Forge3D — "Open with..." + read file from disk for renderer.
   ipcMain.handle("forge:consumeInitialFile", () => forge.consumeInitialFile());
   ipcMain.handle("forge:readFile", async (_e, pathOrObj: unknown) => forge.readModelFile(pathOrObj));
+  ipcMain.handle("forge:listSiblingTextures", async (_e, modelPath: unknown) =>
+    forge.listSiblingTextures(modelPath));
+  ipcMain.handle("forge:readLocalImage", async (_e, imagePath: unknown) =>
+    forge.readLocalImage(imagePath));
   ipcMain.handle("forge:writeTempFile", async (_e, args: { name: string; bytes: Uint8Array }) =>
     forge.writeTempModelFile(args.name, args.bytes));
   ipcMain.handle("forge:openRemote", async (_e, url: string) => {

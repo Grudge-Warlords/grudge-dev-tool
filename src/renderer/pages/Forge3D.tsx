@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { SceneEngine, type GizmoMode, DEFAULT_STUDIO_LIGHTS, type StudioLightState } from "../lib/forge/sceneEngine";
 import { loadModel, type LoadedModel, isSupported } from "../lib/forge/loaders";
+import { finishImportedAsset } from "../lib/forge/localMaterials";
 import { exportToGlb, downloadBlob, ACCEPT_ATTR } from "../lib/forge/converters";
 import { inspectGlb, formatBytes, type GlbInspection } from "../lib/forge/glbInspect";
 import {
@@ -357,7 +358,17 @@ export default function Forge3D() {
           toast.warning("FBX2glTF conversion skipped", { description: converted.errors[0] });
         }
       }
-      const loaded: LoadedModel = await loadModel(loadFile);
+      const diskForTextures =
+        resolvedDiskPath ??
+        (() => {
+          try {
+            return window.grudge.files?.getPathForFile?.(file) || null;
+          } catch {
+            return null;
+          }
+        })();
+
+      const loaded: LoadedModel = await loadModel(loadFile, { diskPath: diskForTextures });
       // Inspect GLB binary container if applicable.
       let inspection: GlbInspection | null = null;
       if (loadFile.name.toLowerCase().endsWith(".glb")) {
@@ -366,7 +377,30 @@ export default function Forge3D() {
       }
       const id = `e${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
       loaded.object.userData.itemId = id;
-      loaded.object.traverse((n) => { (n as THREE.Mesh).castShadow = true; (n as THREE.Mesh).receiveShadow = true; });
+      loaded.object.traverse((n) => {
+        const m = n as THREE.Mesh;
+        if (m.isMesh) {
+          m.castShadow = true;
+          m.receiveShadow = true;
+        }
+      });
+
+      // Colors + sibling-folder textures (same dir / pack root) — not brand gold
+      let texNote = "";
+      try {
+        const fin = await finishImportedAsset(loaded.object, diskForTextures);
+        const maps = fin.textures.reports.reduce((n, r) => n + r.applied.length, 0);
+        if (maps > 0) {
+          texNote = ` · ${maps} local map(s) from folder`;
+        } else if (fin.sanitize.goldNeutralized > 0) {
+          texNote = ` · neutralized ${fin.sanitize.goldNeutralized} gold default(s)`;
+        } else if (diskForTextures && fin.textures.filesTried === 0) {
+          texNote = " · no sibling textures found";
+        }
+      } catch (texErr) {
+        console.warn("local texture resolve failed", texErr);
+      }
+
       engineRef.current.scene.add(loaded.object);
       const mixer = engineRef.current.buildMixer(loaded.object, loaded.animations);
       const rig = inspectSceneRig(loaded.object);
@@ -386,18 +420,18 @@ export default function Forge3D() {
         rig,
         bodyMorph: { ...DEFAULT_BODY_MORPH },
         sourceRest,
-        diskPath: resolvedDiskPath ?? (() => {
-          try { return window.grudge.files.getPathForFile(file) || null; } catch { return null; }
-        })(),
+        diskPath: diskForTextures,
       };
       setItems((prev) => [...prev, item]);
       setSelectedId(id);
       setSelectedNodeUuid(null);
       if (autoFrame) engineRef.current.frame(loaded.object);
+      // Soft selection pulse then clear gold emissive so assets don't stay yellow
       engineRef.current.pulseSelect(loaded.object);
+      window.setTimeout(() => engineRef.current?.pulseSelect(null), 450);
       const rigHint = rig.fingerprintLabel ? ` · ${rig.fingerprintLabel}` : rig.boneCount > 0 ? ` · ${rig.boneCount} bones` : "";
       toast.success(`Loaded ${loadFile.name}`, {
-        description: `${loaded.triangles.toLocaleString()} triangles · ${loaded.animations.length} clip${loaded.animations.length === 1 ? "" : "s"}${rigHint}`,
+        description: `${loaded.triangles.toLocaleString()} triangles · ${loaded.animations.length} clip${loaded.animations.length === 1 ? "" : "s"}${rigHint}${texNote}`,
       });
       if (animSettings.autoPlayFirst && mixer && loaded.animations[0]) {
         const action = mixer.clipAction(loaded.animations[0]);

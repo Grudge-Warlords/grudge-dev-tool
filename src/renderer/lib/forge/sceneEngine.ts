@@ -343,16 +343,23 @@ export class SceneEngine {
     this.controls.update();
   }
 
-  /** Soft selection outline: toggle emissive flash on meshes under root. */
+  /**
+   * Soft selection outline via brief emissive flash.
+   * Always restores previous emissive so assets don't stay gold/yellow.
+   */
   pulseSelect(root: THREE.Object3D | null, hex = 0xffc62a): void {
-    // Clear previous pulse tags
+    // Clear previous pulse tags (full scene)
     this.scene.traverse((n) => {
       const m = n as THREE.Mesh;
       if (!m.isMesh || !m.userData?.forgePulse) return;
-      const mat = m.material as THREE.MeshStandardMaterial;
-      if (mat?.isMeshStandardMaterial && m.userData.forgePulseEmissive != null) {
-        mat.emissive.setHex(m.userData.forgePulseEmissive);
-        mat.emissiveIntensity = m.userData.forgePulseIntensity ?? 0;
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      for (const raw of mats) {
+        const mat = raw as THREE.MeshStandardMaterial;
+        if (mat?.isMeshStandardMaterial && m.userData.forgePulseEmissive != null) {
+          mat.emissive.setHex(m.userData.forgePulseEmissive as number);
+          mat.emissiveIntensity = (m.userData.forgePulseIntensity as number) ?? 0;
+          mat.needsUpdate = true;
+        }
       }
       delete m.userData.forgePulse;
       delete m.userData.forgePulseEmissive;
@@ -366,11 +373,13 @@ export class SceneEngine {
       for (const raw of mats) {
         const mat = raw as THREE.MeshStandardMaterial;
         if (!mat?.isMeshStandardMaterial) continue;
+        // Don't paint selection onto materials that already have textured albedo identity
         m.userData.forgePulse = true;
         m.userData.forgePulseEmissive = mat.emissive.getHex();
         m.userData.forgePulseIntensity = mat.emissiveIntensity;
         mat.emissive.setHex(hex);
-        mat.emissiveIntensity = Math.max(mat.emissiveIntensity, 0.35);
+        mat.emissiveIntensity = Math.min(0.25, Math.max(mat.emissiveIntensity, 0.18));
+        mat.needsUpdate = true;
       }
     });
   }

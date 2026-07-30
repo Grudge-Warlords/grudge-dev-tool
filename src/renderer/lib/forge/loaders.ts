@@ -71,15 +71,34 @@ function tallyStats(object: THREE.Object3D): { triangles: number; vertices: numb
   return { triangles: Math.round(triangles), vertices, bones };
 }
 
+export interface LoadModelOptions {
+  /** Absolute disk path of the source file (enables sibling texture / MTL roots). */
+  diskPath?: string | null;
+  /** Explicit directory for external maps (defaults to dirname of diskPath). */
+  resourceDir?: string | null;
+}
+
+function dirnamePath(p: string): string {
+  const norm = p.replace(/\\/g, "/");
+  const i = norm.lastIndexOf("/");
+  return i >= 0 ? norm.slice(0, i + 1) : "";
+}
+
 /** Load a model from a Blob/File using the right loader for its extension. */
-export async function loadModel(file: File): Promise<LoadedModel> {
+export async function loadModel(file: File, opts: LoadModelOptions = {}): Promise<LoadedModel> {
   const format = detectFormat(file.name);
   if (!format) throw new Error(`Unsupported format: ${file.name}`);
   const url = URL.createObjectURL(file);
+  const resourceDir =
+    opts.resourceDir ||
+    (opts.diskPath ? dirnamePath(opts.diskPath) : null);
   try {
     switch (format) {
       case "glb":
       case "gltf": {
+        // Note: blob URLs lose relative texture paths — finishImportedAsset()
+        // re-binds maps from disk siblings after load when diskPath is known.
+        void resourceDir;
         const gltf = await new GLTFLoader().loadAsync(url);
         let scene = gltf.scene;
         let hasSkin = false;
@@ -99,6 +118,7 @@ export async function loadModel(file: File): Promise<LoadedModel> {
         };
       }
       case "obj": {
+        // Prefer MTL next to OBJ when we have a disk path (via main-process sibling list later)
         const obj = await new OBJLoader().loadAsync(url);
         const stats = tallyStats(obj);
         return { object: obj, animations: [], gltf: null, format, ...stats };
