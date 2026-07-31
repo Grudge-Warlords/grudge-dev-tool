@@ -493,7 +493,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
 
     async function sendToForge() {
         const result = await G()?.viewer?.sendToForge({ url: asset.url, name: asset.name });
-        if (result?.ok) toast.success("Added to Forge 3D scene", { description: "Main window → Forge 3D" });
+        if (result?.ok) toast.success("Added to local Forge tools", { description: "Main window → Forge tools (secondary). Use Forge tab for forge.grudge-studio.com" });
         else toast.error(result?.error ?? "Failed to send to Forge");
     }
 

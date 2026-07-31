@@ -7,18 +7,29 @@ const api = {
     setApiBase: (url: string) => ipcRenderer.invoke("settings:setApiBase", url),
     setAssetsApiBase: (url: string) => ipcRenderer.invoke("settings:setAssetsApiBase", url),
     clearAssetsApiBase: () => ipcRenderer.invoke("settings:clearAssetsApiBase"),
+    setIdBase: (url: string) => ipcRenderer.invoke("settings:setIdBase", url),
+    setGameDataUrl: (url: string) => ipcRenderer.invoke("settings:setGameDataUrl", url),
+    applyOneTruth: () => ipcRenderer.invoke("settings:applyOneTruth"),
     setToken: (token: string) => ipcRenderer.invoke("settings:setToken", token),
     clearToken: () => ipcRenderer.invoke("settings:clearToken"),
     setBlenderKitKey: (key: string) => ipcRenderer.invoke("settings:setBlenderKitKey", key),
     clearBlenderKitKey: () => ipcRenderer.invoke("settings:clearBlenderKitKey"),
     toolchain: () => ipcRenderer.invoke("settings:toolchain"),
   },
-  // Object storage
+  // Object storage + D1/registry seed
   os: {
     list: (req: any) => ipcRenderer.invoke("os:list", req),
     search: (req: any) => ipcRenderer.invoke("os:search", req),
     assetMeta: (req: any) => ipcRenderer.invoke("os:assetMeta", req),
     openExternal: (url: string) => ipcRenderer.invoke("os:openExternal", url),
+    writeManifest: (payload: {
+      packId: string;
+      version: string;
+      entries: any[];
+      meta?: Record<string, any>;
+    }) => ipcRenderer.invoke("os:writeManifest", payload),
+    /** Single-row D1/ObjectStore index seed after prod/gltf R2 PUT. */
+    registerAsset: (row: any) => ipcRenderer.invoke("os:registerAsset", row),
   },
   // Upload
   upload: {
@@ -48,6 +59,10 @@ const api = {
       ipcRenderer.invoke("skeleton:buildLibrary", args),
     saveMapping: (args: { path: string; mapping: unknown }) =>
       ipcRenderer.invoke("skeleton:saveMapping", args),
+    listLibraries: () => ipcRenderer.invoke("skeleton:listLibraries"),
+    installLibrary: (packDir: string) => ipcRenderer.invoke("skeleton:installLibrary", packDir),
+    openLibraryDir: (dir?: string) => ipcRenderer.invoke("skeleton:openLibraryDir", dir),
+    autoMap: (jointNames: string[]) => ipcRenderer.invoke("skeleton:autoMap", jointNames),
   },
 
   // BlenderKit
@@ -86,7 +101,36 @@ const api = {
       ipcRenderer.invoke("viewer:sendToForge", args) as Promise<{ ok: true; path: string; name: string } | { ok: false; error: string }>,
     convertModel: (args: { url: string; name: string; targetFormat: "glb" | "gltf" }) =>
       ipcRenderer.invoke("viewer:convertModel", args) as Promise<{ ok: true; path: string; name: string } | { ok: false; error: string }>,
-    saveConvertedFile: (args: { path: string; defaultName: string }) =>
+    convertImage: (args: {
+      url: string;
+      name: string;
+      format: "png" | "webp" | "jpeg" | "avif" | "gif";
+      quality?: number;
+      maxWidth?: number;
+      maxHeight?: number;
+    }) =>
+      ipcRenderer.invoke("viewer:convertImage", args) as Promise<{
+        ok: boolean;
+        error?: string;
+        path?: string;
+        name?: string;
+        format?: string;
+        beforeBytes?: number;
+        afterBytes?: number;
+        meta?: {
+          width: number;
+          height: number;
+          format?: string;
+          hasAlpha?: boolean;
+          sizeBytes: number;
+        };
+      }>,
+    inspectImage: (args: { url: string; name: string }) =>
+      ipcRenderer.invoke("viewer:inspectImage", args) as Promise<
+        | { ok: true; meta: { width: number; height: number; format?: string; hasAlpha?: boolean; sizeBytes: number } }
+        | { ok: false; error: string }
+      >,
+    saveConvertedFile: (args: { path: string; defaultName: string; kind?: "model" | "image" }) =>
       ipcRenderer.invoke("viewer:saveConvertedFile", args) as Promise<
         { ok: true; savedPath: string } | { ok: false; error: string } | { canceled: true }
       >,
@@ -259,6 +303,7 @@ const api = {
     games: () => ipcRenderer.invoke("fleet:games"),
     endpoints: () => ipcRenderer.invoke("fleet:endpoints"),
     storeCategories: () => ipcRenderer.invoke("fleet:storeCategories"),
+    gameDeployments: () => ipcRenderer.invoke("fleet:gameDeployments"),
     objectStore: (path: string) => ipcRenderer.invoke("fleet:objectStore", path),
     health: () => ipcRenderer.invoke("fleet:health"),
     ops: () => ipcRenderer.invoke("fleet:ops"),
@@ -313,8 +358,19 @@ const api = {
   // Accounts — wallet, GBUX, toolchain (Steam-style customer + admin hub)
   accounts: {
     wallet: (grudgeId: string) => ipcRenderer.invoke("accounts:wallet", grudgeId),
+    walletConfig: () => ipcRenderer.invoke("accounts:walletConfig"),
     provisionWallet: (args: { grudgeId: string; email?: string }) =>
       ipcRenderer.invoke("accounts:provisionWallet", args),
+    linkedWallets: () => ipcRenderer.invoke("accounts:linkedWallets"),
+    linkChallenge: (walletAddress: string) => ipcRenderer.invoke("accounts:linkChallenge", walletAddress),
+    linkConfirm: (args: {
+      walletAddress: string;
+      message: string;
+      signature: string;
+      provider?: string;
+      label?: string;
+    }) => ipcRenderer.invoke("accounts:linkConfirm", args),
+    loginWithWallet: (walletAddress: string) => ipcRenderer.invoke("accounts:loginWithWallet", walletAddress),
     gbuxBalance: (grudgeId: string) => ipcRenderer.invoke("accounts:gbuxBalance", grudgeId),
     gbuxPurchase: (args: { packId: string; grudgeId: string; walletAddress?: string }) =>
       ipcRenderer.invoke("accounts:gbuxPurchase", args),

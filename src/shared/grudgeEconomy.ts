@@ -27,7 +27,9 @@ export const GRUDGE_SERVICES = [
   { id: "client", label: "Fleet client", url: GAME_API_URL, role: "economy" },
   { id: "aiHub", label: "GRUDA AI Hub (economy)", url: `${FLEET_URLS.ai}/v1/economy`, role: "economy" },
   { id: "gameData", label: "Game data / wallet (Railway)", url: GAME_DATA_URL, role: "wallet" },
+  { id: "walletSite", label: "Wallet site", url: "https://wallet.grudge-studio.com", role: "wallet" },
   { id: "account", label: "Account API (fleet)", url: ACCOUNT_API_URL, role: "profile" },
   { id: "forge", label: "Forge editor", url: FLEET_URLS.forge, role: "editor" },
+  { id: "pipeline", label: "Grudge Pipeline", url: FLEET_URLS.pipeline, role: "editor" },
   { id: "walletPage", label: "Wallet dashboard", url: "https://grudgewarlords.com/wallet", role: "wallet" },
 ] as const;

@@ -4,7 +4,6 @@ import { readCf, writeCf } from "./cf/credentials";
 import * as legion from "./legion/orchestrator";
 import {
   GAME_API_URL,
-  GAME_DATA_URL,
   GBUX_PURCHASE_PACKS,
 } from "../shared/grudgeEconomy";
 import {
@@ -15,6 +14,16 @@ import {
   validateGbuxAmount,
 } from "../shared/web3";
 import { FLEET_URLS } from "../shared/fleet";
+import {
+  WALLET_PATHS,
+  walletApiBases,
+  isSolanaAddress,
+  type LinkedWalletRow,
+  type WalletAuthResponse,
+  type WalletConfigResponse,
+  type WalletOverviewResponse,
+  type WalletStatusResponse,
+} from "../shared/walletBestPractices";
 
 export interface WalletRecord {
   player_id?: string;
@@ -22,6 +31,8 @@ export interface WalletRecord {
   chain?: string;
   provider?: string;
   custodial_id?: string | null;
+  walletType?: string | null;
+  gbuxBalance?: number;
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -33,7 +44,10 @@ async function authHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
-async function tryFetchJson(url: string, init?: RequestInit): Promise<{ ok: boolean; status: number; data: unknown }> {
+async function tryFetchJson(
+  url: string,
+  init?: RequestInit,
+): Promise<{ ok: boolean; status: number; data: unknown }> {
   try {
     const res = await fetch(url, { ...init, signal: AbortSignal.timeout(15_000) });
     const data = await res.json().catch(() => ({}));
@@ -43,45 +57,299 @@ async function tryFetchJson(url: string, init?: RequestInit): Promise<{ ok: bool
   }
 }
 
+async function walletBases(): Promise<string[]> {
+  const apiBase = await getApiBaseUrl();
+  return walletApiBases(apiBase);
+}
+
+export async function getWalletConfig(): Promise<{
+  ok: boolean;
+  config: WalletConfigResponse | null;
+  source?: string;
+  error?: string;
+}> {
+  for (const base of await walletBases()) {
+    const r = await tryFetchJson(`${base}${WALLET_PATHS.config}`);
+    if (r.ok) {
+      return { ok: true, config: r.data as WalletConfigResponse, source: base };
+    }
+  }
+  return { ok: false, config: null, error: "Wallet config unavailable" };
+}
+
 export async function getPlayerWallet(grudgeId: string): Promise<{
   status: "ready" | "none" | "unavailable" | "error";
   wallet: WalletRecord | null;
   source?: string;
   error?: string;
+  overview?: WalletOverviewResponse | null;
+  linked?: LinkedWalletRow[];
+  gbuxBalance?: number | null;
 }> {
-  const bases = [...new Set([await getApiBaseUrl(), GAME_DATA_URL])];
-  for (const base of bases) {
-    const r = await tryFetchJson(`${base.replace(/\/$/, "")}/api/wallets/${encodeURIComponent(grudgeId)}`);
-    if (r.status === 404) return { status: "none", wallet: null, source: base };
-    if (r.status === 503) return { status: "unavailable", wallet: null, source: base, error: "Crossmint not configured" };
-    if (r.ok) {
-      const body = r.data as { success?: boolean; wallet?: WalletRecord };
-      if (body.wallet?.address) return { status: "ready", wallet: body.wallet, source: base };
+  const headers = await authHeaders();
+  // Auth overview first (full picture)
+  for (const base of await walletBases()) {
+    const ov = await tryFetchJson(`${base}${WALLET_PATHS.overview}`, { headers });
+    if (ov.ok) {
+      const overview = ov.data as WalletOverviewResponse;
+      const addr = overview.primaryWallet ?? null;
+      if (addr) {
+        return {
+          status: "ready",
+          wallet: {
+            address: addr,
+            chain: "solana",
+            provider: overview.walletType ?? "crossmint",
+            walletType: overview.walletType,
+            gbuxBalance: overview.gbuxBalance,
+          },
+          source: base,
+          overview,
+          linked: overview.linkedWallets ?? [],
+          gbuxBalance: overview.gbuxBalance ?? null,
+        };
+      }
+      return {
+        status: "none",
+        wallet: null,
+        source: base,
+        overview,
+        linked: overview.linkedWallets ?? [],
+        gbuxBalance: overview.gbuxBalance ?? null,
+      };
     }
   }
+
+  // Public/session status fallback
+  for (const base of await walletBases()) {
+    const r = await tryFetchJson(`${base}${WALLET_PATHS.status}`, { headers });
+    if (r.status === 503) {
+      return { status: "unavailable", wallet: null, source: base, error: "Crossmint not configured" };
+    }
+    if (r.ok) {
+      const body = r.data as WalletStatusResponse;
+      if (body.hasWallet && body.walletAddress) {
+        return {
+          status: "ready",
+          wallet: {
+            address: body.walletAddress,
+            chain: "solana",
+            provider: body.walletType ?? "crossmint",
+            walletType: body.walletType,
+            gbuxBalance: body.gbuxBalance,
+          },
+          source: base,
+          gbuxBalance: body.gbuxBalance ?? null,
+        };
+      }
+      return { status: "none", wallet: null, source: base, gbuxBalance: body.gbuxBalance ?? null };
+    }
+  }
+
+  void grudgeId; // reserved for future account-scoped lookup
   return { status: "error", wallet: null, error: "Wallet service unreachable" };
 }
 
+/**
+ * Provision Crossmint custodial wallet (grudachain admin / any signed-in user).
+ * Production: POST /api/wallet/create { email } with Bearer JWT.
+ */
 export async function provisionWallet(grudgeId: string, email?: string): Promise<{
   ok: boolean;
   wallet: WalletRecord | null;
   error?: string;
+  message?: string;
 }> {
-  const base = await getApiBaseUrl();
-  const r = await tryFetchJson(
-    `${base.replace(/\/$/, "")}/api/wallets/${encodeURIComponent(grudgeId)}`,
-    {
-      method: "POST",
-      headers: await authHeaders(),
-      body: JSON.stringify(email ? { email } : {}),
-    },
-  );
-  if (r.ok) {
-    const body = r.data as { wallet?: WalletRecord };
-    return { ok: true, wallet: body.wallet ?? null };
+  if (!email?.trim()) {
+    return {
+      ok: false,
+      wallet: null,
+      error: "Email is required for Crossmint custodial wallet creation",
+    };
   }
-  const body = r.data as { error?: string };
-  return { ok: false, wallet: null, error: body.error ?? `HTTP ${r.status}` };
+  const headers = await authHeaders();
+  if (!headers.Authorization) {
+    return { ok: false, wallet: null, error: "Sign in first (Grudge ID / Puter / wallet JWT)" };
+  }
+
+  const body = JSON.stringify({ email: email.trim(), grudgeId });
+  for (const base of await walletBases()) {
+    const r = await tryFetchJson(`${base}${WALLET_PATHS.create}`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (r.ok) {
+      const data = r.data as {
+        success?: boolean;
+        walletAddress?: string;
+        walletType?: string;
+        message?: string;
+        wallet?: WalletRecord;
+      };
+      const address = data.walletAddress ?? data.wallet?.address;
+      if (address) {
+        return {
+          ok: true,
+          wallet: {
+            address,
+            chain: "solana",
+            provider: data.walletType ?? "crossmint",
+            walletType: data.walletType ?? "crossmint",
+          },
+          message: data.message ?? "Wallet created",
+        };
+      }
+      return { ok: true, wallet: data.wallet ?? null, message: data.message };
+    }
+    const err = r.data as { error?: string };
+    // Prefer first explicit API error over generic
+    if (r.status === 400 || r.status === 401 || r.status === 404) {
+      return { ok: false, wallet: null, error: err.error ?? `HTTP ${r.status}` };
+    }
+  }
+  return { ok: false, wallet: null, error: "Wallet create failed on all fleet hosts" };
+}
+
+export async function getLinkedWallets(): Promise<{
+  ok: boolean;
+  linked: LinkedWalletRow[];
+  error?: string;
+}> {
+  const headers = await authHeaders();
+  for (const base of await walletBases()) {
+    const r = await tryFetchJson(`${base}${WALLET_PATHS.linked}`, { headers });
+    if (r.ok) {
+      const body = r.data as { linkedWallets?: LinkedWalletRow[] };
+      return { ok: true, linked: body.linkedWallets ?? [] };
+    }
+  }
+  return { ok: false, linked: [], error: "Linked wallets unavailable" };
+}
+
+export async function createWalletLinkChallenge(walletAddress: string): Promise<{
+  ok: boolean;
+  message?: string;
+  error?: string;
+}> {
+  if (!isSolanaAddress(walletAddress)) {
+    return { ok: false, error: "Invalid Solana address" };
+  }
+  const headers = await authHeaders();
+  for (const base of await walletBases()) {
+    const r = await tryFetchJson(`${base}${WALLET_PATHS.linkChallenge}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ walletAddress: walletAddress.trim() }),
+    });
+    if (r.ok) {
+      const data = r.data as { message?: string };
+      if (data.message) return { ok: true, message: data.message };
+    }
+    const err = r.data as { error?: string };
+    if (r.status === 401) return { ok: false, error: err.error ?? "Sign in required to link wallet" };
+  }
+  return { ok: false, error: "Link challenge failed" };
+}
+
+export async function confirmWalletLink(input: {
+  walletAddress: string;
+  message: string;
+  signature: string;
+  provider?: string;
+  label?: string;
+}): Promise<{ ok: boolean; error?: string; message?: string }> {
+  const headers = await authHeaders();
+  const body = JSON.stringify({
+    walletAddress: input.walletAddress.trim(),
+    message: input.message,
+    signature: input.signature,
+    provider: input.provider ?? "phantom",
+    label: input.label,
+  });
+  for (const base of await walletBases()) {
+    // Preferred challenge/confirm routes
+    const r = await tryFetchJson(`${base}${WALLET_PATHS.linkConfirm}`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (r.ok) {
+      return { ok: true, message: "External wallet linked" };
+    }
+    // Legacy link-external
+    const r2 = await tryFetchJson(`${base}${WALLET_PATHS.linkExternal}`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (r2.ok) {
+      return { ok: true, message: "External wallet linked" };
+    }
+  }
+  return { ok: false, error: "Wallet link confirm failed" };
+}
+
+/**
+ * Web3 login with Solana wallet address → fleet JWT.
+ * Used for admin wallet login and third-party wallet accounts.
+ */
+export async function loginWithSolanaWallet(walletAddress: string): Promise<{
+  ok: boolean;
+  token?: string;
+  grudgeId?: string;
+  username?: string;
+  userId?: string;
+  wallet?: WalletRecord | null;
+  error?: string;
+}> {
+  if (!isSolanaAddress(walletAddress)) {
+    return { ok: false, error: "Invalid Solana address" };
+  }
+  const body = JSON.stringify({
+    wallet_address: walletAddress.trim(),
+    walletAddress: walletAddress.trim(),
+  });
+  for (const base of await walletBases()) {
+    const r = await tryFetchJson(`${base}${WALLET_PATHS.authWallet}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    if (r.ok) {
+      const data = r.data as WalletAuthResponse;
+      if (data.success === false) {
+        return { ok: false, error: data.error ?? "Wallet auth failed" };
+      }
+      const token = data.token;
+      if (!token) return { ok: false, error: "No token in wallet auth response" };
+      const user = data.user;
+      const grudgeId =
+        data.grudgeId ??
+        user?.grudgeId ??
+        (user as { grudge_id?: string } | undefined)?.grudge_id;
+      const username =
+        user?.username ??
+        `${walletAddress.slice(0, 4)}…${walletAddress.slice(-4)}`;
+      const userId = user?.id ?? user?.userId ?? walletAddress;
+      const addr = data.account?.walletAddress ?? walletAddress.trim();
+      return {
+        ok: true,
+        token,
+        grudgeId: grudgeId ?? undefined,
+        username,
+        userId: userId ? String(userId) : walletAddress,
+        wallet: {
+          address: addr,
+          chain: "solana",
+          provider: data.account?.walletType ?? "external",
+          walletType: data.account?.walletType ?? "external",
+          gbuxBalance: data.account?.gbuxBalance,
+        },
+      };
+    }
+  }
+  return { ok: false, error: "Wallet auth unreachable" };
 }
 
 export async function getGbuxBalance(grudgeId: string): Promise<{
@@ -90,6 +358,12 @@ export async function getGbuxBalance(grudgeId: string): Promise<{
   source?: string;
   error?: string;
 }> {
+  // Prefer wallet status / overview (authoritative account balance)
+  const w = await getPlayerWallet(grudgeId);
+  if (w.gbuxBalance != null) {
+    return { ok: true, balance: Number(w.gbuxBalance), source: w.source };
+  }
+
   const headers = await authHeaders();
   const urls = [
     `${ECONOMY_API_URLS.aiHub}/balance?grudgeId=${encodeURIComponent(grudgeId)}`,
@@ -99,8 +373,8 @@ export async function getGbuxBalance(grudgeId: string): Promise<{
   for (const url of urls) {
     const r = await tryFetchJson(url, { headers });
     if (r.ok) {
-      const body = r.data as { balance?: number; gbux?: number; amount?: number };
-      const balance = body.balance ?? body.gbux ?? body.amount ?? null;
+      const body = r.data as { balance?: number; gbux?: number; amount?: number; gbuxBalance?: number };
+      const balance = body.balance ?? body.gbux ?? body.amount ?? body.gbuxBalance ?? null;
       if (balance != null) return { ok: true, balance: Number(balance), source: url };
     }
   }
@@ -325,7 +599,6 @@ export async function requestGbuxPurchase(input: {
     return { ok: true, message: body.message ?? `Purchase queued — ${pack.gbux} GBUX`, orderId: body.orderId };
   }
 
-  // Fallback: route through Legion ALE agent for manual fulfillment
   try {
     const chat = await legion.legionChat({
       role: "dev",
@@ -347,13 +620,16 @@ export async function adminGbuxTransfer(input: {
 }): Promise<{ ok: boolean; message: string }> {
   const valid = validateGbuxAmount(input.amount);
   if (!valid.ok) return { ok: false, message: valid.error ?? "Invalid amount" };
+  if (!isSolanaAddress(input.toAddress)) {
+    return { ok: false, message: "Invalid recipient Solana address" };
+  }
 
   const treasury = await readCf("aleAdminWallet");
   const r = await tryFetchJson(`${GAME_API_URL}/api/economy/transfer`, {
     method: "POST",
     headers: await authHeaders(),
     body: JSON.stringify({
-      toAddress: input.toAddress,
+      toAddress: input.toAddress.trim(),
       amount: input.amount,
       fromTreasury: treasury ?? undefined,
       memo: input.memo ?? "Forge admin ALE transfer",
@@ -373,5 +649,9 @@ export async function getAleAdminWallet(): Promise<string | null> {
 }
 
 export async function setAleAdminWallet(address: string): Promise<void> {
-  await writeCf("aleAdminWallet", address.trim());
+  const trimmed = address.trim();
+  if (trimmed && !isSolanaAddress(trimmed)) {
+    throw new Error("Invalid Solana treasury address");
+  }
+  await writeCf("aleAdminWallet", trimmed);
 }

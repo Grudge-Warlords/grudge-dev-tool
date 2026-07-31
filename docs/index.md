@@ -2,58 +2,67 @@
 layout: default
 title: Home
 nav_order: 1
-description: Grudge Studio developer tooling — ONE TRUTH CLI + Windows Forge tray (production v0.9.4).
+description: Grudge Studio developer tooling — ONE TRUTH admin shell, Forge tray, CLI, and production fleet wiring.
 permalink: /
 ---
 # Grudge Dev Tool
 
 {: .fs-9 }
-Grudge Studio developer tooling — **ONE TRUTH** fleet wiring, asset-pack uploads, **GRUDACHAIN Ollama** agentic AI, and the Windows **Forge** tray app.
+Desktop **admin** shell for Grudge Studio — Assets, **Forge** (same as forge.grudge-studio.com), **Preview** playtests, Coder, Skeleton, Legion, Agent AI.
 {: .fs-5 .fw-300 }
 
-[⬇ Download latest Forge →](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
-[Production deployment map →](production-deployment.md){: .btn .fs-5 .mb-2 .mr-2 }
-[ONE TRUTH wiring →](one-truth.md){: .btn .fs-5 .mb-2 }
+[⬇ Download latest installer →](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
+[Systems & APIs →](systems-api.md){: .btn .fs-5 .mb-2 .mr-2 }
+[Admin architecture →](admin-architecture.md){: .btn .fs-5 .mb-2 .mr-2 }
+[Production deployment →](production-deployment.md){: .btn .fs-5 .mb-2 }
 
-## Production — Forge tray **v0.9.4**
+## Production tray (current package)
 
-Windows x64 NSIS · electron-updater · Studio Hub · Asset Viewer · Forge AI (texture / edit / scene completion) · Agent AI · **GRUDACHAIN Ollama auto-start**.
+Windows x64 NSIS · electron-updater · Studio Hub · Asset Viewer · Forge embed · Preview play mode · Agent AI · GRUDACHAIN Ollama.
 
 | Surface | Role |
 |---------|------|
-| **Studio Hub** | Fleet health + games + systems command center |
-| **Assets (Browser)** | R2 tree · pop-out viewer · send to Forge |
-| **Forge 3D** | Scene editor · weld/patch · AI Texture/Edit · Scene Completion · deploy |
-| **Agent AI** | Make & deploy presets · orchestrator |
-| **GRUDACHAIN Ollama** | Docker `ollama/ollama` on **:11434** — starts on open + `grudachain` admin sign-in |
-| **Upload** | Convert / optimize / push packs |
+| **Home** | Fleet health + admin systems (client, info.*, ENGINE, open, GRUDOX, Forge, Coder) |
+| **Assets** | R2/ObjectStore · `>query` Agent search · always-on-top Viewer · send 3D → Forge |
+| **Forge** | **Same source as https://forge.grudge-studio.com** — R3F + Rapier + AI Worker |
+| **Preview** | Play-mode clients (open · client · water · GRUDOX) after Forge |
+| **Coder** | Embed coder.grudge-studio.com + optional local PTY |
+| **Skeleton** | Mixamo-25 → T-pose → retarget → grudge-convert → CDN |
+| **Store / BlenderKit / UUID / Legion** | Catalogs, ingest, IDs, fleet AI chat |
+| **Agent AI** | Make & deploy · convert · upload · Forge handoff |
+| **Docs** | Same `docs/` Markdown as this GitHub Pages site |
 
-[⬇ Latest installer (GitHub Releases)](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
+[⬇ Latest installer](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
 [All releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases){: .btn .fs-5 .mb-2 .mr-2 }
-[View source on GitHub](https://github.com/Grudge-Warlords/grudge-dev-tool){: .btn .fs-5 .mb-2 }
+[Source](https://github.com/Grudge-Warlords/grudge-dev-tool){: .btn .fs-5 .mb-2 }
 
-**Tag:** [`v0.9.4`](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.9.4) · [Scene Completion AI worker](scene-completion-ai-worker.md)
-{: .fs-3 .text-grey-dk-100 }
+### First connection (ONE TRUTH)
 
-### First connection (ONE TRUTH + agentic)
-
-1. Install from **Releases** (or wait for auto-update).
-2. **Settings → Grudge identity → ONE TRUTH** → `https://client.grudge-studio.com`.
-3. Sign in as **`grudachain`** (admin) — GRUDACHAIN Ollama agentic stack starts automatically.
-4. Status bar: **ONE TRUTH N%** + **OLLAMA · AGENTIC** when the local container is ready.
-5. Optional: import R2/AI secrets with `npm run secret:import`.
-
-**Requirements for agentic AI:** Docker Desktop (preferred) or native [Ollama](https://ollama.com). Container name: **`GRUDACHAIN`**, host port **11434**.
-{: .fs-3 .text-grey-dk-100 }
+1. Install from **Releases** (or auto-update).
+2. **Settings → ONE TRUTH** → `https://client.grudge-studio.com`.
+3. Sign in as admin (`grudachain` / allowlist) — GRUDACHAIN Ollama starts when configured.
+4. **Assets** → browse → Viewer → **Forge** (production) → **Preview** playtest.
+5. Optional: `npm run secret:import` for R2 / AI / Legion keys.
 
 **Do not** point Settings at `api.grudge-studio.com` (deprecated).
 {: .fs-3 .text-grey-dk-100 }
 
 ---
 
-## CLI — v0.5.0
+## Admin loop (daily)
 
-Autonomous setup for `client.grudge-studio.com` — no tray app required for uploads or health checks.
+```text
+Assets (CDN / ObjectStore)
+    → Forge (forge.grudge-studio.com)
+    → Preview (open / client / water / GRUDOX)
+    → Agent AI / Upload (grudge-convert → R2 → D1 seed)
+```
+
+Details: [Admin architecture](admin-architecture.md) · [AI · D1 · R2 · Stream](ai-workers-d1-r2-stream.md).
+
+---
+
+## CLI
 
 ```powershell
 git clone https://github.com/Grudge-Warlords/grudge-dev-tool.git
@@ -68,50 +77,51 @@ grudge-dev upload-pack --root "C:\packs\MyPack" --pack-id my-pack --dry-run
 ```
 
 [CLI quickstart →](cli-quickstart.md){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
-[ONE TRUTH wiring →](one-truth.md){: .btn .fs-5 .mb-2 .mr-2 }
+[ONE TRUTH wiring →](one-truth.md){: .btn .fs-5 .mb-2 }
 
-`doctor` probes fleet manifest, auth verify, objectstore JSON, icons, and Supabase health via Vercel rewrites on **client.grudge-studio.com**. Expect **100%** when the fleet is wired correctly.
-{: .fs-3 .text-grey-dk-100 }
+`doctor` probes fleet manifest, auth, objectstore, icons via **client.grudge-studio.com**. Expect a high score when the fleet is healthy.
 
 ---
 
 ## What it does
 
-### CLI (v0.5.0)
+### Desktop admin (Forge tray)
 
-- **`grudge-dev setup`** — auto-detect API base (`client.grudge-studio.com` → localhost) and `grudge-builder` repo; writes `~/.grudge-dev/config.json`.
-- **`grudge-dev doctor`** — ONE TRUTH probes (JSON endpoints, no HTML leaks).
-- **`grudge-dev login`** — store JWT or admin password (keytar or `~/.grudge-dev/auth.json`).
-- **`grudge-dev upload-pack`** — walk pack → hash → UUID → presigned PUT → manifest.
-- **`grudge-dev fleet` / `search`** — live manifest + catalog search.
+- **ONE TRUTH** connectivity + fleet probes on Home  
+- **Assets** with Agent search and production Asset Viewer  
+- **Forge** webview = live production editor (not a local fork)  
+- **Preview** for loading deployed games/clients after scene work  
+- **Coder / Skeleton / Store / BlenderKit / UUID / Legion** as Dev Tool modules  
+- **Secrets** in Windows Credential Vault (keytar) — never commit `.env` production keys  
 
-### Forge tray app (v0.9.1)
+### CLI
 
-- **ONE TRUTH connectivity** — fleet manifest, auth, objectstore JSON, icons (status bar score).
-- **GRUDACHAIN Ollama** — auto-start Docker container or native serve; agentic mode on admin sign-in.
-- **Studio Hub** + **Agent AI** make/deploy presets.
-- **Tray icon** + **GrudgeLoader** always-on-top overlay + Asset Viewer pop-out.
-- **Browser / Search / Upload** via single fleet client URL.
-- **Forge 3D** editor, Skeleton Studio, BlenderKit, ingestion pipeline, auto-update.
+- Doctor / setup against production hosts  
+- Asset pack upload with convert pipeline hooks  
+- Admin login for automated ops  
 
-## Documentation
+### Docs (this site)
 
-- [Tray app quickstart](dev-tool-quickstart.md)
-- [Production deployment](production-deployment.md)
-- [CLI quickstart](cli-quickstart.md)
-- [ONE TRUTH fleet wiring](one-truth.md)
-- [Object storage layout & ACL](object-storage.md)
-- [Grudge UUID system](grudge-uuid.md)
-- [API reference (`/api/objectstore/*`)](api-reference.md)
-- [Troubleshooting](troubleshooting.md)
+- Built from the same `docs/` folder the app catalogs  
+- Workflow: `.github/workflows/pages.yml` on `main`  
+- Base URL: `https://grudge-warlords.github.io/grudge-dev-tool/`  
 
-## Project status
+---
 
-| Component | Version | Notes |
-|-----------|---------|-------|
-| **CLI** | v0.5.0 | Autonomous setup, `doctor`, `upload-pack` — `cli/` in this repo |
-| **Forge tray** | **v0.9.1** | Studio Hub, Agent AI, GRUDACHAIN Ollama auto-start, Asset Viewer |
+## Related production hosts
 
-Canonical API for browser + CLI + Forge: **`https://client.grudge-studio.com`** (Vercel rewrites → Railway + objectstore + assets CDN).
+| Host | Role |
+|------|------|
+| [client.grudge-studio.com](https://client.grudge-studio.com) | ONE TRUTH API base |
+| [id.grudge-studio.com](https://id.grudge-studio.com) | Grudge ID |
+| [forge.grudge-studio.com](https://forge.grudge-studio.com) | Map/scene editor |
+| [coder.grudge-studio.com](https://coder.grudge-studio.com) | Vibe IDE |
+| [ai.grudge-studio.com](https://ai.grudge-studio.com) | Legion AI |
+| [open.grudge-studio.com](https://open.grudge-studio.com) | Open launcher |
+| [grudox.grudge-studio.com](https://grudox.grudge-studio.com) | GRUDOX / Carrier |
+| [water.grudge-studio.com](https://water.grudge-studio.com) | Home island |
+| [assets.grudge-studio.com](https://assets.grudge-studio.com) | CDN |
+| [objectstore](https://objectstore.grudge-studio.com/api/v1) / [info](https://info.grudge-studio.com/api/v1) | Catalogs |
+| [grudge-studio.com](https://grudge-studio.com) | Portal / ENGINE |
 
-<!-- Pages deploy: 2026-07-25 v0.9.1 GRUDACHAIN Ollama + Studio Hub -->
+Full map: [Systems & APIs](systems-api.md) · [API reference](api-reference.md) · [Production deployment](production-deployment.md).

@@ -1,15 +1,29 @@
+---
+layout: default
+title: Skeleton Studio
+nav_order: 12
+description: Mixamo-25 bone place, T-pose, retarget libraries, grudge-convert to CDN.
+permalink: /skeleton-studio.html
+---
+
 # Skeleton Studio
 
-Admin route: **Skeleton** in the Forge tray app (`/skeleton`).
+**Dev Tool route:** `/skeleton` (admin)  
+**Product role:** local retarget pipeline → **grudge-convert** → R2/CDN → Forge.
+
+See [Admin architecture](admin-architecture.md).
 
 ## Pipeline
 
 1. **Load** FBX / GLB / OBJ  
-2. **Extract** — textures + animations (via convert → glTF-Transform)  
-3. **AI T-pose** — Blender rest-pose T arms; optional Ollama hint polish  
-4. **Place** — click mesh to place Mixamo-25 bone markers (mouse + points)  
-5. **Skills** — clips auto-map to Grudge anim skill slots  
-6. **Export library** — pack for retarget / R2 upload  
+2. **Extract** — textures + animations (convert → glTF-Transform)  
+3. **Auto-map** — joint names → Mixamo-25 (`autoMapBonesFromNames`: Mixamo, Bip001, CC aliases)  
+4. **AI T-pose** — Blender rest-pose T arms; optional Ollama hint polish  
+5. **Place** — click mesh to place Mixamo-25 markers (snaps to nearest source bone)  
+6. **Retarget** — pull clips from another FBX/GLB onto the loaded character  
+7. **Skills** — clips auto-map to Grudge anim skill slots (editable)  
+8. **Export library** — pack for retarget / R2 / Documents libraries  
+9. **Ship** — bake with grudge-convert → upload → CDN key → open in Forge  
 
 ## Mixamo-25 core bones
 
@@ -19,20 +33,31 @@ Hips, Spine, Spine1, Spine2, Neck, Head, L/R Shoulder–Arm–ForeArm–Hand, L/
 
 `idle` · `walk` · `run` · `strafe_l/r` · `jump` · `attack1/2` · `block` · `shoot` · `cast` · `hit` · `death` · `dodge`
 
-## IPC
+## Weapon / anim packages
 
-```ts
-window.grudge.skeleton.extract(path)
-window.grudge.skeleton.tpose(path, { aiHint })
-window.grudge.skeleton.buildLibrary({ modelPath, mapping, packName })
+Exported packs include `by-weapon/<pack>.json` for:
+
+`sword` · `sword_shield` · `greataxe` · `greatsword` · `samurai` · `bow` · `longbow` · `crossbow` · `gun` · `rifle` · `fire_staff` · `dark_staff` · `focus` · `magic` · `unarmed`
+
+## Library pack layout (v2)
+
+```
+rest.glb
+skeleton-mapping.json   # placements + boneMap + reverseMap
+retarget-map.json       # SkeletonUtils names: targetBone → sourceBone
+clips-index.json
+textures/
+clips/
 ```
 
-## Requirements
+## Production contracts
 
-- **FBX2glTF** (bundled under `resources/tools` or PATH)  
-- **Blender** for T-pose (set path in Accounts)  
-- Optional **Ollama** for AI hint rewrite  
+| Rule | Detail |
+|------|--------|
+| SI scale | ~1.8 m human before CDN |
+| CDN | `https://assets.grudge-studio.com/...` |
+| Index | ObjectStore / D1 after upload |
+| Forge | Send **CDN URL**, not only local path |
+| UUID | Tag assets via [Grudge UUID](grudge-uuid.md) |
 
-## Retarget runtime
-
-In-game / Forge uses `boneAliases.retargetClips` + mapping JSON. Packs target weapon packs: sword, sword_shield, bow, fire_staff, greataxe, gun.
+Related: [Object storage](object-storage.md) · [Asset loader](asset-loader-materials.md) · [Systems & APIs](systems-api.md).

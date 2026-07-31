@@ -35,7 +35,10 @@ src/shared/ipc.ts  ← canonical IPC channel names + all payload types
 The renderer communicates **exclusively** via `window.electronAPI`. See **Key Conventions** → **Adding a new IPC channel**.
 
 See [docs/production-config.md](docs/production-config.md) for full credential reference.  
-See [docs/object-storage.md](docs/object-storage.md) for R2 bucket layout and manifest schema.
+See [docs/object-storage.md](docs/object-storage.md) for R2 bucket layout and manifest schema.  
+See [docs/ai-workers-d1-r2-stream.md](docs/ai-workers-d1-r2-stream.md) for AI workers, Cloudflare AI, D1, R2, Stream production practices.  
+See [docs/admin-architecture.md](docs/admin-architecture.md) for **admin shell** map (Forge = DNS, Preview play mode, Coder hybrid, same-source docs).  
+Code SSOT: `src/shared/bestPractices.ts`, `src/shared/adminSurfaces.ts`, `src/shared/docsCatalog.ts`, `src/shared/fleet.ts`.
 
 ---
 
@@ -67,11 +70,22 @@ Workers AI models are env-overridable: `CF_AI_DEFAULT_MODEL` (default `@cf/meta/
 | Fleet client | `https://client.grudge-studio.com` | `default.apiBaseUrl` / `GRUDGE_API_BASE` |
 | Grudge ID | `https://id.grudge-studio.com` | `GRUDGE_ID_BASE` |
 | Game data SSOT | `https://grudge-api-production-0d46.up.railway.app` | `GRUDGE_GAME_DATA_URL` |
-| ObjectStore | `https://objectstore.grudge-studio.com/api/v1` | public JSON |
+| ObjectStore | `https://objectstore.grudge-studio.com/api/v1` | public JSON / `cf-objectstore-*` |
 | Assets CDN | `https://assets.grudge-studio.com` | public |
 | Legion AI | `https://ai.grudge-studio.com` | `GRUDGE_LEGION_HUB` / `GRUDGE_AI_KEY` |
 | Forge editor | `https://forge.grudge-studio.com` | browser |
+| Pipeline | `https://grudge-pipeline.vercel.app` | browser |
+| Coder IDE | `https://coder.grudge-studio.com` | browser / Dev Tool handoff |
 | **Deprecated** | `https://api.grudge-studio.com` | **do not use** |
+
+### Production quality bar (assets + AI)
+
+1. **Browse** R2/ObjectStore in Dev Tool → preview + always-on-top Asset Viewer → send 3D to Forge (CDN URL).  
+2. **Search** with `>query` (server-side).  
+3. **Bake** with `grudge-convert` before R2; magic-byte verify; seed D1/ObjectStore.  
+4. **D1** = asset index only; **R2** = binaries; **Stream** = long-form video (masters still on R2).  
+5. **AI:** Legion (`ai.grudge-studio.com`) ≠ Coder AI hub worker; Workers AI via binding/Gateway; cache deterministic only.  
+6. **Never** Meshy/capsule ship visuals; never player state on D1.
 
 Backend routing (`src/main/api.ts`): `resolveBackend()` chooses between `r2-direct`, `cf-worker`, or fleet client modes.  
 Local autonomous AI: Ollama at `OLLAMA_HOST` (default `http://localhost:11434`) via `src/main/ollama.ts` + AI preference in Settings.

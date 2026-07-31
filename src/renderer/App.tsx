@@ -24,6 +24,7 @@ import {
   Home as HomeIcon,
   ChevronDown,
   ChevronRight,
+  Play,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -40,7 +41,9 @@ const AIWorkspace = React.lazy(() => import("./pages/AIWorkspace"));
 const Accounts = React.lazy(() => import("./pages/Accounts"));
 const Docs = React.lazy(() => import("./pages/Docs"));
 const Settings = React.lazy(() => import("./pages/Settings"));
+const ForgeStudio = React.lazy(() => import("./pages/ForgeStudio"));
 const Forge3D = React.lazy(() => import("./pages/Forge3D"));
+const GrokBuilder = React.lazy(() => import("./pages/GrokBuilder"));
 const SkeletonStudio = React.lazy(() => import("./pages/SkeletonStudio"));
 const Coder = React.lazy(() => import("./pages/Coder"));
 const Preview = React.lazy(() => import("./pages/Preview"));
@@ -62,10 +65,13 @@ type Route =
   | "/library"
   | "/blenderkit"
   | "/studio"
+  | "/builder"
   | "/forge"
+  | "/forge-local"
   | "/skeleton"
   | "/coder"
   | "/games"
+  | "/play"
   | "/legion"
   | "/ai"
   | "/accounts"
@@ -91,16 +97,18 @@ const NAV: NavEntry[] = [
   { route: "/browser", label: "Assets", Icon: FolderTree, primary: true },
   { route: "/games", label: "Games", Icon: Gamepad2, primary: true },
   { route: "/forge", label: "Forge", Icon: Hammer, primary: true, adminOnly: true },
+  { route: "/preview", label: "Preview", Icon: Globe, primary: true, adminOnly: true },
   { route: "/ai", label: "Agent AI", Icon: Bot, primary: true },
   { route: "/search", label: "Search", Icon: SearchIcon },
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true },
   { route: "/request", label: "Request URL", Icon: Link2, adminOnly: true },
   { route: "/library", label: "Store", Icon: Store },
   { route: "/skeleton", label: "Skeleton", Icon: Bone, adminOnly: true },
+  { route: "/builder", label: "Grok Builder", Icon: Hammer },
+  { route: "/play", label: "Play Modes", Icon: Play, adminOnly: true },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
   { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
   { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true },
-  { route: "/preview", label: "Preview", Icon: Globe, adminOnly: true },
   { route: "/uuid", label: "UUID", Icon: Fingerprint },
   { route: "/docs", label: "Docs", Icon: BookOpen },
   { route: "/accounts", label: "Account", Icon: User },
@@ -143,9 +151,25 @@ const APP_VERSION =
 
 function resolveRoute(raw: string | undefined | null): Route {
   if (!raw) return "/studio";
+  // Allow /preview?url=… style deep-links from Forge Play test
+  const pathOnly = raw.split("?")[0].split("#")[0] || raw;
+  if (ROUTE_ALIASES[pathOnly]) return ROUTE_ALIASES[pathOnly];
+  if (VALID_ROUTES.has(pathOnly)) return pathOnly as Route;
   if (ROUTE_ALIASES[raw]) return ROUTE_ALIASES[raw];
   if (VALID_ROUTES.has(raw)) return raw as Route;
   return "/studio";
+}
+
+/** Persist query params when navigating with ?key= (e.g. Preview play handoff). */
+function stashRouteQuery(raw: string | undefined | null) {
+  if (!raw || !raw.includes("?")) return;
+  try {
+    const q = raw.includes("?") ? raw.slice(raw.indexOf("?") + 1) : "";
+    if (!q) return;
+    sessionStorage.setItem("grudge-route-query", q);
+  } catch {
+    /* ignore */
+  }
 }
 
 export default function App() {
@@ -176,7 +200,10 @@ export default function App() {
     void hydrateFromMain().then((snap) => {
       if (snap?.route) setRoute(resolveRoute(snap.route));
     });
-    const off = window.grudge?.onNav?.((r: string) => setRoute(resolveRoute(r)));
+    const off = window.grudge?.onNav?.((r: string) => {
+      stashRouteQuery(r);
+      setRoute(resolveRoute(r));
+    });
     void (async () => {
       try {
         const s = await window.grudge.auth.getSession();
@@ -394,7 +421,9 @@ export default function App() {
               {route === "/uuid" && <UUID />}
               {route === "/library" && <Library />}
               {route === "/blenderkit" && <AssetLibrary />}
-              {route === "/forge" && <Forge3D />}
+              {route === "/builder" && <GrokBuilder />}
+              {route === "/forge" && <ForgeStudio />}
+              {route === "/forge-local" && <Forge3D />}
               {route === "/skeleton" && <SkeletonStudio />}
               {route === "/coder" && <Coder />}
               {route === "/games" && <FleetLauncher admin={admin} />}

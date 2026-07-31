@@ -10,25 +10,107 @@ import {
   r2List, r2Head, r2GetSignedDownloadUrl, r2GetSignedUploadUrl, r2PublicUrl,
 } from "./cf/r2Direct";
 import { readCf } from "./cf/credentials";
-import { FLEET_CLIENT_URL } from "../shared/fleet";
+import {
+  FLEET_CLIENT_URL,
+  FLEET_GAME_DATA_URL,
+  FLEET_URLS,
+} from "../shared/fleet";
 
 const SERVICE = "grudge-dev-tool";
 const ACCOUNT = "default";
-const MODE_ACCOUNT = "backend-mode"; // values: 'auto' | 'grudge' | 'cloudflare'
+const MODE_ACCOUNT = "backend-mode"; // values: 'auto' | 'grudge' | 'cloudflare' | 'r2-direct' | 'cloudflare-worker'
+/** Grudge ID gateway — always id.grudge-studio.com (never auth.grudge-studio.com). */
+const FLEET_ID_ACCOUNT = "fleet.idBase";
+const FLEET_GAME_DATA_ACCOUNT = "fleet.gameDataUrl";
 
 let cachedBase: string | null = null;
 let cachedAssetsBase: string | null = null;
 
+/** Reject deprecated auth hosts when saving fleet URLs. */
+function normalizeFleetUrl(url: string, kind: "client" | "id" | "gameData"): string {
+  let u = url.trim().replace(/\r/g, "").replace(/\/$/, "");
+  if (/^https?:\/\/auth\.grudge-studio\.com/i.test(u)) {
+    u = FLEET_URLS.auth;
+  }
+  if (kind === "client" && /^https?:\/\/api\.grudge-studio\.com/i.test(u)) {
+    u = FLEET_CLIENT_URL;
+  }
+  if (kind === "id" && !/^https?:\/\/id\.grudge-studio\.com/i.test(u) && u.length > 0) {
+    // Force canonical ID gateway
+    u = FLEET_URLS.auth;
+  }
+  return u;
+}
+
 export async function setApiBaseUrl(url: string): Promise<void> {
-  cachedBase = url.replace(/\/$/, "");
+  cachedBase = normalizeFleetUrl(url, "client") || FLEET_CLIENT_URL;
   await keytar.setPassword(SERVICE, `${ACCOUNT}.apiBaseUrl`, cachedBase);
 }
 
 export async function getApiBaseUrl(): Promise<string> {
   if (cachedBase) return cachedBase;
   const stored = await keytar.getPassword(SERVICE, `${ACCOUNT}.apiBaseUrl`);
-  cachedBase = (stored || process.env.GRUDGE_API_BASE || FLEET_CLIENT_URL).replace(/\/$/, "");
+  let base = (stored || process.env.GRUDGE_API_BASE || FLEET_CLIENT_URL).replace(/\/$/, "");
+  if (/api\.grudge-studio\.com|auth\.grudge-studio\.com/i.test(base)) {
+    base = FLEET_CLIENT_URL;
+  }
+  cachedBase = base;
   return cachedBase;
+}
+
+export async function getIdBaseUrl(): Promise<string> {
+  const stored = await keytar.getPassword(SERVICE, FLEET_ID_ACCOUNT);
+  const env = process.env.GRUDGE_ID_BASE || process.env.GRUDGE_AUTH_URL;
+  let base = (stored || env || FLEET_URLS.auth).replace(/\/$/, "");
+  if (/auth\.grudge-studio\.com|api\.grudge-studio\.com/i.test(base)) {
+    base = FLEET_URLS.auth;
+  }
+  return base;
+}
+
+export async function setIdBaseUrl(url: string): Promise<void> {
+  const base = normalizeFleetUrl(url, "id") || FLEET_URLS.auth;
+  await keytar.setPassword(SERVICE, FLEET_ID_ACCOUNT, base);
+}
+
+export async function getGameDataUrl(): Promise<string> {
+  const stored = await keytar.getPassword(SERVICE, FLEET_GAME_DATA_ACCOUNT);
+  return (stored || process.env.GRUDGE_GAME_DATA_URL || FLEET_GAME_DATA_URL).replace(/\/$/, "");
+}
+
+export async function setGameDataUrl(url: string): Promise<void> {
+  const base = normalizeFleetUrl(url, "gameData") || FLEET_GAME_DATA_URL;
+  await keytar.setPassword(SERVICE, FLEET_GAME_DATA_ACCOUNT, base);
+}
+
+/** ONE TRUTH preset → Credential Vault (Settings button). */
+export async function applyOneTruthFleetPreset(): Promise<{
+  apiBaseUrl: string;
+  idBaseUrl: string;
+  gameDataUrl: string;
+  objectStoreWorker: string;
+  assetsCdn: string;
+  legionHub: string;
+  backendMode: BackendMode;
+}> {
+  await setApiBaseUrl(FLEET_CLIENT_URL);
+  await clearAssetsApiBaseUrl();
+  await setIdBaseUrl(FLEET_URLS.auth);
+  await setGameDataUrl(FLEET_GAME_DATA_URL);
+  await setBackendMode("r2-direct");
+  const workerHost = FLEET_URLS.objectStore.replace(/\/api\/v1\/?$/, "");
+  await keytar.setPassword(SERVICE, "cf-objectstore-worker-url", workerHost);
+  await keytar.setPassword(SERVICE, "cf-r2-public-url", FLEET_URLS.assets);
+  await keytar.setPassword(SERVICE, "legion.hubUrl", FLEET_URLS.ai);
+  return {
+    apiBaseUrl: FLEET_CLIENT_URL,
+    idBaseUrl: FLEET_URLS.auth,
+    gameDataUrl: FLEET_GAME_DATA_URL,
+    objectStoreWorker: workerHost,
+    assetsCdn: FLEET_URLS.assets,
+    legionHub: FLEET_URLS.ai,
+    backendMode: "r2-direct",
+  };
 }
 
 /**

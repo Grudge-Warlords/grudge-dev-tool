@@ -22,11 +22,12 @@ interface CfStatus {
 }
 
 export default function Upload() {
-  const [prefix, setPrefix] = useState("asset-packs/");
+  const [prefix, setPrefix] = useState("prod/gltf/misc/");
   const [files, setFiles] = useState<{ path: string; name: string; size: number }[]>([]);
   const [queue, setQueue] = useState<Record<string, QueueRow>>({});
   const [mode, setMode] = useState<BackendMode>("auto");
   const [cf, setCf] = useState<CfStatus | null>(null);
+  const [runIngest, setRunIngest] = useState(true);
 
   useEffect(() => {
     const off = window.grudge.upload.onProgress((p: any) => {
@@ -79,6 +80,32 @@ export default function Upload() {
   }
 
   async function startUpload() {
+    // Optional pre-pass: convert + magic-byte + prod/gltf key suggestion
+    if (runIngest) {
+      for (const f of files) {
+        try {
+          const entry = await window.grudge.ingest.one(f.path, {
+            itemId: (Date.now() % 9000) + 1,
+            makeThumbnail: true,
+            preferProdGltf: prefix.startsWith("prod/gltf"),
+            category: prefix.split("/").filter(Boolean)[2] || prefix.split("/").filter(Boolean)[1] || "misc",
+          });
+          if (!entry?.ok) {
+            toast.error(`Ingest failed: ${f.name}`, {
+              description: (entry?.errors ?? []).slice(0, 2).join("; ") || "unknown",
+            });
+            continue;
+          }
+          if (entry.r2Key) {
+            toast.message(`${f.name} → ${entry.r2Key}`, {
+              description: entry.cdnUrl || entry.conversionKind,
+            });
+          }
+        } catch (err: any) {
+          toast.error(`Ingest error: ${f.name}`, { description: err?.message ?? String(err) });
+        }
+      }
+    }
     const jobId = `job-${Date.now()}`;
     await window.grudge.upload.enqueue({
       id: jobId,
@@ -92,8 +119,21 @@ export default function Upload() {
   const be = effectiveBackend();
   return (
     <div>
-      <h1 className="page-title">Upload</h1>
-      <p className="page-sub">Drop files; they pass through size-verify → convert → enrich → rig before upload.</p>
+      <h1 className="page-title">Upload / Import</h1>
+      <p className="page-sub">
+        Pipeline: size-verify → convert (FBX→GLB with packed textures, TGA→PNG, WebP) → magic-byte gate →
+        rig → R2 under <code>prod/gltf/…</code> → D1/ObjectStore index. Fixes yellow/black missing-atlas paths
+        at convert time; viewers also sanitize colorSpace / metalness.
+      </p>
+      <div className="card flex flex-wrap items-center gap-3 mb-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={runIngest} onChange={(e) => setRunIngest(e.target.checked)} />
+          Pre-ingest (convert + magic-byte + prod/gltf key)
+        </label>
+        <span className="text-xs text-muted">
+          Default prefix <code>prod/gltf/misc/</code> — use characters / weapons / enemies for fleet SSOT
+        </span>
+      </div>
       <div className={`card flex items-center gap-3 ${be.tone === "bad" ? "border-danger" : be.tone === "warn" ? "border-gold-deep" : ""}`}>
         <be.Icon size={18} />
         <div className="flex-1">
@@ -127,7 +167,10 @@ export default function Upload() {
         onDrop={onDrop}
         style={{ border: "2px dashed var(--gold-deep)", textAlign: "center", padding: 32 }}
       >
-        Drop files here  ·  {files.length} queued
+        Drop files here · {files.length} queued
+        <p className="text-[10px] text-muted mt-2 max-w-lg mx-auto">
+          Accepts images (png/jpg/webp/tga/tiff/heic/avif…), 3D (glb/fbx/obj/blend/dae…), audio, video, zip.
+        </p>
         <div className="mt-3">
           <button
             type="button"

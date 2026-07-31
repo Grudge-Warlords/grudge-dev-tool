@@ -384,10 +384,21 @@ export class SceneEngine {
     });
   }
 
-  /** Build an AnimationMixer for the given root and register the clips. */
-  buildMixer(root: THREE.Object3D, clips: THREE.AnimationClip[]): THREE.AnimationMixer | null {
-    if (clips.length === 0) return null;
+  /**
+   * Build / register an AnimationMixer for an asset root.
+   * Always creates a mixer when `force` is true (skinned assets with 0 clips
+   * still need a mixer so external packs can be attached later).
+   */
+  buildMixer(
+    root: THREE.Object3D,
+    clips: THREE.AnimationClip[],
+    opts?: { force?: boolean },
+  ): THREE.AnimationMixer | null {
+    if (clips.length === 0 && !opts?.force) return null;
+    const prev = root.userData.grudgeMixer as THREE.AnimationMixer | undefined;
+    if (prev) this.removeMixer(prev);
     const mixer = new THREE.AnimationMixer(root);
+    root.userData.grudgeMixer = mixer;
     this.mixers.push(mixer);
     return mixer;
   }
@@ -416,14 +427,37 @@ export class SceneEngine {
     this.renderer.render(this.scene, this.camera);
   };
 
+  /**
+   * Toggle SkeletonHelper for an asset. Uses armature / hips when possible
+   * (see findSkeletonRoot in forgeAnimation.ts).
+   */
   setSkeletonHelper(root: THREE.Object3D, visible: boolean): void {
     let helper = this.skeletonHelpers.get(root);
     if (visible) {
       if (!helper) {
-        helper = new THREE.SkeletonHelper(root);
-        (helper.material as THREE.LineBasicMaterial).linewidth = 1;
+        // Prefer userData skeleton root (set by attachAnimationMixer)
+        let skelTarget: THREE.Object3D = root;
+        if (root.userData.grudgeSkeletonRoot instanceof THREE.Object3D) {
+          skelTarget = root.userData.grudgeSkeletonRoot;
+        } else {
+          // Lazy resolve: first skinned mesh
+          root.traverse((o) => {
+            if (
+              skelTarget === root &&
+              (o as THREE.SkinnedMesh).isSkinnedMesh &&
+              (o as THREE.SkinnedMesh).skeleton?.bones?.length
+            ) {
+              skelTarget = o;
+            }
+          });
+        }
+        helper = new THREE.SkeletonHelper(skelTarget);
+        helper.name = "GrudgeSkeletonHelper";
+        helper.userData.forgeInternal = true;
+        (helper.material as THREE.LineBasicMaterial).depthTest = true;
         this.scene.add(helper);
         this.skeletonHelpers.set(root, helper);
+        root.userData.grudgeSkeletonHelper = helper;
       }
       helper.visible = true;
     } else if (helper) {
@@ -435,8 +469,12 @@ export class SceneEngine {
     const helper = this.skeletonHelpers.get(root);
     if (helper) {
       this.scene.remove(helper);
-      helper.dispose?.();
+      (helper as THREE.SkeletonHelper).geometry?.dispose();
+      const mat = helper.material as THREE.Material | THREE.Material[];
+      if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+      else mat?.dispose();
       this.skeletonHelpers.delete(root);
+      delete root.userData.grudgeSkeletonHelper;
     }
   }
 

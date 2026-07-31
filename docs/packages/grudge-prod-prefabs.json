@@ -1,0 +1,788 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-29T23:53:25.421Z",
+  "cdnBase": "https://assets.grudge-studio.com",
+  "count": 30,
+  "prefabs": [
+    {
+      "prefabId": "PFAB-CHAR-WK_CHARACTERS",
+      "id": "characters/wk_characters",
+      "kind": "characters",
+      "name": "wk characters",
+      "mesh": {
+        "r2Key": "prod/gltf/characters/wk_characters.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/wk_characters.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 420624,
+        "sha256": "5c73f88d1e5ffdb7c9859a407a410f4de8414e31584bf07d57b3c90ad18ca37c",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/characters/wk_characters.collider.json",
+      "si": {
+        "heightM": 1.8,
+        "unit": "meter"
+      },
+      "package": "grudge6-races",
+      "tags": [
+        "characters",
+        "grudge6-races",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-CHAR-HUMAN",
+      "id": "characters/human",
+      "kind": "characters",
+      "name": "human",
+      "mesh": {
+        "r2Key": "prod/gltf/characters/human.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/human.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 420624,
+        "sha256": "5c73f88d1e5ffdb7c9859a407a410f4de8414e31584bf07d57b3c90ad18ca37c",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/characters/human.collider.json",
+      "si": {
+        "heightM": 1.8,
+        "unit": "meter"
+      },
+      "package": "grudge6-races",
+      "tags": [
+        "characters",
+        "grudge6-races",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-CHAR-BRB_CHARACTERS",
+      "id": "characters/brb_characters",
+      "kind": "characters",
+      "name": "brb characters",
+      "mesh": {
+        "r2Key": "prod/gltf/characters/brb_characters.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/brb_characters.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 543324,
+        "sha256": "401f0a70c331d89ea76df95fe187db68d6e101907c558cea690a54f56ace151f",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/characters/brb_characters.collider.json",
+      "si": {
+        "heightM": 1.8,
+        "unit": "meter"
+      },
+      "package": "grudge6-races",
+      "tags": [
+        "characters",
+        "grudge6-races",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-CHAR-ELF_CHARACTERS",
+      "id": "characters/elf_characters",
+      "kind": "characters",
+      "name": "elf characters",
+      "mesh": {
+        "r2Key": "prod/gltf/characters/elf_characters.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/elf_characters.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 666504,
+        "sha256": "2a3bc8e930cc6ddf184afcff247e50276cec3ba78c237b0742a13e798fe2a74c",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/characters/elf_characters.collider.json",
+      "si": {
+        "heightM": 1.8,
+        "unit": "meter"
+      },
+      "package": "grudge6-races",
+      "tags": [
+        "characters",
+        "grudge6-races",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-CHAR-DWF_CHARACTERS",
+      "id": "characters/dwf_characters",
+      "kind": "characters",
+      "name": "dwf characters",
+      "mesh": {
+        "r2Key": "prod/gltf/characters/dwf_characters.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/dwf_characters.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 552952,
+        "sha256": "1644541c291abb81412830c77332230cedba8b5f830353dc780e77202ab898e6",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/characters/dwf_characters.collider.json",
+      "si": {
+        "heightM": 1.8,
+        "unit": "meter"
+      },
+      "package": "grudge6-races",
+      "tags": [
+        "characters",
+        "grudge6-races",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-CHAR-ORC_CHARACTERS",
+      "id": "characters/orc_characters",
+      "kind": "characters",
+      "name": "orc characters",
+      "mesh": {
+        "r2Key": "prod/gltf/characters/orc_characters.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/orc_characters.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 518424,
+        "sha256": "4f033cc32b3a0caad5159fd3ec60fe2e5bb6bd4478deae3af1026bd5705f57bb",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/characters/orc_characters.collider.json",
+      "si": {
+        "heightM": 1.8,
+        "unit": "meter"
+      },
+      "package": "grudge6-races",
+      "tags": [
+        "characters",
+        "grudge6-races",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-CHAR-UD_CHARACTERS",
+      "id": "characters/ud_characters",
+      "kind": "characters",
+      "name": "ud characters",
+      "mesh": {
+        "r2Key": "prod/gltf/characters/ud_characters.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/ud_characters.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 531048,
+        "sha256": "5283858d809524e8bfbf870969cb1551ab88a7a2f6e2a956fee32b691cd51b71",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/characters/ud_characters.collider.json",
+      "si": {
+        "heightM": 1.8,
+        "unit": "meter"
+      },
+      "package": "grudge6-races",
+      "tags": [
+        "characters",
+        "grudge6-races",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-CHAR-PLAYER",
+      "id": "characters/player",
+      "kind": "characters",
+      "name": "player",
+      "mesh": {
+        "r2Key": "prod/gltf/characters/player.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/player.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 353128,
+        "sha256": "384783aa9f85af62853d4454e91571b38766da305716105d2330d23c11fee7fd",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/characters/player.collider.json",
+      "si": {
+        "heightM": 1.85,
+        "unit": "meter"
+      },
+      "package": "armada-core",
+      "tags": [
+        "characters",
+        "armada-core",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-WEAP-ASSAULT_RIFLE",
+      "id": "weapons/assault_rifle",
+      "kind": "weapons",
+      "name": "assault rifle",
+      "mesh": {
+        "r2Key": "prod/gltf/weapons/assault_rifle.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/assault_rifle.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 174824,
+        "sha256": "07f22b99ecd44516b5bbd3a7882f1d7f48bcdaa040f9501d0383b8ee5148c346",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/weapons/assault_rifle.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "armada-core",
+      "tags": [
+        "weapons",
+        "armada-core",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-WEAP-AK74U",
+      "id": "weapons/ak74u",
+      "kind": "weapons",
+      "name": "ak74u",
+      "mesh": {
+        "r2Key": "prod/gltf/weapons/ak74u.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/ak74u.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 346780,
+        "sha256": "b55157205b2c96e07b1a81e2f86e4e8b6d69c1e2c9baf8eb62b89d5bcd5c6fd2",
+        "textures": 0,
+        "yellowSafe": false
+      },
+      "colliderKey": "prod/gltf/weapons/ak74u.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "armada-core",
+      "tags": [
+        "weapons",
+        "armada-core",
+        "untextured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-WEAP-SMG",
+      "id": "weapons/smg",
+      "kind": "weapons",
+      "name": "smg",
+      "mesh": {
+        "r2Key": "prod/gltf/weapons/smg.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/smg.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 133236,
+        "sha256": "a6eba0223fd8921aee6fe8de5260b75c71e38e822dfee85f808dd2b1b541b3aa",
+        "textures": 0,
+        "yellowSafe": false
+      },
+      "colliderKey": "prod/gltf/weapons/smg.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "armada-core",
+      "tags": [
+        "weapons",
+        "armada-core",
+        "untextured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-ENEM-ALIEN",
+      "id": "enemies/alien",
+      "kind": "enemies",
+      "name": "alien",
+      "mesh": {
+        "r2Key": "prod/gltf/enemies/alien.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/enemies/alien.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 107540,
+        "sha256": "f65e446eaee49d2780d4a82949c12bfb631d67c34c6eeb719326e0c706fdae91",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/enemies/alien.collider.json",
+      "si": {
+        "heightM": 2,
+        "unit": "meter"
+      },
+      "package": "armada-core",
+      "tags": [
+        "enemies",
+        "armada-core",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-ENEM-MUTANT",
+      "id": "enemies/mutant",
+      "kind": "enemies",
+      "name": "mutant",
+      "mesh": {
+        "r2Key": "prod/gltf/enemies/mutant.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/enemies/mutant.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 604820,
+        "sha256": "eeaf0a53347c652806d65303f00719beaab3f109c0f3902a7b28229181b7d9ae",
+        "textures": 0,
+        "yellowSafe": false
+      },
+      "colliderKey": "prod/gltf/enemies/mutant.collider.json",
+      "si": {
+        "heightM": 2,
+        "unit": "meter"
+      },
+      "package": "armada-core",
+      "tags": [
+        "enemies",
+        "armada-core",
+        "untextured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-ENEM-SPIKEBALL",
+      "id": "enemies/spikeball",
+      "kind": "enemies",
+      "name": "spikeball",
+      "mesh": {
+        "r2Key": "prod/gltf/enemies/spikeball.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/enemies/spikeball.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 49908,
+        "sha256": "d0672dc2cb69cee8dae04be5665e2bb8be5c879ad5bda02d32e348c58e84e13e",
+        "textures": 0,
+        "yellowSafe": false
+      },
+      "colliderKey": "prod/gltf/enemies/spikeball.collider.json",
+      "si": {
+        "heightM": 1.2,
+        "unit": "meter"
+      },
+      "package": "armada-core",
+      "tags": [
+        "enemies",
+        "armada-core",
+        "untextured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-WEAP-SWORD",
+      "id": "weapons/sword",
+      "kind": "weapons",
+      "name": "sword",
+      "mesh": {
+        "r2Key": "prod/gltf/weapons/sword.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/sword.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 7748,
+        "sha256": "c9ddce8457ec11142736600cbe18d26ef1b0cbcd7569d73cd1c6372c8dda47ff",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/weapons/sword.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "fantasy-weapons",
+      "tags": [
+        "weapons",
+        "fantasy-weapons",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-WEAP-BOW",
+      "id": "weapons/bow",
+      "kind": "weapons",
+      "name": "bow",
+      "mesh": {
+        "r2Key": "prod/gltf/weapons/bow.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/bow.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 9940,
+        "sha256": "b2daeb2f42aeaaa995ee2f65e8389a4df96f67986297aa628be39300c10a17b3",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/weapons/bow.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "fantasy-weapons",
+      "tags": [
+        "weapons",
+        "fantasy-weapons",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-WEAP-STAFF",
+      "id": "weapons/staff",
+      "kind": "weapons",
+      "name": "staff",
+      "mesh": {
+        "r2Key": "prod/gltf/weapons/staff.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/staff.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 8176,
+        "sha256": "797357b031d8c0ab790550851a284611a91e97b57a88ef9a5e6c6242444a774f",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/weapons/staff.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "fantasy-weapons",
+      "tags": [
+        "weapons",
+        "fantasy-weapons",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-WEAP-DAGGER",
+      "id": "weapons/dagger",
+      "kind": "weapons",
+      "name": "dagger",
+      "mesh": {
+        "r2Key": "prod/gltf/weapons/dagger.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/dagger.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 6496,
+        "sha256": "cceed8446ab58306b0d0864a828e0bb5a9452923f95b37d51e20dc97d6c58222",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/weapons/dagger.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "fantasy-weapons",
+      "tags": [
+        "weapons",
+        "fantasy-weapons",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-WEAP-AXE",
+      "id": "weapons/axe",
+      "kind": "weapons",
+      "name": "axe",
+      "mesh": {
+        "r2Key": "prod/gltf/weapons/axe.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/axe.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 12040,
+        "sha256": "8cfbef3aafe403d3a4d0e362957f10cdfacfb3879de954551dc8c5475c10537b",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/weapons/axe.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "fantasy-weapons",
+      "tags": [
+        "weapons",
+        "fantasy-weapons",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-WEAP-HAMMER",
+      "id": "weapons/hammer",
+      "kind": "weapons",
+      "name": "hammer",
+      "mesh": {
+        "r2Key": "prod/gltf/weapons/hammer.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/hammer.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 9052,
+        "sha256": "d8d41534d43d9b38f77b9b2d76637c34214c950bacabb65b0f3a35d4f6f9a468",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/weapons/hammer.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "fantasy-weapons",
+      "tags": [
+        "weapons",
+        "fantasy-weapons",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-WEAP-MACE",
+      "id": "weapons/mace",
+      "kind": "weapons",
+      "name": "mace",
+      "mesh": {
+        "r2Key": "prod/gltf/weapons/mace.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/mace.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 379284,
+        "sha256": "84b57e7aa57a715da95d257a54a7642da86f5ba595ae5f2776a5d5952ce67622",
+        "textures": 3,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/weapons/mace.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "fantasy-weapons",
+      "tags": [
+        "weapons",
+        "fantasy-weapons",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-SKEL-SKELETON",
+      "id": "skeletons/skeleton",
+      "kind": "skeletons",
+      "name": "skeleton",
+      "mesh": {
+        "r2Key": "prod/gltf/skeletons/skeleton.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/skeletons/skeleton.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 573496,
+        "sha256": "3903ac517c04f748330bb634119fe3200d7ab31e59fccb9ef5861bbcaea6e227",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/skeletons/skeleton.collider.json",
+      "si": {
+        "heightM": 1.8,
+        "unit": "meter"
+      },
+      "package": "skeletons",
+      "tags": [
+        "skeletons",
+        "skeletons",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-SKEL-SKELETON_ARCHER",
+      "id": "skeletons/skeleton_archer",
+      "kind": "skeletons",
+      "name": "skeleton archer",
+      "mesh": {
+        "r2Key": "prod/gltf/skeletons/skeleton_archer.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/skeletons/skeleton_archer.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 389072,
+        "sha256": "fae0e0546b582e852be8dfb8c739c97126468ed24952a380a1f13c3feceb69bb",
+        "textures": 1,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/skeletons/skeleton_archer.collider.json",
+      "si": {
+        "heightM": 1.8,
+        "unit": "meter"
+      },
+      "package": "skeletons",
+      "tags": [
+        "skeletons",
+        "skeletons",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-PROP-BARREL",
+      "id": "props/barrel",
+      "kind": "props",
+      "name": "barrel",
+      "mesh": {
+        "r2Key": "prod/gltf/props/barrel.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/props/barrel.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 228032,
+        "sha256": "d5999dc8e1851ea1d8aec0d6f42b0a25a40fe6960b0fe12ff56f05919b74050b",
+        "textures": 0,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/props/barrel.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "armada-props",
+      "tags": [
+        "props",
+        "armada-props",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-PROP-BUSH",
+      "id": "props/bush",
+      "kind": "props",
+      "name": "bush",
+      "mesh": {
+        "r2Key": "prod/gltf/props/bush.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/props/bush.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 41028,
+        "sha256": "48532ffea0446bb76f13a7246bd6888a08005e8e0434a90c37959b73e038a860",
+        "textures": 0,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/props/bush.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "armada-props",
+      "tags": [
+        "props",
+        "armada-props",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-PROP-CABIN",
+      "id": "props/cabin",
+      "kind": "props",
+      "name": "cabin",
+      "mesh": {
+        "r2Key": "prod/gltf/props/cabin.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/props/cabin.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 1516340,
+        "sha256": "462175cce7e767bd5fbf22a46ae8d16eb0ca4a719cfd0dbd4b31743118dd2800",
+        "textures": 0,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/props/cabin.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "armada-props",
+      "tags": [
+        "props",
+        "armada-props",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-PROP-SEARCHLIGHT",
+      "id": "props/searchlight",
+      "kind": "props",
+      "name": "searchlight",
+      "mesh": {
+        "r2Key": "prod/gltf/props/searchlight.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/props/searchlight.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 121316,
+        "sha256": "3be99964eeed815d136ea6e2ea195581903ad9065e1273533e68d849917b0437",
+        "textures": 0,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/props/searchlight.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "armada-props",
+      "tags": [
+        "props",
+        "armada-props",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-PROP-SECURITY_POST",
+      "id": "props/security_post",
+      "kind": "props",
+      "name": "security post",
+      "mesh": {
+        "r2Key": "prod/gltf/props/security_post.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/props/security_post.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 514044,
+        "sha256": "e58a3e8ba6236010a0e927889c7c5465c7021f96de09f55750a877860b030f79",
+        "textures": 0,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/props/security_post.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "armada-props",
+      "tags": [
+        "props",
+        "armada-props",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-PROP-WATCHTOWER",
+      "id": "props/watchtower",
+      "kind": "props",
+      "name": "watchtower",
+      "mesh": {
+        "r2Key": "prod/gltf/props/watchtower.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/props/watchtower.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 969120,
+        "sha256": "e7d979fcaf703df022e06ce7c6de1865b00b17d4a46ecabeb2e453ec5470310f",
+        "textures": 0,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/props/watchtower.collider.json",
+      "si": {
+        "heightM": null,
+        "unit": "meter"
+      },
+      "package": "armada-props",
+      "tags": [
+        "props",
+        "armada-props",
+        "textured"
+      ]
+    },
+    {
+      "prefabId": "PFAB-ENEM-LAVA_GOLEM",
+      "id": "enemies/lava_golem",
+      "kind": "enemies",
+      "name": "lava golem",
+      "mesh": {
+        "r2Key": "prod/gltf/enemies/lava_golem.glb",
+        "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/enemies/lava_golem.glb",
+        "contentType": "model/gltf-binary",
+        "bytes": 186448,
+        "sha256": "054ac02b2d00b08f3e6a49b14e1659340d0b60e6017e90d370b41442bb2e2a14",
+        "textures": 2,
+        "yellowSafe": true
+      },
+      "colliderKey": "prod/gltf/enemies/lava_golem.collider.json",
+      "si": {
+        "heightM": 2.5,
+        "unit": "meter"
+      },
+      "package": "creatures",
+      "tags": [
+        "enemies",
+        "creatures",
+        "textured"
+      ]
+    }
+  ]
+}

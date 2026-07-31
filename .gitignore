@@ -12,6 +12,14 @@ Thumbs.db
 dev.venv/
 Untitled-1.md
 
+# Portable toolchain (Blender / ffmpeg / large zips) — install via npm run toolchain:install
+tools/blender/
+tools/ffmpeg/
+tools/*.zip
+tools/blender-mcp/**/*.zip
+!tools/blender-mcp/.gitkeep
+!tools/README.md
+
 # Secrets — never commit these even if they slip into the working tree
 secret.txt
 secrets.txt

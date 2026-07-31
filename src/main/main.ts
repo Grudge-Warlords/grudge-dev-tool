@@ -29,6 +29,7 @@ import * as ollama from "./ollama";
 import * as legion from "./legion/orchestrator";
 import * as whisper from "./legion/whisper";
 import { FLEET_GAMES, STORE_CATEGORIES } from "../shared/fleetGames";
+import { GAME_DEPLOYMENT_DEFINITIONS } from "../shared/gameDeployments";
 import { mergeFleetGames } from "../shared/fleetMerge";
 import { FLEET_ENDPOINTS } from "../shared/fleetConnections";
 import * as workspaceStore from "./workspaceStore";
@@ -110,10 +111,13 @@ async function createMainWindow() {
     height: state.height,
     minWidth: 720,
     minHeight: 540,
-    show: false, // start hidden — only the tray is visible
+    // Start hidden; show on ready-to-show so first paint isn't a white flash.
+    // Tray remains for minimize-to-tray; double-click tray also shows.
+    show: false,
     backgroundColor: "#0a0e1a",
     icon: nativeImage.createFromPath(windowIconPath()),
     autoHideMenuBar: true,
+    title: "Grudge Dev Tool",
     webPreferences: {
       preload: join(__dirname, "..", "preload", "preload.js"),
       contextIsolation: true,
@@ -129,6 +133,22 @@ async function createMainWindow() {
   });
   if (state.maximized) mainWindow.maximize();
   windowState.track(mainWindow);
+
+  // Always surface the main window once the shell is ready (dev + packaged).
+  mainWindow.once("ready-to-show", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.show();
+    mainWindow.focus();
+    log.info("[window] ready-to-show → shown");
+  });
+  // Fallback if ready-to-show races (slow vite / cold start)
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+      mainWindow.focus();
+      log.info("[window] fallback show after timeout");
+    }
+  }, 4000);
 
   // ---------------- Security hardening ----------------
   // Refuse navigation to anything outside the app shell, OAuth domains, and
@@ -226,15 +246,18 @@ if (!gotLock) {
   });
 
   app.whenReady().then(async () => {
-    try {
-      const seed = await seedDefaultSecrets();
-      log.info(`[bootstrapSecrets] ready — seeded: ${seed.seeded.join(", ") || "none (vault already full or env empty)"}`);
-    } catch (err) {
-      log.warn("seedDefaultSecrets failed", err);
-    }
+    // Show UI first — never block window creation on Blender/ffmpeg probes.
+    // Secrets seed runs in parallel so vault warm-up doesn't delay first paint.
     await createMainWindow();
     createTray(() => mainWindow);
     registerIpc();
+    void seedDefaultSecrets()
+      .then((seed) =>
+        log.info(
+          `[bootstrapSecrets] ready — seeded: ${seed?.seeded?.join?.(", ") || "none (vault already full or env empty)"}`,
+        ),
+      )
+      .catch((err) => log.warn("seedDefaultSecrets failed", err));
     // If we were launched with a file, push it to the renderer once loaded.
     if (mainWindow) forge.flushPendingTo(mainWindow);
     // Window-scoped shortcuts (registered while the main window has focus).
@@ -321,26 +344,106 @@ app.on("before-quit", () => {
 // ---------------------------------------------------------------------------
 function registerIpc() {
   // Settings
-  ipcMain.handle("settings:get", async () => ({
-    apiBaseUrl: await api.getApiBaseUrl(),
-    assetsApiBaseUrl: await api.getAssetsApiBaseUrl(),
-    cdnBaseUrl: await resolvePublicCdnBase(),
-    hasToken: Boolean(await api.getToken()),
-    hasBlenderKitKey: Boolean(await bk.getApiKey()),
-  }));
+  ipcMain.handle("settings:get", async () => {
+    const idBaseUrl = await api.getIdBaseUrl();
+    const gameDataUrl = await api.getGameDataUrl();
+    const apiBaseUrl = await api.getApiBaseUrl();
+    const deprecatedAuth =
+      /auth\.grudge-studio\.com/i.test(apiBaseUrl) ||
+      /auth\.grudge-studio\.com/i.test(idBaseUrl) ||
+      /api\.grudge-studio\.com/i.test(apiBaseUrl);
+    return {
+      apiBaseUrl,
+      assetsApiBaseUrl: await api.getAssetsApiBaseUrl(),
+      idBaseUrl,
+      gameDataUrl,
+      cdnBaseUrl: await resolvePublicCdnBase(),
+      hasToken: Boolean(await api.getToken()),
+      hasBlenderKitKey: Boolean(await bk.getApiKey()),
+      backendMode: await api.getBackendMode(),
+      fleetSsot: {
+        client: "https://client.grudge-studio.com",
+        id: "https://id.grudge-studio.com",
+        gameData: "https://grudge-api-production-0d46.up.railway.app",
+        objectStore: "https://objectstore.grudge-studio.com/api/v1",
+        assets: "https://assets.grudge-studio.com",
+        foundry: "https://character.grudge-studio.com",
+      },
+      deprecatedAuthHost: deprecatedAuth,
+    };
+  });
   ipcMain.handle("settings:setApiBase", (_e, url: string) => api.setApiBaseUrl(url));
   ipcMain.handle("settings:setAssetsApiBase", (_e, url: string) => api.setAssetsApiBaseUrl(url));
   ipcMain.handle("settings:clearAssetsApiBase", () => api.clearAssetsApiBaseUrl());
+  ipcMain.handle("settings:setIdBase", (_e, url: string) => api.setIdBaseUrl(url));
+  ipcMain.handle("settings:setGameDataUrl", (_e, url: string) => api.setGameDataUrl(url));
+  ipcMain.handle("settings:applyOneTruth", () => api.applyOneTruthFleetPreset());
   ipcMain.handle("settings:setToken", (_e, token: string) => api.setToken(token));
   ipcMain.handle("settings:clearToken", () => api.clearToken());
   ipcMain.handle("settings:setBlenderKitKey", (_e, key: string) => bk.setApiKey(key));
   ipcMain.handle("settings:clearBlenderKitKey", () => bk.clearApiKey());
   ipcMain.handle("settings:toolchain", async () => detectAll());
 
-  // Accounts — wallet, GBUX, toolchain paths
+  // Accounts — wallet, GBUX, toolchain paths (real /api/wallet/* + auth/wallet)
   ipcMain.handle("accounts:wallet", (_e, grudgeId: string) => economy.getPlayerWallet(grudgeId));
+  ipcMain.handle("accounts:walletConfig", () => economy.getWalletConfig());
   ipcMain.handle("accounts:provisionWallet", (_e, args: { grudgeId: string; email?: string }) =>
     economy.provisionWallet(args.grudgeId, args.email));
+  ipcMain.handle("accounts:linkedWallets", () => economy.getLinkedWallets());
+  ipcMain.handle("accounts:linkChallenge", (_e, walletAddress: string) =>
+    economy.createWalletLinkChallenge(walletAddress));
+  ipcMain.handle(
+    "accounts:linkConfirm",
+    (
+      _e,
+      args: {
+        walletAddress: string;
+        message: string;
+        signature: string;
+        provider?: string;
+        label?: string;
+      },
+    ) => economy.confirmWalletLink(args),
+  );
+  ipcMain.handle("accounts:loginWithWallet", async (_e, walletAddress: string) => {
+    const r = await economy.loginWithSolanaWallet(walletAddress);
+    if (!r.ok || !r.token) return r;
+    // Persist fleet JWT as session token so subsequent API calls are authed
+    const user = {
+      uuid: r.userId ?? walletAddress,
+      username: r.username ?? walletAddress.slice(0, 8),
+      email: undefined as string | undefined,
+    };
+    const session = await puterAuth.setSession(r.token, user);
+    // Prefer server grudgeId when present
+    if (r.grudgeId) {
+      try {
+        const { setSecret } = await import("./auth/secretStore");
+        await setSecret(
+          "grudge-id",
+          JSON.stringify({
+            grudgeId: r.grudgeId,
+            puterUuid: user.uuid,
+            firstSeenAt: Date.now(),
+            auth: "wallet",
+          }),
+        );
+      } catch {
+        /* best-effort */
+      }
+    }
+    void ollama.onAdminSignedIn(user).then((status) => {
+      if (!status) return;
+      BrowserWindow.getAllWindows().forEach((w) => {
+        if (!w.isDestroyed()) w.webContents.send("ollama:status", status);
+      });
+    });
+    return {
+      ...r,
+      grudgeId: r.grudgeId ?? session.grudgeId,
+      sessionGrudgeId: session.grudgeId,
+    };
+  });
   ipcMain.handle("accounts:gbuxBalance", (_e, grudgeId: string) => economy.getGbuxBalance(grudgeId));
   ipcMain.handle("accounts:gbuxPurchase", (_e, args: { packId: string; grudgeId: string; walletAddress?: string }) =>
     economy.requestGbuxPurchase(args));
@@ -367,6 +470,33 @@ function registerIpc() {
   ipcMain.handle("os:search", (_e, req) => api.searchObjects(req));
   ipcMain.handle("os:assetMeta", (_e, req) => api.getAssetMeta(req));
   ipcMain.handle("os:openExternal", (_e, url: string) => shell.openExternal(url));
+  /** Seed ObjectStore / D1 index after R2 upload (prod/gltf registry). */
+  ipcMain.handle("os:writeManifest", (_e, payload) => api.writeManifest(payload));
+  ipcMain.handle("os:registerAsset", async (_e, row: {
+    grudge_uuid: string;
+    r2_key: string;
+    category: string;
+    content_type?: string;
+    size_bytes?: number;
+    sha256?: string;
+    pack_id?: string;
+    name?: string;
+    cdn_url?: string;
+    metadata?: Record<string, unknown>;
+  }) => {
+    const packId = row.pack_id || `prod-gltf-${row.category || "misc"}`;
+    return api.writeManifest({
+      packId,
+      version: new Date().toISOString().slice(0, 10),
+      entries: [row],
+      meta: {
+        source: "grudge-dev-tool",
+        layout: "prod/gltf",
+        single: true,
+        ...(row.metadata ?? {}),
+      },
+    });
+  });
 
   // Upload
   ipcMain.handle("upload:enqueue", (_e, job) => {
@@ -408,6 +538,25 @@ function registerIpc() {
     await writeFile(args.path, JSON.stringify(args.mapping, null, 2), "utf8");
     return { ok: true, path: args.path };
   });
+  ipcMain.handle("skeleton:listLibraries", async () => {
+    const { listLocalAnimLibraries } = await import("./ingestion/retargetLibrary");
+    return listLocalAnimLibraries({ max: 48 });
+  });
+  ipcMain.handle("skeleton:installLibrary", async (_e, packDir: string) => {
+    const { installAnimLibraryToUserDir } = await import("./ingestion/retargetLibrary");
+    return installAnimLibraryToUserDir(packDir);
+  });
+  ipcMain.handle("skeleton:openLibraryDir", async (_e, dir?: string) => {
+    const { shell } = await import("electron");
+    const { ensureUserAnimLibraryDir } = await import("./ingestion/retargetLibrary");
+    const target = dir || (await ensureUserAnimLibraryDir());
+    await shell.openPath(target);
+    return { ok: true, path: target };
+  });
+  ipcMain.handle("skeleton:autoMap", async (_e, jointNames: string[]) => {
+    const { autoMapBonesFromNames } = await import("../shared/mixamo25");
+    return autoMapBonesFromNames(jointNames ?? []);
+  });
 
 
   // BlenderKit
@@ -431,7 +580,23 @@ function registerIpc() {
     viewer.sendToForge(args, mainWindow && !mainWindow.isDestroyed() ? mainWindow : null));
   ipcMain.handle("viewer:convertModel", (_e, args: { url: string; name: string; targetFormat: "glb" | "gltf" }) =>
     viewer.convertModel(args));
-  ipcMain.handle("viewer:saveConvertedFile", (_e, args: { path: string; defaultName: string }) => {
+  ipcMain.handle(
+    "viewer:convertImage",
+    (
+      _e,
+      args: {
+        url: string;
+        name: string;
+        format: "png" | "webp" | "jpeg" | "avif" | "gif";
+        quality?: number;
+        maxWidth?: number;
+        maxHeight?: number;
+      },
+    ) => viewer.convertImage(args),
+  );
+  ipcMain.handle("viewer:inspectImage", (_e, args: { url: string; name: string }) =>
+    viewer.inspectRemoteImage(args));
+  ipcMain.handle("viewer:saveConvertedFile", (_e, args: { path: string; defaultName: string; kind?: "model" | "image" }) => {
     const parent = BrowserWindow.fromWebContents(_e.sender);
     return viewer.saveConvertedFile(args, parent && !parent.isDestroyed() ? parent : mainWindow);
   });
@@ -480,6 +645,20 @@ function registerIpc() {
           : undefined;
     const r = await dialog.showOpenDialog(parent ?? (undefined as any), {
       properties: ["openFile", "multiSelections"],
+      filters: [
+        {
+          name: "Grudge assets",
+          extensions: [
+            "png", "jpg", "jpeg", "webp", "gif", "avif", "tga", "bmp", "tif", "tiff", "heic", "svg",
+            "glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend",
+            "mp3", "wav", "ogg", "flac", "mp4", "webm", "mov",
+            "json", "zip", "pdf", "ttf", "otf", "woff", "woff2",
+          ],
+        },
+        { name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif", "avif", "tga", "bmp", "tif", "tiff", "heic", "svg"] },
+        { name: "3D models", extensions: ["glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend"] },
+        { name: "All files", extensions: ["*"] },
+      ],
     });
     return r.canceled ? [] : r.filePaths;
   });
@@ -703,6 +882,7 @@ function registerIpc() {
   });
   ipcMain.handle("fleet:endpoints", () => FLEET_ENDPOINTS);
   ipcMain.handle("fleet:storeCategories", () => STORE_CATEGORIES);
+  ipcMain.handle("fleet:gameDeployments", () => GAME_DEPLOYMENT_DEFINITIONS);
   ipcMain.handle("fleet:objectStore", (_e, path: string) => legion.fetchObjectStoreCatalog(path));
   // ONE TRUTH fleet health + AI worker ops (no parallel stacks)
   ipcMain.handle("fleet:health", () => runFleetHealthCheck());

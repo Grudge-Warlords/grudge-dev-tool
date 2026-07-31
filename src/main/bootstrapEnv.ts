@@ -73,5 +73,6 @@ export function loadEnvFiles(): { files: string[]; keysLoaded: number } {
       /* ignore unreadable */
     }
   }
+  // .env.local already listed in envCandidates(); return load stats for doctor.
   return { files, keysLoaded };
 }

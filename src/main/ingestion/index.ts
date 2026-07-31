@@ -3,9 +3,30 @@ import { createHash } from "node:crypto";
 import { extname, basename } from "node:path";
 import { verifyFile, type SizeVerifyResult } from "./sizeVerify";
 import { convertFile, makeThumbnail, type ConvertResult } from "./convert";
+export {
+  convertImageFile,
+  inspectImage,
+  isConvertibleImagePath,
+  makeWebpCompanion,
+  makeImageThumbnail,
+} from "./imageConvert";
+export type {
+  ImageConvertOptions,
+  ImageConvertResult,
+  ImageMeta,
+  ImageOutFormat,
+} from "./imageConvert";
 import { enrichAsset, type EnrichResult } from "./enrich";
 import { inspectRig, type RigResult } from "./rig";
 import { generateGrudgeUUID } from "../../shared/grudgeUUID";
+import { assertMeshFile, type MagicProbe } from "./magicVerify";
+import {
+  buildRegistryRow,
+  guessCategory,
+  prodGltfKey,
+  prodGltfCdnUrl,
+  type D1AssetRegistryRow,
+} from "../../shared/prodGltf";
 
 export interface IngestOptions {
   category?: string;
@@ -24,6 +45,13 @@ export interface IngestOptions {
   outDir?: string;
   /** Generate a 256px JPG thumbnail next to the asset. */
   makeThumbnail?: boolean;
+  /**
+   * Prefer R2 key under prod/gltf/<category>/ for models (fleet SSOT).
+   * Default true for converted GLB outputs.
+   */
+  preferProdGltf?: boolean;
+  /** Explicit prod/gltf category override. */
+  prodCategory?: string;
 }
 
 export interface IngestEntry {
@@ -40,6 +68,13 @@ export interface IngestEntry {
   outputPath: string;          // path to upload
   companions: { path: string; role: string; sizeBytes: number }[];
   thumbnailPath?: string;
+  /** Suggested R2 key (prod/gltf/... when applicable). */
+  r2Key?: string;
+  /** Public CDN URL for r2Key. */
+  cdnUrl?: string;
+  /** D1 / ObjectStore registry row ready to seed. */
+  registryRow?: D1AssetRegistryRow;
+  magic?: MagicProbe;
   // metadata
   family: string;
   category?: string;
@@ -148,6 +183,19 @@ export async function ingestOne(absPath: string, opts: IngestOptions): Promise<I
   try { sha = await sha256File(finalPath); } catch { /* ignore */ }
   const stat = await fs.stat(finalPath).catch(() => ({ size: 0 } as any));
 
+  // 5b. magic-byte gate for mesh outputs (reject HTML-as-GLB)
+  let magic: MagicProbe | undefined;
+  const magicErrors: string[] = [];
+  const magicWarnings: string[] = [];
+  const outExt = extname(finalPath).toLowerCase();
+  if (outExt === ".glb" || outExt === ".gltf") {
+    try {
+      magic = await assertMeshFile(finalPath);
+    } catch (err: any) {
+      magicErrors.push(err?.message ?? String(err));
+    }
+  }
+
   const slot = SLOT_BY_FAMILY[sizeRes.family] || "Item";
   const grudgeUUID = generateGrudgeUUID(slot, null, opts.itemId);
 
@@ -158,16 +206,66 @@ export async function ingestOne(absPath: string, opts: IngestOptions): Promise<I
     if (t) thumbPath = t;
   }
 
+  // 7. prod/gltf R2 key + D1 registry row for models
+  let r2Key: string | undefined;
+  let cdnUrl: string | undefined;
+  let registryRow: D1AssetRegistryRow | undefined;
+  const isModel =
+    sizeRes.family === "model" ||
+    outExt === ".glb" ||
+    outExt === ".gltf" ||
+    convertRes.conversionKind.includes("glb");
+  if (isModel && magicErrors.length === 0) {
+    const prefer = opts.preferProdGltf !== false;
+    const cat =
+      opts.prodCategory ||
+      opts.category ||
+      guessCategory(basename(absPath));
+    if (prefer) {
+      r2Key = prodGltfKey({ category: cat, name: basename(finalPath) });
+      cdnUrl = prodGltfCdnUrl(r2Key);
+      registryRow = buildRegistryRow({
+        grudgeUUID,
+        r2Key,
+        category: cat,
+        sizeBytes: stat.size ?? 0,
+        sha256: sha,
+        packId: opts.packId,
+        name: basename(finalPath),
+        metadata: {
+          conversionKind: convertRes.conversionKind,
+          rig: rigRes.rig,
+          jointCount: rigRes.jointCount,
+          hasAnimations: rigRes.hasAnimations,
+          source: basename(absPath),
+        },
+      });
+    }
+  }
+
   const ok =
     sizeRes.ok &&
     convertRes.ok &&
     enrichRes.ok &&
-    rigRes.ok;
+    rigRes.ok &&
+    magicErrors.length === 0;
 
   return {
     ok,
-    errors: [...sizeRes.errors, ...convertRes.errors, ...enrichRes.errors, ...rigRes.errors],
-    warnings: [...sizeRes.warnings, ...convertRes.warnings, ...enrichRes.warnings, ...rigRes.warnings],
+    errors: [
+      ...sizeRes.errors,
+      ...convertRes.errors,
+      ...enrichRes.errors,
+      ...rigRes.errors,
+      ...magicErrors,
+    ],
+    warnings: [
+      ...sizeRes.warnings,
+      ...convertRes.warnings,
+      ...enrichRes.warnings,
+      ...rigRes.warnings,
+      ...magicWarnings,
+    ],
     grudgeUUID,
     sha256: sha,
     sizeBytes: stat.size ?? 0,
@@ -176,6 +274,10 @@ export async function ingestOne(absPath: string, opts: IngestOptions): Promise<I
     outputPath: finalPath,
     companions: convertRes.companions,
     thumbnailPath: thumbPath,
+    r2Key,
+    cdnUrl,
+    registryRow,
+    magic,
     family: sizeRes.family,
     category: opts.category,
     rig: rigRes.rig,
@@ -190,6 +292,11 @@ export async function ingestOne(absPath: string, opts: IngestOptions): Promise<I
 export { verifyFile, convertFile, makeThumbnail, enrichAsset, inspectRig };
 export { extractFbxAssets } from "./fbxExtract";
 export { prepareTPose } from "./tpose";
-export { buildRetargetLibraryPack } from "./retargetLibrary";
+export {
+  buildRetargetLibraryPack,
+  listLocalAnimLibraries,
+  installAnimLibraryToUserDir,
+  ensureUserAnimLibraryDir,
+} from "./retargetLibrary";
 export { optimizeWebFile, OPTIMIZE_PROFILE } from "./optimizeWeb";
 export type { OptimizeWebOptions, OptimizeWebResult } from "./optimizeWeb";

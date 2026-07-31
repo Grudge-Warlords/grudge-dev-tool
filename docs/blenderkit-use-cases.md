@@ -1,3 +1,8 @@
+---
+layout: default
+title: BlenderKit
+nav_order: 15
+---
 # BlenderKit — capabilities the dev tool uses **without** a cloud API key
 The BlenderKit addon (GPL-2.0-or-later, pinned at `F:\blenderkit-v3.19.2.260411\blenderkit\`) ships a lot of standalone, offline-capable Python that the dev tool can drive headlessly via `blender --background --python`. Cloud features (search, download, ratings, comments, uploads to blenderkit.com) require auth and the **blenderkit-client** daemon — those stay disabled in the dev tool's default mode. Everything below works with **no cloud account, no daemon, no API key**.
 ## What we leverage

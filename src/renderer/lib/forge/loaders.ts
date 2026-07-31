@@ -7,6 +7,13 @@ import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
 import { ColladaLoader } from "three/examples/jsm/loaders/ColladaLoader.js";
 import { ThreeMFLoader } from "three/examples/jsm/loaders/3MFLoader.js";
+import { TGALoader } from "three/examples/jsm/loaders/TGALoader.js";
+import { assertMeshBytes } from "../../../shared/magicBytes";
+import {
+  sanitizeMaterials,
+  type MaterialSanitizeReport,
+  type MaterialSanitizeOptions,
+} from "./materialSanitize";
 
 /** Result of loading any supported 3D file. */
 export interface LoadedModel {
@@ -21,6 +28,8 @@ export interface LoadedModel {
   vertices: number;
   /** Bone count when the model has a skeleton. */
   bones: number;
+  /** Material / color-space fix report (yellow/black prevention). */
+  materials?: MaterialSanitizeReport;
 }
 
 export type ModelFormat =
@@ -71,11 +80,51 @@ function tallyStats(object: THREE.Object3D): { triangles: number; vertices: numb
   return { triangles: Math.round(triangles), vertices, bones };
 }
 
+/** Shared LoadingManager: TGA (Unity Toon RTS) + texture hooks. */
+function createAssetManager(): THREE.LoadingManager {
+  const manager = new THREE.LoadingManager();
+  manager.addHandler(/\.tga$/i, new TGALoader());
+  return manager;
+}
+
+function finishModel(
+  object: THREE.Object3D,
+  animations: THREE.AnimationClip[],
+  gltf: GLTF | null,
+  format: ModelFormat,
+  sanitizeOpts?: MaterialSanitizeOptions,
+): LoadedModel {
+  const fmtHint =
+    format === "glb" || format === "gltf" || format === "fbx" || format === "obj"
+      ? format
+      : "other";
+  const materials = sanitizeMaterials(object, {
+    format: fmtHint,
+    toonStyle: true,
+    ...sanitizeOpts,
+  });
+  const stats = tallyStats(object);
+  return {
+    object,
+    animations,
+    gltf,
+    format,
+    triangles: stats.triangles,
+    vertices: stats.vertices,
+    bones: stats.bones,
+    materials,
+  };
+}
+
 export interface LoadModelOptions {
   /** Absolute disk path of the source file (enables sibling texture / MTL roots). */
   diskPath?: string | null;
   /** Explicit directory for external maps (defaults to dirname of diskPath). */
   resourceDir?: string | null;
+  /** Skip magic-byte gate (not recommended). */
+  skipMagicBytes?: boolean;
+  /** Extra material sanitize options. */
+  sanitize?: MaterialSanitizeOptions;
 }
 
 function dirnamePath(p: string): string {
@@ -84,113 +133,158 @@ function dirnamePath(p: string): string {
   return i >= 0 ? norm.slice(0, i + 1) : "";
 }
 
-/** Load a model from a Blob/File using the right loader for its extension. */
+/**
+ * Load a model from a Blob/File using the right loader for its extension.
+ * GLB/glTF: magic-byte gate + material sanitize.
+ * FBX: TGA handler so Unity atlases don't decode as black.
+ * diskPath: enables sibling texture rebind after load (finishImportedAsset).
+ */
 export async function loadModel(file: File, opts: LoadModelOptions = {}): Promise<LoadedModel> {
   const format = detectFormat(file.name);
   if (!format) throw new Error(`Unsupported format: ${file.name}`);
+
+  // Magic-byte gate for binary glTF — the #1 cause of "black cube" from CDN HTML.
+  if (!opts.skipMagicBytes && (format === "glb" || format === "gltf")) {
+    const buf = await file.arrayBuffer();
+    assertMeshBytes(buf, file.name);
+  }
+
   const url = URL.createObjectURL(file);
   const resourceDir =
     opts.resourceDir ||
     (opts.diskPath ? dirnamePath(opts.diskPath) : null);
+  const manager = createAssetManager();
   try {
     switch (format) {
       case "glb":
       case "gltf": {
-        // Note: blob URLs lose relative texture paths — finishImportedAsset()
-        // re-binds maps from disk siblings after load when diskPath is known.
+        // Blob URLs lose relative texture paths — finishImportedAsset() rebinds
+        // maps from disk siblings after load when diskPath is known.
         void resourceDir;
-        const gltf = await new GLTFLoader().loadAsync(url);
+        const gltf = await new GLTFLoader(manager).loadAsync(url);
         let scene = gltf.scene;
         let hasSkin = false;
         gltf.scene.traverse((n) => {
           if ((n as THREE.SkinnedMesh).isSkinnedMesh) hasSkin = true;
         });
         if (hasSkin) scene = SkeletonUtils.clone(gltf.scene) as THREE.Group;
-        const stats = tallyStats(scene);
-        return {
-          object: scene,
-          animations: gltf.animations ?? [],
-          gltf,
-          format,
-          triangles: stats.triangles,
-          vertices: stats.vertices,
-          bones: stats.bones,
-        };
+        return finishModel(scene, gltf.animations ?? [], gltf, format, opts.sanitize);
       }
       case "obj": {
-        // Prefer MTL next to OBJ when we have a disk path (via main-process sibling list later)
-        const obj = await new OBJLoader().loadAsync(url);
-        const stats = tallyStats(obj);
-        return { object: obj, animations: [], gltf: null, format, ...stats };
+        const obj = await new OBJLoader(manager).loadAsync(url);
+        return finishModel(obj, [], null, format, opts.sanitize);
       }
       case "fbx": {
-        const fbx = await new FBXLoader().loadAsync(url);
-        const stats = tallyStats(fbx);
-        return {
-          object: fbx,
-          animations: (fbx as any).animations ?? [],
-          gltf: null,
+        const fbx = await new FBXLoader(manager).loadAsync(url);
+        return finishModel(
+          fbx,
+          (fbx as any).animations ?? [],
+          null,
           format,
-          ...stats,
-        };
+          { toonStyle: true, fixDefaultYellow: true, ...opts.sanitize },
+        );
       }
       case "stl": {
-        const geom = await new STLLoader().loadAsync(url);
+        const geom = await new STLLoader(manager).loadAsync(url);
         geom.computeVertexNormals();
-        const mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6, metalness: 0.05 }));
-        const stats = tallyStats(mesh);
-        return { object: mesh, animations: [], gltf: null, format, ...stats };
+        const mesh = new THREE.Mesh(
+          geom,
+          new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6, metalness: 0.05 }),
+        );
+        return finishModel(mesh, [], null, format, opts.sanitize);
       }
       case "ply": {
-        const geom = await new PLYLoader().loadAsync(url);
+        const geom = await new PLYLoader(manager).loadAsync(url);
         geom.computeVertexNormals();
-        // PLY can be a point cloud (no faces) — fall back to Points mode.
-        const mat = (geom.index || geom.attributes.position?.count) ?
-          new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6, metalness: 0.05 }) : null;
-        const obj: THREE.Object3D = (geom.index || (geom as any).faces) ?
-          new THREE.Mesh(geom, mat ?? new THREE.MeshStandardMaterial({ color: 0xcccccc })) :
-          new THREE.Points(geom, new THREE.PointsMaterial({ size: 0.01, vertexColors: !!geom.getAttribute("color") }));
-        const stats = tallyStats(obj);
-        return { object: obj, animations: [], gltf: null, format, ...stats };
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0xcccccc,
+          roughness: 0.6,
+          metalness: 0.05,
+          vertexColors: !!geom.getAttribute("color"),
+        });
+        const obj: THREE.Object3D =
+          geom.index || geom.getAttribute("position")
+            ? new THREE.Mesh(geom, mat)
+            : new THREE.Points(
+                geom,
+                new THREE.PointsMaterial({
+                  size: 0.01,
+                  vertexColors: !!geom.getAttribute("color"),
+                }),
+              );
+        return finishModel(obj, [], null, format, opts.sanitize);
       }
       case "dae": {
-        const dae = await new ColladaLoader().loadAsync(url);
-        const stats = tallyStats(dae.scene);
-        return {
-          object: dae.scene,
-          animations: (dae as any).animations ?? [],
-          gltf: null,
+        const dae = await new ColladaLoader(manager).loadAsync(url);
+        return finishModel(
+          dae.scene,
+          (dae as any).animations ?? [],
+          null,
           format,
-          ...stats,
-        };
+          opts.sanitize,
+        );
       }
       case "3mf": {
-        const obj = await new ThreeMFLoader().loadAsync(url);
-        const stats = tallyStats(obj);
-        return { object: obj, animations: [], gltf: null, format, ...stats };
+        const obj = await new ThreeMFLoader(manager).loadAsync(url);
+        return finishModel(obj, [], null, format, opts.sanitize);
       }
       case "three-json": {
-        // Three.js ObjectLoader scene dumps (.scene.json / scenes/*.json)
         const text = await (await fetch(url)).text();
         const data = JSON.parse(text);
         const loader = new THREE.ObjectLoader();
         const parsed = loader.parse(data) as THREE.Object3D;
-        const root = parsed.type === "Scene"
-          ? (() => {
-              const g = new THREE.Group();
-              g.name = "three-scene";
-              // Prefer children only so we don't nest Scene cameras/lights blindly
-              while (parsed.children.length) g.add(parsed.children[0]);
-              return g;
-            })()
-          : parsed;
-        const stats = tallyStats(root);
-        return { object: root, animations: [], gltf: null, format, ...stats };
+        const root =
+          parsed.type === "Scene"
+            ? (() => {
+                const g = new THREE.Group();
+                g.name = "three-scene";
+                while (parsed.children.length) g.add(parsed.children[0]);
+                return g;
+              })()
+            : parsed;
+        return finishModel(root, [], null, format, opts.sanitize);
       }
     }
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/**
+ * Load from a CDN/http(s) URL with magic-byte gate on the response body.
+ * Prefer `prod/gltf/**` paths from assets.grudge-studio.com.
+ */
+export async function loadModelFromUrl(
+  url: string,
+  filenameHint?: string,
+  opts: LoadModelOptions = {},
+): Promise<LoadedModel> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} loading ${url}`);
+  const buf = await res.arrayBuffer();
+  const name =
+    filenameHint ||
+    url.split("?")[0].split("/").pop() ||
+    "model.glb";
+  if (!opts.skipMagicBytes) {
+    const lower = name.toLowerCase();
+    if (lower.endsWith(".glb") || lower.endsWith(".gltf") || !detectFormat(name)) {
+      if (lower.endsWith(".glb") || lower.endsWith(".gltf") || buf.byteLength > 12) {
+        try {
+          assertMeshBytes(buf, name);
+        } catch (e) {
+          const { probeMagic } = await import("../../../shared/magicBytes");
+          const p = probeMagic(buf);
+          if (!p.okForMesh) throw e;
+        }
+      }
+    }
+  }
+  const type = name.toLowerCase().endsWith(".glb")
+    ? "model/gltf-binary"
+    : "application/octet-stream";
+  const file = new File([buf], name, { type });
+  return loadModel(file, { ...opts, skipMagicBytes: true });
 }
 
 /** Compute a tight bounding box in world space (after applying transforms). */

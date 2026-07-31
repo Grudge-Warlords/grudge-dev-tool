@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { FLEET_URLS, TRUTH_HEALTH_THRESHOLD, buildTruthProbes, type TruthProbe } from "../../shared/fleet";
 import { FLEET_GAMES, type FleetGame } from "../../shared/fleetGames";
 
-/** Daily work — not every tool in the app. */
+/** Daily work — production admin loop. */
 const PRIMARY: Array<{
   id: string;
   label: string;
@@ -35,23 +35,31 @@ const PRIMARY: Array<{
   {
     id: "games",
     label: "Play Games",
-    desc: "Fleet catalog · Warlords · Arena · live playables",
+    desc: "Open · client · GRUDOX · Warlords catalog",
     route: "/games",
     Icon: Gamepad2,
   },
   {
     id: "assets",
     label: "Assets",
-    desc: "Browse R2 · open Viewer · send to Forge",
+    desc: "R2 · Agent search · Viewer · send to Forge",
     route: "/browser",
     Icon: FolderTree,
   },
   {
     id: "forge",
-    label: "Forge 3D",
-    desc: "Scene edit · paint · deploy",
+    label: "Forge",
+    desc: "forge.grudge-studio.com · R3F + Rapier",
     route: "/forge",
     Icon: Hammer,
+    adminOnly: true,
+  },
+  {
+    id: "preview",
+    label: "Preview",
+    desc: "Play-mode clients after Forge publish",
+    route: "/preview",
+    Icon: Play,
     adminOnly: true,
   },
   {
@@ -184,7 +192,8 @@ export default function StudioHub({
           <p className="hub-kicker">Command center</p>
           <h1 className="page-title mb-1">Grudge Studio</h1>
           <p className="page-sub mb-0 max-w-xl">
-            Play games, browse assets, edit in Forge, deploy with Agent AI — one shell on ONE TRUTH.
+            Admin shell: Assets → Forge (same as DNS) → Preview playtests → Agent AI. Wired to
+            client · info.* · ObjectStore · ENGINE · open.* · GRUDOX · Builder on ONE TRUTH.
             {username ? (
               <span className="block text-[11px] font-mono mt-1 opacity-80">{username}</span>
             ) : null}
@@ -286,21 +295,22 @@ export default function StudioHub({
       </section>
 
       <section className="hub-section">
-        <h2 className="hub-section-title">Systems</h2>
+        <h2 className="hub-section-title">Systems (admin)</h2>
         <div className="hub-systems">
           <SystemChip
             Icon={Globe}
-            label="Fleet client"
+            label="Client ONE TRUTH"
             url={FLEET_URLS.client}
             ok={probes.find((p) => p.id === "auth-me" || p.id === "os-items")?.ok}
           />
-          <SystemChip Icon={ShieldCheck} label="Identity" url={FLEET_URLS.auth} ok={probes.find((p) => p.id === "id-health")?.ok} />
+          <SystemChip Icon={ShieldCheck} label="Grudge ID" url={FLEET_URLS.auth} ok={probes.find((p) => p.id === "id-health")?.ok} />
           <SystemChip
             Icon={Database}
-            label="Game data"
+            label="Railway game-data"
             url={FLEET_URLS.gameData}
             ok={probes.find((p) => p.id === "railway-health")?.ok}
           />
+          <SystemChip Icon={Globe} label="ENGINE portal" url={FLEET_URLS.identityApi} />
           <SystemChip Icon={Package} label="Assets CDN" url={FLEET_URLS.assets} ok={probes.find((p) => p.id === "icon-cdn")?.ok} />
           <SystemChip
             Icon={FolderTree}
@@ -308,6 +318,14 @@ export default function StudioHub({
             url={FLEET_URLS.objectStore}
             ok={probes.find((p) => p.id === "os-direct" || p.id === "os-items")?.ok}
           />
+          <SystemChip Icon={Package} label="info.* catalogs" url={FLEET_URLS.info} />
+          <SystemChip Icon={Bot} label="Legion AI" url={FLEET_URLS.ai} />
+          <SystemChip Icon={Hammer} label="Forge" url={FLEET_URLS.forge} />
+          <SystemChip Icon={Globe} label="Open launcher" url={FLEET_URLS.open} />
+          <SystemChip Icon={Globe} label="GRUDOX" url={FLEET_URLS.grudox} />
+          <SystemChip Icon={Globe} label="Coder" url={FLEET_URLS.coder} />
+          <SystemChip Icon={Globe} label="Builder" url={FLEET_URLS.grokBuilder} />
+          <SystemChip Icon={Globe} label="Water island" url={FLEET_URLS.water} />
         </div>
 
         <button

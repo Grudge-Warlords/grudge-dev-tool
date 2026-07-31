@@ -5,9 +5,12 @@ nav_order: 4
 ---
 # Grudge Dev Tool — Quickstart
 
+Desktop **admin** shell: Assets → **Forge** (`forge.grudge-studio.com`) → **Preview** playtests → Agent AI.  
+Full map: [Admin architecture](admin-architecture.md).
+
 ## 1. Install
 
-Download the latest **`Grudge Studio Forge-Setup-*.exe`** from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) (current line: **v0.9.4**) and run it. It installs under `%LOCALAPPDATA%\Programs\` by default and adds:
+Download the latest **`Grudge Studio Forge-Setup-*.exe`** from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) and run it. It installs under `%LOCALAPPDATA%\Programs\` by default and adds:
 
 - A Start-menu shortcut **Grudge Studio Forge**
 - An optional desktop shortcut
@@ -47,6 +50,17 @@ Open **Settings** in the sidebar:
 | API | `http://localhost:11434` |
 
 Requires **Docker Desktop** (preferred) or native Ollama at `%LOCALAPPDATA%\Programs\Ollama\ollama.exe`.
+
+## 5. Daily admin loop
+
+1. **Assets** — browse R2; click for always-on-top Viewer; `>query` for Agent/server search; send GLB to Forge (CDN URL).
+2. **Forge** — production editor (R3F + Rapier). Same host as DNS. Use **Play test** when ready.
+3. **Preview** — load open / client / water / GRUDOX with optional `sceneId` / `glb`.
+4. **Coder** — cloud IDE embed, or Local server for full PTY.
+5. **Skeleton / Store / BlenderKit / UUID / Legion** — retarget, catalogs, ingest, IDs, fleet AI (not Coder hub).
+6. **Docs** — same Markdown as GitHub Pages (`docs/`).
+
+Bake for shipping: **grudge-convert** → R2 → D1/ObjectStore seed — not “save only in Forge”.
 
 ```powershell
 docker ps --filter name=GRUDACHAIN

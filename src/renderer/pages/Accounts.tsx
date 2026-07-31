@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   User, Wallet, Coins, ShieldCheck, ExternalLink, Copy, RefreshCw,
   Loader2, Wrench, Server, AlertTriangle, Gift, ArrowLeftRight, History,
+  Link2, LogIn, Unplug,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getAdminRole } from "../lib/admin";
@@ -16,17 +17,49 @@ import {
   SWAP_PAIRS,
   WEB3_BEST_PRACTICES,
   solscanTxUrl,
+  solscanAccountUrl,
   type EconomyReward,
   type LedgerEntry,
   type SwapQuote,
 } from "../../shared/web3";
+import {
+  WALLET_BEST_PRACTICES,
+  WALLET_DASHBOARD_URL,
+  WALLET_SITE_URL,
+  isSolanaAddress,
+} from "../../shared/walletBestPractices";
+import {
+  connectSolanaWallet,
+  listAvailableSolanaProviders,
+  openWalletSites,
+  shortAddress,
+  signSolanaMessage,
+  type SolanaProviderName,
+} from "../lib/solanaWallet";
 import { runTruthAudit } from "../../shared/fleet";
 import { FLEET_CLIENT_URL } from "../../shared/fleet";
 
 export default function Accounts() {
   const [session, setSession] = useState<any>(null);
-  const [wallet, setWallet] = useState<{ address: string; chain?: string } | null>(null);
+  const [wallet, setWallet] = useState<{
+    address: string;
+    chain?: string;
+    provider?: string;
+    walletType?: string | null;
+  } | null>(null);
   const [walletStatus, setWalletStatus] = useState<string>("");
+  const [linkedWallets, setLinkedWallets] = useState<
+    Array<{ walletAddress: string; provider: string; isPrimary?: boolean; label?: string | null }>
+  >([]);
+  const [externalAddress, setExternalAddress] = useState("");
+  const [provisionEmail, setProvisionEmail] = useState("");
+  const [walletLoginAddr, setWalletLoginAddr] = useState("");
+  const [walletConfig, setWalletConfig] = useState<{
+    network?: string;
+    crossmintEnabled?: boolean;
+    gbuxMint?: string;
+  } | null>(null);
+  const [availableProviders, setAvailableProviders] = useState<SolanaProviderName[]>([]);
   const [gbuxBalance, setGbuxBalance] = useState<number | null>(null);
   const [gbuxError, setGbuxError] = useState<string | null>(null);
   const [truthScore, setTruthScore] = useState<number | null>(null);
@@ -53,35 +86,44 @@ export default function Accounts() {
   const refresh = useCallback(async () => {
     setBusy(true);
     try {
-      const [s, t, paths, ale, settings] = await Promise.all([
+      setAvailableProviders(listAvailableSolanaProviders());
+      const [s, t, paths, ale, settings, cfg] = await Promise.all([
         window.grudge.auth.getSession(),
         window.grudge.settings.toolchain(),
         window.grudge.accounts.getToolPaths(),
         window.grudge.accounts.getAleWallet(),
         window.grudge.settings.get(),
+        window.grudge.accounts.walletConfig?.().catch(() => null),
       ]);
       setSession(s);
       setTools(t);
       setToolPaths(paths);
       setAleWallet(ale ?? "");
       setApiBase(settings.apiBaseUrl ?? FLEET_CLIENT_URL);
+      if (cfg?.ok) setWalletConfig(cfg.config);
+      if (s?.puterUser?.email) setProvisionEmail((prev) => prev || s.puterUser.email);
 
-      if (s?.grudgeId) {
-        const w = await window.grudge.accounts.wallet(s.grudgeId);
+      if (s?.grudgeId || s?.signedIn) {
+        const w = await window.grudge.accounts.wallet(s.grudgeId ?? "");
         setWalletStatus(w.status);
         setWallet(w.wallet ?? null);
+        setLinkedWallets(w.linked ?? w.overview?.linkedWallets ?? []);
 
-        const bal = await window.grudge.accounts.gbuxBalance(s.grudgeId);
-        setGbuxBalance(bal.ok ? bal.balance : null);
-        setGbuxError(bal.ok ? null : (bal.error ?? "Unavailable"));
+        const bal = await window.grudge.accounts.gbuxBalance(s.grudgeId ?? "");
+        setGbuxBalance(
+          bal.ok ? bal.balance : (w.gbuxBalance ?? w.wallet?.gbuxBalance ?? null),
+        );
+        setGbuxError(bal.ok || w.gbuxBalance != null ? null : (bal.error ?? "Unavailable"));
 
-        const rw = await window.grudge.accounts.listRewards(s.grudgeId);
-        setRewards(rw.ok ? rw.rewards : []);
-        setRewardsError(rw.ok ? null : (rw.error ?? "Unavailable"));
+        if (s.grudgeId) {
+          const rw = await window.grudge.accounts.listRewards(s.grudgeId);
+          setRewards(rw.ok ? rw.rewards : []);
+          setRewardsError(rw.ok ? null : (rw.error ?? "Unavailable"));
 
-        const lg = await window.grudge.accounts.ledger(s.grudgeId, 30);
-        setLedger(lg.ok ? lg.entries : []);
-        setLedgerError(lg.ok ? null : (lg.error ?? "Unavailable"));
+          const lg = await window.grudge.accounts.ledger(s.grudgeId, 30);
+          setLedger(lg.ok ? lg.entries : []);
+          setLedgerError(lg.ok ? null : (lg.error ?? "Unavailable"));
+        }
       }
 
       const audit = await runTruthAudit(settings.apiBaseUrl ?? FLEET_CLIENT_URL);
@@ -96,21 +138,130 @@ export default function Accounts() {
   useEffect(() => { void refresh(); }, [refresh]);
 
   async function onProvisionWallet() {
-    if (!session?.grudgeId) return;
+    if (!session?.grudgeId && !session?.signedIn) {
+      toast.error("Sign in first (Puter / Grudge ID / wallet)");
+      return;
+    }
+    const email = provisionEmail.trim() || session?.puterUser?.email;
+    if (!email) {
+      toast.error("Email required for Crossmint custodial wallet");
+      return;
+    }
     setBusy(true);
     try {
       const r = await window.grudge.accounts.provisionWallet({
-        grudgeId: session.grudgeId,
-        email: session.puterUser?.email,
+        grudgeId: session.grudgeId ?? "",
+        email,
       });
       if (r.ok) {
         setWallet(r.wallet);
         setWalletStatus("ready");
-        toast.success("Grudge wallet provisioned");
+        toast.success("Custodial wallet provisioned", {
+          description: r.message ?? r.wallet?.address,
+        });
+        void refresh();
       } else toast.error("Provision failed", { description: r.error });
     } finally {
       setBusy(false);
     }
+  }
+
+  async function loginWithWalletAddress(addr: string): Promise<boolean> {
+    const r = await window.grudge.accounts.loginWithWallet(addr);
+    if (r.ok) {
+      toast.success("Signed in with Solana wallet", {
+        description: r.grudgeId ?? shortAddress(addr),
+      });
+      setWalletLoginAddr(addr);
+      if (r.wallet) setWallet(r.wallet);
+      await refresh();
+      return true;
+    }
+    toast.error("Wallet login failed", { description: r.error });
+    return false;
+  }
+
+  async function onWalletLogin(address?: string) {
+    const addr = (address ?? walletLoginAddr).trim();
+    if (!isSolanaAddress(addr)) {
+      toast.error("Enter a valid Solana address");
+      return;
+    }
+    setBusy(true);
+    try {
+      await loginWithWalletAddress(addr);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onConnectAndLogin(provider: SolanaProviderName) {
+    setBusy(true);
+    try {
+      const { address } = await connectSolanaWallet(provider);
+      setExternalAddress(address);
+      setWalletLoginAddr(address);
+      await loginWithWalletAddress(address);
+    } catch (e: unknown) {
+      toast.error("Connect failed", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onLinkExternal(provider: SolanaProviderName = "phantom") {
+    if (!session?.signedIn) {
+      toast.error("Sign in first, then link a third-party wallet");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { address } = await connectSolanaWallet(provider);
+      setExternalAddress(address);
+      const challenge = await window.grudge.accounts.linkChallenge(address);
+      if (!challenge.ok || !challenge.message) {
+        toast.error("Link challenge failed", { description: challenge.error });
+        return;
+      }
+      const signature = await signSolanaMessage(challenge.message, provider);
+      const confirm = await window.grudge.accounts.linkConfirm({
+        walletAddress: address,
+        message: challenge.message,
+        signature,
+        provider,
+      });
+      if (confirm.ok) {
+        toast.success("Third-party wallet linked", { description: shortAddress(address) });
+        void refresh();
+      } else {
+        toast.error("Link confirm failed", { description: confirm.error });
+      }
+    } catch (e: unknown) {
+      toast.error("Link wallet failed", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onLinkManualAddress() {
+    const addr = externalAddress.trim();
+    if (!isSolanaAddress(addr)) {
+      toast.error("Invalid Solana address");
+      return;
+    }
+    if (!session?.signedIn) {
+      toast.error("Sign in first");
+      return;
+    }
+    // Without extension, open sites for user to complete link in browser
+    toast.message("Signature required", {
+      description: "Install Phantom/Solflare, or complete link on wallet.grudge-studio.com",
+    });
+    openWalletSites();
   }
 
   async function onPurchase(packId: string) {
@@ -302,32 +453,151 @@ export default function Accounts() {
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="card">
           <h2 className="text-gold font-semibold flex items-center gap-2 mb-3">
-            <Wallet size={16} /> Grudge Wallet
+            <Wallet size={16} /> Grudge Wallet (custodial + external)
           </h2>
           <p className="text-xs text-muted mb-3">
-            Server-side Solana MPC wallet (Crossmint). Syncs across Warlords, Survival, and fleet games.
+            Best practice: Crossmint MPC custodial wallet for game GBUX · optional Phantom/Solflare link for claims.
+            Keys never leave the server. Play is never gated on wallet.
           </p>
+
+          {/* Web3 login */}
+          <div className="border border-line rounded p-2 mb-3 space-y-2">
+            <div className="text-[11px] font-semibold text-ink flex items-center gap-1">
+              <LogIn size={12} className="text-gold" /> Solana wallet login
+            </div>
+            <p className="text-[10px] text-muted">
+              Admin or player: connect extension, or paste address → fleet JWT via{" "}
+              <span className="font-mono">POST /api/auth/wallet</span>.
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {(availableProviders.length ? availableProviders : (["phantom", "solflare"] as SolanaProviderName[])).map(
+                (p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className="btn ghost text-[10px]"
+                    disabled={busy}
+                    onClick={() => void onConnectAndLogin(p)}
+                  >
+                    Connect {p} + login
+                  </button>
+                ),
+              )}
+            </div>
+            <div className="flex gap-1">
+              <input
+                className="flex-1 font-mono text-[10px]"
+                placeholder="Or paste Solana address…"
+                value={walletLoginAddr}
+                onChange={(e) => setWalletLoginAddr(e.target.value)}
+              />
+              <button type="button" className="btn text-[10px]" disabled={busy} onClick={() => void onWalletLogin()}>
+                Login
+              </button>
+            </div>
+          </div>
+
           {wallet?.address ? (
             <>
+              <div className="text-[10px] text-muted mb-1">
+                Primary · {wallet.walletType ?? wallet.provider ?? "solana"} · {walletStatus}
+              </div>
               <div className="font-mono text-xs break-all bg-bg-2 p-2 rounded">{wallet.address}</div>
-              <div className="flex gap-2 mt-2">
+              <div className="flex flex-wrap gap-2 mt-2">
                 <button type="button" className="btn ghost text-xs" onClick={() => copy(wallet.address, "wallet")}>
                   <Copy size={12} /> Copy
                 </button>
-                <button type="button" className="btn ghost text-xs" onClick={() => void window.grudge.os.openExternal("https://grudgewarlords.com/wallet")}>
-                  <ExternalLink size={12} /> Full wallet UI
+                <button
+                  type="button"
+                  className="btn ghost text-xs"
+                  onClick={() => void window.grudge.os.openExternal(solscanAccountUrl(wallet.address))}
+                >
+                  <ExternalLink size={12} /> Solscan
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost text-xs"
+                  onClick={() => void window.grudge.os.openExternal(WALLET_DASHBOARD_URL)}
+                >
+                  Dashboard
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost text-xs"
+                  onClick={() => void window.grudge.os.openExternal(WALLET_SITE_URL)}
+                >
+                  wallet.grudge-studio.com
                 </button>
               </div>
-              <div className="text-[10px] text-muted mt-2">Status: {walletStatus} · {wallet.chain ?? "solana"}</div>
             </>
           ) : (
-            <div className="space-y-2">
-              <p className="text-sm text-muted">No wallet yet ({walletStatus || "unknown"}).</p>
-              <button type="button" className="btn" disabled={busy} onClick={() => void onProvisionWallet()}>
-                Provision Grudge Wallet
-              </button>
+            <div className="space-y-2 mb-2">
+              <p className="text-sm text-muted">No custodial wallet yet ({walletStatus || "unknown"}).</p>
             </div>
           )}
+
+          {/* Provision custodial */}
+          <div className="border border-line rounded p-2 mt-3 space-y-2">
+            <div className="text-[11px] font-semibold">Provision Crossmint MPC wallet</div>
+            <input
+              className="w-full font-mono text-[10px]"
+              placeholder="Email for Crossmint (required)"
+              value={provisionEmail}
+              onChange={(e) => setProvisionEmail(e.target.value)}
+            />
+            <button type="button" className="btn w-full text-xs" disabled={busy} onClick={() => void onProvisionWallet()}>
+              Provision Grudge Wallet
+            </button>
+            {walletConfig && (
+              <p className="text-[10px] text-muted">
+                Network {walletConfig.network ?? "mainnet-beta"} · Crossmint{" "}
+                {walletConfig.crossmintEnabled ? "enabled" : "flag off (server may still provision)"} · mint{" "}
+                {(walletConfig.gbuxMint ?? GBUX_TOKEN_MINT).slice(0, 8)}…
+              </p>
+            )}
+          </div>
+
+          {/* Link third-party */}
+          <div className="border border-line rounded p-2 mt-3 space-y-2">
+            <div className="text-[11px] font-semibold flex items-center gap-1">
+              <Link2 size={12} className="text-gold" /> Link third-party wallet
+            </div>
+            <p className="text-[10px] text-muted">
+              Phantom / Solflare sign-message challenge · does not replace custodial game wallet.
+            </p>
+            <div className="flex flex-wrap gap-1">
+              <button type="button" className="btn ghost text-[10px]" disabled={busy} onClick={() => void onLinkExternal("phantom")}>
+                Link Phantom
+              </button>
+              <button type="button" className="btn ghost text-[10px]" disabled={busy} onClick={() => void onLinkExternal("solflare")}>
+                Link Solflare
+              </button>
+              <button type="button" className="btn ghost text-[10px]" onClick={() => openWalletSites()}>
+                Open wallet sites
+              </button>
+            </div>
+            <div className="flex gap-1">
+              <input
+                className="flex-1 font-mono text-[10px]"
+                placeholder="Manual address (needs extension to sign)"
+                value={externalAddress}
+                onChange={(e) => setExternalAddress(e.target.value)}
+              />
+              <button type="button" className="btn ghost text-[10px]" disabled={busy} onClick={() => void onLinkManualAddress()}>
+                Help
+              </button>
+            </div>
+            {linkedWallets.length > 0 && (
+              <ul className="text-[10px] space-y-1 max-h-24 overflow-auto">
+                {linkedWallets.map((lw) => (
+                  <li key={lw.walletAddress} className="font-mono flex justify-between gap-2">
+                    <span className="truncate">{shortAddress(lw.walletAddress)}</span>
+                    <span className="text-muted">{lw.provider}{lw.isPrimary ? " · primary" : ""}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
         <div className="card">
@@ -506,14 +776,15 @@ export default function Accounts() {
       </div>
 
       <div className="card border-line/50">
-        <h2 className="text-gold font-semibold text-sm mb-2">Web3 best practices</h2>
+        <h2 className="text-gold font-semibold text-sm mb-2">Wallet & Web3 best practices</h2>
         <ul className="text-[10px] text-muted grid sm:grid-cols-2 gap-1">
-          <li>• MPC wallets via Crossmint — never store private keys client-side</li>
-          <li>• GBUX on-chain · in-game gold is DB-only</li>
+          {WALLET_BEST_PRACTICES.rules.map((rule) => (
+            <li key={rule.slice(0, 40)}>• {rule}</li>
+          ))}
           <li>• Max transfer {WEB3_BEST_PRACTICES.maxSingleTransferGbux.toLocaleString()} GBUX / tx</li>
           <li>• Max daily {WEB3_BEST_PRACTICES.maxDailyGbuxPerUser.toLocaleString()} GBUX per user</li>
           <li>• Economy rate limit {WEB3_BEST_PRACTICES.economyRateLimitPerMinute}/min</li>
-          <li>• JWT includes wallet_address for fleet games</li>
+          <li>• Provider: {WEB3_BEST_PRACTICES.walletProvider} · never store keys client-side</li>
         </ul>
       </div>
 
@@ -571,14 +842,33 @@ export default function Accounts() {
       {isAdmin && (
         <div className="card border-gold/30">
           <h2 className="text-gold font-semibold flex items-center gap-2 mb-3">
-            <ShieldCheck size={16} /> Admin — ALE agent treasury
+            <ShieldCheck size={16} /> Admin — grudachain wallet provision
           </h2>
           <p className="text-xs text-muted mb-3">
-            Operators: grudachain / grudgedev@gmail.com · molochdadev / jonbemmons@gmail.com
+            Operators: grudachain / grudgedev@gmail.com · molochdadev / jonbemmons@gmail.com · ALE treasury for
+            GBUX fulfillment &amp; cNFT escrow (play never gated on claim).
           </p>
-          <label className="text-xs text-muted">ALE admin agent wallet (Solana)</label>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <button
+              type="button"
+              className="btn text-xs"
+              disabled={busy}
+              onClick={() => void onProvisionWallet()}
+            >
+              Provision my custodial wallet
+            </button>
+            <button
+              type="button"
+              className="btn ghost text-xs"
+              disabled={busy}
+              onClick={() => void onConnectAndLogin("phantom")}
+            >
+              <Unplug size={12} /> Admin login with Phantom
+            </button>
+          </div>
+          <label className="text-xs text-muted">ALE admin / escrow treasury (Solana)</label>
           <div className="flex gap-2 mt-1 mb-3">
-            <input className="flex-1 font-mono text-xs" value={aleWallet} onChange={(e) => setAleWallet(e.target.value)} placeholder="Treasury pubkey for GBUX fulfillment" />
+            <input className="flex-1 font-mono text-xs" value={aleWallet} onChange={(e) => setAleWallet(e.target.value)} placeholder="AI_AGENT_WALLET / treasury pubkey" />
             <button type="button" className="btn ghost text-xs" onClick={() => void saveAleWallet()}>Save</button>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">

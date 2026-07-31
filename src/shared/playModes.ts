@@ -2,11 +2,24 @@ import { FLEET_GAMES, type FleetGame } from "./fleetGames";
 
 /**
  * Curated playable fleet experiences for the admin Play Modes tab.
- * Ordered by production relevance — not the full Games launcher catalog.
+ * Ordered by production funnel relevance — live domains only (no orphaned Vercel).
+ *
+ * SSOT domains: grudge-fleet + grudge-live-servers.
+ * Water / home island = water.grudge-studio.com (Tactical-Infinity repo) — never tactical-infinity.vercel.app.
  */
 export const PLAY_MODE_ORDER = [
-  "studio-forge",
+  // Production funnel
+  "open-launcher",
+  "character-foundry",
+  "client-play",
   "grudgewarlords",
+  "tactical-infinity", // water.grudge-studio.com
+  "grudox",
+  // Editors & tools in play surface
+  "studio-forge",
+  "grudge-pipeline",
+  "studio-editor",
+  // Live / active games
   "grudges-survival",
   "rts-grudge",
   "grudge-drive",
@@ -14,11 +27,10 @@ export const PLAY_MODE_ORDER = [
   "dungeon-crawler",
   "grim-armada",
   "grudge-space-rts",
-  "grudgeworld",
   "mech-forge",
+  "metaverse",
   "arena-bridge",
   "final-fighter",
-  "tactical-infinity",
 ] as const;
 
 export type PlayModeId = (typeof PLAY_MODE_ORDER)[number];

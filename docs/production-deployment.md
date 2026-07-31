@@ -7,7 +7,8 @@ description: ONE TRUTH production deploy map for Grudge Dev Tool, Forge, AI work
 
 # Production deployment (canonical)
 
-**Mission:** successful production on all Grudge Studio hosts — no parallel redesigns.
+**Mission:** successful production on all Grudge Studio hosts — no parallel redesigns.  
+**Admin shell:** Dev Tool embeds production Forge/Coder and previews live clients — see [Admin architecture](admin-architecture.md).
 
 ## ONE TRUTH hosts
 
@@ -16,14 +17,23 @@ description: ONE TRUTH production deploy map for Grudge Dev Tool, Forge, AI work
 | Auth gateway | `https://id.grudge-studio.com` | Grudge ID JWT, Discord SSO |
 | Game data SSOT | `https://grudge-api-production-0d46.up.railway.app` | Railway Postgres |
 | Fleet client | `https://client.grudge-studio.com` | Vercel rewrites → auth + Railway + objectstore |
+| Portal / ENGINE | `https://grudge-studio.com` | The-ENGINE shell (not game-data SSOT) |
 | ObjectStore | `https://objectstore.grudge-studio.com/api/v1` | JSON catalogs |
+| info.* catalogs | `https://info.grudge-studio.com/api/v1` | Live definitions (often fuller) |
 | Assets CDN | `https://assets.grudge-studio.com` | R2 binaries |
-| Legion AI | `https://ai.grudge-studio.com` | AI hub / workers |
-| Forge editor | `https://forge.grudge-studio.com` | 3D editor surface |
-| Dev Tool docs | `https://grudge-warlords.github.io/grudge-dev-tool/` | This site (GitHub Pages) |
-| Local Ollama | `http://localhost:11434` | **GRUDACHAIN** Docker / native agentic AI (auto-start in Forge v0.9.1+) |
+| Legion AI | `https://ai.grudge-studio.com` | Fleet AI hub (≠ Coder AI worker) |
+| Forge editor | `https://forge.grudge-studio.com` | **Same SPA as Dev Tool Forge tab** (R3F + Rapier) |
+| Coder IDE | `https://coder.grudge-studio.com` | Vibe IDE (Dev Tool Coder tab) |
+| Pipeline | `https://grudge-pipeline.vercel.app` | Ingest → bake handoff |
+| Open launcher | `https://open.grudge-studio.com` | Canonical library / Preview target |
+| GRUDOX | `https://grudox.grudge-studio.com` | Rooms + Carrier edge |
+| Water island | `https://water.grudge-studio.com` | Home island production |
+| Dev Tool docs | [`grudge-warlords.github.io/grudge-dev-tool`](https://grudge-warlords.github.io/grudge-dev-tool/) | This site (GitHub Pages = `docs/`) |
+| Local Ollama | `http://localhost:11434` | **GRUDACHAIN** Docker / native agentic AI |
 
 **Never use** `api.grudge-studio.com` for new wiring (deprecated split-brain).
+
+**Docs site pages (all from `docs/`):** [Home](./) · [Systems & APIs](systems-api.md) · [Admin architecture](admin-architecture.md) · [ONE TRUTH](one-truth.md) · [API reference](api-reference.md) · [Object storage](object-storage.md) · [AI · D1 · R2 · Stream](ai-workers-d1-r2-stream.md) · [Quickstart](dev-tool-quickstart.md) · [CLI](cli-quickstart.md).
 
 ## Secrets (Windows Credential Vault + CI)
 
@@ -67,20 +77,34 @@ baseurl: "/grudge-dev-tool"
 
 Repo Settings → Pages → **GitHub Actions** (not branch deploy).
 
-## Desktop Forge release (current: **v0.9.1**)
+## Desktop Forge release (package **v0.9.6** — check Releases for latest tag)
 
 ```powershell
 npm ci --legacy-peer-deps
 npm run typecheck
-npm run package:ci      # NSIS installer → release/Grudge Studio Forge-Setup-0.9.1.exe
+npm run package:ci      # NSIS installer → release/
 # or tagged release (CI + local artifact):
-git tag v0.9.1 && git push origin v0.9.1
-gh release create v0.9.1 "release/Grudge Studio Forge-Setup-0.9.1.exe" --latest
+git tag v0.9.6 && git push origin v0.9.6
+# prefer: npm run publish:manual after package
 ```
 
-Installer embeds: Electron main/renderer, Three.js, glTF-Transform, Puter, keytar, FBX2glTF tool resource.
+Installer embeds: Electron main/renderer, Three.js, glTF-Transform, Puter, keytar, FBX2glTF tool resource.  
+**Forge tab** loads live `forge.grudge-studio.com` (not a bundled second editor).
 
-**Latest:** [v0.9.1 — GRUDACHAIN Ollama auto-start](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v0.9.1)
+**Latest:** [GitHub Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest)
+
+### glTF / convert (production bar)
+
+| Step | Practice |
+|------|----------|
+| Bake | `grudge-convert` (Draco/Meshopt, WebP, SI scale ~1.8 m human) |
+| Verify | Magic-byte GLB; no HTML-as-mesh |
+| Store | R2 under CDN keys; seed D1/ObjectStore |
+| View | Dev Tool Asset Viewer + Forge CDN URL |
+| Edit | forge.grudge-studio.com (R3F + Rapier) |
+| Playtest | Preview → open / client / water / GRUDOX |
+
+Skills: **`grudge-asset-convert`** · **`forge-editor`** · **`grudge-d1-r2`**.
 
 ## CLI (`cli/`)
 

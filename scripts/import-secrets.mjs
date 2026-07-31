@@ -43,6 +43,11 @@ const KEY_TO_ACCOUNT = {
   GRUDGE_ASSETS_API_BASE:       "default.assetsApiBaseUrl",  // legacy split-host override (optional)
   GRUDGE_TOKEN:                 "default",
   BLENDERKIT_API_KEY:           "blenderkit-api-key",
+  // Fleet ONE TRUTH URLs (id.grudge-studio.com only — never auth.grudge-studio.com)
+  GRUDGE_ID_BASE:               "fleet.idBase",
+  GRUDGE_AUTH_URL:              "fleet.idBase", // alias → same key as ID gateway
+  GRUDGE_GAME_DATA_URL:         "fleet.gameDataUrl",
+  GRUDGE_CLIENT_URL:            "default.apiBaseUrl",
   // Legion / fleet AI (dev tool orchestrator)
   GRUDGE_AI_KEY:                "legion.fleetApiKey",
   GRUDGE_LEGION_HUB:            "legion.hubUrl",
@@ -63,6 +68,44 @@ const KEY_TO_ACCOUNT = {
   PUTER_AUTH_TOKEN:             "puter-token",
   PUTER_TOKEN:                  "puter-token",
 };
+
+/** Reject values that would break production (Worker URL as R2 S3, deprecated auth host). */
+function sanitizeValue(envKey, value) {
+  let v = String(value ?? "").trim().replace(/\r/g, "");
+  if (!v) return { skip: true, reason: "empty" };
+
+  // Deprecated hosts → rewrite to SSOT
+  if (/^https?:\/\/auth\.grudge-studio\.com/i.test(v)) {
+    v = "https://id.grudge-studio.com";
+    console.warn(`[import-secrets] ${envKey}: rewrote auth.grudge-studio.com → id.grudge-studio.com`);
+  }
+  if (
+    (envKey === "GRUDGE_API_BASE" || envKey === "GRUDGE_CLIENT_URL") &&
+    /^https?:\/\/api\.grudge-studio\.com/i.test(v)
+  ) {
+    v = "https://client.grudge-studio.com";
+    console.warn(`[import-secrets] ${envKey}: rewrote api.grudge-studio.com → client.grudge-studio.com`);
+  }
+
+  // R2 endpoint must be S3-compatible — never ObjectStore Worker or CDN
+  if (envKey === "OBJECT_STORAGE_ENDPOINT") {
+    if (/objectstore\.grudge-studio\.com|assets\.grudge-studio\.com|auth\.grudge-studio\.com/i.test(v)) {
+      return {
+        skip: true,
+        reason:
+          "OBJECT_STORAGE_ENDPOINT must be https://<account>.r2.cloudflarestorage.com (not Worker/CDN). Vault left unchanged.",
+      };
+    }
+  }
+
+  // ObjectStore Worker URL is objectstore host; API base must not be github.io
+  if (envKey === "OBJECTSTORE_WORKER_URL" && /github\.io/i.test(v)) {
+    v = "https://objectstore.grudge-studio.com";
+    console.warn(`[import-secrets] ${envKey}: rewrote github.io → objectstore.grudge-studio.com`);
+  }
+
+  return { skip: false, value: v };
+}
 
 function getFlag(name) {
   const i = argv.indexOf(`--${name}`);
@@ -129,12 +172,18 @@ async function main() {
     const m = line.match(/^([A-Z][A-Z0-9_]*)\s*=\s*(.*)$/);
     if (!m) { skipped.push(rawLine.slice(0, 30) + "…"); continue; }
     const [, key, rawValue] = m;
-    const value = rawValue.replace(/^["'](.+?)["']$/, "$1");  // strip surrounding quotes
+    const stripped = rawValue.replace(/^["'](.+?)["']$/, "$1"); // strip surrounding quotes
     const account = KEY_TO_ACCOUNT[key];
     if (!account) {
       console.warn(`[import-secrets] unknown key '${key}' — not stored. Add to KEY_TO_ACCOUNT to support.`);
       continue;
     }
+    const cleaned = sanitizeValue(key, stripped);
+    if (cleaned.skip) {
+      console.warn(`[import-secrets] skip '${key}': ${cleaned.reason}`);
+      continue;
+    }
+    const value = cleaned.value;
     if (!value) {
       console.warn(`[import-secrets] empty value for '${key}', skipped.`);
       continue;

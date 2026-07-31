@@ -22,16 +22,49 @@ export const FLEET_URLS = {
   gameData: FLEET_GAME_DATA_URL,
   assets: "https://assets.grudge-studio.com",
   objectStore: "https://objectstore.grudge-studio.com/api/v1",
+  /** Live JSON catalogs (definitions) — often more complete than objectstore edge */
+  info: "https://info.grudge-studio.com/api/v1",
   /** Vercel fleet client — same-origin rewrites for auth + game-data + objectstore */
   client: FLEET_CLIENT_URL,
   /** Legion / GRUDA AI hub */
   ai: "https://ai.grudge-studio.com",
   warlords: "https://grudgewarlords.com",
+  /** Open launcher (canonical library) */
+  open: "https://open.grudge-studio.com",
+  /** Character Foundry (create + 4-slot only) */
+  characterFoundry: "https://character.grudge-studio.com",
+  /** Warlords home island / open water (Tactical-Infinity production) */
+  water: "https://water.grudge-studio.com",
+  /** GRUDOX hub + Carrier edge */
+  grudox: "https://grudox.grudge-studio.com",
+  carrier: "https://carrier.grudge-studio.com",
   /** Warlord Genesis production SPA */
   warlordGenesis: "https://warlord-genesis.vercel.app",
   warstrat: "https://warstrat.grudge-studio.com",
   /** Forge 3D editor (production) */
   forge: "https://forge.grudge-studio.com",
+  /**
+   * Grok Builder — agentic Three.js + Rapier editor (Open + Dev Tool primary builder).
+   * Local: http://localhost:5190 · Prod: set after Vercel deploy / custom domain.
+   */
+  grokBuilder: "https://grok-builder.vercel.app",
+  /**
+   * Grudge Pipeline — FBX/GLB ingest → bake → R2 → handoff to Forge.
+   * Production: grudge-pipeline.vercel.app (postMessage import into Forge).
+   */
+  pipeline: "https://grudge-pipeline.vercel.app",
+  /** GrudgeChain Vibe IDE (CF Pages) + AI workers */
+  coder: "https://coder.grudge-studio.com",
+  /** Coder alias */
+  grudachain: "https://grudachain.grudge-studio.com",
+  /** Browser studio editor */
+  studio: "https://studio.grudge-studio.com",
+  /** Dungeon Crawler Quest */
+  dcq: "https://dcq.grudge-studio.com",
+  /** Survival */
+  survival: "https://grudges.grudge-studio.com",
+  /** Metaverse */
+  metaverse: "https://metaverse.grudge-studio.com",
   /** Observatory telemetry */
   observatory: "https://obs.grudge-studio.com",
   /** Puter User-Pays SDK */

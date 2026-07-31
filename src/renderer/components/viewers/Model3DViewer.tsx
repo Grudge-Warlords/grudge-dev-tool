@@ -1,13 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { SceneEngine } from "../../lib/forge/sceneEngine";
-import { loadModel, isSupported } from "../../lib/forge/loaders";
+import { loadModelFromUrl, isSupported } from "../../lib/forge/loaders";
 import type { AssetRef } from "./types";
 
-interface Stats { triangles: number; vertices: number; bones: number; animations: number; format: string }
+interface Stats {
+  triangles: number;
+  vertices: number;
+  bones: number;
+  animations: number;
+  format: string;
+  materialsFixed?: number;
+  missingMaps?: number;
+}
 
-/** Mini 3D preview — same engine the Forge page uses, but no gizmos, no
- *  inspector. Fetches the asset as a Blob → wraps as File → loadModel. */
+/** Mini 3D preview — magic-byte gate + material sanitize (anti yellow/black). */
 export default function Model3DViewer({ asset }: { asset: AssetRef }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<SceneEngine | null>(null);
@@ -24,6 +31,9 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
     const engine = new SceneEngine(hostRef.current, {
       background: 0x0a0e1a, showGrid: true, showAxes: false, hdri: true,
     });
+    // Slightly brighter ambient so dark metalness doesn't look pure black
+    engine.studioLights.ambient.intensity = 0.28;
+    engine.renderer.toneMappingExposure = 1.05;
     engineRef.current = engine;
     return () => { engine.dispose(); engineRef.current = null; };
   }, []);
@@ -34,12 +44,7 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
     (async () => {
       try {
         if (!isSupported(asset.name)) throw new Error(`Unsupported 3D format: ${asset.name}`);
-        const res = await fetch(asset.url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const blob = await res.blob();
-        if (cancelled) return;
-        const file = new File([blob], asset.name.split("/").pop() ?? asset.name, { type: blob.type });
-        const loaded = await loadModel(file);
+        const loaded = await loadModelFromUrl(asset.url, asset.name.split("/").pop() ?? asset.name);
         if (cancelled || !engineRef.current) return;
 
         // Clear any previous model from the scene before adding the new one.
@@ -61,22 +66,35 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
         objectRef.current = loaded.object;
         engineRef.current.frame(loaded.object);
 
-        if (loaded.animations.length > 0) {
-          const mixer = engineRef.current.buildMixer(loaded.object, loaded.animations);
-          if (mixer) {
-            mixerRef.current = mixer;
-            actionsRef.current = loaded.animations.map((c) => mixer.clipAction(c));
+        // Always attach mixer when skinned (0 clips ok); skeleton helper optional
+        const skinned = loaded.bones > 0;
+        if (skinned || loaded.animations.length > 0) {
+          const { attachAnimationMixer } = await import("../../lib/forge/forgeAnimation");
+          const handle = attachAnimationMixer(loaded.object, loaded.animations, {
+            dropRootMotion: true,
+          });
+          engineRef.current.mixers.push(handle.mixer);
+          mixerRef.current = handle.mixer;
+          actionsRef.current = handle.clips.map((c) => handle.mixer.clipAction(c));
+          if (handle.clips.length) {
             actionsRef.current.forEach((a) => a.play());
             setPlaying(true);
           }
+          if (handle.bones > 0) {
+            engineRef.current.setSkeletonHelper(loaded.object, true);
+          }
         }
 
+        const missingMaps =
+          loaded.materials?.issues.filter((i) => i.code === "missing-map" && !i.fixed).length ?? 0;
         setStats({
           triangles: loaded.triangles,
           vertices: loaded.vertices,
           bones: loaded.bones,
           animations: loaded.animations.length,
           format: loaded.format,
+          materialsFixed: loaded.materials?.fixed,
+          missingMaps,
         });
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? String(e));
@@ -120,6 +138,16 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
           <span>{stats.triangles.toLocaleString()} tris</span>
           <span>{stats.vertices.toLocaleString()} verts</span>
           {stats.bones > 0 && <span>{stats.bones} bones</span>}
+          {typeof stats.materialsFixed === "number" && stats.materialsFixed > 0 && (
+            <span title="Material sanitize fixed yellow/black/colorSpace issues" style={{ color: "#7dffa0" }}>
+              mats+{stats.materialsFixed}
+            </span>
+          )}
+          {typeof stats.missingMaps === "number" && stats.missingMaps > 0 && (
+            <span title="Meshes with no baseColor map — re-bake with atlas" style={{ color: "#ffb86c" }}>
+              no-map×{stats.missingMaps}
+            </span>
+          )}
           {stats.animations > 0 && (
             <button onClick={toggleAnim} className="text-gold hover:underline">
               {playing ? "Pause" : "Play"} ({stats.animations})

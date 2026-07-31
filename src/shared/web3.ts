@@ -33,7 +33,11 @@ export const SOL_DECIMALS = 9;
 export const ECONOMY_API_URLS = {
   gameApi: `${GAME_API_URL}/api/economy`,
   aiHub: `${FLEET_URLS.ai}/v1/economy`,
-  walletApi: `${GAME_DATA_URL}/api/wallets`,
+  /** Canonical wallet routes live under /api/wallet/* (not /api/wallets). */
+  walletApi: `${GAME_DATA_URL}/api/wallet`,
+  walletStatus: `${GAME_API_URL}/api/wallet/status`,
+  walletCreate: `${GAME_API_URL}/api/wallet/create`,
+  walletAuth: `${GAME_API_URL}/api/auth/wallet`,
 } as const;
 
 export const ECONOMY_PATHS = {
@@ -200,9 +204,17 @@ export const FLEET_GAMES = [
 export const WEB3_BEST_PRACTICES = {
   neverStorePrivateKeysClientSide: true,
   walletProvider: "crossmint-mpc",
+  /** Third-party: phantom / solflare via signed link challenge */
+  externalWallets: ["phantom", "solflare"] as const,
+  /** Web3 login: POST /api/auth/wallet */
+  walletAuthPath: "/api/auth/wallet",
+  /** Custodial create: POST /api/wallet/create */
+  walletCreatePath: "/api/wallet/create",
   gbuxOnChain: true,
   inGameGoldDbOnly: true,
   jwtIncludesWalletAddress: true,
+  cnftEscrowFirst: true,
+  playNeverGatedOnWallet: true,
   maxSingleTransferGbux: ECONOMY_LIMITS.maxSingleTransferGbux,
   maxDailyGbuxPerUser: ECONOMY_LIMITS.maxDailyGbuxPerUser,
   economyRateLimitPerMinute: ECONOMY_LIMITS.economyRequestsPerMinute,

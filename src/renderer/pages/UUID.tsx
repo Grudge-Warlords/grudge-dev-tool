@@ -27,7 +27,11 @@ export default function UUIDPage() {
   return (
     <div>
       <h1 className="page-title">Grudge UUID</h1>
-      <p className="page-sub">Format: <span className="kbd">SLOT-TIER-ITEMID-TIMESTAMP-COUNTER</span></p>
+      <p className="page-sub">
+        Format: <span className="kbd">SLOT-TIER-ITEMID-TIMESTAMP-COUNTER</span>
+        {" "}· SSOT <span className="font-mono text-[11px]">src/shared/grudgeUUID.ts</span>
+        {" "}· use for asset registry / D1 rows after convert · never invent formats in agents.
+      </p>
 
       <div className="card">
         <h3 style={{ margin: "0 0 10px" }}>Generate</h3>

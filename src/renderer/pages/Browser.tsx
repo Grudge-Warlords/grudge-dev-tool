@@ -180,8 +180,11 @@ export default function Browser() {
       <div className="mb-3">
         <h1 className="page-title">Grudge Studio Assets</h1>
         <p className="page-sub">
-          Browse R2 / ObjectStore. Click a file to preview + pop-out Asset Viewer (always on top).
-          Use <span className="kbd">&gt; query</span> for server-side search · send 3D to Forge.
+          D1/ObjectStore index · R2 binaries on{" "}
+          <span className="font-mono text-[11px]">assets.grudge-studio.com</span>. Click a file →
+          always-on-top Asset Viewer (3D/image/audio).{" "}
+          <span className="kbd">&gt;query</span> = Agent/server search · send GLB to production Forge.
+          Catalogs also on <span className="font-mono text-[11px]">info.grudge-studio.com</span>.
         </p>
       </div>
 

@@ -1,3 +1,8 @@
+---
+layout: default
+title: Canonical packs
+nav_order: 14
+---
 # Asset Packs — Canonical Registry
 The single source of truth for every asset pack the dev tool knows about. Anything not in this list cannot be uploaded under `asset-packs/`. Add a new pack ⇒ add a row here in the same PR.
 

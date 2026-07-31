@@ -3,9 +3,12 @@ layout: default
 title: CLI Quickstart
 nav_order: 2
 ---
-# CLI Quickstart (v0.5.0)
+# CLI Quickstart
 
-The `grudge-dev` CLI autonomously wires into the Grudge Studio **ONE TRUTH** fleet. It shares the same `/api/objectstore/*` contract as the Forge tray app.
+The `grudge-dev` CLI autonomously wires into the Grudge Studio **ONE TRUTH** fleet.  
+API base: **`https://client.grudge-studio.com`**. Same `/api/objectstore/*` contract as the desktop admin shell.
+
+Host map: [Systems & APIs](systems-api.md) · [ONE TRUTH](one-truth.md).
 
 ## Install
 

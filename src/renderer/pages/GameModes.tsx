@@ -7,6 +7,8 @@ import {
 import { getPlayModes, type PlayModeId } from "../../shared/playModes";
 import type { FleetGame } from "../../shared/fleetGames";
 import { readMirror, writeMirror } from "../lib/workspace";
+import { openGameInForge3D } from "../lib/forge/openGame";
+import { getGameDeployment } from "../../shared/gameDeployments";
 
 interface WebviewEl extends HTMLElement {
   src: string;
@@ -140,6 +142,20 @@ export default function GameModes({ embedded = false }: { embedded?: boolean }) 
                   <button type="button" className="btn ghost text-xs py-0 px-2" onClick={() => void window.grudge.os.openExternal(active.url)}>
                     <ExternalLink size={12} />
                   </button>
+                  {getGameDeployment(active.id) && (
+                    <button
+                      type="button"
+                      className="btn ghost text-xs py-0 px-2"
+                      title="Open production mesh sample in Forge 3D"
+                      onClick={() => {
+                        void openGameInForge3D(active.id)
+                          .then((r) => toast.success(`Forge ← ${r.game.displayName}`, { description: r.key }))
+                          .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)));
+                      }}
+                    >
+                      Forge 3D
+                    </button>
+                  )}
                   <button type="button" className="btn ghost text-xs py-0 px-2" onClick={() => void window.grudge.app.openRoute("/preview")}>
                     <Maximize2 size={12} /> Preview tab
                   </button>

@@ -18,10 +18,13 @@ export type AssetKind =
   | "text"  | "pdf"   | "font"  | "unknown";
 
 const EXT: Record<AssetKind, string[]> = {
-  image:  ["png", "jpg", "jpeg", "webp", "avif", "gif", "svg", "bmp", "ico", "apng"],
-  video:  ["mp4", "webm", "mov", "m4v", "ogv"],
+  image: [
+    "png", "jpg", "jpeg", "webp", "avif", "gif", "svg", "bmp", "ico", "apng",
+    "tga", "tif", "tiff", "heic", "heif", "jxl", "jp2",
+  ],
+  video:  ["mp4", "webm", "mov", "m4v", "ogv", "mkv", "avi"],
   audio:  ["mp3", "wav", "ogg", "flac", "m4a", "aac", "opus"],
-  model3d:["glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf"],
+  model3d:["glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend"],
   /** Three.js ObjectLoader / scene dumps — handled by Model3D path when possible. */
   scene3d:["scene"],
   text:   ["txt", "json", "md", "markdown", "yml", "yaml", "ts", "tsx", "js", "jsx",
@@ -70,4 +73,13 @@ export function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
   return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+/** Whether the asset can go through the sharp image converter. */
+export function isRasterImageName(name: string): boolean {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  return [
+    "png", "jpg", "jpeg", "webp", "gif", "avif", "bmp", "tga",
+    "tif", "tiff", "heic", "heif", "jxl", "jp2", "ico", "apng",
+  ].includes(ext);
 }

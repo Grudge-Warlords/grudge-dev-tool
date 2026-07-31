@@ -1,77 +1,231 @@
 ---
 layout: default
 title: API Reference
-nav_order: 5
+nav_order: 6
+description: ObjectStore, UUID, fleet health, and ONE TRUTH API routes for Dev Tool and CLI.
+permalink: /api-reference.html
 ---
-# API Reference — `/api/objectstore/*`
-All routes live in `grudge-builder/server/integrations/object_storage/devToolRoutes.ts`.
 
-**Recommended base URL:** `https://client.grudge-studio.com` (Vercel rewrites → Railway game-data + ObjectStore).  
-Direct Railway SSOT: `https://grudge-api-production-0d46.up.railway.app`.  
-**Deprecated:** `https://api.grudge-studio.com` (do not use for new wiring). Local: `http://localhost:5000`.
+# API Reference
 
-Use `grudge-dev doctor` to confirm JSON responses (no HTML SPA leaks). Non-public routes require `Bearer` token or `X-Admin-Password` (local dev).
-## `GET /api/objectstore/list`
-Paginated listing of objects under a relative prefix.
-**Query params**
-- `prefix` — required. Relative path under `PRIVATE_OBJECT_DIR`.
-- `cursor` — optional GCS pageToken from the previous response.
-- `limit` — optional, default 100, max 1000.
-**Example**
-```
+**Recommended API base:** [`https://client.grudge-studio.com`](https://client.grudge-studio.com)  
+**Game-data SSOT (direct):** `https://grudge-api-production-0d46.up.railway.app`  
+**ObjectStore JSON (direct):** `https://objectstore.grudge-studio.com/api/v1`  
+**info catalogs:** `https://info.grudge-studio.com/api/v1`  
+**CDN binaries:** `https://assets.grudge-studio.com`  
+
+**Deprecated:** `https://api.grudge-studio.com` — do not use for new wiring.  
+**Local:** `http://localhost:5000` (when GrudgeBuilder is running).
+
+Non-public routes need `Authorization: Bearer <JWT>` or local `X-Admin-Password`.  
+Validate with `grudge-dev doctor` (JSON only — no HTML SPA leaks).
+
+Full host map: [Systems & APIs](systems-api.md) · [ONE TRUTH](one-truth.md).
+
+---
+
+## Health / fleet probes
+
+| Check | URL | Notes |
+|-------|-----|--------|
+| Grudge ID | `https://id.grudge-studio.com/api/health` | Auth gateway |
+| Railway | `https://grudge-api-production-0d46.up.railway.app/api/health` | Game data |
+| Auth me | `{apiBase}/api/auth/me` | 401 unauthenticated is OK |
+| ObjectStore items | `{apiBase}/api/objectstore/v1/master-items.json` | Via client rewrites |
+| ObjectStore direct | `https://objectstore.grudge-studio.com/api/v1/master-items.json` | Direct catalog |
+| CDN root | `https://assets.grudge-studio.com` | HEAD |
+| Legion | `https://ai.grudge-studio.com/health` | Fleet AI |
+| Forge | `https://forge.grudge-studio.com/` | Editor SPA |
+| Coder | `https://coder.grudge-studio.com/api/health` | IDE gateway when backend up |
+| Open | `https://open.grudge-studio.com/` | Launcher |
+
+`apiBase` = `https://client.grudge-studio.com` in production.
+
+---
+
+## ObjectStore — list / search / upload
+
+Routes used by Dev Tool Assets, CLI `upload-pack`, and agents.  
+Implementation often via fleet rewrites + ObjectStore Worker / R2.
+
+### `GET /api/objectstore/list`
+
+Paginated listing under a prefix.
+
+**Query:** `prefix` (required), `cursor`, `limit` (default 100, max 1000).
+
+```bash
 curl -H "Authorization: Bearer $T" \
-  "https://client.grudge-studio.com/api/objectstore/list?prefix=asset-packs/classic64/&limit=50"
+  "https://client.grudge-studio.com/api/objectstore/list?prefix=prod/gltf/&limit=50"
 ```
-**Response**
+
+**Response (shape):**
+
 ```json
-{ "items": [{ "name": "asset-packs/classic64/v0.6/Books/cover.png", "size": 12345, "contentType": "image/png", "updated": "2026-04-25T05:30:00Z", "md5Hash": "..." }],
-  "nextCursor": "...", "prefix": "asset-packs/classic64/", "count": 50 }
+{
+  "items": [
+    {
+      "name": "prod/gltf/misc/hero.glb",
+      "size": 12345,
+      "contentType": "model/gltf-binary",
+      "updated": "2026-07-29T05:30:00Z",
+      "md5Hash": "..."
+    }
+  ],
+  "folders": ["prod/gltf/races/"],
+  "nextCursor": "...",
+  "prefix": "prod/gltf/",
+  "count": 50
+}
 ```
-## `GET /api/objectstore/search`
-Server-side filter against per-pack `manifest.json` catalogs.
-**Query params** — `q`, `category`, `pack`, `limit` (default 200, max 1000).
-**Example**
-```
+
+### `GET /api/objectstore/search`
+
+Server-side search (Assets tab: type `>query`).
+
+**Query:** `q`, `category`, `pack`, `limit` (default 200, max 1000).
+
+```bash
 curl -H "Authorization: Bearer $T" \
-  "https://client.grudge-studio.com/api/objectstore/search?q=helmet&pack=classic64"
+  "https://client.grudge-studio.com/api/objectstore/search?q=helmet&limit=50"
 ```
-**Response** — `{ count, items: [<entry>, ...] }`
-## `POST /api/objectstore/upload-url`
-Mint a presigned PUT URL after validating the target prefix.
-**Body**
+
+**Response:** `{ "count": N, "items": [ … ] }`
+
+### `POST /api/objectstore/upload-url`
+
+Mint a presigned PUT for R2 / storage.
+
+**Body:**
+
 ```json
-{ "path": "asset-packs/classic64/v0.6/Books/cover.png",
-  "contentType": "image/png", "size": 12345, "sha256": "...", "allowOverwrite": false }
+{
+  "path": "prod/gltf/misc/hero.glb",
+  "contentType": "model/gltf-binary",
+  "size": 12345,
+  "sha256": "...",
+  "allowOverwrite": false
+}
 ```
-**Response**
+
+**Response:** `{ "uploadURL", "objectPath", "bucketPath", "ttlSeconds", "uploadId", "echo" }`
+
+**Errors:** `400` missing path · `403` prefix / user mismatch · `409` exists (retry with `allowOverwrite: true`).
+
+### `POST /api/objectstore/manifest` (admin)
+
+Write pack `manifest.json`.
+
 ```json
-{ "uploadURL": "https://storage.googleapis.com/...",
-  "objectPath": "/objects/asset-packs/classic64/v0.6/Books/cover.png",
-  "bucketPath": "<bucket-prefix>/asset-packs/.../cover.png",
-  "ttlSeconds": 900, "uploadId": "<uuid>", "echo": { ... } }
+{
+  "packId": "classic64",
+  "version": "0.6",
+  "meta": { "license": "CC0", "author": "…" },
+  "entries": []
+}
 ```
-**Errors**
-- `400` — missing path
-- `403` — prefix not whitelisted (e.g. `asset-packs/` without admin) OR `user-uploads/<grudgeId>/` mismatch
-- `409` — object already exists; resend with `allowOverwrite: true`
-## `POST /api/objectstore/manifest` (admin)
-Atomically write `asset-packs/<packId>/manifest.json`.
-**Body**
-```json
-{ "packId": "classic64", "version": "0.6",
-  "meta": { "license": "CC0", "author": "Craig Snedeker" },
-  "entries": [...] }
-```
-## `GET /api/objectstore/asset/<objectPath>`
-- Default — 302 redirects to a signed GET URL (10-min TTL).
-- `?format=json` — returns metadata + signed URL + public CDN URL as JSON.
-**Example**
-```
+
+### `GET /api/objectstore/asset/<objectPath>`
+
+- Default: 302 to signed GET (short TTL).  
+- `?format=json`: metadata + signed URL + public CDN URL.
+
+```bash
 curl -L -H "Authorization: Bearer $T" \
-  "https://client.grudge-studio.com/api/objectstore/asset/asset-packs/classic64/v0.6/Books/cover.png?format=json"
+  "https://client.grudge-studio.com/api/objectstore/asset/prod/gltf/misc/hero.glb?format=json"
 ```
-## UUID endpoints (existing, mounted by GrudgeBuilder)
-- `GET  /api/uuid/test`           — sanity sample
-- `POST /api/uuid/generate`       — `{ slot, tier, itemId }` → `{ uuid }`
-- `GET  /api/uuid/slots`          — slot-code map
-- `POST /api/uuid/apply-to-items` — admin batch operation
+
+Public CDN equivalent: `https://assets.grudge-studio.com/prod/gltf/misc/hero.glb`
+
+---
+
+## Public catalog JSON (ObjectStore / info)
+
+Prefer CDN keys for binaries; catalogs for game data:
+
+```text
+https://objectstore.grudge-studio.com/api/v1/master-items.json
+https://objectstore.grudge-studio.com/api/v1/master-recipes.json
+https://info.grudge-studio.com/api/v1/…   # live definitions when published
+```
+
+Dev Tool **Store** tab loads fleet categories from these catalogs.
+
+---
+
+## UUID endpoints
+
+Mounted by GrudgeBuilder / game-data; also available from Dev Tool **UUID** tab (`src/shared/grudgeUUID.ts` SSOT).
+
+| Method | Path | Body / notes |
+|--------|------|----------------|
+| GET | `/api/uuid/test` | Sanity sample |
+| POST | `/api/uuid/generate` | `{ slot, tier, itemId }` → `{ uuid }` |
+| GET | `/api/uuid/slots` | Slot-code map |
+| POST | `/api/uuid/apply-to-items` | Admin batch |
+
+Format: `SLOT-TIER-ITEMID-TIMESTAMP-COUNTER` — see [Grudge UUID](grudge-uuid.md).
+
+---
+
+## Auth (Grudge ID)
+
+Canonical browser login:
+
+```text
+https://id.grudge-studio.com/login?redirect_uri=<origin>
+```
+
+Session / me:
+
+```bash
+curl -H "Authorization: Bearer $T" \
+  "https://client.grudge-studio.com/api/auth/me"
+```
+
+---
+
+## AI (Legion)
+
+```bash
+curl -X POST "https://ai.grudge-studio.com/v1/chat" \
+  -H "Authorization: Bearer $GRUDGE_AI_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"…"}],"agent":"general"}'
+```
+
+Health: `GET https://ai.grudge-studio.com/health`  
+
+**Not the same product as** Coder AI hub worker (`GrudachainCode/workers/ai-hub`).
+
+---
+
+## Dev Tool IPC (desktop only)
+
+Renderer talks only via `window.grudge` / preload. Major groups:
+
+| Group | Purpose |
+|-------|---------|
+| `os.list` / `os.search` / `os.registerAsset` | ObjectStore / R2 |
+| `viewer.open` | Always-on-top Asset Viewer |
+| `forge.*` | Local tools / open remote CDN into local tools |
+| `coder.launch` / `status` | Local Coder PTY |
+| `preview.*` | HTML open helpers |
+| `legion.*` | Fleet Legion chat |
+| `skeleton.*` | Extract / T-pose / libraries |
+| `ingest.*` / upload | Convert + push packs |
+| `connectivity.probe` | ONE TRUTH score |
+
+Channel names: `src/shared/ipc.ts`.
+
+---
+
+## Production quality bar
+
+1. **Bake** with `grudge-convert` (SI scale, Draco/Meshopt, WebP) before R2.  
+2. **Magic-byte** verify GLBs.  
+3. **Seed** D1 / ObjectStore after upload.  
+4. **Send 3D to Forge** with **CDN URL** (`assets.grudge-studio.com/...`).  
+5. **Playtest** via Preview → open / client / water / GRUDOX.  
+
+See [Admin architecture](admin-architecture.md) · [Production deployment](production-deployment.md).

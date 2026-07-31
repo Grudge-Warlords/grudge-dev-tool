@@ -89,3 +89,45 @@ function hasAnyBone(root: THREE.Object3D): boolean {
   });
   return found;
 }
+
+export interface AttachAnimationMixerResult {
+  mixer: THREE.AnimationMixer;
+  clips: THREE.AnimationClip[];
+  bones: number;
+}
+
+/**
+ * Attach an AnimationMixer to a loaded model root.
+ * Optionally strips root/hips position tracks (dropRootMotion) so grounded kits don't float.
+ */
+export function attachAnimationMixer(
+  root: THREE.Object3D,
+  clips: THREE.AnimationClip[],
+  opts?: { dropRootMotion?: boolean },
+): AttachAnimationMixerResult {
+  let bones = 0;
+  root.traverse((n) => {
+    if ((n as THREE.Bone).isBone) bones++;
+  });
+
+  let useClips = clips ?? [];
+  if (opts?.dropRootMotion && useClips.length) {
+    useClips = useClips.map((clip) => stripRootPositionTracks(clip));
+  }
+
+  const mixer = new THREE.AnimationMixer(root);
+  root.userData.grudgeMixer = mixer;
+  return { mixer, clips: useClips, bones };
+}
+
+/** Remove position tracks on root / hips / pelvis so locomotion doesn't un-ground. */
+export function stripRootPositionTracks(clip: THREE.AnimationClip): THREE.AnimationClip {
+  const drop = /^(mixamorig:?)?(hips|pelvis|root|armature|bip001)$/i;
+  const tracks = clip.tracks.filter((t) => {
+    if (!/\.position$/.test(t.name)) return true;
+    const bone = t.name.split(".")[0]?.replace(/^mixamorig:?/i, "") ?? "";
+    return !drop.test(bone);
+  });
+  if (tracks.length === clip.tracks.length) return clip;
+  return new THREE.AnimationClip(clip.name, clip.duration, tracks);
+}

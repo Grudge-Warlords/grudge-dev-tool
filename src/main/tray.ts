@@ -63,8 +63,9 @@ export function createTray(getWindow: () => BrowserWindow | null): Tray {
     { label: "Quit",           click: () => { app.quit(); } },
   ]);
   tray.setContextMenu(menu);
-  // Left-click toggles the small GrudgeLoader; double-click opens the main window.
-  tray.on("click", () => toggleLoader());
+  // Left-click / double-click open the main window (primary UX).
+  // GrudgeLoader remains available from the tray menu.
+  tray.on("click", () => showWindow());
   tray.on("double-click", () => showWindow());
   return tray;
 }

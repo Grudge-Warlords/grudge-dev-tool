@@ -108,10 +108,27 @@ export interface AppSettings {
   apiBaseUrl: string;
   /** Legacy objectstore host override; empty when using ONE TRUTH fall-through. */
   assetsApiBaseUrl: string;
+  /** Grudge ID gateway — always https://id.grudge-studio.com (keytar fleet.idBase). */
+  idBaseUrl: string;
+  /** Railway game-data SSOT (keytar fleet.gameDataUrl). */
+  gameDataUrl: string;
   /** Optional override for the public CDN host shown in the UI. */
   cdnBaseUrl: string;
   /** Stored separately in keytar; this flag just tells the UI a token is set. */
   hasToken: boolean;
   /** True when a BlenderKit API key is present in keytar. */
   hasBlenderKitKey: boolean;
+  /** Object storage backend mode from vault. */
+  backendMode?: string;
+  /** Canonical fleet host map for Settings display. */
+  fleetSsot?: {
+    client: string;
+    id: string;
+    gameData: string;
+    objectStore: string;
+    assets: string;
+    foundry: string;
+  };
+  /** True if vault still has auth.grudge or api.grudge as client/ID. */
+  deprecatedAuthHost?: boolean;
 }

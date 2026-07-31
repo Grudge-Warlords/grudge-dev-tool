@@ -1,3 +1,8 @@
+---
+layout: default
+title: Scene Completion AI
+nav_order: 19
+---
 # Scene Completion AI Worker
 
 **Forge** ships a **Scene Completion** AI worker that plans (and the renderer executes) mesh weld/patch and skeleton prep for game assets.

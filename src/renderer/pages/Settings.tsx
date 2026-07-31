@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { FolderOpen, RefreshCcw, Power, Cloud, Bot, User, LogIn, LogOut, KeyRound, Save, Trash2, Download, Upload, Link2, ShieldCheck } from "lucide-react";
-import { FLEET_CLIENT_URL } from "../../shared/fleet";
+import { FLEET_CLIENT_URL, FLEET_URLS, FLEET_GAME_DATA_URL } from "../../shared/fleet";
 import { clearMirror } from "../lib/workspace";
 import { getAdminOverride, setAdminOverride, isOpenMode } from "../lib/admin";
 import { StatusDot } from "../components/StatusBar";
@@ -184,11 +184,33 @@ export default function Settings() {
     reload();
   }
   async function applyOneTruthPreset() {
-    await window.grudge.settings.setApiBase(FLEET_CLIENT_URL);
-    await window.grudge.settings.clearAssetsApiBase();
-    setApiBase(FLEET_CLIENT_URL);
-    setAssetsApiBase("");
-    toast.success("ONE TRUTH preset applied", { description: FLEET_CLIENT_URL });
+    try {
+      const applied =
+        typeof window.grudge.settings.applyOneTruth === "function"
+          ? await window.grudge.settings.applyOneTruth()
+          : null;
+      if (applied) {
+        setApiBase(applied.apiBaseUrl);
+        setAssetsApiBase("");
+        setLegionHub(applied.legionHub);
+        try {
+          await window.grudge.cf?.setBackendMode?.("r2-direct");
+          setBackendModeState("r2-direct");
+        } catch { /* optional */ }
+        toast.success("ONE TRUTH written to Credential Vault", {
+          description: `Client · ID gateway · Railway · ObjectStore · CDN (never auth.grudge / api.grudge)`,
+        });
+      } else {
+        // Fallback if preload not rebuilt yet
+        await window.grudge.settings.setApiBase(FLEET_CLIENT_URL);
+        await window.grudge.settings.clearAssetsApiBase();
+        setApiBase(FLEET_CLIENT_URL);
+        setAssetsApiBase("");
+        toast.success("ONE TRUTH client base applied", { description: FLEET_CLIENT_URL });
+      }
+    } catch (e: any) {
+      toast.error("ONE TRUTH failed", { description: e?.message ?? String(e) });
+    }
     reload();
   }
   async function saveToken() {
@@ -268,18 +290,57 @@ export default function Settings() {
           </>
         )}
         <div style={{ marginTop: 12 }}>
-          <label className="muted text-xs flex items-center gap-1"><Link2 size={12} /> Fleet client URL</label>
+          <label className="muted text-xs flex items-center gap-1"><Link2 size={12} /> Fleet client URL (keytar)</label>
           <div className="row" style={{ marginTop: 4 }}>
             <input value={apiBase} onChange={(e) => setApiBase(e.target.value)} placeholder={FLEET_CLIENT_URL} />
             <button className="btn ghost" onClick={saveApiBase}>Save</button>
-            <button className="btn ghost text-gold" onClick={applyOneTruthPreset} title="Set client.grudge-studio.com and clear legacy split-host overrides">
+            <button
+              className="btn ghost text-gold"
+              onClick={applyOneTruthPreset}
+              title="Write full ONE TRUTH hosts into Windows Credential Vault"
+            >
               ONE TRUTH
             </button>
           </div>
           <div className="muted text-[10px] mt-1">
-            One URL for fleet manifest, auth, objectstore JSON, and uploads via Vercel rewrites. Matches <span className="kbd">grudge-dev doctor</span>.
+            Auth is always <span className="font-mono text-gold">{FLEET_URLS.auth}</span>
+            {" "}— never <span className="font-mono">auth.grudge-studio.com</span> or{" "}
+            <span className="font-mono">api.grudge-studio.com</span>.
           </div>
+          {data?.deprecatedAuthHost ? (
+            <div className="status-bad text-xs mt-2">
+              Vault has a deprecated auth host — click <strong>ONE TRUTH</strong> to repair.
+            </div>
+          ) : null}
         </div>
+        <table className="mt-3" style={{ width: "100%", fontSize: 11 }}>
+          <tbody>
+            <tr>
+              <td className="muted">Grudge ID</td>
+              <td className="font-mono text-gold">{data?.idBaseUrl ?? FLEET_URLS.auth}</td>
+            </tr>
+            <tr>
+              <td className="muted">Game data</td>
+              <td className="font-mono">{data?.gameDataUrl ?? FLEET_GAME_DATA_URL}</td>
+            </tr>
+            <tr>
+              <td className="muted">ObjectStore</td>
+              <td className="font-mono">{FLEET_URLS.objectStore}</td>
+            </tr>
+            <tr>
+              <td className="muted">Assets CDN</td>
+              <td className="font-mono">{data?.cdnBaseUrl ?? FLEET_URLS.assets}</td>
+            </tr>
+            <tr>
+              <td className="muted">Foundry</td>
+              <td className="font-mono">{FLEET_URLS.characterFoundry}</td>
+            </tr>
+            <tr>
+              <td className="muted">Vault</td>
+              <td className="muted">Windows Credential Vault · service <span className="kbd">grudge-dev-tool</span></td>
+            </tr>
+          </tbody>
+        </table>
         <details style={{ marginTop: 8 }}>
           <summary className="muted text-xs cursor-pointer">Legacy split-host override (optional)</summary>
           <div className="row" style={{ marginTop: 4 }}>
@@ -287,7 +348,8 @@ export default function Settings() {
             <button className="btn ghost" onClick={saveAssetsApiBase}>Save</button>
           </div>
           <div className="muted text-[10px] mt-1">
-            Leave empty for ONE TRUTH. Set only for legacy split-host installs (deprecated — use <span className="font-mono">objectstore.grudge-studio.com</span>).
+            Leave empty for ONE TRUTH. Deprecated — use{" "}
+            <span className="font-mono">objectstore.grudge-studio.com</span>.
           </div>
         </details>
       </div>

@@ -15,6 +15,14 @@ import { basename, extname, join } from "node:path";
 import log from "./logger";
 import * as forge from "./forge";
 import { convertFile, verifyFile } from "./ingestion";
+import {
+  convertImageFile,
+  inspectImage,
+  isConvertibleImagePath,
+  type ImageOutFormat,
+  type ImageConvertResult,
+  type ImageMeta,
+} from "./ingestion/imageConvert";
 import { optimizeWebFile, type OptimizeWebOptions, type OptimizeWebResult } from "./ingestion/optimizeWeb";
 import { requestUploadUrl } from "./api";
 import { r2PublicUrl } from "./cf/r2Direct";
@@ -189,6 +197,55 @@ function downloadToBuffer(url: string): Promise<Buffer> {
   });
 }
 
+/** Download remote image, convert via sharp, return temp path for save dialog. */
+export async function convertImage(args: {
+  url: string;
+  name: string;
+  format: ImageOutFormat;
+  quality?: number;
+  maxWidth?: number;
+  maxHeight?: number;
+}): Promise<ImageConvertResult> {
+  try {
+    if (!args?.url || !args?.name) return { ok: false, error: "url and name required" };
+    if (!isConvertibleImagePath(args.name) && !args.name.match(/\.(png|jpe?g|webp|gif|tga|tiff?|bmp|heic|avif)$/i)) {
+      // Still try — remote may have wrong extension in key
+    }
+    const buf = await downloadToBuffer(args.url);
+    const dir = await mkdtemp(join(tmpdir(), "grudge-viewer-img-"));
+    const srcName = basename(args.name) || "image.bin";
+    const srcPath = join(dir, srcName);
+    await writeFile(srcPath, buf);
+    return convertImageFile(srcPath, {
+      format: args.format,
+      quality: args.quality,
+      maxWidth: args.maxWidth,
+      maxHeight: args.maxHeight,
+      keepAlpha: true,
+    }, dir);
+  } catch (e: any) {
+    log.error("Viewer convertImage failed", e);
+    return { ok: false, error: e?.message ?? String(e) };
+  }
+}
+
+export async function inspectRemoteImage(args: {
+  url: string;
+  name: string;
+}): Promise<{ ok: true; meta: ImageMeta } | { ok: false; error: string }> {
+  try {
+    const buf = await downloadToBuffer(args.url);
+    const dir = await mkdtemp(join(tmpdir(), "grudge-viewer-meta-"));
+    const srcPath = join(dir, basename(args.name) || "image.bin");
+    await writeFile(srcPath, buf);
+    const meta = await inspectImage(srcPath);
+    if (!meta) return { ok: false, error: "Could not read image metadata" };
+    return { ok: true, meta };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) };
+  }
+}
+
 /** Download remote model, convert via toolchain, return temp path for save dialog. */
 export async function convertModel(args: {
   url: string;
@@ -229,21 +286,32 @@ export async function convertModel(args: {
 }
 
 export async function saveConvertedFile(
-  args: { path: string; defaultName: string },
+  args: { path: string; defaultName: string; kind?: "model" | "image" },
   parent?: BrowserWindow | null,
 ): Promise<{ ok: true; savedPath: string } | { ok: false; error: string } | { canceled: true }> {
   try {
     if (!args?.path || !existsSync(args.path)) {
       return { ok: false, error: "Converted file not found" };
     }
+    const kind = args.kind ?? "model";
+    const filters =
+      kind === "image"
+        ? [
+            { name: "PNG", extensions: ["png"] },
+            { name: "WebP", extensions: ["webp"] },
+            { name: "JPEG", extensions: ["jpg", "jpeg"] },
+            { name: "AVIF", extensions: ["avif"] },
+            { name: "All files", extensions: ["*"] },
+          ]
+        : [
+            { name: "glTF Binary", extensions: ["glb"] },
+            { name: "glTF JSON", extensions: ["gltf"] },
+            { name: "All files", extensions: ["*"] },
+          ];
     const r = await dialog.showSaveDialog(parent && !parent.isDestroyed() ? parent : (undefined as any), {
-      title: "Save converted model",
+      title: kind === "image" ? "Save converted image" : "Save converted model",
       defaultPath: args.defaultName || basename(args.path),
-      filters: [
-        { name: "glTF Binary", extensions: ["glb"] },
-        { name: "glTF JSON", extensions: ["gltf"] },
-        { name: "All files", extensions: ["*"] },
-      ],
+      filters,
     });
     if (r.canceled || !r.filePath) return { canceled: true };
     await copyFile(args.path, r.filePath);

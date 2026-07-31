@@ -1,0 +1,290 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-29T23:53:25.421Z",
+  "cdnBase": "https://assets.grudge-studio.com",
+  "prefix": "prod/gltf",
+  "packages": [
+    {
+      "id": "grudge6-races",
+      "count": 7,
+      "yellowSafe": true,
+      "assets": [
+        {
+          "id": "characters/wk_characters",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/wk_characters.glb",
+          "r2Key": "prod/gltf/characters/wk_characters.glb",
+          "textures": 1,
+          "heightM": 1.8,
+          "bytes": 420624
+        },
+        {
+          "id": "characters/human",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/human.glb",
+          "r2Key": "prod/gltf/characters/human.glb",
+          "textures": 1,
+          "heightM": 1.8,
+          "bytes": 420624
+        },
+        {
+          "id": "characters/brb_characters",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/brb_characters.glb",
+          "r2Key": "prod/gltf/characters/brb_characters.glb",
+          "textures": 1,
+          "heightM": 1.8,
+          "bytes": 543324
+        },
+        {
+          "id": "characters/elf_characters",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/elf_characters.glb",
+          "r2Key": "prod/gltf/characters/elf_characters.glb",
+          "textures": 1,
+          "heightM": 1.8,
+          "bytes": 666504
+        },
+        {
+          "id": "characters/dwf_characters",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/dwf_characters.glb",
+          "r2Key": "prod/gltf/characters/dwf_characters.glb",
+          "textures": 1,
+          "heightM": 1.8,
+          "bytes": 552952
+        },
+        {
+          "id": "characters/orc_characters",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/orc_characters.glb",
+          "r2Key": "prod/gltf/characters/orc_characters.glb",
+          "textures": 1,
+          "heightM": 1.8,
+          "bytes": 518424
+        },
+        {
+          "id": "characters/ud_characters",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/ud_characters.glb",
+          "r2Key": "prod/gltf/characters/ud_characters.glb",
+          "textures": 1,
+          "heightM": 1.8,
+          "bytes": 531048
+        }
+      ]
+    },
+    {
+      "id": "armada-core",
+      "count": 7,
+      "yellowSafe": false,
+      "assets": [
+        {
+          "id": "characters/player",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/characters/player.glb",
+          "r2Key": "prod/gltf/characters/player.glb",
+          "textures": 1,
+          "heightM": 1.85,
+          "bytes": 353128
+        },
+        {
+          "id": "weapons/assault_rifle",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/assault_rifle.glb",
+          "r2Key": "prod/gltf/weapons/assault_rifle.glb",
+          "textures": 1,
+          "heightM": null,
+          "bytes": 174824
+        },
+        {
+          "id": "weapons/ak74u",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/ak74u.glb",
+          "r2Key": "prod/gltf/weapons/ak74u.glb",
+          "textures": 0,
+          "heightM": null,
+          "bytes": 346780
+        },
+        {
+          "id": "weapons/smg",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/smg.glb",
+          "r2Key": "prod/gltf/weapons/smg.glb",
+          "textures": 0,
+          "heightM": null,
+          "bytes": 133236
+        },
+        {
+          "id": "enemies/alien",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/enemies/alien.glb",
+          "r2Key": "prod/gltf/enemies/alien.glb",
+          "textures": 1,
+          "heightM": 2,
+          "bytes": 107540
+        },
+        {
+          "id": "enemies/mutant",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/enemies/mutant.glb",
+          "r2Key": "prod/gltf/enemies/mutant.glb",
+          "textures": 0,
+          "heightM": 2,
+          "bytes": 604820
+        },
+        {
+          "id": "enemies/spikeball",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/enemies/spikeball.glb",
+          "r2Key": "prod/gltf/enemies/spikeball.glb",
+          "textures": 0,
+          "heightM": 1.2,
+          "bytes": 49908
+        }
+      ]
+    },
+    {
+      "id": "fantasy-weapons",
+      "count": 7,
+      "yellowSafe": true,
+      "assets": [
+        {
+          "id": "weapons/sword",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/sword.glb",
+          "r2Key": "prod/gltf/weapons/sword.glb",
+          "textures": 1,
+          "heightM": null,
+          "bytes": 7748
+        },
+        {
+          "id": "weapons/bow",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/bow.glb",
+          "r2Key": "prod/gltf/weapons/bow.glb",
+          "textures": 1,
+          "heightM": null,
+          "bytes": 9940
+        },
+        {
+          "id": "weapons/staff",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/staff.glb",
+          "r2Key": "prod/gltf/weapons/staff.glb",
+          "textures": 1,
+          "heightM": null,
+          "bytes": 8176
+        },
+        {
+          "id": "weapons/dagger",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/dagger.glb",
+          "r2Key": "prod/gltf/weapons/dagger.glb",
+          "textures": 1,
+          "heightM": null,
+          "bytes": 6496
+        },
+        {
+          "id": "weapons/axe",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/axe.glb",
+          "r2Key": "prod/gltf/weapons/axe.glb",
+          "textures": 1,
+          "heightM": null,
+          "bytes": 12040
+        },
+        {
+          "id": "weapons/hammer",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/hammer.glb",
+          "r2Key": "prod/gltf/weapons/hammer.glb",
+          "textures": 1,
+          "heightM": null,
+          "bytes": 9052
+        },
+        {
+          "id": "weapons/mace",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/weapons/mace.glb",
+          "r2Key": "prod/gltf/weapons/mace.glb",
+          "textures": 3,
+          "heightM": null,
+          "bytes": 379284
+        }
+      ]
+    },
+    {
+      "id": "skeletons",
+      "count": 2,
+      "yellowSafe": true,
+      "assets": [
+        {
+          "id": "skeletons/skeleton",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/skeletons/skeleton.glb",
+          "r2Key": "prod/gltf/skeletons/skeleton.glb",
+          "textures": 1,
+          "heightM": 1.8,
+          "bytes": 573496
+        },
+        {
+          "id": "skeletons/skeleton_archer",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/skeletons/skeleton_archer.glb",
+          "r2Key": "prod/gltf/skeletons/skeleton_archer.glb",
+          "textures": 1,
+          "heightM": 1.8,
+          "bytes": 389072
+        }
+      ]
+    },
+    {
+      "id": "armada-props",
+      "count": 6,
+      "yellowSafe": true,
+      "assets": [
+        {
+          "id": "props/barrel",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/props/barrel.glb",
+          "r2Key": "prod/gltf/props/barrel.glb",
+          "textures": 0,
+          "heightM": null,
+          "bytes": 228032
+        },
+        {
+          "id": "props/bush",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/props/bush.glb",
+          "r2Key": "prod/gltf/props/bush.glb",
+          "textures": 0,
+          "heightM": null,
+          "bytes": 41028
+        },
+        {
+          "id": "props/cabin",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/props/cabin.glb",
+          "r2Key": "prod/gltf/props/cabin.glb",
+          "textures": 0,
+          "heightM": null,
+          "bytes": 1516340
+        },
+        {
+          "id": "props/searchlight",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/props/searchlight.glb",
+          "r2Key": "prod/gltf/props/searchlight.glb",
+          "textures": 0,
+          "heightM": null,
+          "bytes": 121316
+        },
+        {
+          "id": "props/security_post",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/props/security_post.glb",
+          "r2Key": "prod/gltf/props/security_post.glb",
+          "textures": 0,
+          "heightM": null,
+          "bytes": 514044
+        },
+        {
+          "id": "props/watchtower",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/props/watchtower.glb",
+          "r2Key": "prod/gltf/props/watchtower.glb",
+          "textures": 0,
+          "heightM": null,
+          "bytes": 969120
+        }
+      ]
+    },
+    {
+      "id": "creatures",
+      "count": 1,
+      "yellowSafe": true,
+      "assets": [
+        {
+          "id": "enemies/lava_golem",
+          "cdnUrl": "https://assets.grudge-studio.com/prod/gltf/enemies/lava_golem.glb",
+          "r2Key": "prod/gltf/enemies/lava_golem.glb",
+          "textures": 2,
+          "heightM": 2.5,
+          "bytes": 186448
+        }
+      ]
+    }
+  ]
+}

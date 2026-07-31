@@ -1,11 +1,64 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import * as toolPaths from "../toolPaths";
 import { resolveBundledFbx2gltf } from "./fbx2gltfPath";
 
-const nodeRequire = createRequire(join(__dirname, "..", "..", "package.json"));
+/** App root package.json — works from src/main and dist/main (ingestion is one level deeper). */
+function appRootPackageJson(): string {
+  // dist/main/ingestion → ../../../package.json
+  // also works when compiled next to main if layout shifts
+  const candidates = [
+    join(__dirname, "..", "..", "..", "package.json"),
+    join(__dirname, "..", "..", "package.json"),
+  ];
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+  return candidates[0];
+}
+
+const nodeRequire = createRequire(appRootPackageJson());
+
+/** Repo / install root for portable tools under tools/ */
+function appRootDir(): string {
+  return dirname(appRootPackageJson());
+}
+
+/** Shallow recursive find of a binary under a root (depth-limited). */
+function findBinaryUnder(root: string, name: string, maxDepth = 5): string | null {
+  if (!root || !existsSync(root)) return null;
+  const target = name.toLowerCase();
+  const walk = (dir: string, depth: number): string | null => {
+    if (depth < 0) return null;
+    let entries: string[] = [];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return null;
+    }
+    for (const ent of entries) {
+      const full = join(dir, ent);
+      let isDir = false;
+      try {
+        isDir = statSync(full).isDirectory();
+      } catch {
+        continue;
+      }
+      if (!isDir) {
+        if (ent.toLowerCase() === target) return full;
+        continue;
+      }
+      // skip heavy trees
+      if (/^(node_modules|\.git|__pycache__)$/i.test(ent)) continue;
+      const hit = walk(full, depth - 1);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  return walk(root, maxDepth);
+}
 
 export interface ToolStatus {
   name: string;
@@ -39,13 +92,32 @@ function probeVersion(bin: string, args: string[]): string | undefined {
   return undefined;
 }
 
-const WIN_BLENDER_CANDIDATES = [
-  "C:\\Program Files\\Blender Foundation\\Blender 4.5\\blender.exe",
-  "C:\\Program Files\\Blender Foundation\\Blender 4.4\\blender.exe",
-  "C:\\Program Files\\Blender Foundation\\Blender 4.3\\blender.exe",
-  "C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe",
-  "C:\\Program Files\\Blender Foundation\\Blender 4.1\\blender.exe",
-];
+function winBlenderCandidates(): string[] {
+  const toolsRoot = join(appRootDir(), "tools");
+  const versions = ["5.2", "5.1", "5.0", "4.5", "4.4", "4.3", "4.2", "4.1", "4.0"];
+  const pf: string[] = [];
+  for (const v of versions) {
+    pf.push(`C:\\Program Files\\Blender Foundation\\Blender ${v}\\blender.exe`);
+    pf.push(join(process.env.LOCALAPPDATA ?? "", `Programs\\Blender Foundation\\Blender ${v}\\blender.exe`));
+  }
+  // Portable under tools/blender/**/blender.exe (resolved via findBinaryUnder)
+  return [
+    ...pf,
+    join(toolsRoot, "blender", "blender.exe"),
+  ].filter(Boolean);
+}
+
+function winFfmpegCandidates(): string[] {
+  const toolsRoot = join(appRootDir(), "tools");
+  const local = process.env.LOCALAPPDATA ?? "";
+  return [
+    join(local, "Microsoft\\WinGet\\Links\\ffmpeg.exe"),
+    "C:\\ffmpeg\\bin\\ffmpeg.exe",
+    "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
+    "C:\\ProgramData\\chocolatey\\bin\\ffmpeg.exe",
+    join(toolsRoot, "ffmpeg", "bin", "ffmpeg.exe"),
+  ];
+}
 
 function firstExisting(paths: string[]): string | null {
   for (const p of paths) {
@@ -57,30 +129,28 @@ function firstExisting(paths: string[]): string | null {
 export async function detectBlender(): Promise<ToolStatus> {
   const stored = await toolPaths.getToolPath("blender");
   const envPath = process.env.BLENDER_PATH;
-  const path = stored
+  const path =
+    (stored && existsSync(stored) ? stored : null)
     ?? (envPath && existsSync(envPath) ? envPath : null)
     ?? which("blender")
-    ?? firstExisting(WIN_BLENDER_CANDIDATES);
+    ?? firstExisting(winBlenderCandidates())
+    ?? findBinaryUnder(join(appRootDir(), "tools", "blender"), "blender.exe", 4);
   if (!path) {
     return {
       name: "Blender",
       available: false,
-      reason: "Not found — install Blender 4.x or set path in Accounts → Toolchain.",
+      reason:
+        "Not found — run npm run toolchain:install (or install Blender 4.x) and set path in Accounts → Toolchain.",
     };
   }
   const version = probeVersion(path, ["--version"]);
   return { name: "Blender", available: true, path, version };
 }
 
-const WIN_FFMPEG_CANDIDATES = [
-  "C:\\ffmpeg\\bin\\ffmpeg.exe",
-  "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
-  "C:\\ProgramData\\chocolatey\\bin\\ffmpeg.exe",
-];
-
 const WIN_FBX2GLTF_CANDIDATES = [
   "D:\\FBX2glTF.exe",
   "C:\\Tools\\FBX2glTF.exe",
+  join(appRootDir(), "resources", "tools", "FBX2glTF.exe"),
 ];
 
 export async function detectFbx2gltf(): Promise<ToolStatus> {
@@ -105,8 +175,20 @@ export async function detectFbx2gltf(): Promise<ToolStatus> {
 
 export async function detectFfmpeg(): Promise<ToolStatus> {
   const stored = await toolPaths.getToolPath("ffmpeg");
-  const path = stored ?? which("ffmpeg") ?? firstExisting(WIN_FFMPEG_CANDIDATES);
-  if (!path) return { name: "ffmpeg", available: false, reason: "Not found — install ffmpeg or set path in Accounts." };
+  const envPath = process.env.FFMPEG_PATH;
+  const path =
+    (stored && existsSync(stored) ? stored : null)
+    ?? (envPath && existsSync(envPath) ? envPath : null)
+    ?? which("ffmpeg")
+    ?? firstExisting(winFfmpegCandidates())
+    ?? findBinaryUnder(join(appRootDir(), "tools", "ffmpeg"), "ffmpeg.exe", 5);
+  if (!path) {
+    return {
+      name: "ffmpeg",
+      available: false,
+      reason: "Not found — run npm run toolchain:install or set path in Accounts → Toolchain.",
+    };
+  }
   return { name: "ffmpeg", available: true, path, version: probeVersion(path, ["-version"]) };
 }
 
@@ -119,16 +201,47 @@ export function detectSharp(): ToolStatus {
   }
 }
 
+/**
+ * Detect @gltf-transform/core.
+ * Do NOT resolve `@gltf-transform/core/package.json` — package "exports" blocks that subpath
+ * (ERR_PACKAGE_PATH_NOT_EXPORTED) even when the module is installed.
+ */
 export function detectGltfTransform(): ToolStatus {
   try {
-    const pkgPath = nodeRequire.resolve("@gltf-transform/core/package.json");
-    const pkg = nodeRequire(pkgPath) as { version?: string };
-    return { name: "gltf-transform", available: true, version: pkg.version ?? "bundled" };
-  } catch {
+    const entry = nodeRequire.resolve("@gltf-transform/core");
+    // Smoke-load the CJS entry (exports.require → dist/index.cjs).
+    nodeRequire("@gltf-transform/core");
+
+    let version = "installed";
+    let dir = dirname(entry);
+    for (let i = 0; i < 5; i++) {
+      const pkgFile = join(dir, "package.json");
+      if (existsSync(pkgFile)) {
+        try {
+          const pkg = JSON.parse(readFileSync(pkgFile, "utf8")) as {
+            name?: string;
+            version?: string;
+          };
+          if (pkg.name === "@gltf-transform/core" && pkg.version) {
+            version = pkg.version;
+            break;
+          }
+        } catch {
+          /* keep walking */
+        }
+      }
+      const parent = dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+
+    return { name: "gltf-transform", available: true, version, path: entry };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
     return {
       name: "gltf-transform",
       available: false,
-      reason: "@gltf-transform/core not resolvable — run npm install in app root.",
+      reason: `${msg} — ensure @gltf-transform/core is installed (npm install in app root).`,
     };
   }
 }

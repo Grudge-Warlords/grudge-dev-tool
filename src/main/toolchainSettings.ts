@@ -22,9 +22,29 @@ export async function hydrateToolchainSettings(): Promise<void> {
   const store = await getStore();
   const blenderPath = store.get<string>("blenderPath", "") || process.env.BLENDER_PATH || "";
   const blenderKitPath = store.get<string>("blenderKitPath", "") || process.env.BLENDERKIT_PATH || "";
-  if (blenderPath) process.env.BLENDER_PATH = blenderPath;
+  const ffmpegPath = store.get<string>("ffmpegPath", "") || process.env.FFMPEG_PATH || "";
+  if (blenderPath) {
+    process.env.BLENDER_PATH = blenderPath;
+    if (!store.get<string>("blenderPath", "")) store.set("blenderPath", blenderPath);
+  }
   if (blenderKitPath) process.env.BLENDERKIT_PATH = blenderKitPath;
+  if (ffmpegPath) {
+    process.env.FFMPEG_PATH = ffmpegPath;
+    if (!store.get<string>("ffmpegPath", "")) store.set("ffmpegPath", ffmpegPath);
+  }
   hydrated = true;
+}
+
+export async function setFfmpegPath(path: string): Promise<void> {
+  const store = await getStore();
+  const trimmed = path.trim();
+  if (trimmed) {
+    store.set("ffmpegPath", trimmed);
+    process.env.FFMPEG_PATH = trimmed;
+  } else {
+    store.set("ffmpegPath", "");
+    delete process.env.FFMPEG_PATH;
+  }
 }
 
 export async function getBlenderPath(): Promise<string> {

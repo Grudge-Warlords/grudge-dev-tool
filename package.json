@@ -1,7 +1,7 @@
 {
   "name": "grudge-dev-tool",
-  "version": "0.9.6",
-  "description": "Grudge Studio — ONE TRUTH shell for assets, games, Forge AI (texture/edit/scene completion), and Agent AI (grudge-dev CLI + Windows tray).",
+  "version": "0.9.7",
+  "description": "Grudge Studio admin shell — ONE TRUTH, Forge (DNS parity), Preview playtests, Coder, Assets, Agent AI, grudge-dev CLI.",
   "private": true,
   "homepage": "https://grudge-warlords.github.io/grudge-dev-tool/",
   "repository": {
@@ -47,6 +47,8 @@
     "secret:verify": "node scripts/verify-creds.mjs",
     "secret:session": "node scripts/verify-session-admin.mjs",
     "verify:stack": "npm run secret:verify && npm run secret:session && npm run doctor && npm run fleet:probe",
+    "toolchain:install": "node scripts/install-toolchain.mjs",
+    "toolchain:probe": "node scripts/probe-toolchain.mjs",
     "publish:manual": "node scripts/publish-manual.mjs --bump patch",
     "publish:manual:minor": "node scripts/publish-manual.mjs --bump minor",
     "publish:manual:major": "node scripts/publish-manual.mjs --bump major",
@@ -60,6 +62,7 @@
     "@gltf-transform/functions": "^4.3.0",
     "@heyputer/puter.js": "^2.2.15",
     "@tanstack/react-query": "^5.51.1",
+    "bs58": "^5.0.0",
     "electron-log": "^5.1.7",
     "electron-store": "^10.0.0",
     "electron-updater": "^6.2.1",
@@ -69,6 +72,7 @@
     "meshoptimizer": "^0.22.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "sharp": "^0.33.5",
     "sonner": "^1.5.0",
     "three": "^0.169.0"
   },
@@ -88,7 +92,6 @@
     "electron-builder": "^26.8.1",
     "png-to-ico": "^2.1.8",
     "postcss": "^8.4.39",
-    "sharp": "^0.33.4",
     "tailwindcss": "^3.4.6",
     "tsx": "^4.16.2",
     "typescript": "^5.7.0",

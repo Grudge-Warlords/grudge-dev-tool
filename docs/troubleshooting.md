@@ -28,7 +28,7 @@ By design. The window starts hidden. Left-click the tray icon to toggle the **Gr
 **Fix.** Resolved in **v0.1.2** — paths switched to `./logo-256.png` (relative). The loader title bar also has an `onError` fallback that swaps to `./favicon.ico` if the primary logo is missing.
 ### Mysterious "syntax error" / red text in DevTools console
 **Cause.** It's almost never a JavaScript SyntaxError. It's a **Content-Security-Policy violation** message that reads similarly. Check for `Refused to connect to '<url>' because it violates the following Content Security Policy directive`.
-**Fix.** Resolved in **v0.1.1** — `connect-src` whitelist now includes `https://api.grudge-studio.com`, `https://*.grudge-studio.com`, `https://js.puter.com`, and `http://127.0.0.1:*` (BlenderKit daemon). If you've added a new backend host, edit the CSP in `src/renderer/index.html` and `loader.html`.
+**Fix.** CSP `connect-src` must allow `https://*.grudge-studio.com`, `https://client.grudge-studio.com`, `https://js.puter.com`, `http://127.0.0.1:*` (BlenderKit / Ollama). **Do not** rely on deprecated `api.grudge-studio.com`. Edit CSP in `src/renderer/index.html` and `loader.html` when adding hosts.
 ### "ONE TRUTH degraded" or yellow dot in the status bar
 **Cause.** v0.5+ runs six fleet probes (same as `grudge-dev doctor`) every 30s. A score below 85% means a rewrite is broken or `apiBase` points at the wrong host (e.g. `grudgewarlords.com` frontend instead of `client.grudge-studio.com`).
 **Fix.** Settings → **ONE TRUTH** preset (sets `https://client.grudge-studio.com` and clears legacy `assets-api` override). Confirm with `grudge-dev doctor`. Overrides live in Windows Credential Vault under `grudge-dev-tool` / `default.apiBaseUrl`.

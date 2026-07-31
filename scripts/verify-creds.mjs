@@ -25,10 +25,13 @@ const REQUIRED = [
   ["CF account id",     "cf-account-id",        false],
   ["AI gateway id",     "cf-ai-gateway-id",     false],
   ["AI Workers token",  "cf-ai-workers-api",    false],
-  // Grudge backend overrides + identity
+  // Grudge backend overrides + identity (ONE TRUTH)
   ["game-api base",     "default.apiBaseUrl",   false],
   ["assets-api base",   "default.assetsApiBaseUrl", false],
+  ["Grudge ID gateway", "fleet.idBase",         false],
+  ["Game data Railway", "fleet.gameDataUrl",    false],
   ["Grudge bearer",     "default",              false],
+  ["Backend mode",      "backend-mode",         false],
   // Puter session (set on first sign-in)
   ["Puter token",       "puter-token",          false],
   ["Puter user",        "puter-user",           false],
@@ -78,11 +81,48 @@ async function main() {
   console.log(`Optional:  ${okOptional} stored`);
   console.log("");
 
+  // Host SSOT audit — never print secrets; only flag bad URL-shaped values
+  const badHosts = [];
+  const urlAccounts = [
+    "default.apiBaseUrl",
+    "default.assetsApiBaseUrl",
+    "fleet.idBase",
+    "fleet.gameDataUrl",
+    "cf-r2-endpoint",
+    "cf-r2-public-url",
+    "cf-objectstore-worker-url",
+    "legion.hubUrl",
+  ];
+  for (const account of urlAccounts) {
+    const v = await keytar.getPassword(SERVICE, account);
+    if (!v) continue;
+    if (/auth\.grudge-studio\.com/i.test(v)) {
+      badHosts.push(`${account} uses auth.grudge-studio.com (use id.grudge-studio.com)`);
+    }
+    if (account === "default.apiBaseUrl" && /api\.grudge-studio\.com/i.test(v)) {
+      badHosts.push(`${account} uses deprecated api.grudge-studio.com (use client.grudge-studio.com)`);
+    }
+    if (account === "cf-r2-endpoint" && /objectstore\.grudge-studio\.com|assets\.grudge-studio\.com/i.test(v)) {
+      badHosts.push(`${account} is Worker/CDN, not S3 endpoint (need *.r2.cloudflarestorage.com)`);
+    }
+    if (/github\.io\/ObjectStore/i.test(v)) {
+      badHosts.push(`${account} uses github.io ObjectStore (use objectstore.grudge-studio.com)`);
+    }
+  }
+  if (badHosts.length) {
+    console.log("⚠ Host SSOT problems:");
+    badHosts.forEach((m) => console.log(`  · ${m}`));
+    console.log("");
+  } else {
+    console.log("✅ No deprecated auth/api/github.io hosts in vault URL entries.");
+  }
+
   if (missingRequired > 0) {
     console.log("⚠ Required entries are missing. Re-run `npm run secret:import <path-to-.env>`");
     console.log("  with a file containing the OBJECT_STORAGE_* canonical names.");
     process.exit(2);
   }
+  if (badHosts.length) process.exit(3);
   console.log("✅ All required runtime credentials are present in the Credential Vault.");
   console.log("   The installed dev tool will resolve them on next launch.");
 }

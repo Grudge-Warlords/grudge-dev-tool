@@ -164,9 +164,9 @@ export default function Legion() {
         <div className="px-4 py-2 border-b border-line flex items-center gap-3 bg-bg-2/50">
           <Bot size={18} className="text-gold" />
           <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-semibold">Legion Orchestrator</h1>
+            <h1 className="text-sm font-semibold">Legion Chat · Fleet AI</h1>
             <p className="text-[10px] text-muted truncate">
-              {health?.hub?.url ?? "ai.grudge-studio.com"}
+              {health?.hub?.url ?? "ai.grudge-studio.com"} · not Coder AI hub
               {health?.hasFleetKey ? " · fleet key ✓" : " · no fleet key"}
               {whisper?.ok ? ` · whisper: ${whisper.model}` : " · whisper offline"}
             </p>

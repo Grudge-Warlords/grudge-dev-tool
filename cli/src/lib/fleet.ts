@@ -10,6 +10,7 @@ export const FLEET_URLS = {
   ai: "https://ai.grudge-studio.com",
   warlords: "https://grudgewarlords.com",
   forge: "https://forge.grudge-studio.com",
+  pipeline: "https://grudge-pipeline.vercel.app",
   /** @deprecated never use for new work */
   deprecatedApi: "https://api.grudge-studio.com",
 } as const;

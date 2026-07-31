@@ -18,7 +18,18 @@ import log from "./logger";
  * mounted we send `forge:openFile` directly.
  */
 
-const SUPPORTED_EXTS = new Set([".glb", ".gltf", ".obj", ".fbx", ".stl", ".ply", ".dae", ".3mf"]);
+const SUPPORTED_EXTS = new Set([
+  ".glb",
+  ".gltf",
+  ".obj",
+  ".fbx",
+  ".stl",
+  ".ply",
+  ".dae",
+  ".3mf",
+  ".json", // .gfscene.json (scene graph — loaded when renderer supports it)
+  ".gfscene",
+]);
 const ALLOWED_REMOTE_HOSTS = /(^|\.)(grudge-studio\.com|grudgewarlords\.com|localhost)$/i;
 
 let pendingPath: string | null = null;
@@ -53,8 +64,8 @@ export function captureSecondInstanceArgv(argv: string[], mainWindow: BrowserWin
   log.info("Forge: second-instance file:", path);
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("forge:openFile", { path, name: basename(path) });
-    // Also navigate to the Forge page so the user actually sees the file.
-    mainWindow.webContents.send("nav", "/forge");
+    // Local Forge 3D tools for filesystem models
+    mainWindow.webContents.send("nav", "/forge-local");
   } else {
     pendingPath = path;
   }
@@ -165,7 +176,8 @@ export async function openRemoteModel(url: string, mainWindow: BrowserWindow | n
     if (!mainWindow.isVisible()) mainWindow.show();
     mainWindow.focus();
     mainWindow.webContents.send("forge:openFile", { path, name });
-    mainWindow.webContents.send("nav", "/forge");
+    // Local tools page (Forge3D) — not the production Forge webview
+    mainWindow.webContents.send("nav", "/forge-local");
   } else {
     pendingPath = path;
   }

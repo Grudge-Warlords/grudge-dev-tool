@@ -130,7 +130,8 @@ export default function GrudgeStore() {
         <Store size={20} className="text-gold" /> Grudge Store
       </h1>
       <p className="page-sub">
-        Fleet asset storefront — JSON catalogs from ONE TRUTH objectstore, CDN previews, Forge 3D open.
+        Admin storefront — ObjectStore + <span className="font-mono text-[11px]">info.grudge-studio.com</span>{" "}
+        JSON catalogs · CDN previews · open in Forge. Not a second mesh authority — production GLBs stay on R2.
         CDN: <span className="font-mono text-gold">{cdnBase}</span>
       </p>
 
