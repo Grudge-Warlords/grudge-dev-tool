@@ -112,8 +112,16 @@ body {
   padding: 20px 28px;
 }
 .content.content--full {
-  padding: 12px 16px 0;
+  /* Zero padding so editor surfaces (Skeleton, Forge, Preview) fill the shell */
+  padding: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.content.content--full > .flex-1 {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* —— Studio Hub —— */
