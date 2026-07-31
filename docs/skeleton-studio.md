@@ -9,21 +9,36 @@ permalink: /skeleton-studio.html
 # Skeleton Studio
 
 **Dev Tool route:** `/skeleton` (admin)  
-**Product role:** local retarget pipeline → **grudge-convert** → R2/CDN → Forge.
+**Product role:** **wired** Mixamo-25 wizard → **grudge-convert** → R2/CDN → Forge.
 
 See [Admin architecture](admin-architecture.md).
+
+## Actionable steps (not labels)
+
+Each step tab **runs or focuses a real pipeline action**:
+
+| Step | What it does |
+|------|----------------|
+| **Load** | File picker → viewport + AnimationMixer + skeleton helper |
+| **Extract** | `skeleton:extract` (convert FBX if needed, textures + clips) |
+| **T-pose** | Blender rest pose via `skeleton:tpose` (+ optional Ollama hint) |
+| **Place** | Auto-map Mixamo-25 + click mesh to place bones (snap nearest joint) |
+| **Skills** | Clip → skill slot map; retarget clips from another pack |
+| **Export** | Build library v2 → install Documents and/or upload R2 |
+| **Libraries** | Local packs + fleet `models/anims` search |
+
+Toolbar always: **Open model** · **Convert GLB** (`ingest:convert`).
 
 ## Pipeline
 
 1. **Load** FBX / GLB / OBJ  
-2. **Extract** — textures + animations (convert → glTF-Transform)  
-3. **Auto-map** — joint names → Mixamo-25 (`autoMapBonesFromNames`: Mixamo, Bip001, CC aliases)  
-4. **AI T-pose** — Blender rest-pose T arms; optional Ollama hint polish  
-5. **Place** — click mesh to place Mixamo-25 markers (snaps to nearest source bone)  
-6. **Retarget** — pull clips from another FBX/GLB onto the loaded character  
-7. **Skills** — clips auto-map to Grudge anim skill slots (editable)  
-8. **Export library** — pack for retarget / R2 / Documents libraries  
-9. **Ship** — bake with grudge-convert → upload → CDN key → open in Forge  
+2. **Extract** — textures + animations  
+3. **Auto-map** — Mixamo / Bip001 / CC aliases  
+4. **T-pose** — Blender  
+5. **Place** — Mixamo-25 markers  
+6. **Skills / retarget**  
+7. **Export** → Documents / R2 `models/anims/libraries/`  
+8. **Ship** — CDN → open in Forge
 
 ## Mixamo-25 core bones
 
