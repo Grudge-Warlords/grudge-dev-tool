@@ -61,6 +61,15 @@ export const DOCS_CATALOG: DocEntry[] = [
     primary: true,
   },
   {
+    id: "vercel-fleet",
+    title: "Vercel fleet SSOT",
+    file: "VERCEL_FLEET_SSOT.md",
+    pagesPath: "/VERCEL_FLEET_SSOT.html",
+    description: "No placeholders; custom domains; probe script; anti-404 deploy rules.",
+    group: "production",
+    primary: true,
+  },
+  {
     id: "production-deployment",
     title: "Production deployment",
     file: "production-deployment.md",

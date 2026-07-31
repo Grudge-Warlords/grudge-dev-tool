@@ -64,7 +64,7 @@ export function mergeFleetGames(staticGames: FleetGame[], liveRaw: unknown[]): F
       name: repo || displayName,
       displayName: displayName || repo || id,
       description: description || "Live entry from grudgedot.",
-      url: url || (repo ? `https://github.com/MolochDaGod/${repo}` : "https://grudgedot.vercel.app"),
+      url: url || (repo ? `https://github.com/MolochDaGod/${repo}` : "https://open.grudge-studio.com"),
       repo: repo || id,
       engine: engine || "Web",
       status: status && ["live", "active", "beta", "planned"].includes(status) ? status : "beta",

@@ -38,6 +38,7 @@
     "doctor": "tsx cli/src/cli.ts doctor",
     "doctor:json": "tsx cli/src/cli.ts doctor --json",
     "fleet:probe": "tsx scripts/fleet-probe.mjs",
+    "fleet:probe:vercel": "tsx scripts/probe-vercel-fleet.mjs",
     "ci": "npm run typecheck && npm run fleet:probe",
     "rebuild:native": "npx @electron/rebuild -f -w keytar,sharp",
     "upload-pack": "tsx scripts/upload-asset-pack.ts",

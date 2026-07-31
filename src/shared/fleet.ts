@@ -45,7 +45,8 @@ export const FLEET_URLS = {
   forge: "https://forge.grudge-studio.com",
   /**
    * Grok Builder — agentic Three.js + Rapier editor (Open + Dev Tool primary builder).
-   * Local: http://localhost:5190 · Prod: set after Vercel deploy / custom domain.
+   * Prod: Vercel project `grok-builder` (grudgenexus). Local: http://localhost:5190.
+   * Custom DNS `builder.grudge-studio.com` is optional — do not hardcode until CNAME is live.
    */
   grokBuilder: "https://grok-builder.vercel.app",
   /**
