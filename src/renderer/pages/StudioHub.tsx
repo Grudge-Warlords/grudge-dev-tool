@@ -17,13 +17,16 @@ import {
   Play,
   ChevronDown,
   ChevronRight,
+  Bone,
+  Sparkles,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { FLEET_URLS, TRUTH_HEALTH_THRESHOLD, buildTruthProbes, type TruthProbe } from "../../shared/fleet";
 import { FLEET_GAMES, type FleetGame } from "../../shared/fleetGames";
 
-/** Daily work — production admin loop. */
+/** Daily production admin loop — order matches real work. */
 const PRIMARY: Array<{
   id: string;
   label: string;
@@ -33,18 +36,19 @@ const PRIMARY: Array<{
   adminOnly?: boolean;
 }> = [
   {
-    id: "games",
-    label: "Play Games",
-    desc: "Open · client · GRUDOX · Warlords catalog",
-    route: "/games",
-    Icon: Gamepad2,
-  },
-  {
     id: "assets",
     label: "Assets",
-    desc: "R2 · Agent search · Viewer · send to Forge",
+    desc: "R2 · search · Viewer · Forge / Skeleton",
     route: "/browser",
     Icon: FolderTree,
+  },
+  {
+    id: "skeleton",
+    label: "Skeleton",
+    desc: "Mixamo-25 · extract · T-pose · retarget pack",
+    route: "/skeleton",
+    Icon: Bone,
+    adminOnly: true,
   },
   {
     id: "forge",
@@ -57,10 +61,32 @@ const PRIMARY: Array<{
   {
     id: "preview",
     label: "Preview",
-    desc: "Play-mode clients after Forge publish",
+    desc: "Play-test open / client / water / GRUDOX",
     route: "/preview",
     Icon: Play,
     adminOnly: true,
+  },
+  {
+    id: "builder",
+    label: "Grok Builder",
+    desc: "Agentic Three.js + Rapier scene builder",
+    route: "/builder",
+    Icon: Sparkles,
+  },
+  {
+    id: "upload",
+    label: "Upload",
+    desc: "Convert · verify · push packs to R2",
+    route: "/upload",
+    Icon: Upload,
+    adminOnly: true,
+  },
+  {
+    id: "games",
+    label: "Play Games",
+    desc: "Open · client · GRUDOX · Warlords catalog",
+    route: "/games",
+    Icon: Gamepad2,
   },
   {
     id: "ai",

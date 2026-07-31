@@ -9,6 +9,19 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - **Local textures** — on import, scan same folder + pack roots (`textures/`, `maps/`, …) and auto-apply PBR maps via IPC `listSiblingTextures` / `readLocalImage`.
 - **Selection pulse** — weaker gold emissive, auto-clears so assets don't stay yellow.
 
+## [0.9.8] — 2026-07-31
+
+### Added
+- **Skeleton Studio wizard** — step tabs run real actions (extract / T-pose / place / export); drag-drop FBX/GLB; Blender/FBX2glTF readiness strip; Assets → Skeleton handoff.
+- **Assets → Skeleton** — Bone button on 3D preview downloads CDN model and opens Skeleton Studio.
+- **Vercel fleet SSOT** — `docs/VERCEL_FLEET_SSOT.md` + `npm run fleet:probe:vercel` (P0 host probe).
+- **Grok Builder webview** — full-height Electron embed of `grok-builder.vercel.app` (same pattern as Forge).
+
+### Changed
+- **Home primary actions** — Assets → Skeleton → Forge → Preview → Grok Builder → Upload → Games → AI.
+- **Nav** — Skeleton + Grok Builder on primary rail; full-height for builder/upload.
+- Fleet play URLs prefer custom domains (arena / armada); grudgedot dead URL removed.
+
 ## [0.9.7] — 2026-07-31
 
 ### Added

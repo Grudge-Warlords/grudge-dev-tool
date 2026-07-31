@@ -155,6 +155,10 @@ export default function SkeletonStudio() {
   );
   const [slotOverrides, setSlotOverrides] = useState<Record<string, string>>({});
   const [apiOk, setApiOk] = useState(true);
+  const [tools, setTools] = useState<{
+    blender?: { available?: boolean; path?: string; version?: string };
+    fbx2gltf?: { available?: boolean; path?: string };
+  } | null>(null);
 
   // Scene host
   useEffect(() => {
@@ -182,6 +186,19 @@ export default function SkeletonStudio() {
 
   useEffect(() => {
     setApiOk(apiReady());
+    void window.grudge?.settings?.toolchain?.().then((t: any) => {
+      // toolchain may be array or keyed object depending on main shape
+      if (Array.isArray(t)) {
+        const blender = t.find((x: any) => /blender/i.test(x?.name || ""));
+        const fbx = t.find((x: any) => /fbx2gltf|fbx/i.test(x?.name || ""));
+        setTools({ blender, fbx2gltf: fbx });
+      } else if (t && typeof t === "object") {
+        setTools({
+          blender: t.blender || t.Blender,
+          fbx2gltf: t.fbx2gltf || t.FBX2glTF,
+        });
+      }
+    }).catch(() => setTools(null));
   }, []);
 
   const rebuildMarkers = useCallback(
@@ -323,6 +340,20 @@ export default function SkeletonStudio() {
       setBusy(false);
     }
   }
+
+  // Consume pending path from Assets → Skeleton handoff (after loadFromPath exists)
+  useEffect(() => {
+    try {
+      const pending = sessionStorage.getItem("grudge.skeleton.pendingPath");
+      if (pending) {
+        sessionStorage.removeItem("grudge.skeleton.pendingPath");
+        void loadFromPath(pending);
+      }
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only handoff
+  }, []);
 
   async function pickFile() {
     if (!window.grudge?.files?.pickForUpload) {
@@ -794,8 +825,35 @@ export default function SkeletonStudio() {
     libraries: libraries.length > 0,
   };
 
+  const onFileDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!/\.(fbx|glb|gltf|obj)$/i.test(file.name)) {
+      toast.error("Drop an FBX, GLB, GLTF, or OBJ");
+      return;
+    }
+    try {
+      const p = window.grudge?.files?.getPathForFile?.(file);
+      if (p) void loadFromPath(p);
+      else toast.error("Could not resolve file path — use Open model");
+    } catch (err: unknown) {
+      toast.error("Drop failed", {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#070a12] text-slate-100">
+    <div
+      className="flex h-full min-h-0 flex-col bg-[#070a12] text-slate-100"
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }}
+      onDrop={onFileDrop}
+    >
       {/* Header + actionable steps */}
       <header className="shrink-0 border-b border-white/10 bg-black/40">
         <div className="flex flex-wrap items-center gap-2 px-3 py-2">
@@ -863,9 +921,30 @@ export default function SkeletonStudio() {
             );
           })}
         </nav>
-        <div className="border-t border-white/5 px-3 py-1 text-[10px] text-slate-400 font-mono truncate">
-          {busy ? "Working…" : statusLine}
-          {diskPath ? ` · ${diskPath.split(/[/\\]/).pop()}` : ""}
+        <div className="border-t border-white/5 px-3 py-1 text-[10px] text-slate-400 font-mono truncate flex flex-wrap gap-x-3 gap-y-0.5">
+          <span>
+            {busy ? "Working…" : statusLine}
+            {diskPath ? ` · ${diskPath.split(/[/\\]/).pop()}` : ""}
+          </span>
+          <span className="text-slate-600">
+            Blender:{" "}
+            {tools?.blender?.available === true ? (
+              <span className="text-emerald-400">ready</span>
+            ) : tools?.blender?.available === false ? (
+              <span className="text-amber-400">missing (T-pose needs Blender)</span>
+            ) : (
+              <span className="text-slate-500">…</span>
+            )}
+            {" · "}
+            FBX2glTF:{" "}
+            {tools?.fbx2gltf?.available === true ? (
+              <span className="text-emerald-400">ready</span>
+            ) : tools?.fbx2gltf?.available === false ? (
+              <span className="text-amber-400">optional</span>
+            ) : (
+              <span className="text-slate-500">…</span>
+            )}
+          </span>
         </div>
       </header>
 
@@ -874,12 +953,12 @@ export default function SkeletonStudio() {
         <div className="relative min-h-0 min-w-0 flex-1 bg-[#0a0e1a]">
           <div ref={viewportRef} className="absolute inset-0" />
           {!model && (
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6">
+            <div className="pointer-events-none absolute inset-0 z-[2] flex flex-col items-center justify-center gap-3 text-center px-6">
               <Bone className="h-10 w-10 text-cyan-500/40" />
               <p className="text-sm text-slate-300">No character loaded</p>
               <p className="text-[11px] text-slate-500 max-w-sm">
-                Use <strong className="text-cyan-300">Open model</strong> or step{" "}
-                <strong>1. Load</strong> — pick FBX/GLB with a humanoid skeleton.
+                <strong className="text-cyan-300">Drop</strong> an FBX/GLB anywhere on this page, or{" "}
+                <strong className="text-cyan-300">Open model</strong> — needs a humanoid skeleton.
               </p>
             </div>
           )}

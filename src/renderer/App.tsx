@@ -95,16 +95,16 @@ interface NavEntry {
 const NAV: NavEntry[] = [
   { route: "/studio", label: "Home", Icon: HomeIcon, primary: true },
   { route: "/browser", label: "Assets", Icon: FolderTree, primary: true },
-  { route: "/games", label: "Games", Icon: Gamepad2, primary: true },
+  { route: "/skeleton", label: "Skeleton", Icon: Bone, primary: true, adminOnly: true },
   { route: "/forge", label: "Forge", Icon: Hammer, primary: true, adminOnly: true },
   { route: "/preview", label: "Preview", Icon: Globe, primary: true, adminOnly: true },
+  { route: "/builder", label: "Grok Builder", Icon: Hammer, primary: true },
+  { route: "/games", label: "Games", Icon: Gamepad2, primary: true },
   { route: "/ai", label: "Agent AI", Icon: Bot, primary: true },
   { route: "/search", label: "Search", Icon: SearchIcon },
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true },
   { route: "/request", label: "Request URL", Icon: Link2, adminOnly: true },
   { route: "/library", label: "Store", Icon: Store },
-  { route: "/skeleton", label: "Skeleton", Icon: Bone, adminOnly: true },
-  { route: "/builder", label: "Grok Builder", Icon: Hammer },
   { route: "/play", label: "Play Modes", Icon: Play, adminOnly: true },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
   { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
@@ -138,12 +138,15 @@ const ROUTE_ALIASES: Record<string, Route> = {
 const FULL_HEIGHT_ROUTES = new Set<string>([
   "/games",
   "/forge",
+  "/forge-local",
   "/skeleton",
+  "/builder",
   "/coder",
   "/ai",
   "/legion",
   "/preview",
   "/browser",
+  "/upload",
 ]);
 
 const APP_VERSION =

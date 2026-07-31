@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import {
   X, Copy, ExternalLink, Download, FileText, Image as ImageIcon,
   Music, Video as VideoIcon, Box, FileType2, FileQuestion,
-  Maximize2, Layers3, Hammer,
+  Maximize2, Layers3, Hammer, Bone,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -79,6 +79,32 @@ export default function AssetPreview(props: {
         else toast.error(r?.error ?? "Failed to send to Forge");
       })
       .catch(() => toast.error("Could not send to Forge"));
+  };
+  /** Download CDN model → open Skeleton Studio with local path. */
+  const sendSkeleton = () => {
+    void (async () => {
+      try {
+        toast.message("Downloading for Skeleton Studio…");
+        const opened = await window.grudge?.forge?.openRemote?.(asset.url);
+        const path = opened?.path as string | undefined;
+        if (!path) {
+          toast.error("Could not download model for Skeleton");
+          return;
+        }
+        try {
+          sessionStorage.setItem("grudge.skeleton.pendingPath", path);
+        } catch {
+          /* ignore */
+        }
+        onClose();
+        await window.grudge?.app?.openRoute?.("/skeleton");
+        toast.success("Opened in Skeleton Studio", { description: asset.name });
+      } catch (e: unknown) {
+        toast.error("Send to Skeleton failed", {
+          description: e instanceof Error ? e.message : String(e),
+        });
+      }
+    })();
   };
 
   return (
@@ -160,14 +186,24 @@ export default function AssetPreview(props: {
           <Maximize2 size={14} />
         </button>
         {(kind === "model3d" || kind === "scene3d") && (
-          <button
-            type="button"
-            title="Add to Forge 3D scene"
-            onClick={sendForge}
-            style={{ ...iconBtn, color: "var(--ok)", borderColor: "var(--ok)" }}
-          >
-            <Hammer size={14} />
-          </button>
+          <>
+            <button
+              type="button"
+              title="Add to Forge 3D scene"
+              onClick={sendForge}
+              style={{ ...iconBtn, color: "var(--ok)", borderColor: "var(--ok)" }}
+            >
+              <Hammer size={14} />
+            </button>
+            <button
+              type="button"
+              title="Open in Skeleton Studio (Mixamo-25 / retarget)"
+              onClick={sendSkeleton}
+              style={{ ...iconBtn, color: "#67e8f9", borderColor: "#0891b2" }}
+            >
+              <Bone size={14} />
+            </button>
+          </>
         )}
         <button
           type="button"
