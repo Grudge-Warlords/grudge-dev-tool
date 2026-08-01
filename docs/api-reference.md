@@ -20,7 +20,7 @@ permalink: /api-reference.html
 Non-public routes need `Authorization: Bearer <JWT>` or local `X-Admin-Password`.  
 Validate with `grudge-dev doctor` (JSON only — no HTML SPA leaks).
 
-Full host map: [Systems & APIs](systems-api.md) · [ONE TRUTH](one-truth.md).
+Full host map: [Systems & APIs](systems-api.md) · [ONE TRUTH](one-truth.md) · [Databases · sharing · backups](database-backups-sharing.md).
 
 ---
 

@@ -37,6 +37,8 @@ Full link table: [Systems & APIs](systems-api.md).
 
 **Multiverse ≠ Metaverse.** Multiverse multiplayer does **not** use Carrier (`/api/carrier`) or gameopen-production — it uses its dedicated Railway and `/api/mv`.
 
+**Player DB backups / sharing:** Railway Postgres is the only bag/character SSOT — see [Databases · sharing · backups](database-backups-sharing.md).
+
 ## Deprecated (split-brain)
 
 - `api.grudge-studio.com` (old tunnel / portal HTML)

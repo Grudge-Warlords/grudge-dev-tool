@@ -126,4 +126,4 @@ grudge-dev upload-pack --root "C:\packs\MyPack" --pack-id my-pack --dry-run
 | [objectstore](https://objectstore.grudge-studio.com/api/v1) / [info](https://info.grudge-studio.com/api/v1) | Catalogs |
 | [grudge-studio.com](https://grudge-studio.com) | Portal / ENGINE |
 
-Full map: [Systems & APIs](systems-api.md) · [API reference](api-reference.md) · [Production deployment](production-deployment.md).
+Full map: [Systems & APIs](systems-api.md) · [Databases · sharing · backups](database-backups-sharing.md) · [API reference](api-reference.md) · [Production deployment](production-deployment.md).

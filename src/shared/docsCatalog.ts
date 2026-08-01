@@ -96,6 +96,16 @@ export const DOCS_CATALOG: DocEntry[] = [
     group: "production",
   },
   {
+    id: "database-backups",
+    title: "Databases · sharing · backups",
+    file: "database-backups-sharing.md",
+    pagesPath: "/database-backups-sharing.html",
+    description:
+      "Multi-store map, cross-game sharing scopes, parallel Postgres dumps (PlanetScale-inspired).",
+    group: "production",
+    primary: true,
+  },
+  {
     id: "object-storage",
     title: "Object storage",
     file: "object-storage.md",

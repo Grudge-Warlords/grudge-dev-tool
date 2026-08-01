@@ -32,3 +32,6 @@ secrets.*.txt
 *.key
 classic64-dry-run.json
 manifest-preview-*.json
+
+# Database dumps (scripts/backup-postgres.mjs) — never commit player data
+backups/

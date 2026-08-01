@@ -80,6 +80,12 @@ Workers AI models are env-overridable: `CF_AI_DEFAULT_MODEL` (default `@cf/meta/
 | Multiverse rooms | `https://grudge-multiverse-room-production.up.railway.app` | WS `/api/mv` only (own Railway) |
 | **Deprecated** | `https://api.grudge-studio.com` | **do not use** |
 
+### Databases · sharing · backups
+
+- Pages SSOT: `docs/database-backups-sharing.md` → https://grudge-warlords.github.io/grudge-dev-tool/database-backups-sharing.html  
+- Parallel dump: `npm run backup:postgres` (`scripts/backup-postgres.mjs`) — requires `DATABASE_URL` + `pg`; never commit `backups/`.  
+- Player SSOT = Railway Postgres only; account bag shared; character XP scoped; D1/R2 are index/binaries.
+
 ### Production quality bar (assets + AI)
 
 1. **Browse** R2/ObjectStore in Dev Tool → preview + always-on-top Asset Viewer → send 3D to Forge (CDN URL).  

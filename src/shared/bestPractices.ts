@@ -232,6 +232,41 @@ export const STORAGE_BEST_PRACTICES = {
     category: "storage" as const,
     surfaces: ["assets", "devtools", "pipeline"] as const,
   },
+  postgresSsot: {
+    id: "postgres-player-ssot",
+    title: "Postgres is player SSOT",
+    rule: "Railway Postgres (grudge-api-production-0d46) owns users/characters/account bag/island/wallet. Never dual-write heroes to D1 or room Railways as authority.",
+    category: "storage" as const,
+    surfaces: ["devtools", "deploy", "ai"] as const,
+  },
+  dataSharing: {
+    id: "data-sharing-scopes",
+    title: "Cross-game data sharing scopes",
+    rule: "Account bag/GBUX shared across eras; character XP/equipment per UUID; definitions via ObjectStore; meshes via R2. Games share only through fleet REST + catalogs — never browser DATABASE_URL.",
+    category: "storage" as const,
+    surfaces: ["devtools", "deploy", "ai"] as const,
+  },
+  postgresBackup: {
+    id: "postgres-backup-parallel",
+    title: "Postgres backups (parallel + boring)",
+    rule: "Off-request-path dumps only. Prefer parallel table logical dumps (scripts/backup-postgres.mjs) + meta time T; optional Docker pg_dump. Offsite to R2 backups/postgres/<service>/<stamp>/. Prove restore weekly. Inspired by PlanetScale base+WAL off-primary workers — grow to WAL archive when dump window risks RPO.",
+    category: "storage" as const,
+    surfaces: ["devtools", "deploy", "ai"] as const,
+  },
+  backupNoGit: {
+    id: "backup-artifacts-private",
+    title: "Backup artifacts never in git",
+    rule: "backups/ is local/private only. No dumps in commits. DATABASE_URL only in Railway/keytar. Restore drills use staging credentials, never half-restored prod.",
+    category: "storage" as const,
+    surfaces: ["devtools", "deploy"] as const,
+  },
+  d1R2Backup: {
+    id: "d1-r2-backup-recovery",
+    title: "D1 / R2 recovery paths",
+    rule: "D1: wrangler d1 export or re-seed from manifests. R2: versioned keys + re-upload from convert pipeline. ObjectStore JSON: git history. Room Railways are ephemeral — durable progress must live on player Postgres.",
+    category: "storage" as const,
+    surfaces: ["assets", "devtools", "deploy"] as const,
+  },
 } as const satisfies Record<string, BestPractice>;
 
 // ─── Cloudflare Stream (video / cinema / capture) ────────────────────────────
@@ -482,6 +517,7 @@ export function agentBestPracticesCompact(): string {
     "- Forge tab = forge.grudge-studio.com (same DNS). Preview = play clients. Coder = coder.grudge-studio.com.",
     "- Admin APIs: client · id · Railway · objectstore · info.* · assets · open · grudox · multiverse · engine portal.",
     "- Multiverse: SPA grudge-multiverse.vercel.app + Railway /api/mv (own service, not Carrier).",
+    "- DB: player SSOT = Railway Postgres; dump via npm run backup:postgres (parallel tables); never commit backups/; share bag via account APIs not D1.",
   ].join("\n");
 }
 

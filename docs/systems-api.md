@@ -53,6 +53,8 @@ grudge-dev doctor
 | D1 `grudge-assets-db` / ObjectStore D1 | **Index only** — never player bag/XP |
 | Railway Postgres | Characters, bag, island, wallet SSOT |
 
+**Backups & sharing:** [Databases · sharing · backups](database-backups-sharing.md) — parallel Postgres dumps, account vs character scopes, D1/R2 recovery.
+
 See [Object storage](object-storage.md) · [AI · D1 · R2 · Stream](ai-workers-d1-r2-stream.md).
 
 ---

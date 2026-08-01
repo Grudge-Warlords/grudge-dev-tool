@@ -35,7 +35,22 @@ description: ONE TRUTH production deploy map for Grudge Dev Tool, Forge, AI work
 
 **Never use** `api.grudge-studio.com` for new wiring (deprecated split-brain).
 
-**Docs site pages (all from `docs/`):** [Home](./) · [Systems & APIs](systems-api.md) · [Admin architecture](admin-architecture.md) · [ONE TRUTH](one-truth.md) · [API reference](api-reference.md) · [Object storage](object-storage.md) · [AI · D1 · R2 · Stream](ai-workers-d1-r2-stream.md) · [Quickstart](dev-tool-quickstart.md) · [CLI](cli-quickstart.md).
+**Docs site pages (all from `docs/`):** [Home](./) · [Systems & APIs](systems-api.md) · [Admin architecture](admin-architecture.md) · [ONE TRUTH](one-truth.md) · [Databases · sharing · backups](database-backups-sharing.md) · [API reference](api-reference.md) · [Object storage](object-storage.md) · [AI · D1 · R2 · Stream](ai-workers-d1-r2-stream.md) · [Quickstart](dev-tool-quickstart.md) · [CLI](cli-quickstart.md).
+
+### Database backups (ops)
+
+```powershell
+# Player SSOT — parallel logical dump (requires DATABASE_URL + npm i -D pg)
+$env:DATABASE_URL = "<Railway Postgres public URL>"
+npm run backup:postgres
+# → backups/<stamp>/meta.json + tables/*.jsonl.gz   (gitignored)
+
+# Optional full custom dump via Docker
+npm run backup:postgres -- --pg-dump
+```
+
+Full map (sharing scopes, RPO, D1/R2 recovery, PlanetScale-inspired growth path):  
+[Databases · sharing · backups](database-backups-sharing.md).
 
 ## Secrets (Windows Credential Vault + CI)
 

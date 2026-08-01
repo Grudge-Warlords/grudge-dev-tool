@@ -4,6 +4,9 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Added
+- **Databases · sharing · backups** — Pages doc + `scripts/backup-postgres.mjs` (parallel table dumps, meta time T, optional Docker `pg_dump`). Best practices for account/character scopes, R2 offsite dumps, D1/R2 recovery. Inspired by [PlanetScale massively parallel Postgres backups](https://planetscale.com/blog/massively-parallel-postgres-backups).
+
 ### Changed
 - **Fleet SSOT + docs** — **Grudge Multiverse** live hosts: SPA `grudge-multiverse.vercel.app`, dedicated Railway `grudge-multiverse-room-production` with WS **`/api/mv`** (not Carrier / gameopen). Preview preset, Games catalog, admin hosts, systems-api / one-truth / production-deployment / admin-architecture / Vercel SSOT updated. Multiverse ≠ Metaverse.
 
