@@ -41,6 +41,7 @@
     "fleet:probe:vercel": "tsx scripts/probe-vercel-fleet.mjs",
     "backup:postgres": "node scripts/backup-postgres.mjs",
     "backup:postgres:list": "node scripts/backup-postgres.mjs --list-tables",
+    "audit:workers": "node scripts/audit-workers-config.mjs",
     "ci": "npm run typecheck && npm run fleet:probe",
     "rebuild:native": "npx @electron/rebuild -f -w keytar,sharp",
     "upload-pack": "tsx scripts/upload-asset-pack.ts",

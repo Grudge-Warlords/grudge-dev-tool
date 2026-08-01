@@ -179,17 +179,90 @@ Prompts inject `agentBestPracticesPrompt()` from `bestPractices.ts`.
 
 ---
 
-## 8. Workers config checklist
+## 8. Workers config checklist (fleet audit)
 
-- [ ] `compatibility_date` recent  
-- [ ] `nodejs_compat`  
-- [ ] `wrangler types` for `Env`  
-- [ ] `observability` enabled  
-- [ ] Secrets via wrangler/keytar  
-- [ ] Service bindings for Worker↔Worker  
-- [ ] Queues/Workflows for async convert/AI  
-- [ ] No module-level request state  
-- [ ] Stream large responses; `ctx.waitUntil` for post-response work  
+**Hard rule for every CF Worker we ship:**
+
+| # | Check | How |
+|---|--------|-----|
+| 1 | `compatibility_date` recent (≥ 2025-09, prefer current quarter) | wrangler.toml |
+| 2 | `nodejs_compat` | `compatibility_flags = ["nodejs_compat"]` |
+| 3 | `wrangler types` / Env contract | `npx wrangler types` or checked-in `worker-configuration.d.ts` |
+| 4 | `observability` enabled | `[observability] enabled = true` (+ optional `head_sampling_rate`) |
+| 5 | Secrets via wrangler/keytar | `wrangler secret put`; Dev Tool keytar — **never** `[vars]` |
+| 6 | Service bindings Worker↔Worker | `[[services]]` when one Worker calls another (prefer over public HTTP) |
+| 7 | Queues/Workflows for async | convert/AI jobs — not long work on the request path |
+| 8 | No module-level **request** state | No global maps keyed by request; use KV/D1/DO per request |
+| 9 | Stream + `ctx.waitUntil` | Stream large bodies; telemetry/side effects in `waitUntil` |
+
+Audit script (local):
+
+```powershell
+cd F:\GitHub\grudge-dev-tool
+node scripts/audit-workers-config.mjs
+```
+
+### Live inventory (2026-08)
+
+| Worker | Host / role | Live? | Config notes |
+|--------|-------------|-------|--------------|
+| **grudge-ai-hub** | `ai.grudge-studio.com` Legion UI + API | **Yes** health 200 | SSOT domain worker; AI binding + D1 + KV + queue consumer |
+| **grudge-legion-ai** | `ai…/v1/*` path edge | **Yes** (same code) | High-priority path routes |
+| **grudge-ai-gateway** | GrudgeBuilder `workers/ai` | Staging / jobs | **Must not** steal `ai.*` DNS from hub |
+| **grudge-asset-cdn** | `assets.grudge-studio.com` | **Yes** | R2 only |
+| **grudgeassets** | `objectstore.grudge-studio.com` | **Yes** | D1 + R2 + ConversionPipeline DO |
+| **grudge-identity-api** | `id.grudge-studio.com` | **Yes** | Auth edge → Railway |
+| **grudge-wallet-site** | `wallet.grudge-studio.com` | Deployed | Edge shell |
+| **grudge-observatory** | `obs.grudge-studio.com` | **DNS missing** | Code in Dev Tool deploy/; logs currently via fleet harbor workers.dev |
+| **grudge-auth** | `auth.grudge-studio.com` | Legacy | Prefer **id.***; Railway URL fixed to game-data SSOT |
+
+### Two AI surfaces (do not merge)
+
+| Surface | Worker / package | Use |
+|---------|------------------|-----|
+| **Legion** | `grudge-ai-hub` + `grudge-legion-ai` | Fleet chat, agents, vision, image |
+| **Coder AI hub** | GrudachainCode `workers/ai-hub` | IDE job/event ingest (separate product) |
+| **Dev Tool** | `aiWorkerManager` + Ollama | Desktop routing to Legion / Workers AI / local |
+
+### Code patterns (required)
+
+```js
+// Telemetry after response (AI hub)
+obs?.http({ method, path, status, latency_ms }); // uses ctx.waitUntil internally
+
+// Good: per-request locals only
+export default {
+  async fetch(request, env, ctx) {
+    const requestId = crypto.randomUUID();
+    // …
+    ctx.waitUntil(logSomewhere(env, requestId));
+    return response;
+  },
+};
+
+// Bad: module-level maps that grow with traffic
+// const sessions = new Map();  // NEVER for request state
+```
+
+### Deploy (Legion production)
+
+```powershell
+cd F:\GitHub\grudge-ai-hub
+npm run deploy          # legion-ai + domain hub
+# or: npm run deploy:domain
+npx wrangler types --config wrangler.domain.toml   # refresh Env types when possible
+```
+
+Secrets: `scripts/set-gemini-secret.ps1`, `wrangler secret put OBSERVATORY_KEY`.
+
+### Growth
+
+| Need | Next step |
+|------|-----------|
+| Fix obs DNS | CNAME `obs.grudge-studio.com` → Worker; fill D1/KV ids; point `OBSERVATORY_URL` |
+| Service binding hub → observatory | `[[services]] binding = "OBS" service = "grudge-observatory"` |
+| Async convert | ObjectStore `ConversionPipeline` DO + queue; bake still CLI (`grudge-convert`) |
+| Stream chat | Prefer SSE/stream bodies for long completions |
 
 ---
 

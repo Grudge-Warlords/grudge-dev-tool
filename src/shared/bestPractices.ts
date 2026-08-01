@@ -418,7 +418,7 @@ export const SURFACE_BEST_PRACTICES = {
   workersConfig: {
     id: "surface-workers-config",
     title: "Workers production config",
-    rule: "compatibility_date current; nodejs_compat on; wrangler types for Env; observability head_sampling_rate; service bindings Worker↔Worker; Queues/Workflows for async; no module-level request state; stream large responses.",
+    rule: "compatibility_date ≥ current quarter; nodejs_compat on; wrangler types / worker-configuration.d.ts for Env; [observability] enabled; secrets via wrangler secret put / keytar only; service bindings Worker↔Worker; Queues/Workflows for async convert/AI; no module-level request state; stream large responses; ctx.waitUntil for post-response telemetry. Audit: node scripts/audit-workers-config.mjs. Legion SSOT = grudge-ai-hub (ai.grudge-studio.com) — do not rebind with grudge-ai-gateway.",
     category: "surfaces" as const,
     surfaces: ["coder", "ai", "deploy"] as const,
   },
