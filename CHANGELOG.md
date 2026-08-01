@@ -4,6 +4,22 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [0.9.9] — 2026-08-01
+
+### Added
+- **Elite local open system** — Explorer double-click / Open with → always-on-top Asset Viewer (3D, image, audio, video, text, PDF). Not Forge.
+- **Local Files tab** — folder browser on disk; double-click opens elite viewer; Forge is explicit only.
+- **Settings → Set as default for all asset types** — HKCU ProgIDs + Capabilities for all viewer extensions; opens Windows Default apps for residual confirmations.
+- **info.grudge-studio.com chrome icons** — SSOT `src/shared/infoIcons.ts` for nav, Local Files kinds, Settings, Elite Viewer badges (never rewrite info→assets).
+- **fileAssociations** expanded for images, audio, video, json, pdf, md, txt (installer).
+
+### Changed
+- **Nav consolidation** — primary rail: Home · Local Files · Assets · Skeleton · Forge · Preview · Games · Agent AI · Settings. Demoted Grok Builder / Search / Store / BlenderKit / Request / UUID / Legion / Coder / View Mode to More (still wired, not blank).
+- **Route aliases** — `/local-assets`→`/local`, `/playcanvas`→`/games`, `/viewer`→`/view`.
+- **Studio Hub** primary chips match real daily loop (Local Files first; drop dead View/Builder chips from primary).
+- **Product name** — installer/shortcut **Grudge Dev Tool** (elite viewer app identity).
+- OS open no longer auto-navigates to Forge (`openFileBridge` owns argv / second-instance).
+
 ### Fixed
 - **Import colors** — stop forcing gold/yellow on drag-drop / open; preserve material + vertex colors; white base when albedo maps exist.
 - **Local textures** — on import, scan same folder + pack roots (`textures/`, `maps/`, …) and auto-apply PBR maps via IPC `listSiblingTextures` / `readLocalImage`.

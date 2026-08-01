@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { FolderOpen, RefreshCcw, Power, Cloud, Bot, User, LogIn, LogOut, KeyRound, Save, Trash2, Download, Upload, Link2, ShieldCheck } from "lucide-react";
+import { FolderOpen, RefreshCcw, Power, Cloud, Bot, User, LogIn, LogOut, KeyRound, Save, Trash2, Download, Upload, Link2, ShieldCheck, FileCheck2, ExternalLink } from "lucide-react";
 import { FLEET_CLIENT_URL, FLEET_URLS, FLEET_GAME_DATA_URL } from "../../shared/fleet";
 import { clearMirror } from "../lib/workspace";
 import { getAdminOverride, setAdminOverride, isOpenMode } from "../lib/admin";
 import { StatusDot } from "../components/StatusBar";
+import { INFO_ICONS, INFO_NAV } from "../../shared/infoIcons";
 
 
 export default function Settings() {
@@ -31,6 +32,15 @@ export default function Settings() {
   const [fleetKey, setFleetKey] = useState("");
   const [hasFleetKey, setHasFleetKey] = useState(false);
   const [adminOverride, setAdminOverrideState] = useState<"on" | "off" | "none">("none");
+  const [defaultsStatus, setDefaultsStatus] = useState<{
+    platform: string;
+    exe: string;
+    registered: number;
+    defaults: number;
+    total: number;
+    packaged: boolean;
+  } | null>(null);
+  const [defaultsBusy, setDefaultsBusy] = useState(false);
 
   async function reload() {
     const d = await window.grudge.settings.get();
@@ -47,6 +57,57 @@ export default function Settings() {
     try { setLegionHub(await window.grudge.legion?.getHubUrl?.() ?? ""); } catch { /* */ }
     try { setHasFleetKey(!!(await window.grudge.legion?.getFleetKey?.())); } catch { /* */ }
     setAdminOverrideState(getAdminOverride());
+    try {
+      const st = await window.grudge.fileDefaults?.status?.();
+      if (st) {
+        setDefaultsStatus({
+          platform: st.platform,
+          exe: st.exe,
+          registered: st.registered,
+          defaults: st.defaults,
+          total: st.total,
+          packaged: st.packaged,
+        });
+      }
+    } catch {
+      /* */
+    }
+  }
+
+  async function setAllFileDefaults() {
+    setDefaultsBusy(true);
+    try {
+      const r = await window.grudge.fileDefaults?.setAll?.();
+      if (!r?.ok) {
+        toast.error("Could not set defaults", { description: (r as { error?: string })?.error });
+        return;
+      }
+      toast.success(`Registered ${r.registered} file types`, {
+        description: "Grudge opens these in the Elite Viewer (not Forge). You can confirm residual types in Windows Settings.",
+      });
+      await window.grudge.fileDefaults?.openSystemSettings?.();
+      await reload();
+    } catch (e: unknown) {
+      toast.error("Defaults failed", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setDefaultsBusy(false);
+    }
+  }
+
+  async function clearFileDefaults() {
+    if (!confirm("Remove Grudge ProgIDs for elite viewer types?")) return;
+    setDefaultsBusy(true);
+    try {
+      const r = await window.grudge.fileDefaults?.clear?.();
+      toast.success(`Cleared ${r?.cleared ?? 0} ProgIDs`);
+      await reload();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDefaultsBusy(false);
+    }
   }
 
   async function saveCfAi() {
@@ -238,7 +299,7 @@ export default function Settings() {
           <ShieldCheck size={16} className="text-gold" /> Admin access
         </h3>
         <p className="muted text-xs mb-2">
-          Admin surfaces: Upload, Forge 3D, Coder, BlenderKit, Play Modes, Preview, Settings.
+          Admin surfaces: Upload, Forge 3D, Coder, BlenderKit, View Mode, Preview, Settings.
           {isOpenMode() && " OPEN MODE — all signed-in users are admin (dev only)."}
           {!isOpenMode() && " Operators: grudachain, molochdadev — see Account tab for wallet & GBUX."}
         </p>
@@ -251,6 +312,122 @@ export default function Settings() {
           </button>
           <button className="btn ghost text-xs" onClick={() => { setAdminOverride("clear"); setAdminOverrideState("none"); toast.success("Admin override cleared"); }}>
             Clear override
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 className="flex items-center gap-2" style={{ margin: "0 0 8px" }}>
+          <img
+            src={INFO_NAV.defaults}
+            alt=""
+            width={18}
+            height={18}
+            style={{ imageRendering: "pixelated" }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+          <FileCheck2 size={16} className="text-gold" /> Elite viewer — default app
+        </h3>
+        <p className="muted text-sm mb-3">
+          One click registers <strong className="text-ink">Grudge Dev Tool</strong> as the handler for all
+          elite viewer types (3D, images, audio, video, text, PDF). Opens go to the{" "}
+          <strong className="text-gold">Asset Viewer</strong> — never Forge by default.
+        </p>
+        <div className="flex flex-wrap gap-2 items-center mb-2">
+          {[
+            INFO_ICONS.sword,
+            INFO_ICONS.effect,
+            INFO_ICONS.hunter,
+            INFO_ICONS.firemage,
+            INFO_ICONS.engineer,
+            INFO_ICONS.chest,
+          ].map((src) => (
+            <img
+              key={src}
+              src={src}
+              alt=""
+              width={28}
+              height={28}
+              title={src.replace("https://info.grudge-studio.com", "info")}
+              style={{
+                borderRadius: 4,
+                border: "1px solid var(--line)",
+                background: "var(--bg-2)",
+                objectFit: "contain",
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.opacity = "0.2";
+              }}
+            />
+          ))}
+          <span className="muted text-[10px]">icons from info.grudge-studio.com</span>
+        </div>
+        {defaultsStatus && (
+          <table className="mb-3" style={{ width: "100%", fontSize: 11 }}>
+            <tbody>
+              <tr>
+                <td className="muted">Platform</td>
+                <td className="font-mono">{defaultsStatus.platform}</td>
+              </tr>
+              <tr>
+                <td className="muted">Types defaulted</td>
+                <td>
+                  <span className={defaultsStatus.defaults > 0 ? "text-ok" : "text-muted"}>
+                    {defaultsStatus.defaults} / {defaultsStatus.total}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td className="muted">ProgIDs registered</td>
+                <td className="font-mono">
+                  {defaultsStatus.registered} / {defaultsStatus.total}
+                </td>
+              </tr>
+              <tr>
+                <td className="muted">Executable</td>
+                <td className="font-mono text-[10px] break-all">{defaultsStatus.exe}</td>
+              </tr>
+              <tr>
+                <td className="muted">Build</td>
+                <td>{defaultsStatus.packaged ? "Packaged install" : "Dev (electron.exe)"}</td>
+              </tr>
+            </tbody>
+          </table>
+        )}
+        {!defaultsStatus?.packaged && (
+          <div className="muted text-[11px] mb-2 p-2 rounded border border-line bg-bg-2">
+            Dev mode registers against <span className="font-mono">electron.exe</span>. For production
+            Explorer double-click, run a packaged install (<span className="font-mono">npm run package</span>),
+            then click Set defaults again.
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn flex items-center gap-2"
+            disabled={defaultsBusy}
+            onClick={() => void setAllFileDefaults()}
+          >
+            <img src={INFO_ICONS.crossbow} alt="" width={16} height={16} />
+            {defaultsBusy ? "Registering…" : "Set as default for all asset types"}
+          </button>
+          <button
+            type="button"
+            className="btn ghost flex items-center gap-2 text-xs"
+            disabled={defaultsBusy}
+            onClick={() => void window.grudge.fileDefaults?.openSystemSettings?.()}
+          >
+            <ExternalLink size={14} /> Windows Default apps
+          </button>
+          <button
+            type="button"
+            className="btn ghost danger text-xs"
+            disabled={defaultsBusy}
+            onClick={() => void clearFileDefaults()}
+          >
+            Clear Grudge ProgIDs
           </button>
         </div>
       </div>

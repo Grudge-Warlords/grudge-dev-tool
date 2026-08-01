@@ -41,15 +41,39 @@ function KindBadge({ kind }: { kind: AssetKind }) {
         model3d: "#ffc62a", scene3d: "#ffc62a", image: "#46d586", video: "#7c6bff", audio: "#ff9f1c",
         text: "#88aaff", pdf: "#ff5577", font: "#dd88ff", unknown: "#9aa6c8",
     };
+    // info.grudge-studio.com chrome icons (never assets.*)
+    const infoIcon: Partial<Record<AssetKind, string>> = {
+        model3d: "https://info.grudge-studio.com/icons/pack/weapons/Sword_01.png",
+        scene3d: "https://info.grudge-studio.com/icons/pack/weapons/Hammer_01.png",
+        image: "https://info.grudge-studio.com/icons/pack/misc/Effect.png",
+        audio: "https://info.grudge-studio.com/icons/skills/class/hunter/hunter_01.png",
+        video: "https://info.grudge-studio.com/icons/skills/class/firemage/firemage_01.png",
+        text: "https://info.grudge-studio.com/icons/skills/class/engineer/engineer_01.png",
+        pdf: "https://info.grudge-studio.com/icons/pack/armor/Chest_01.png",
+        font: "https://info.grudge-studio.com/icons/skills/class/paladin/paladin_01.png",
+    };
+    const src = infoIcon[kind];
     return (
-        <span style= {{
-        display: "inline-block", padding: "1px 7px", borderRadius: 999,
+        <span style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            padding: "1px 7px", borderRadius: 999,
             fontSize: 10, fontWeight: 700, letterSpacing: "0.05em",
-                background: "rgba(0,0,0,0.35)", border: `1px solid ${colours[kind]}`,
-                    color: colours[kind], textTransform: "uppercase",
-    }
-}> { kind } </span>
-  );
+            background: "rgba(0,0,0,0.35)", border: `1px solid ${colours[kind]}`,
+            color: colours[kind], textTransform: "uppercase",
+        }}>
+            {src && (
+                <img
+                    src={src}
+                    alt=""
+                    width={14}
+                    height={14}
+                    style={{ objectFit: "contain", borderRadius: 2 }}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+            )}
+            {kind}
+        </span>
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -74,47 +98,57 @@ function ViewerHeader({
             .catch(() => toast.error("Copy failed"));
     }
     function openExternal() {
+        if (asset.localPath) {
+            void G()?.files?.reveal?.(asset.localPath);
+            return;
+        }
         G()?.os?.openExternal?.(asset.url);
     }
     function closeWindow() { window.close(); }
+    const isLocal = Boolean(asset.localPath) || asset.url?.startsWith("blob:") || asset.url?.startsWith("local:");
 
     return (
-        <div style= {{
-        flexShrink: 0, display: "flex", alignItems: "center", gap: 10,
+        <div style={{
+            flexShrink: 0, display: "flex", alignItems: "center", gap: 10,
             padding: "0 14px", height: 46,
-                background: "var(--bg-1)", borderBottom: "1px solid var(--line)",
-                    overflow: "hidden",
-    }
-}>
-    {/* Left — filename + badges */ }
-    < div style = {{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-        <span style={
-    {
-        fontWeight: 700, fontSize: 14, color: "var(--text)",
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        }
-}> { fname } </span>
-    < KindBadge kind = { kind } />
-    {
-        asset.size > 0 && (
-            <span style={ { color: "var(--muted)", fontSize: 11, flexShrink: 0 } }>
-                { formatBytes(asset.size) }
+            background: "var(--bg-1)", borderBottom: "1px solid var(--line)",
+            overflow: "hidden",
+        }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                <span style={{
+                    fontWeight: 700, fontSize: 14, color: "var(--text)",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                }} title={asset.localPath || asset.name}>
+                    {fname}
                 </span>
-        )}
-</div>
-{/* Right — action buttons */ }
-<div style={ { display: "flex", gap: 6, alignItems: "center", flexShrink: 0 } }>
-    <HBtn title="Download" onClick = { download } >↓ Download </HBtn>
-        < HBtn title = "Copy CDN URL" onClick = { copyUrl } >⧉ URL </HBtn>
-            < HBtn title = "Open in browser" onClick = { openExternal } >↗ External </HBtn>
-                < HBtn
-title = "Close viewer"
-onClick = { closeWindow }
-style = {{ background: "transparent", color: "var(--danger)", border: "1px solid var(--danger)" }}
-        >✕</HBtn>
-    </div>
-    </div>
-  );
+                <KindBadge kind={kind} />
+                {isLocal && (
+                    <span style={{
+                        fontSize: 10, fontWeight: 700, letterSpacing: "0.04em",
+                        color: "var(--gold)", border: "1px solid var(--gold)",
+                        borderRadius: 999, padding: "1px 7px",
+                    }}>LOCAL</span>
+                )}
+                {asset.size > 0 && (
+                    <span style={{ color: "var(--muted)", fontSize: 11, flexShrink: 0 }}>
+                        {formatBytes(asset.size)}
+                    </span>
+                )}
+            </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                <HBtn title="Download" onClick={download}>↓ Download</HBtn>
+                {!isLocal && <HBtn title="Copy CDN URL" onClick={copyUrl}>⧉ URL</HBtn>}
+                <HBtn title={isLocal ? "Reveal in Explorer" : "Open in browser"} onClick={openExternal}>
+                    {isLocal ? "📁 Reveal" : "↗ External"}
+                </HBtn>
+                <HBtn
+                    title="Close viewer"
+                    onClick={closeWindow}
+                    style={{ background: "transparent", color: "var(--danger)", border: "1px solid var(--danger)" }}
+                >✕</HBtn>
+            </div>
+        </div>
+    );
 }
 
 function HBtn({
@@ -1011,14 +1045,48 @@ export default function ViewerWindow() {
         if (!token) { setNotFound(true); return; }
         const grudge = (window as any).grudge;
         if (!grudge?.viewer?.getAsset) { setNotFound(true); return; }
-        grudge.viewer.getAsset(token).then((a: AssetRef | null) => {
-            if (a) {
-                setAsset(a);
-                document.title = `${basename(a.name)} — Grudge Asset Viewer`;
-            } else {
+        let revoked: string | null = null;
+        grudge.viewer.getAsset(token).then(async (a: (AssetRef & { localPath?: string }) | null) => {
+            if (!a) {
                 setNotFound(true);
+                return;
             }
+            // Local disk assets: resolve to blob: URL inside this window
+            if (a.localPath || a.url?.startsWith("local:")) {
+                try {
+                    const path = a.localPath || decodeURIComponent(a.url.replace(/^local:\/\//, ""));
+                    const file = await grudge.files?.read?.(path);
+                    if (!file?.bytes) throw new Error("Could not read local file");
+                    const bytes = file.bytes as Uint8Array;
+                    const ab = bytes.buffer.slice(
+                        bytes.byteOffset,
+                        bytes.byteOffset + bytes.byteLength,
+                    ) as ArrayBuffer;
+                    const blob = new Blob([ab], { type: file.mime || a.contentType || "application/octet-stream" });
+                    const blobUrl = URL.createObjectURL(blob);
+                    revoked = blobUrl;
+                    const resolved: AssetRef = {
+                        name: a.name || file.name,
+                        url: blobUrl,
+                        contentType: file.mime || a.contentType || "",
+                        size: file.size || a.size || bytes.byteLength,
+                        localPath: path,
+                    };
+                    setAsset(resolved);
+                    document.title = `${basename(resolved.name)} — Grudge Asset Viewer`;
+                    return;
+                } catch (e) {
+                    console.error("local resolve failed", e);
+                    setNotFound(true);
+                    return;
+                }
+            }
+            setAsset(a);
+            document.title = `${basename(a.name)} — Grudge Asset Viewer`;
         });
+        return () => {
+            if (revoked) URL.revokeObjectURL(revoked);
+        };
     }, []);
 
     if (notFound) {

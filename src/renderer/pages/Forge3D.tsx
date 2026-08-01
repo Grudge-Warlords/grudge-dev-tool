@@ -502,6 +502,21 @@ export default function Forge3D() {
         });
       }
     });
+    // Explicit handoff from Local Files tab (only when user clicks "Forge")
+    try {
+      const pending = sessionStorage.getItem("grudge.forge.pendingLocalPath");
+      if (pending) {
+        sessionStorage.removeItem("grudge.forge.pendingLocalPath");
+        (window as any).grudge?.forge?.readFile?.(pending).then((res: any) => {
+          if (res?.bytes) {
+            void addFile(new File([res.bytes], res.name, { type: res.mime }), pending);
+            toast.success("Loaded from Local Files", { description: res.name });
+          }
+        }).catch((err: any) => {
+          toast.error("Local Files → Forge failed", { description: err?.message ?? String(err) });
+        });
+      }
+    } catch { /* ignore */ }
     return () => off?.();
   }, [addFile]);
 

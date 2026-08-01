@@ -91,11 +91,24 @@ const api = {
   // Pop-out Asset Viewer (always-on-top, in front of all windows)
   viewer: {
     /** Open asset in a frontmost pop-out window with preview / transform / Forge actions. */
-    open: (asset: { name: string; url: string; contentType?: string; size?: number }) =>
+    open: (asset: {
+      name: string;
+      url: string;
+      contentType?: string;
+      size?: number;
+      localPath?: string;
+    }) =>
       ipcRenderer.invoke("viewer:open", asset) as Promise<{ ok: true; token: string }>,
+    /** Pop-out viewer for a disk path (Local Files / OS open — not Forge). */
+    openLocal: (args: { path: string; contentType?: string; size?: number }) =>
+      ipcRenderer.invoke("viewer:openLocal", args) as Promise<{ ok: true; token: string }>,
     getAsset: (token: string) =>
       ipcRenderer.invoke("viewer:getAsset", token) as Promise<{
-        name: string; url: string; contentType: string; size: number;
+        name: string;
+        url: string;
+        contentType: string;
+        size: number;
+        localPath?: string;
       } | null>,
     sendToForge: (args: { url: string; name?: string }) =>
       ipcRenderer.invoke("viewer:sendToForge", args) as Promise<{ ok: true; path: string; name: string } | { ok: false; error: string }>,
@@ -174,6 +187,78 @@ const api = {
       >,
     focusAll: () => ipcRenderer.invoke("viewer:focusAll"),
   },
+  /**
+   * Elite desktop open system — Explorer double-click / Open with / in-app open.
+   * Always routes to the Asset Viewer (never Forge).
+   */
+  openFile: {
+    openPath: (filePath: string) =>
+      ipcRenderer.invoke("openFile:openPath", filePath) as Promise<
+        | { ok: true; token: string; kind: string }
+        | { ok: false; error: string }
+      >,
+    openPaths: (paths: string[]) =>
+      ipcRenderer.invoke("openFile:openPaths", paths) as Promise<{
+        opened: number;
+        errors: string[];
+      }>,
+    supportedExts: () =>
+      ipcRenderer.invoke("openFile:supportedExts") as Promise<string[]>,
+    /** Fired when OS or openFile bridge opened a local file into the elite viewer. */
+    onOpened: (
+      cb: (info: {
+        path: string;
+        name: string;
+        dir: string;
+        kind: string;
+        contentType: string;
+        size: number;
+        token: string;
+      }) => void,
+    ) => {
+      const listener = (
+        _e: unknown,
+        info: {
+          path: string;
+          name: string;
+          dir: string;
+          kind: string;
+          contentType: string;
+          size: number;
+          token: string;
+        },
+      ) => cb(info);
+      ipcRenderer.on("openFile:opened", listener);
+      return () => ipcRenderer.removeListener("openFile:opened", listener);
+    },
+  },
+  /** One-click Windows default app registration for all elite viewer types. */
+  fileDefaults: {
+    setAll: () =>
+      ipcRenderer.invoke("fileDefaults:setAll") as Promise<
+        | { ok: true; registered: number; total: number; exe: string }
+        | { ok: false; error: string }
+      >,
+    status: () =>
+      ipcRenderer.invoke("fileDefaults:status") as Promise<{
+        platform: string;
+        exe: string;
+        registered: number;
+        defaults: number;
+        total: number;
+        packaged: boolean;
+        extensions: Array<{
+          ext: string;
+          progId: string;
+          isDefault: boolean;
+          current: string | null;
+        }>;
+      }>,
+    openSystemSettings: () =>
+      ipcRenderer.invoke("fileDefaults:openSystemSettings") as Promise<{ ok: true }>,
+    clear: () =>
+      ipcRenderer.invoke("fileDefaults:clear") as Promise<{ ok: true; cleared: number }>,
+  },
   // Connectivity
   connectivity: {
     get: () => ipcRenderer.invoke("connectivity:get"),
@@ -203,10 +288,39 @@ const api = {
     logFile: () => ipcRenderer.invoke("diag:logFile"),
     openLogFolder: () => ipcRenderer.invoke("diag:openLogFolder"),
   },
-  // Local file paths (sandbox-safe drag-drop)
+  // Local file paths (sandbox-safe drag-drop) + Local Files tab folder browser
   files: {
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
     pickForUpload: () => ipcRenderer.invoke("files:pickForUpload") as Promise<string[]>,
+    pickDirectory: () => ipcRenderer.invoke("files:pickDirectory") as Promise<string | null>,
+    listDir: (dirPath: string) =>
+      ipcRenderer.invoke("files:listDir", dirPath) as Promise<{
+        path: string;
+        parent: string | null;
+        entries: Array<{
+          name: string;
+          path: string;
+          isDirectory: boolean;
+          size: number;
+          mtimeMs: number;
+          ext: string;
+          kind: string;
+          contentType: string;
+        }>;
+      }>,
+    read: (filePath: string) =>
+      ipcRenderer.invoke("files:read", filePath) as Promise<{
+        name: string;
+        path: string;
+        bytes: Uint8Array;
+        mime: string;
+        size: number;
+        kind: string;
+        fileUrl: string;
+      }>,
+    reveal: (filePath: string) => ipcRenderer.invoke("files:reveal", filePath) as Promise<{ ok: true }>,
+    openSystem: (filePath: string) =>
+      ipcRenderer.invoke("files:openSystem", filePath) as Promise<{ ok: true }>,
   },
   // App lifecycle
   app: {

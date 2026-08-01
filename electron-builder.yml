@@ -1,5 +1,5 @@
-appId: com.grudgestudio.forge
-productName: Grudge Studio Forge
+appId: com.grudgestudio.devtool
+productName: Grudge Dev Tool
 copyright: Copyright © 2026 Grudge Studio
 asar: true
 directories:
@@ -31,55 +31,197 @@ extraResources:
       - "FBX2glTF.exe"
 extraMetadata:
   main: dist/main/main.js
-# Register Grudge Dev Tool as a Windows file handler so users can
-# right-click → Open With → Grudge Dev Tool on any supported 3D model file,
-# or set us as the default 3D viewer for the listed extensions.
+# ---------------------------------------------------------------------------
+# Elite open system — Windows "Open with" / double-click associations.
+# All routes go to the Asset Viewer (openFileBridge), NEVER Forge by default.
+# ---------------------------------------------------------------------------
 fileAssociations:
+  # 3D
   - ext: glb
-    name: glTF Binary Model
-    description: glTF Binary Model
+    name: Grudge glTF Binary
+    description: glTF Binary Model — Grudge Elite Viewer
     role: Viewer
     mimeType: model/gltf-binary
     icon: resources/icon.ico
   - ext: gltf
-    name: glTF JSON Model
-    description: glTF JSON Model
+    name: Grudge glTF
+    description: glTF Model — Grudge Elite Viewer
     role: Viewer
     mimeType: model/gltf+json
     icon: resources/icon.ico
   - ext: fbx
-    name: FBX 3D Model
-    description: FBX 3D Model
+    name: Grudge FBX
+    description: FBX 3D Model — Grudge Elite Viewer
     role: Viewer
     icon: resources/icon.ico
   - ext: obj
-    name: Wavefront OBJ
-    description: Wavefront OBJ
+    name: Grudge OBJ
+    description: Wavefront OBJ — Grudge Elite Viewer
     role: Viewer
     mimeType: model/obj
     icon: resources/icon.ico
   - ext: stl
-    name: STL 3D Model
-    description: STL 3D Model
+    name: Grudge STL
+    description: STL Mesh — Grudge Elite Viewer
     role: Viewer
     mimeType: model/stl
     icon: resources/icon.ico
   - ext: ply
-    name: PLY 3D Model
-    description: PLY 3D Model
+    name: Grudge PLY
+    description: PLY Mesh — Grudge Elite Viewer
     role: Viewer
     icon: resources/icon.ico
   - ext: dae
-    name: Collada DAE
-    description: Collada DAE
+    name: Grudge Collada
+    description: Collada DAE — Grudge Elite Viewer
     role: Viewer
     mimeType: model/vnd.collada+xml
     icon: resources/icon.ico
   - ext: 3mf
-    name: 3MF 3D Model
-    description: 3MF 3D Model
+    name: Grudge 3MF
+    description: 3MF Model — Grudge Elite Viewer
     role: Viewer
     mimeType: model/3mf
+    icon: resources/icon.ico
+  - ext: blend
+    name: Grudge Blender
+    description: Blender file — Grudge Elite Viewer
+    role: Viewer
+    icon: resources/icon.ico
+  # Images
+  - ext: png
+    name: Grudge PNG
+    description: PNG Image — Grudge Elite Viewer
+    role: Viewer
+    mimeType: image/png
+    icon: resources/icon.ico
+  - ext: jpg
+    name: Grudge JPEG
+    description: JPEG Image — Grudge Elite Viewer
+    role: Viewer
+    mimeType: image/jpeg
+    icon: resources/icon.ico
+  - ext: jpeg
+    name: Grudge JPEG
+    description: JPEG Image — Grudge Elite Viewer
+    role: Viewer
+    mimeType: image/jpeg
+    icon: resources/icon.ico
+  - ext: webp
+    name: Grudge WebP
+    description: WebP Image — Grudge Elite Viewer
+    role: Viewer
+    mimeType: image/webp
+    icon: resources/icon.ico
+  - ext: gif
+    name: Grudge GIF
+    description: GIF Image — Grudge Elite Viewer
+    role: Viewer
+    mimeType: image/gif
+    icon: resources/icon.ico
+  - ext: tga
+    name: Grudge TGA
+    description: TGA Texture — Grudge Elite Viewer
+    role: Viewer
+    icon: resources/icon.ico
+  - ext: bmp
+    name: Grudge BMP
+    description: BMP Image — Grudge Elite Viewer
+    role: Viewer
+    mimeType: image/bmp
+    icon: resources/icon.ico
+  - ext: tif
+    name: Grudge TIFF
+    description: TIFF Image — Grudge Elite Viewer
+    role: Viewer
+    mimeType: image/tiff
+    icon: resources/icon.ico
+  - ext: tiff
+    name: Grudge TIFF
+    description: TIFF Image — Grudge Elite Viewer
+    role: Viewer
+    mimeType: image/tiff
+    icon: resources/icon.ico
+  - ext: svg
+    name: Grudge SVG
+    description: SVG Image — Grudge Elite Viewer
+    role: Viewer
+    mimeType: image/svg+xml
+    icon: resources/icon.ico
+  - ext: avif
+    name: Grudge AVIF
+    description: AVIF Image — Grudge Elite Viewer
+    role: Viewer
+    mimeType: image/avif
+    icon: resources/icon.ico
+  # Audio
+  - ext: mp3
+    name: Grudge MP3
+    description: MP3 Audio — Grudge Elite Viewer
+    role: Viewer
+    mimeType: audio/mpeg
+    icon: resources/icon.ico
+  - ext: wav
+    name: Grudge WAV
+    description: WAV Audio — Grudge Elite Viewer
+    role: Viewer
+    mimeType: audio/wav
+    icon: resources/icon.ico
+  - ext: ogg
+    name: Grudge OGG
+    description: OGG Audio — Grudge Elite Viewer
+    role: Viewer
+    mimeType: audio/ogg
+    icon: resources/icon.ico
+  - ext: flac
+    name: Grudge FLAC
+    description: FLAC Audio — Grudge Elite Viewer
+    role: Viewer
+    mimeType: audio/flac
+    icon: resources/icon.ico
+  # Video
+  - ext: mp4
+    name: Grudge MP4
+    description: MP4 Video — Grudge Elite Viewer
+    role: Viewer
+    mimeType: video/mp4
+    icon: resources/icon.ico
+  - ext: webm
+    name: Grudge WebM
+    description: WebM Video — Grudge Elite Viewer
+    role: Viewer
+    mimeType: video/webm
+    icon: resources/icon.ico
+  - ext: mov
+    name: Grudge MOV
+    description: QuickTime Video — Grudge Elite Viewer
+    role: Viewer
+    mimeType: video/quicktime
+    icon: resources/icon.ico
+  # Data / docs
+  - ext: json
+    name: Grudge JSON
+    description: JSON — Grudge Elite Viewer
+    role: Viewer
+    mimeType: application/json
+    icon: resources/icon.ico
+  - ext: pdf
+    name: Grudge PDF
+    description: PDF — Grudge Elite Viewer
+    role: Viewer
+    mimeType: application/pdf
+    icon: resources/icon.ico
+  - ext: md
+    name: Grudge Markdown
+    description: Markdown — Grudge Elite Viewer
+    role: Viewer
+    mimeType: text/markdown
+    icon: resources/icon.ico
+  - ext: txt
+    name: Grudge Text
+    description: Text — Grudge Elite Viewer
+    role: Viewer
+    mimeType: text/plain
     icon: resources/icon.ico
 win:
   target:
@@ -94,10 +236,10 @@ nsis:
   perMachine: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Grudge Studio Forge
+  shortcutName: Grudge Dev Tool
   installerIcon: resources/icon.ico
   uninstallerIcon: resources/icon.ico
-  uninstallDisplayName: Grudge Studio Forge ${version}
+  uninstallDisplayName: Grudge Dev Tool ${version}
 publish:
   - provider: github
     owner: Grudge-Warlords

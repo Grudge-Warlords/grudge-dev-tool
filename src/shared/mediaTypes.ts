@@ -117,3 +117,12 @@ export const UPLOAD_ACCEPT =
   ".json,.zip,.pdf,.ttf,.otf,.woff,.woff2";
 
 export const IMAGE_CONVERT_FORMATS = ["png", "webp", "jpeg", "avif"] as const;
+
+/** True when the elite desktop viewer should accept this path from Explorer / Open with. */
+export function isViewerOpenablePath(name: string): boolean {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  if (!ext) return false;
+  if (EXT_TO_MIME[ext]) return true;
+  if (["psd", "gfscene", "blend", "scene"].includes(ext)) return true;
+  return isThreeScenePath(name);
+}

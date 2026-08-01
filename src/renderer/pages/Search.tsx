@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { toast } from "sonner";
 import DemoModeBanner from "../components/DemoModeBanner";
+import { openAssetInViewMode } from "./ViewMode";
 
 export default function Search() {
   const [q, setQ] = useState("");
@@ -27,21 +27,21 @@ export default function Search() {
     } catch (e: any) { setError(e.message); }
   }
 
-  function openInViewer(it: any) {
+  function openInViewMode(it: any) {
     const path = it.path ?? it.name;
     if (!path) return;
-    void window.grudge?.viewer?.open?.({
+    openAssetInViewMode({
       name: path,
       url: `${cdnBase}/${path.replace(/^\//, "")}`,
       contentType: it.contentType ?? "",
       size: it.sizeBytes ?? it.size ?? 0,
-    }).catch((e: any) => toast.error("Could not open viewer", { description: e?.message ?? String(e) }));
+    });
   }
 
   return (
     <div>
       <h1 className="page-title">Manifest Search</h1>
-      <p className="page-sub">Server-side filter against per-pack <span className="kbd">manifest.json</span> catalogs. Click a row to open the Asset Viewer.</p>
+      <p className="page-sub">Server-side filter against per-pack <span className="kbd">manifest.json</span> catalogs. Click a row → <strong>View Mode</strong> review.</p>
       <DemoModeBanner feature="Search" />
       <div className="card">
         <div className="row">
@@ -60,8 +60,8 @@ export default function Search() {
               <tr
                 key={i}
                 className="cursor-pointer hover:bg-bg-2"
-                title="Open in Asset Viewer"
-                onClick={() => openInViewer(it)}
+                title="Open in View Mode"
+                onClick={() => openInViewMode(it)}
               >
                 <td>{it.packId}</td>
                 <td>{it.path}</td>

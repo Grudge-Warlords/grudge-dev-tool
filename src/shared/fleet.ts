@@ -41,8 +41,13 @@ export const FLEET_URLS = {
   /** Warlord Genesis production SPA */
   warlordGenesis: "https://warlord-genesis.vercel.app",
   warstrat: "https://warstrat.grudge-studio.com",
-  /** Forge 3D editor (production) */
+  /** Forge 3D editor (production) — develop + deploy 3D games */
   forge: "https://forge.grudge-studio.com",
+  /**
+   * Game UI Studio (HYDRA) — HUD / menus / settings / packs for all editors.
+   * Open hosts GRUDOX as voxel launcher; UI is shared chrome SSOT.
+   */
+  ui: "https://ui.grudge-studio.com",
   /**
    * Grok Builder — agentic Three.js + Rapier editor (Open + Dev Tool primary builder).
    * Prod: Vercel project `grok-builder` (grudgenexus). Local: http://localhost:5190.

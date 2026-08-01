@@ -18,15 +18,15 @@ import {
   ChevronDown,
   ChevronRight,
   Bone,
-  Sparkles,
   Upload,
+  FolderSearch,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { FLEET_URLS, TRUTH_HEALTH_THRESHOLD, buildTruthProbes, type TruthProbe } from "../../shared/fleet";
 import { FLEET_GAMES, type FleetGame } from "../../shared/fleetGames";
 
-/** Daily production admin loop — order matches real work. */
+/** Daily production admin loop — matches primary nav (no dead chips). */
 const PRIMARY: Array<{
   id: string;
   label: string;
@@ -36,9 +36,16 @@ const PRIMARY: Array<{
   adminOnly?: boolean;
 }> = [
   {
+    id: "local",
+    label: "Local Files",
+    desc: "Elite open · Explorer double-click · all types",
+    route: "/local",
+    Icon: FolderSearch,
+  },
+  {
     id: "assets",
     label: "Assets",
-    desc: "R2 · search · Viewer · Forge / Skeleton",
+    desc: "R2 · search · open in View Mode",
     route: "/browser",
     Icon: FolderTree,
   },
@@ -65,13 +72,6 @@ const PRIMARY: Array<{
     route: "/preview",
     Icon: Play,
     adminOnly: true,
-  },
-  {
-    id: "builder",
-    label: "Grok Builder",
-    desc: "Agentic Three.js + Rapier scene builder",
-    route: "/builder",
-    Icon: Sparkles,
   },
   {
     id: "upload",

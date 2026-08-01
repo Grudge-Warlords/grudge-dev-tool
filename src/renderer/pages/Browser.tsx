@@ -6,9 +6,9 @@ import {
   Box, Music, Search as SearchIcon, Copy, ExternalLink, Home,
 } from "lucide-react";
 import DemoModeBanner from "../components/DemoModeBanner";
-import AssetPreview from "../components/AssetPreview";
 import type { AssetRef } from "../components/viewers/types";
 import { readMirror } from "../lib/workspace";
+import { openAssetInViewMode } from "./ViewMode";
 
 interface ListResp {
   items: Array<{ name: string; size: number; contentType: string; updated: string | null }>;
@@ -108,7 +108,6 @@ function Breadcrumb({ prefix, onSelect }: { prefix: string; onSelect: (p: string
 export default function Browser() {
   const [selected, setSelected] = useState<string>(() => readMirror().browserPrefix ?? ROOT_PREFIX);
   const [filter, setFilter] = useState<string>("");
-  const [preview, setPreview] = useState<AssetRef | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -167,12 +166,9 @@ export default function Browser() {
     size: it.size ?? 0,
   });
 
-  const openInViewer = (it: { name: string; size: number; contentType: string }) => {
-    const asset = toRef(it);
-    setPreview(asset);
-    void window.grudge?.viewer?.open?.(asset).catch((e: any) =>
-      toast.error("Could not open pop-out viewer", { description: e?.message ?? String(e) }),
-    );
+  /** Open any asset in View Mode for review / save / Forge / storage / AI define. */
+  const openInViewMode = (it: { name: string; size: number; contentType: string }) => {
+    openAssetInViewMode(toRef(it));
   };
 
   return (
@@ -182,8 +178,9 @@ export default function Browser() {
         <p className="page-sub">
           D1/ObjectStore index · R2 binaries on{" "}
           <span className="font-mono text-[11px]">assets.grudge-studio.com</span>. Click a file →
-          always-on-top Asset Viewer (3D/image/audio).{" "}
-          <span className="kbd">&gt;query</span> = Agent/server search · send GLB to production Forge.
+          <strong className="text-sky-300"> View Mode</strong> (image, sound, PSD, scene, GLB…) with
+          save, Forge, storage, AI define.{" "}
+          <span className="kbd">&gt;query</span> = Agent/server search.
           Catalogs also on <span className="font-mono text-[11px]">info.grudge-studio.com</span>.
         </p>
       </div>
@@ -227,7 +224,7 @@ export default function Browser() {
                       title="Open in Asset Viewer"
                       role="button"
                       tabIndex={0}
-                      onClick={() => openInViewer({
+                      onClick={() => openInViewMode({
                         name: it.path,
                         size: it.sizeBytes ?? 0,
                         contentType: it.contentType ?? "",
@@ -235,7 +232,7 @@ export default function Browser() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          openInViewer({
+                          openInViewMode({
                             name: it.path,
                             size: it.sizeBytes ?? 0,
                             contentType: it.contentType ?? "",
@@ -283,14 +280,14 @@ export default function Browser() {
                       <div
                         key={it.name}
                         className="border border-line bg-bg-2 rounded p-2 flex flex-col gap-1 group cursor-pointer hover:border-gold/50"
-                        title="Open in Asset Viewer"
+                        title="Open in View Mode"
                         role="button"
                         tabIndex={0}
-                        onClick={() => openInViewer(it)}
+                        onClick={() => openInViewMode(it)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
-                            openInViewer(it);
+                            openInViewMode(it);
                           }
                         }}
                       >
@@ -334,8 +331,6 @@ export default function Browser() {
           </div>
         </section>
       </div>
-
-      <AssetPreview asset={preview} open={!!preview} onClose={() => setPreview(null)} />
     </div>
   );
 }

@@ -58,6 +58,15 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     adminOnly: true,
   },
   {
+    id: "local-files",
+    route: "/local",
+    label: "Local Files",
+    kind: "local-tool",
+    apis: [FLEET_URLS.assets, FLEET_URLS.forge],
+    description:
+      "Elite open system: Explorer double-click / Open with → Asset Viewer for 3D, image, audio, video, text, PDF. Folder browser + pop-out. Forge is explicit only.",
+  },
+  {
     id: "forge",
     route: "/forge",
     label: "Forge",
@@ -176,6 +185,26 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     kind: "hybrid",
     apis: [FLEET_URLS.open, FLEET_URLS.client, FLEET_URLS.grudox],
     description: "Fleet game catalog / play modes — Open, client, GRUDOX, Warlords.",
+  },
+  {
+    id: "view",
+    route: "/view",
+    label: "View Mode",
+    kind: "local-tool",
+    apis: [FLEET_URLS.assets, FLEET_URLS.objectStore, FLEET_URLS.forge],
+    description:
+      "Universal asset review — image, audio, PSD, scene, GLB. Save, Forge, storage, AI define.",
+    adminOnly: true,
+  },
+  {
+    id: "ui",
+    route: "/ui",
+    label: "Create UI",
+    kind: "embed-prod",
+    prodUrl: FLEET_URLS.ui,
+    apis: [FLEET_URLS.ui, FLEET_URLS.assets, FLEET_URLS.open, FLEET_URLS.forge],
+    description:
+      "ui.grudge-studio.com — HUD/menus/settings packs. Open hosts GRUDOX; Forge deploys 3D; UI is shared chrome.",
   },
 ];
 

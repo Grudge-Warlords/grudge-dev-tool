@@ -24,10 +24,12 @@ import {
   Home as HomeIcon,
   ChevronDown,
   ChevronRight,
-  Play,
+  Eye,
+  FolderSearch,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { INFO_NAV } from "../shared/infoIcons";
 
 const Browser = React.lazy(() => import("./pages/Browser"));
 const Search = React.lazy(() => import("./pages/Search"));
@@ -47,6 +49,8 @@ const GrokBuilder = React.lazy(() => import("./pages/GrokBuilder"));
 const SkeletonStudio = React.lazy(() => import("./pages/SkeletonStudio"));
 const Coder = React.lazy(() => import("./pages/Coder"));
 const Preview = React.lazy(() => import("./pages/Preview"));
+const ViewMode = React.lazy(() => import("./pages/ViewMode"));
+const LocalFiles = React.lazy(() => import("./pages/LocalFiles"));
 const AssetLibrary = React.lazy(() => import("./pages/AssetLibrary"));
 const StudioHub = React.lazy(() => import("./pages/StudioHub"));
 
@@ -71,7 +75,8 @@ type Route =
   | "/skeleton"
   | "/coder"
   | "/games"
-  | "/play"
+  | "/view"
+  | "/local"
   | "/legion"
   | "/ai"
   | "/accounts"
@@ -89,30 +94,33 @@ interface NavEntry {
 }
 
 /**
- * Primary = daily workflows. Secondary = less frequent tools.
- * Keeps the sidebar short so games/systems stay operable.
+ * Primary = daily workflows only. Secondary = real tools that are less frequent.
+ * Thin/orphan utilities stay reachable via aliases + More, not the main rail.
  */
 const NAV: NavEntry[] = [
+  // —— Primary rail (elite open → CDN assets → produce → play → AI) ——
   { route: "/studio", label: "Home", Icon: HomeIcon, primary: true },
+  { route: "/local", label: "Local Files", Icon: FolderSearch, primary: true },
   { route: "/browser", label: "Assets", Icon: FolderTree, primary: true },
   { route: "/skeleton", label: "Skeleton", Icon: Bone, primary: true, adminOnly: true },
   { route: "/forge", label: "Forge", Icon: Hammer, primary: true, adminOnly: true },
   { route: "/preview", label: "Preview", Icon: Globe, primary: true, adminOnly: true },
-  { route: "/builder", label: "Grok Builder", Icon: Hammer, primary: true },
   { route: "/games", label: "Games", Icon: Gamepad2, primary: true },
   { route: "/ai", label: "Agent AI", Icon: Bot, primary: true },
-  { route: "/search", label: "Search", Icon: SearchIcon },
+  { route: "/settings", label: "Settings", Icon: SettingsIcon, primary: true, adminOnly: true },
+  // —— More tools (working surfaces, not blank shells) ——
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true },
-  { route: "/request", label: "Request URL", Icon: Link2, adminOnly: true },
-  { route: "/library", label: "Store", Icon: Store },
-  { route: "/play", label: "Play Modes", Icon: Play, adminOnly: true },
+  { route: "/view", label: "View Mode", Icon: Eye, adminOnly: true },
+  { route: "/search", label: "Search", Icon: SearchIcon },
+  { route: "/builder", label: "Grok Builder", Icon: Hammer },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
-  { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
   { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true },
+  { route: "/library", label: "Store", Icon: Store },
+  { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
+  { route: "/request", label: "Request URL", Icon: Link2, adminOnly: true },
   { route: "/uuid", label: "UUID", Icon: Fingerprint },
   { route: "/docs", label: "Docs", Icon: BookOpen },
   { route: "/accounts", label: "Account", Icon: User },
-  { route: "/settings", label: "Settings", Icon: SettingsIcon, adminOnly: true },
 ];
 
 declare global {
@@ -131,12 +139,20 @@ interface Session {
 const VALID_ROUTES = new Set<string>(NAV.map((n) => n.route));
 /** Legacy routes remapped after shell simplification */
 const ROUTE_ALIASES: Record<string, Route> = {
+  /** Old blank "Play Modes" tab — games live under Games/Preview */
   "/play": "/games",
+  "/playcanvas": "/games",
   "/home": "/studio",
+  /** Disk browsing now lives under Local Files (elite open system) */
+  "/local-assets": "/local",
+  /** CDN review stays View Mode; disk open prefers Local Files */
+  "/viewer": "/view",
 };
 
 const FULL_HEIGHT_ROUTES = new Set<string>([
   "/games",
+  "/view",
+  "/local",
   "/forge",
   "/forge-local",
   "/skeleton",
@@ -150,7 +166,7 @@ const FULL_HEIGHT_ROUTES = new Set<string>([
 ]);
 
 const APP_VERSION =
-  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "0.9.2";
+  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "0.9.9";
 
 function resolveRoute(raw: string | undefined | null): Route {
   if (!raw) return "/studio";
@@ -340,7 +356,30 @@ export default function App() {
                 onClick={() => go(n.route)}
               >
                 <span className="nav-icon flex items-center justify-center">
-                  <n.Icon size={16} />
+                  {(["/local", "/browser", "/forge", "/studio"] as const).includes(
+                    n.route as "/local",
+                  ) ? (
+                    <img
+                      src={
+                        n.route === "/local"
+                          ? INFO_NAV.localFiles
+                          : n.route === "/browser"
+                            ? INFO_NAV.assets
+                            : n.route === "/forge"
+                              ? INFO_NAV.forge
+                              : INFO_NAV.home
+                      }
+                      alt=""
+                      width={16}
+                      height={16}
+                      style={{ objectFit: "contain" }}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <n.Icon size={16} />
+                  )}
                 </span>
                 <span className="nav-label">{n.label}</span>
               </button>
@@ -430,6 +469,8 @@ export default function App() {
               {route === "/skeleton" && <SkeletonStudio />}
               {route === "/coder" && <Coder />}
               {route === "/games" && <FleetLauncher admin={admin} />}
+              {route === "/view" && <ViewMode />}
+              {route === "/local" && <LocalFiles />}
               {route === "/ai" && <AIWorkspace />}
               {route === "/accounts" && <Accounts />}
               {route === "/legion" && <Legion />}

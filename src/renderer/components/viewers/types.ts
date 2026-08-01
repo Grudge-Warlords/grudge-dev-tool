@@ -1,15 +1,17 @@
 /** Asset metadata passed into every viewer. The url is a fully-qualified
  *  CDN URL (e.g. https://assets.grudge-studio.com/path/to/file.glb). */
 export interface AssetRef {
-  /** Object-storage key (path inside the bucket, no leading slash). */
+  /** Object-storage key (path inside the bucket, no leading slash) or local path. */
   name: string;
-  /** Resolved CDN URL — the source the viewers fetch from. */
+  /** Resolved CDN / blob / local placeholder URL — the source the viewers fetch from. */
   url: string;
   /** Reported content-type from the listing. May be inaccurate; we also
    *  sniff by extension. */
   contentType: string;
   /** Size in bytes (from the listing). */
   size: number;
+  /** Absolute disk path when opened from Local Files tab. */
+  localPath?: string;
 }
 
 /** Coarse asset category used to pick which viewer component to mount. */
@@ -20,7 +22,7 @@ export type AssetKind =
 const EXT: Record<AssetKind, string[]> = {
   image: [
     "png", "jpg", "jpeg", "webp", "avif", "gif", "svg", "bmp", "ico", "apng",
-    "tga", "tif", "tiff", "heic", "heif", "jxl", "jp2",
+    "tga", "tif", "tiff", "heic", "heif", "jxl", "jp2", "psd",
   ],
   video:  ["mp4", "webm", "mov", "m4v", "ogv", "mkv", "avi"],
   audio:  ["mp3", "wav", "ogg", "flac", "m4a", "aac", "opus"],

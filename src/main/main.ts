@@ -6,6 +6,9 @@ import * as windowState from "./windowState";
 import { createTray, disposeTray } from "./tray";
 import { showLoader, hideLoader, toggleLoader, getLoaderWindow, disposeLoader } from "./loader";
 import * as viewer from "./viewer";
+import * as localFiles from "./localFiles";
+import * as openFileBridge from "./openFileBridge";
+import * as fileDefaults from "./fileDefaults";
 import * as api from "./api";
 import { uploader } from "./uploader";
 import * as bk from "./blenderkit/daemon";
@@ -71,7 +74,8 @@ try {
 } catch {
   /* logger optional at this point */
 }
-forge.captureInitialArgv();
+// Elite viewer owns OS double-click / Open with (not Forge).
+openFileBridge.captureInitialArgv();
 
 // ---------------------------------------------------------------------------
 // Crash reporter — local-only (no remote endpoint). Dumps go to
@@ -238,11 +242,8 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on("second-instance", (_event, argv) => {
-    if (mainWindow) {
-      if (!mainWindow.isVisible()) mainWindow.show();
-      mainWindow.focus();
-    }
-    forge.captureSecondInstanceArgv(argv, mainWindow);
+    // Double-click / Open with while running → elite viewer (not Forge)
+    openFileBridge.onSecondInstance(argv, mainWindow);
   });
 
   app.whenReady().then(async () => {
@@ -258,8 +259,8 @@ if (!gotLock) {
         ),
       )
       .catch((err) => log.warn("seedDefaultSecrets failed", err));
-    // If we were launched with a file, push it to the renderer once loaded.
-    if (mainWindow) forge.flushPendingTo(mainWindow);
+    // Cold-start: Explorer double-click → elite Asset Viewer + Local Files tab
+    if (mainWindow) openFileBridge.flushPendingTo(mainWindow);
     // Window-scoped shortcuts (registered while the main window has focus).
     // We don't use globalShortcut here on purpose — those would steal Ctrl+R
     // from any other app system-wide.
@@ -662,6 +663,50 @@ function registerIpc() {
     });
     return r.canceled ? [] : r.filePaths;
   });
+
+  // Local Files tab — browse folders on disk; open into viewers (not Forge)
+  ipcMain.handle("files:pickDirectory", async () => {
+    const parent =
+      mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()
+        ? mainWindow
+        : getLoaderWindow() && !getLoaderWindow()!.isDestroyed()
+          ? getLoaderWindow()
+          : null;
+    return localFiles.pickDirectory(parent);
+  });
+  ipcMain.handle("files:listDir", (_e, dirPath: string) => localFiles.listDirectory(dirPath));
+  ipcMain.handle("files:read", (_e, filePath: string) => localFiles.readLocalFile(filePath));
+  ipcMain.handle("files:reveal", (_e, filePath: string) => localFiles.revealInFolder(filePath));
+  ipcMain.handle("files:openSystem", (_e, filePath: string) => localFiles.openWithSystem(filePath));
+  ipcMain.handle("viewer:openLocal", (_e, args: { path: string; contentType?: string; size?: number }) => {
+    const parent = BrowserWindow.fromWebContents(_e.sender) ?? mainWindow;
+    return viewer.openLocalPath(
+      args.path,
+      { contentType: args.contentType, size: args.size },
+      parent && !parent.isDestroyed() ? parent : null,
+    );
+  });
+
+  // Elite open system — any disk path the OS handed us
+  ipcMain.handle("openFile:openPath", async (_e, filePath: string) => {
+    return openFileBridge.openPathInEliteViewer(
+      filePath,
+      mainWindow && !mainWindow.isDestroyed() ? mainWindow : null,
+    );
+  });
+  ipcMain.handle("openFile:openPaths", async (_e, paths: string[]) => {
+    return openFileBridge.openPaths(
+      Array.isArray(paths) ? paths : [],
+      mainWindow && !mainWindow.isDestroyed() ? mainWindow : null,
+    );
+  });
+  ipcMain.handle("openFile:supportedExts", () => [...openFileBridge.VIEWER_EXTS]);
+
+  // One-click: register Grudge as default handler for all elite viewer types (HKCU)
+  ipcMain.handle("fileDefaults:setAll", () => fileDefaults.setAllAsDefault());
+  ipcMain.handle("fileDefaults:status", () => fileDefaults.getDefaultsStatus());
+  ipcMain.handle("fileDefaults:openSystemSettings", () => fileDefaults.openSystemDefaultApps());
+  ipcMain.handle("fileDefaults:clear", () => fileDefaults.clearOurProgIds());
 
   // Puter auth + Grudge identity
   ipcMain.handle("auth:getSession", () => puterAuth.getSession());

@@ -32,6 +32,12 @@ export interface ViewerAssetRef {
   url: string;
   contentType: string;
   size: number;
+  /**
+   * Absolute disk path for local assets. When set, the viewer window reads
+   * bytes via IPC and builds a blob: URL (blob URLs cannot cross windows).
+   * url may be a placeholder `local://…` in that case.
+   */
+  localPath?: string;
 }
 
 const assetStore = new Map<string, ViewerAssetRef>();
@@ -64,16 +70,43 @@ function newToken(): string {
 function normalizeAsset(raw: unknown): ViewerAssetRef {
   if (!raw || typeof raw !== "object") throw new Error("viewer:open requires an asset object");
   const a = raw as Record<string, unknown>;
-  const name = typeof a.name === "string" ? a.name : "";
-  const url = typeof a.url === "string" ? a.url : "";
-  if (!name || !url) throw new Error("viewer:open requires asset.name and asset.url");
+  const localPath =
+    typeof a.localPath === "string" && a.localPath.trim() ? a.localPath.trim() : undefined;
+  const name =
+    typeof a.name === "string" && a.name
+      ? a.name
+      : localPath
+        ? basename(localPath)
+        : "";
+  let url = typeof a.url === "string" ? a.url : "";
+
+  // Local disk: use placeholder URL; viewer resolves via localPath + files.read
+  if (localPath) {
+    if (!url || url.startsWith("file:") || url.startsWith("local:")) {
+      url = `local://${encodeURIComponent(localPath.replace(/\\/g, "/"))}`;
+    }
+    return {
+      name: name || basename(localPath),
+      url,
+      contentType: typeof a.contentType === "string" ? a.contentType : "",
+      size: typeof a.size === "number" && Number.isFinite(a.size) ? a.size : 0,
+      localPath,
+    };
+  }
+
+  if (!name || !url) throw new Error("viewer:open requires asset.name and asset.url (or localPath)");
   try {
     const u = new URL(url);
-    if (u.protocol !== "https:" && !(u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1"))) {
-      throw new Error("Only http(s) asset URLs are allowed");
+    if (
+      u.protocol !== "https:" &&
+      !(u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1")) &&
+      u.protocol !== "blob:" &&
+      u.protocol !== "local:"
+    ) {
+      throw new Error("Only http(s), blob, or local asset URLs are allowed");
     }
   } catch (e: any) {
-    if (e?.message?.includes("Only http")) throw e;
+    if (e?.message?.includes("Only http") || e?.message?.includes("Only http(s)")) throw e;
     throw new Error(`Invalid asset URL: ${url}`);
   }
   return {
@@ -82,6 +115,25 @@ function normalizeAsset(raw: unknown): ViewerAssetRef {
     contentType: typeof a.contentType === "string" ? a.contentType : "",
     size: typeof a.size === "number" && Number.isFinite(a.size) ? a.size : 0,
   };
+}
+
+/** Open pop-out viewer for a file on disk (Local Files tab — not Forge). */
+export async function openLocalPath(
+  filePath: string,
+  meta?: { contentType?: string; size?: number },
+  parent?: BrowserWindow | null,
+): Promise<{ ok: true; token: string }> {
+  const name = basename(filePath);
+  return openViewer(
+    {
+      name: filePath.replace(/\\/g, "/"),
+      url: `local://${encodeURIComponent(filePath.replace(/\\/g, "/"))}`,
+      contentType: meta?.contentType ?? "",
+      size: meta?.size ?? 0,
+      localPath: filePath,
+    },
+    parent,
+  );
 }
 
 /** Open an always-on-top viewer window for the given asset (independent of parent so it can float above Loader + main). */
@@ -99,7 +151,7 @@ export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: 
     frame: true,
     autoHideMenuBar: true,
     backgroundColor: "#0a0e1a",
-    title: `${basename(asset.name)} — Grudge Asset Viewer`,
+    title: `${basename(asset.name)} — Grudge Elite Viewer`,
     alwaysOnTop: true,
     skipTaskbar: false,
     icon: nativeImage.createFromPath(viewerIconPath()),

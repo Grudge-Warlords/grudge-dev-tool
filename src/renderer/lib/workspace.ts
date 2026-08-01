@@ -9,6 +9,13 @@ export interface WorkspaceMirror {
   localAssetsRoot?: string;
   requestObjectPath?: string;
   playModeId?: string;
+  /** Last asset reviewed in View Mode (CDN key + url). */
+  viewAsset?: {
+    name: string;
+    url: string;
+    contentType?: string;
+    size?: number;
+  };
 }
 
 /** Fast localStorage mirror — hydrates before electron-store IPC returns. */

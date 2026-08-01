@@ -6,16 +6,13 @@ import { pathToFileURL } from "node:url";
 import log from "./logger";
 
 /**
- * Forge3D file-open bridge.
+ * Forge3D file-open bridge (explicit in-app Forge tools only).
  *
- * Two ways the user can open a model file with our app:
- *   1. Double-click in Explorer (cold start)  → app.argv contains the path
- *   2. Double-click while we're already running (second-instance) → we get
- *      the new argv via app.on("second-instance")
+ * OS double-click / "Open with" is owned by `openFileBridge.ts` → elite
+ * Asset Viewer. Do NOT route Explorer opens here.
  *
- * In both cases we stash the path in `pendingPath` until the renderer asks
- * for it via `forge:consumeInitialFile`, OR if the renderer is already
- * mounted we send `forge:openFile` directly.
+ * Pending path is only for: session handoffs, Send to Forge from viewer,
+ * and forge:consumeInitialFile when Local Files explicitly chooses Forge.
  */
 
 const SUPPORTED_EXTS = new Set([
@@ -57,17 +54,18 @@ export function captureInitialArgv(): void {
   }
 }
 
-/** Called from second-instance handler. */
+/**
+ * @deprecated OS second-instance opens use openFileBridge (elite viewer).
+ * Kept for any legacy caller that still wants Forge-only model open.
+ */
 export function captureSecondInstanceArgv(argv: string[], mainWindow: BrowserWindow | null): void {
+  log.warn("[forge] captureSecondInstanceArgv is legacy — OS opens go to openFileBridge");
   const path = findModelArg(argv);
   if (!path) return;
-  log.info("Forge: second-instance file:", path);
+  // Stash only — do not auto-nav to Forge
+  pendingPath = path;
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("forge:openFile", { path, name: basename(path) });
-    // Local Forge 3D tools for filesystem models
-    mainWindow.webContents.send("nav", "/forge-local");
-  } else {
-    pendingPath = path;
+    log.info("Forge: stashed model path (explicit Forge consume only):", path);
   }
 }
 
@@ -306,18 +304,16 @@ export function fileUrlForPath(diskPath: string): string {
 }
 
 /** When the main window is created and the user already had a pending file, push it. */
-export function flushPendingTo(mainWindow: BrowserWindow): void {
-  if (!pendingPath) return;
-  const path = pendingPath;
-  pendingPath = null;
-  // Wait for renderer to be ready, then deliver.
-  mainWindow.webContents.once("did-finish-load", () => {
-    mainWindow.webContents.send("forge:openFile", { path, name: basename(path) });
-    mainWindow.webContents.send("nav", "/forge");
-  });
-  // If it has already loaded by the time we get here (rare), fire immediately too.
-  if (!mainWindow.webContents.isLoading()) {
-    mainWindow.webContents.send("forge:openFile", { path, name: basename(path) });
-    mainWindow.webContents.send("nav", "/forge");
+/**
+ * @deprecated OS cold-start uses openFileBridge.flushPendingTo → elite viewer.
+ * This no longer auto-opens Forge.
+ */
+export function flushPendingTo(_mainWindow: BrowserWindow): void {
+  // Intentionally a no-op for OS open. Use openFileBridge.flushPendingTo.
+  if (pendingPath) {
+    log.info(
+      "[forge] flushPendingTo ignored for OS open (elite viewer owns it). pending=",
+      pendingPath,
+    );
   }
 }
