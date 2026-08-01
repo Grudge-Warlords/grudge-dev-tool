@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import DemoModeBanner from "../components/DemoModeBanner";
 import { openAssetInViewMode } from "./ViewMode";
 
 export default function Search() {
@@ -42,7 +41,6 @@ export default function Search() {
     <div>
       <h1 className="page-title">Manifest Search</h1>
       <p className="page-sub">Server-side filter against per-pack <span className="kbd">manifest.json</span> catalogs. Click a row → <strong>View Mode</strong> review.</p>
-      <DemoModeBanner feature="Search" />
       <div className="card">
         <div className="row">
           <input placeholder="Query (path / category / UUID substring)" value={q} onChange={(e) => setQ(e.target.value)} />

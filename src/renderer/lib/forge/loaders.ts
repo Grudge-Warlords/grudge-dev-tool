@@ -154,13 +154,12 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
     opts.resourceDir ||
     (opts.diskPath ? dirnamePath(opts.diskPath) : null);
   const manager = createAssetManager();
+  let loaded: LoadedModel;
   try {
     switch (format) {
       case "glb":
       case "gltf": {
-        // Blob URLs lose relative texture paths — finishImportedAsset() rebinds
-        // maps from disk siblings after load when diskPath is known.
-        void resourceDir;
+        // Blob URLs lose relative texture paths — rebind via finishImportedAsset when diskPath set.
         const gltf = await new GLTFLoader(manager).loadAsync(url);
         let scene = gltf.scene;
         let hasSkin = false;
@@ -168,21 +167,24 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
           if ((n as THREE.SkinnedMesh).isSkinnedMesh) hasSkin = true;
         });
         if (hasSkin) scene = SkeletonUtils.clone(gltf.scene) as THREE.Group;
-        return finishModel(scene, gltf.animations ?? [], gltf, format, opts.sanitize);
+        loaded = finishModel(scene, gltf.animations ?? [], gltf, format, opts.sanitize);
+        break;
       }
       case "obj": {
         const obj = await new OBJLoader(manager).loadAsync(url);
-        return finishModel(obj, [], null, format, opts.sanitize);
+        loaded = finishModel(obj, [], null, format, opts.sanitize);
+        break;
       }
       case "fbx": {
         const fbx = await new FBXLoader(manager).loadAsync(url);
-        return finishModel(
+        loaded = finishModel(
           fbx,
           (fbx as any).animations ?? [],
           null,
           format,
           { toonStyle: true, fixDefaultYellow: true, ...opts.sanitize },
         );
+        break;
       }
       case "stl": {
         const geom = await new STLLoader(manager).loadAsync(url);
@@ -191,7 +193,8 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
           geom,
           new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6, metalness: 0.05 }),
         );
-        return finishModel(mesh, [], null, format, opts.sanitize);
+        loaded = finishModel(mesh, [], null, format, opts.sanitize);
+        break;
       }
       case "ply": {
         const geom = await new PLYLoader(manager).loadAsync(url);
@@ -212,21 +215,24 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
                   vertexColors: !!geom.getAttribute("color"),
                 }),
               );
-        return finishModel(obj, [], null, format, opts.sanitize);
+        loaded = finishModel(obj, [], null, format, opts.sanitize);
+        break;
       }
       case "dae": {
         const dae = await new ColladaLoader(manager).loadAsync(url);
-        return finishModel(
+        loaded = finishModel(
           dae.scene,
           (dae as any).animations ?? [],
           null,
           format,
           opts.sanitize,
         );
+        break;
       }
       case "3mf": {
         const obj = await new ThreeMFLoader(manager).loadAsync(url);
-        return finishModel(obj, [], null, format, opts.sanitize);
+        loaded = finishModel(obj, [], null, format, opts.sanitize);
+        break;
       }
       case "three-json": {
         const text = await (await fetch(url)).text();
@@ -242,12 +248,35 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
                 return g;
               })()
             : parsed;
-        return finishModel(root, [], null, format, opts.sanitize);
+        loaded = finishModel(root, [], null, format, opts.sanitize);
+        break;
       }
+      default:
+        throw new Error(`Unsupported format: ${format}`);
     }
   } finally {
     URL.revokeObjectURL(url);
   }
+
+  // Rebind sibling textures for disk-opened FBX/OBJ/GLB (elite open / Local Files)
+  if (opts.diskPath || resourceDir) {
+    try {
+      const { finishImportedAsset } = await import("./localMaterials");
+      await finishImportedAsset(loaded.object, opts.diskPath || resourceDir || "");
+      // Re-sanitize after map rebind
+      loaded.materials = sanitizeMaterials(loaded.object, {
+        format:
+          format === "glb" || format === "gltf" || format === "fbx" || format === "obj"
+            ? format
+            : "other",
+        toonStyle: true,
+        ...opts.sanitize,
+      });
+    } catch {
+      /* sibling maps optional */
+    }
+  }
+  return loaded;
 }
 
 /**

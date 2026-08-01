@@ -5,7 +5,6 @@ import {
   ChevronRight, ChevronDown, Folder, FolderOpen, FileText, Image as ImageIcon,
   Box, Music, Search as SearchIcon, Copy, ExternalLink, Home,
 } from "lucide-react";
-import DemoModeBanner from "../components/DemoModeBanner";
 import type { AssetRef } from "../components/viewers/types";
 import { readMirror } from "../lib/workspace";
 import { openAssetInViewMode } from "./ViewMode";
@@ -184,8 +183,6 @@ export default function Browser() {
           Catalogs also on <span className="font-mono text-[11px]">info.grudge-studio.com</span>.
         </p>
       </div>
-
-      <DemoModeBanner feature="Browser" />
 
       <div className="flex flex-1 gap-3 min-h-0">
         <aside className="w-64 shrink-0 border border-line rounded-md bg-bg-1 overflow-y-auto p-1">

@@ -321,7 +321,11 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
                 if (cancelled) return;
                 const fname = basename(asset.name);
                 const file = new File([blob], fname, { type: blob.type });
-                const loaded = await loadModel(file);
+                // diskPath enables sibling texture rebind for local elite open
+                const loaded = await loadModel(file, {
+                    diskPath: asset.localPath || undefined,
+                    sanitize: { toonStyle: true, fixDefaultYellow: true, whiteWhenMapped: true },
+                });
                 if (cancelled || !engineRef.current) return;
 
                 // Clear previous
@@ -335,10 +339,15 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
                     actionsRef.current = [];
                 }
 
-                // Configure shadows
+                // Configure shadows + skinned mesh pose
                 loaded.object.traverse((n) => {
-                    (n as THREE.Mesh).castShadow = true;
-                    (n as THREE.Mesh).receiveShadow = true;
+                    const m = n as THREE.Mesh;
+                    if (m.isMesh) {
+                        m.castShadow = true;
+                        m.receiveShadow = true;
+                    }
+                    const sm = n as THREE.SkinnedMesh;
+                    if (sm.isSkinnedMesh) sm.frustumCulled = false;
                 });
                 engineRef.current.scene.add(loaded.object);
                 objectRef.current = loaded.object;
@@ -350,20 +359,27 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
                 transformRef.current = { pos: [0, 0, 0], rot: [0, 0, 0], scl: [1, 1, 1] };
                 engineRef.current.frame(loaded.object);
 
-                // Animations
-                if (loaded.animations.length > 0) {
-                    const mixer = engineRef.current.buildMixer(loaded.object, loaded.animations);
-                    if (mixer) {
-                        mixerRef.current = mixer;
-                        clipsRef.current = loaded.animations;
-                        actionsRef.current = loaded.animations.map((c) => {
-                            const action = mixer.clipAction(c);
-                            action.play();
-                            return action;
-                        });
-                        setAnimPlaying(loaded.animations.map(() => true));
-                        setAllPlaying(true);
+                // Animations: primary clip only (not all stacked)
+                if (loaded.animations.length > 0 || loaded.bones > 0) {
+                    const { attachAnimationMixer, setPrimaryAction } = await import(
+                        "./lib/forge/forgeAnimation"
+                    );
+                    const handle = attachAnimationMixer(loaded.object, loaded.animations, {
+                        dropRootMotion: true,
+                    });
+                    engineRef.current.mixers.push(handle.mixer);
+                    mixerRef.current = handle.mixer;
+                    clipsRef.current = handle.clips;
+                    actionsRef.current = handle.clips.map((c) => handle.mixer.clipAction(c));
+                    if (handle.clips.length) {
+                        setPrimaryAction(handle.mixer, handle.clips[0], "repeat");
+                        setAnimPlaying(handle.clips.map((_, i) => i === 0));
+                        setAllPlaying(false);
+                    } else {
+                        setAnimPlaying([]);
+                        setAllPlaying(false);
                     }
+                    engineRef.current.setSkeletonHelper?.(loaded.object, false);
                 }
 
                 setStats({

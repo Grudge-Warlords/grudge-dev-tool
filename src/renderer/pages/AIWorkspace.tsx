@@ -73,6 +73,7 @@ const POD_STATUS_COLOR: Record<string, string> = {
 };
 
 export default function AIWorkspace() {
+  // Legion fleet chat is folded into this surface (nav alias /legion → /ai)
   const [tab, setTab] = useState<Tab>("deploy");
   const [projects, setProjects] = useState<GrudaProject[]>([]);
   const [user, setUser] = useState<{
@@ -311,6 +312,14 @@ export default function AIWorkspace() {
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn ghost text-xs" disabled={busy} onClick={() => void onEnsureAi()}>
             <Cpu size={14} /> Start local AI
+          </button>
+          <button
+            type="button"
+            className="btn ghost text-xs"
+            onClick={() => void window.grudge?.app?.openRoute?.("/legion")}
+            title="Fleet Legion chat (ai.grudge-studio.com)"
+          >
+            Legion chat
           </button>
           <button type="button" className="btn" onClick={() => openGrudaAgentWorkspace(selected?.slug)}>
             <Bot size={14} /> Focus Agent panel

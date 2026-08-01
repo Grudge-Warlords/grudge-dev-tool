@@ -139,6 +139,12 @@ function ensureStandard(
     roughness: 0.75,
     vertexColors: !!(any as any).vertexColors,
   });
+  // r152+: skinning lives on the mesh; morph flags on material when supported
+  if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
+    (std as any).skinning = true;
+  }
+  if ((any as any).morphTargets) (std as any).morphTargets = true;
+  if ((any as any).morphNormals) (std as any).morphNormals = true;
 
   if (Array.isArray(mesh.material)) mesh.material[idx] = std;
   else mesh.material = std;
@@ -177,6 +183,13 @@ export function sanitizeMaterials(
     const mesh = node as THREE.Mesh;
     if (!mesh.isMesh || !mesh.material) return;
     meshCount++;
+
+    // Skinned / morph: keep on for correct animation + texture deformation
+    const skinned = mesh as THREE.SkinnedMesh;
+    if (skinned.isSkinnedMesh) {
+      skinned.frustumCulled = false;
+      if (skinned.skeleton) skinned.skeleton.pose();
+    }
 
     const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     list.forEach((raw, idx) => {

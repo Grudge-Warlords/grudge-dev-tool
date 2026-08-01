@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Cloud, CloudOff, Database, Server, type LucideIcon } from "lucide-react";
-import DemoModeBanner from "../components/DemoModeBanner";
 import { pathsFromFileList } from "../lib/filePaths";
 
 interface QueueRow {
@@ -156,7 +155,6 @@ export default function Upload() {
           <option value="grudge">GrudgeBuilder API</option>
         </select>
       </div>
-      <DemoModeBanner feature="Upload" />
       <div className="card">
         <label className="muted">Target prefix</label>
         <input value={prefix} onChange={(e) => setPrefix(e.target.value)} />

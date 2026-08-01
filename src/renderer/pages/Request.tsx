@@ -4,7 +4,6 @@ import {
   Box, FolderOpen, CheckCircle2, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import DemoModeBanner from "../components/DemoModeBanner";
 import type { AssetMeta } from "../../shared/ipc";
 import { readMirror, writeMirror } from "../lib/workspace";
 import { FLEET_URLS } from "../../shared/fleet";
@@ -112,8 +111,6 @@ export default function RequestPage() {
           Backend: <span className="font-mono text-gold">{backendMode || "…"}</span>
         </p>
       </div>
-
-      <DemoModeBanner feature="Request URL / asset meta" />
 
       <div className="card space-y-3">
         <label className="text-xs text-muted">Object path (no leading slash)</label>

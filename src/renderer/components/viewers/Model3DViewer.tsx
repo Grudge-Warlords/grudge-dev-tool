@@ -66,10 +66,12 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
         objectRef.current = loaded.object;
         engineRef.current.frame(loaded.object);
 
-        // Always attach mixer when skinned (0 clips ok); skeleton helper optional
+        // Mixer + first clip only (playing all clips at once looks broken)
         const skinned = loaded.bones > 0;
         if (skinned || loaded.animations.length > 0) {
-          const { attachAnimationMixer } = await import("../../lib/forge/forgeAnimation");
+          const { attachAnimationMixer, setPrimaryAction } = await import(
+            "../../lib/forge/forgeAnimation"
+          );
           const handle = attachAnimationMixer(loaded.object, loaded.animations, {
             dropRootMotion: true,
           });
@@ -77,13 +79,20 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
           mixerRef.current = handle.mixer;
           actionsRef.current = handle.clips.map((c) => handle.mixer.clipAction(c));
           if (handle.clips.length) {
-            actionsRef.current.forEach((a) => a.play());
+            setPrimaryAction(handle.mixer, handle.clips[0], "repeat");
             setPlaying(true);
           }
-          if (handle.bones > 0) {
-            engineRef.current.setSkeletonHelper(loaded.object, true);
-          }
+          // Skeleton helper is debug chrome — off by default in production viewer
+          engineRef.current.setSkeletonHelper(loaded.object, false);
         }
+        // Skinned meshes need matrix updates for correct texture/mesh pose
+        loaded.object.traverse((n) => {
+          const sm = n as THREE.SkinnedMesh;
+          if (sm.isSkinnedMesh) {
+            sm.frustumCulled = false;
+            sm.matrixWorldNeedsUpdate = true;
+          }
+        });
 
         const missingMaps =
           loaded.materials?.issues.filter((i) => i.code === "missing-map" && !i.fixed).length ?? 0;

@@ -4,6 +4,22 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-08-01
+
+### Added
+- **1.0 product cut** — elite open system + consolidated shell as the stable desktop admin app.
+
+### Changed
+- **Animations** — elite / embed 3D viewers play the **primary clip only** (no stacked multi-clip); root-motion strip retained; skeleton helper off by default.
+- **Materials / mesh** — stronger sanitize on load (sRGB maps, yellow/black fix, vertex colors, skinned `frustumCulled=false`); local sibling textures via `diskPath` on elite open.
+- **Nav 1.0** — primary: Home · Local Files · Assets · Skeleton · Forge · Preview · Games · Agent AI · Settings. More: Upload · View Mode · Grok Builder · Coder · Store · BlenderKit · Docs · Account.
+- **Thin tabs hidden** — Search / Request URL / UUID / Legion no longer clutter the sidebar (still mountable; Search→Assets alias; UUID from Settings; Legion from Agent AI).
+- **Less debug chrome** — removed DemoModeBanner from Assets / Search / Upload / Request when online path is fine.
+
+### Fixed
+- Multi-animation “broken dance” in pop-out / View Mode previews.
+- Skeleton debug lines always-on in Model3DViewer.
+
 ## [0.9.9] — 2026-08-01
 
 ### Added

@@ -91,14 +91,16 @@ interface NavEntry {
   adminOnly?: boolean;
   /** Primary rail (always visible) vs secondary "More" tools */
   primary?: boolean;
+  /** Mountable for aliases only — never listed in the sidebar */
+  hidden?: boolean;
 }
 
 /**
- * Primary = daily workflows only. Secondary = real tools that are less frequent.
- * Thin/orphan utilities stay reachable via aliases + More, not the main rail.
+ * 1.0 nav — only surfaces that earn a tab.
+ * Thin utilities (Search, Request, UUID, Legion) are aliases into Assets / Settings / AI.
  */
 const NAV: NavEntry[] = [
-  // —— Primary rail (elite open → CDN assets → produce → play → AI) ——
+  // Primary
   { route: "/studio", label: "Home", Icon: HomeIcon, primary: true },
   { route: "/local", label: "Local Files", Icon: FolderSearch, primary: true },
   { route: "/browser", label: "Assets", Icon: FolderTree, primary: true },
@@ -108,19 +110,20 @@ const NAV: NavEntry[] = [
   { route: "/games", label: "Games", Icon: Gamepad2, primary: true },
   { route: "/ai", label: "Agent AI", Icon: Bot, primary: true },
   { route: "/settings", label: "Settings", Icon: SettingsIcon, primary: true, adminOnly: true },
-  // —— More tools (working surfaces, not blank shells) ——
+  // More (full tools only)
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true },
   { route: "/view", label: "View Mode", Icon: Eye, adminOnly: true },
-  { route: "/search", label: "Search", Icon: SearchIcon },
   { route: "/builder", label: "Grok Builder", Icon: Hammer },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
-  { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true },
   { route: "/library", label: "Store", Icon: Store },
   { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
-  { route: "/request", label: "Request URL", Icon: Link2, adminOnly: true },
-  { route: "/uuid", label: "UUID", Icon: Fingerprint },
   { route: "/docs", label: "Docs", Icon: BookOpen },
   { route: "/accounts", label: "Account", Icon: User },
+  // Alias-only pages (still in VALID_ROUTES + lazy mounts; not listed in sidebar)
+  { route: "/search", label: "Search", Icon: SearchIcon, hidden: true },
+  { route: "/request", label: "Request URL", Icon: Link2, adminOnly: true, hidden: true },
+  { route: "/uuid", label: "UUID", Icon: Fingerprint, hidden: true },
+  { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true, hidden: true },
 ];
 
 declare global {
@@ -139,14 +142,14 @@ interface Session {
 const VALID_ROUTES = new Set<string>(NAV.map((n) => n.route));
 /** Legacy routes remapped after shell simplification */
 const ROUTE_ALIASES: Record<string, Route> = {
-  /** Old blank "Play Modes" tab — games live under Games/Preview */
   "/play": "/games",
   "/playcanvas": "/games",
   "/home": "/studio",
-  /** Disk browsing now lives under Local Files (elite open system) */
   "/local-assets": "/local",
-  /** CDN review stays View Mode; disk open prefers Local Files */
   "/viewer": "/view",
+  /** Search / request URL live under Assets filter UX; keep bookmarks working */
+  "/search": "/browser",
+  "/request": "/browser",
 };
 
 const FULL_HEIGHT_ROUTES = new Set<string>([
@@ -166,7 +169,7 @@ const FULL_HEIGHT_ROUTES = new Set<string>([
 ]);
 
 const APP_VERSION =
-  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "0.9.9";
+  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "1.0.0";
 
 function resolveRoute(raw: string | undefined | null): Route {
   if (!raw) return "/studio";
@@ -258,7 +261,7 @@ export default function App() {
   const admin = session ? isAdmin(session) : false;
 
   const { primaryNav, moreNav } = useMemo(() => {
-    const visible = NAV.filter((n) => admin || !n.adminOnly);
+    const visible = NAV.filter((n) => !n.hidden && (admin || !n.adminOnly));
     return {
       primaryNav: visible.filter((n) => n.primary),
       moreNav: visible.filter((n) => !n.primary),

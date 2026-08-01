@@ -430,6 +430,17 @@ export default function Settings() {
             Clear Grudge ProgIDs
           </button>
         </div>
+        <div className="mt-4 pt-3 border-t border-line">
+          <div className="muted text-xs mb-2">Grudge UUID (was a separate tab — folded here in 1.0)</div>
+          <button
+            type="button"
+            className="btn ghost text-xs"
+            onClick={() => void window.grudge?.app?.openRoute?.("/uuid")}
+          >
+            Open UUID generator
+          </button>
+          <span className="muted text-[10px] ml-2">also via Assets filter / Agent tools</span>
+        </div>
       </div>
 
       <div className="card">
