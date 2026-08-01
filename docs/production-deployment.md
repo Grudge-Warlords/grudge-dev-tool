@@ -27,6 +27,8 @@ description: ONE TRUTH production deploy map for Grudge Dev Tool, Forge, AI work
 | Pipeline | `https://grudge-pipeline.vercel.app` | Ingest → bake handoff |
 | Open launcher | `https://open.grudge-studio.com` | Canonical library / Preview target |
 | GRUDOX | `https://grudox.grudge-studio.com` | Rooms + Carrier edge |
+| Multiverse SPA | `https://grudge-multiverse.vercel.app` | Bermuda island MP (grudge6) |
+| Multiverse rooms | `https://grudge-multiverse-room-production.up.railway.app` | Dedicated Railway — WS `/api/mv` |
 | Water island | `https://water.grudge-studio.com` | Home island production |
 | Dev Tool docs | [`grudge-warlords.github.io/grudge-dev-tool`](https://grudge-warlords.github.io/grudge-dev-tool/) | This site (GitHub Pages = `docs/`) |
 | Local Ollama | `http://localhost:11434` | **GRUDACHAIN** Docker / native agentic AI |
@@ -77,14 +79,14 @@ baseurl: "/grudge-dev-tool"
 
 Repo Settings → Pages → **GitHub Actions** (not branch deploy).
 
-## Desktop Forge release (package **v0.9.6** — check Releases for latest tag)
+## Desktop Forge release (package **v1.0.1** — check Releases for latest tag)
 
 ```powershell
 npm ci --legacy-peer-deps
 npm run typecheck
 npm run package:ci      # NSIS installer → release/
 # or tagged release (CI + local artifact):
-git tag v0.9.6 && git push origin v0.9.6
+git tag v1.0.1 && git push origin v1.0.1
 # prefer: npm run publish:manual after package
 ```
 
@@ -102,9 +104,21 @@ Installer embeds: Electron main/renderer, Three.js, glTF-Transform, Puter, keyta
 | Store | R2 under CDN keys; seed D1/ObjectStore |
 | View | Dev Tool Asset Viewer + Forge CDN URL |
 | Edit | forge.grudge-studio.com (R3F + Rapier) |
-| Playtest | Preview → open / client / water / GRUDOX |
+| Playtest | Preview → open / client / water / GRUDOX / Multiverse |
 
 Skills: **`grudge-asset-convert`** · **`forge-editor`** · **`grudge-d1-r2`**.
+
+### Multiverse deploy (live game with own Railway)
+
+| Layer | Host | Command / note |
+|-------|------|----------------|
+| SPA | `grudge-multiverse.vercel.app` | `cd F:\GitHub\grudge-multiverse && npm run deploy` |
+| Rooms | `grudge-multiverse-room-production` | `cd server && railway up` — WS **`/api/mv`** |
+| Map | R2 `models/maps/bermuda.glb` | Never ship 50MB+ GLB on Vercel |
+| Env | `VITE_MV_GAME_SERVER_URL` | Multiverse Railway only |
+| Open card | gameopen `gameLibrary.ts` | id `grudge-multiverse` |
+
+**Rule:** each multiplayer game gets its **own Railway** when it needs rooms — do not piggyback Carrier / gameopen-production for Multiverse.
 
 ## CLI (`cli/`)
 

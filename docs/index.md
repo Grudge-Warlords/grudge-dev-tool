@@ -25,7 +25,7 @@ Windows x64 NSIS · electron-updater · Studio Hub · Asset Viewer · Forge embe
 | **Home** | Fleet health + admin systems (client, info.*, ENGINE, open, GRUDOX, Forge, Coder) |
 | **Assets** | R2/ObjectStore · `>query` Agent search · always-on-top Viewer · send 3D → Forge |
 | **Forge** | **Same source as https://forge.grudge-studio.com** — R3F + Rapier + AI Worker |
-| **Preview** | Play-mode clients (open · client · water · GRUDOX) after Forge |
+| **Preview** | Play-mode clients (open · client · water · GRUDOX · Multiverse) after Forge |
 | **Coder** | Embed coder.grudge-studio.com + optional local PTY |
 | **Skeleton** | Mixamo-25 → T-pose → retarget → grudge-convert → CDN |
 | **Store / BlenderKit / UUID / Legion** | Catalogs, ingest, IDs, fleet AI chat |
@@ -54,7 +54,7 @@ Windows x64 NSIS · electron-updater · Studio Hub · Asset Viewer · Forge embe
 ```text
 Assets (CDN / ObjectStore)
     → Forge (forge.grudge-studio.com)
-    → Preview (open / client / water / GRUDOX)
+    → Preview (open / client / water / GRUDOX / Multiverse)
     → Agent AI / Upload (grudge-convert → R2 → D1 seed)
 ```
 
@@ -119,6 +119,8 @@ grudge-dev upload-pack --root "C:\packs\MyPack" --pack-id my-pack --dry-run
 | [ai.grudge-studio.com](https://ai.grudge-studio.com) | Legion AI |
 | [open.grudge-studio.com](https://open.grudge-studio.com) | Open launcher |
 | [grudox.grudge-studio.com](https://grudox.grudge-studio.com) | GRUDOX / Carrier |
+| [grudge-multiverse.vercel.app](https://grudge-multiverse.vercel.app/#room1) | Multiverse Bermuda MP (SPA) |
+| [Multiverse Railway](https://grudge-multiverse-room-production.up.railway.app/api/health) | Multiverse rooms `/api/mv` |
 | [water.grudge-studio.com](https://water.grudge-studio.com) | Home island |
 | [assets.grudge-studio.com](https://assets.grudge-studio.com) | CDN |
 | [objectstore](https://objectstore.grudge-studio.com/api/v1) / [info](https://info.grudge-studio.com/api/v1) | Catalogs |

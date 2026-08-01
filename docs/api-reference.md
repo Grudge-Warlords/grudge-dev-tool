@@ -38,8 +38,19 @@ Full host map: [Systems & APIs](systems-api.md) · [ONE TRUTH](one-truth.md).
 | Forge | `https://forge.grudge-studio.com/` | Editor SPA |
 | Coder | `https://coder.grudge-studio.com/api/health` | IDE gateway when backend up |
 | Open | `https://open.grudge-studio.com/` | Launcher |
+| Multiverse SPA | `https://grudge-multiverse.vercel.app/` | Bermuda MP play |
+| Multiverse room | `https://grudge-multiverse-room-production.up.railway.app/api/health` | Rooms service; WS **`/api/mv`** |
 
 `apiBase` = `https://client.grudge-studio.com` in production.
+
+### Multiverse room health (example)
+
+```bash
+curl -s https://grudge-multiverse-room-production.up.railway.app/api/health
+# {"status":"ok","service":"grudge-multiverse-room","ws":["/api/mv"],…}
+```
+
+Do **not** call Multiverse multiplayer on Carrier `/api/carrier` or gameopen Railway.
 
 ---
 
@@ -226,6 +237,6 @@ Channel names: `src/shared/ipc.ts`.
 2. **Magic-byte** verify GLBs.  
 3. **Seed** D1 / ObjectStore after upload.  
 4. **Send 3D to Forge** with **CDN URL** (`assets.grudge-studio.com/...`).  
-5. **Playtest** via Preview → open / client / water / GRUDOX.  
+5. **Playtest** via Preview → open / client / water / GRUDOX / Multiverse.  
 
 See [Admin architecture](admin-architecture.md) · [Production deployment](production-deployment.md).

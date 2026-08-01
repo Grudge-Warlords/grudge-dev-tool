@@ -112,6 +112,21 @@ export const FLEET_GAMES: FleetGame[] = [
     hasServer: true,
   },
   {
+    id: "multiverse",
+    name: "grudge-multiverse",
+    displayName: "Grudge Multiverse",
+    description:
+      "Bermuda island multiplayer — grudge6 RTS Toon classes, Main Panel, bosses, vendor shop. Own Railway rooms on /api/mv (not Carrier).",
+    url: "https://grudge-multiverse.vercel.app/#room1",
+    repo: "grudge-multiverse",
+    engine: "Three.js r185 + Rapier",
+    status: "live",
+    category: "rpg",
+    topics: ["multiverse", "grudge6", "multiplayer", "bermuda", "island"],
+    thumbnail: THUMB("grudge-multiverse"),
+    hasServer: true,
+  },
+  {
     id: "studio-forge",
     name: "RTS-Grudge",
     displayName: "Grudge Studio Forge",

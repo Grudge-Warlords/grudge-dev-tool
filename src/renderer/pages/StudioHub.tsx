@@ -68,7 +68,7 @@ const PRIMARY: Array<{
   {
     id: "preview",
     label: "Preview",
-    desc: "Play-test open / client / water / GRUDOX",
+    desc: "Play-test open / client / water / GRUDOX / Multiverse",
     route: "/preview",
     Icon: Play,
     adminOnly: true,
@@ -84,7 +84,7 @@ const PRIMARY: Array<{
   {
     id: "games",
     label: "Play Games",
-    desc: "Open · client · GRUDOX · Warlords catalog",
+    desc: "Open · Multiverse · client · GRUDOX · Warlords",
     route: "/games",
     Icon: Gamepad2,
   },

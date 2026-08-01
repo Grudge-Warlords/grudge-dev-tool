@@ -2,8 +2,8 @@
  * Preview — Grudge Dev Tool play-mode surface.
  *
  * Loads production clients/games in an Electron webview for admin testing.
- * Primary use: after Forge edit/publish, open client / open / water / GRUDOX
- * with sceneId / glb deep-links — same hosts as forge.grudge-studio.com deploys.
+ * Primary use: after Forge edit/publish, open client / open / water / GRUDOX /
+ * Multiverse with sceneId / glb deep-links — same hosts as production deploys.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -68,6 +68,12 @@ const PLAY_PRESETS: Array<{
     label: "GRUDOX",
     url: FLEET_URLS.grudox,
     hint: "Carrier / room hub",
+  },
+  {
+    id: "multiverse",
+    label: "Multiverse",
+    url: `${FLEET_URLS.multiverse}/#room1`,
+    hint: "Bermuda MP · Railway /api/mv",
   },
   {
     id: "warlords",

@@ -223,6 +223,13 @@ export const ADMIN_FLEET_HOSTS = [
   { id: "pipeline", label: "Pipeline", url: FLEET_URLS.pipeline, group: "tools" as const },
   { id: "open", label: "Open launcher", url: FLEET_URLS.open, group: "games" as const },
   { id: "grudox", label: "GRUDOX", url: FLEET_URLS.grudox, group: "games" as const },
+  { id: "multiverse", label: "Multiverse", url: FLEET_URLS.multiverse, group: "games" as const },
+  {
+    id: "multiverseRoom",
+    label: "Multiverse Railway",
+    url: FLEET_URLS.multiverseRoom,
+    group: "games" as const,
+  },
   { id: "water", label: "Water island", url: FLEET_URLS.water, group: "games" as const },
   { id: "warlords", label: "Warlords", url: FLEET_URLS.warlords, group: "games" as const },
   { id: "foundry", label: "Character Foundry", url: FLEET_URLS.characterFoundry, group: "games" as const },

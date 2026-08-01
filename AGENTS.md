@@ -76,6 +76,8 @@ Workers AI models are env-overridable: `CF_AI_DEFAULT_MODEL` (default `@cf/meta/
 | Forge editor | `https://forge.grudge-studio.com` | browser |
 | Pipeline | `https://grudge-pipeline.vercel.app` | browser |
 | Coder IDE | `https://coder.grudge-studio.com` | browser / Dev Tool handoff |
+| Multiverse SPA | `https://grudge-multiverse.vercel.app` | browser / Preview |
+| Multiverse rooms | `https://grudge-multiverse-room-production.up.railway.app` | WS `/api/mv` only (own Railway) |
 | **Deprecated** | `https://api.grudge-studio.com` | **do not use** |
 
 ### Production quality bar (assets + AI)

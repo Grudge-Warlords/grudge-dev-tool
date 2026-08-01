@@ -15,6 +15,7 @@ export const PLAY_MODE_ORDER = [
   "grudgewarlords",
   "tactical-infinity", // water.grudge-studio.com
   "grudox",
+  "multiverse", // grudge-multiverse.vercel.app + dedicated Railway /api/mv
   // Editors & tools in play surface
   "studio-forge",
   "grudge-pipeline",
@@ -28,7 +29,7 @@ export const PLAY_MODE_ORDER = [
   "grim-armada",
   "grudge-space-rts",
   "mech-forge",
-  "metaverse",
+  "metaverse", // avatars hub — not Multiverse
   "arena-bridge",
   "final-fighter",
 ] as const;

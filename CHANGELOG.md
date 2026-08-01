@@ -4,6 +4,9 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Changed
+- **Fleet SSOT + docs** — **Grudge Multiverse** live hosts: SPA `grudge-multiverse.vercel.app`, dedicated Railway `grudge-multiverse-room-production` with WS **`/api/mv`** (not Carrier / gameopen). Preview preset, Games catalog, admin hosts, systems-api / one-truth / production-deployment / admin-architecture / Vercel SSOT updated. Multiverse ≠ Metaverse.
+
 ## [1.0.1] — 2026-08-01
 
 ### Added

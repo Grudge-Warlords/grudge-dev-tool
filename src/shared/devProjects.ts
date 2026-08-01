@@ -46,6 +46,18 @@ export const DEV_PROJECT_PRESETS: DevProject[] = [
     packageManager: "npm",
   },
   {
+    id: "multiverse",
+    name: "Grudge Multiverse",
+    rootDir: "F:\\GitHub\\grudge-multiverse",
+    description:
+      "Bermuda MP island · grudge-multiverse.vercel.app + Railway /api/mv",
+    devCommand: "npm run dev",
+    buildCommand: "npm run build",
+    defaultPort: 5173,
+    remoteDevUrl: "https://grudge-multiverse.vercel.app/#room1",
+    packageManager: "npm",
+  },
+  {
     id: "tactical-infinity",
     name: "Water / Home Island",
     rootDir: "F:\\GitHub\\Tactical-Infinity",

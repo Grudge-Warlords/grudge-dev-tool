@@ -30,6 +30,7 @@ permalink: /VERCEL_FLEET_SSOT.html
 | Forge | https://forge.grudge-studio.com | `grudge-studio-forge` |
 | Grok Builder | https://grok-builder.vercel.app | `grok-builder` |
 | Open launcher | https://open.grudge-studio.com | `gameopen` (+ CF/edge) |
+| Multiverse SPA | https://grudge-multiverse.vercel.app | `grudge-multiverse` (+ own Railway rooms) |
 | Character Foundry | https://character.grudge-studio.com | `grudge-character-viewer` / Pages |
 | Water island | https://water.grudge-studio.com | `tactical-infinity` (name legacy) |
 | Coder | https://coder.grudge-studio.com | CF Pages (not Vercel) |

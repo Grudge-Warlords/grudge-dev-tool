@@ -28,10 +28,14 @@ Full link table: [Systems & APIs](systems-api.md).
 | Coder | `coder.grudge-studio.com` | IDE (Dev Tool **Coder** tab) |
 | Open | `open.grudge-studio.com` | Launcher (Preview) |
 | GRUDOX | `grudox.grudge-studio.com` | Rooms / Carrier |
+| Multiverse SPA | `grudge-multiverse.vercel.app` | Bermuda MP play (Preview) |
+| Multiverse rooms | `grudge-multiverse-room-production.up.railway.app` | WS **`/api/mv`** only (own Railway) |
 | Water | `water.grudge-studio.com` | Home island |
 | Docs | [grudge-warlords.github.io/grudge-dev-tool](https://grudge-warlords.github.io/grudge-dev-tool/) | This site |
 
 **Always use `https://client.grudge-studio.com` as API base** in CLI and Settings — not raw Railway in browser apps, not deprecated hosts.
+
+**Multiverse ≠ Metaverse.** Multiverse multiplayer does **not** use Carrier (`/api/carrier`) or gameopen-production — it uses its dedicated Railway and `/api/mv`.
 
 ## Deprecated (split-brain)
 
@@ -40,6 +44,7 @@ Full link table: [Systems & APIs](systems-api.md).
 - `grudge-objectstore.pages.dev`
 - `auth.grudgestudio.com` / `auth.grudge-studio.com` (use **`id.grudge-studio.com`**)
 - `tactical-infinity.vercel.app` (orphaned — water is `water.grudge-studio.com`)
+- Multiverse via Carrier / gameopen Railway (wrong service — use Multiverse room)
 
 `grudge-dev doctor` fails if probes return `text/html` for JSON routes.
 

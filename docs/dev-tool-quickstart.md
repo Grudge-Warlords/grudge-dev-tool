@@ -55,7 +55,7 @@ Requires **Docker Desktop** (preferred) or native Ollama at `%LOCALAPPDATA%\Prog
 
 1. **Assets** — browse R2; click for always-on-top Viewer; `>query` for Agent/server search; send GLB to Forge (CDN URL).
 2. **Forge** — production editor (R3F + Rapier). Same host as DNS. Use **Play test** when ready.
-3. **Preview** — load open / client / water / GRUDOX with optional `sceneId` / `glb`.
+3. **Preview** — load open / client / water / GRUDOX / Multiverse with optional `sceneId` / `glb`.
 4. **Coder** — cloud IDE embed, or Local server for full PTY.
 5. **Skeleton / Store / BlenderKit / UUID / Legion** — retarget, catalogs, ingest, IDs, fleet AI (not Coder hub).
 6. **Docs** — same Markdown as GitHub Pages (`docs/`).

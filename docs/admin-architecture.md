@@ -23,7 +23,7 @@ Code SSOT: `src/shared/adminSurfaces.ts` · `src/shared/fleet.ts` · `src/shared
 | **Assets** | hybrid | `assets` + ObjectStore + `info.*` | R2 tree, `>query` Agent search, always-on-top Viewer, send GLB → Forge |
 | **Forge** | **embed-prod** | **https://forge.grudge-studio.com** | Same SPA as DNS — R3F + **Rapier** + AI Worker + three.js editor parity |
 | **Local tools** | local | `/forge-local` | Pop-out, glTF helpers, convert — **not** a second editor SSOT |
-| **Preview** | hybrid | open · client · water · GRUDOX · warlords | **Play mode** after Forge — `sceneId` / `glb` deep-links |
+| **Preview** | hybrid | open · client · water · GRUDOX · Multiverse · warlords | **Play mode** after Forge — `sceneId` / `glb` deep-links |
 | **Coder** | hybrid | **https://coder.grudge-studio.com** + optional local PTY | Same Pages SPA; local for full FS/agent |
 | **Skeleton** | local | convert + CDN | Mixamo-25 → T-pose → retarget → **grudge-convert** → R2 |
 | **Store** | hybrid | ObjectStore + info.* | Catalog packs / prefabs |
@@ -48,7 +48,7 @@ Dev Tool /forge  ──webview──►  https://forge.grudge-studio.com
 
 - Repo of the SPA: `F:\GitHub\Grudge-Studio-Forge` (skill **`forge-editor`**).  
 - Dev Tool does **not** fork a second production editor.  
-- **Play test** button → **Preview** with open/client/water/GRUDOX.  
+- **Play test** button → **Preview** with open/client/water/GRUDOX/Multiverse.  
 - Production bake for fleet ships remains **`grudge-convert`** → R2 → D1/ObjectStore seed (skill **`grudge-asset-convert`**).
 
 ---
@@ -66,9 +66,11 @@ Dev Tool /forge  ──webview──►  https://forge.grudge-studio.com
 | Client play | `https://client.grudge-studio.com` |
 | Water island | `https://water.grudge-studio.com` |
 | GRUDOX | `https://grudox.grudge-studio.com` |
+| Multiverse | `https://grudge-multiverse.vercel.app/#room1` |
 | Warlords | `https://grudgewarlords.com` |
 
-Never: `tactical-infinity.vercel.app`, `api.grudge-studio.com`, raw R2 public URLs in clients.
+Never: `tactical-infinity.vercel.app`, `api.grudge-studio.com`, raw R2 public URLs in clients.  
+Multiverse rooms: own Railway `…/api/mv` — **not** Carrier.
 
 ---
 
@@ -87,9 +89,10 @@ Never: `tactical-infinity.vercel.app`, `api.grudge-studio.com`, raw R2 public UR
 | Coder | `coder.grudge-studio.com` | Vibe IDE |
 | Pipeline | `grudge-pipeline.vercel.app` | Ingest → bake handoff |
 | Builder | Grok Builder URL in `FLEET_URLS.grokBuilder` | Agentic Three/Rapier builder |
-| Open / GRUDOX / Water | open · grudox · water | Live play + Preview |
+| Open / GRUDOX / Water / Multiverse | open · grudox · water · multiverse | Live play + Preview |
+| Multiverse rooms | `grudge-multiverse-room-production` | WS `/api/mv` (dedicated Railway) |
 
-Full fleet inventory: skill **`grudge-fleet`**. Deploy how-to: **`grudge-stack`**.
+Full fleet inventory: skill **`grudge-fleet`**. Deploy how-to: **`grudge-stack`**. Live rooms: **`grudge-live-servers`**.
 
 ---
 

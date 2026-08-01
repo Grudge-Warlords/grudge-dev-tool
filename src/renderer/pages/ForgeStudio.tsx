@@ -3,7 +3,7 @@
  *
  * Production stack: R3F + Rapier + ObjectStore + AI Worker (three.js editor parity).
  * Dev Tool embeds that host; Local tools (/forge-local) are secondary convert/pop-out only.
- * After edit, send playtests to Preview (open / client / water / GRUDOX).
+ * After edit, send playtests to Preview (open / client / water / GRUDOX / Multiverse).
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -130,7 +130,7 @@ export default function ForgeStudio() {
       void window.grudge?.app?.openRoute?.("/preview");
     }
     toast.message("Preview · play mode", {
-      description: "Open / client / water / GRUDOX for Forge playtests",
+      description: "Open / client / water / GRUDOX / Multiverse for Forge playtests",
     });
   }, [url]);
 

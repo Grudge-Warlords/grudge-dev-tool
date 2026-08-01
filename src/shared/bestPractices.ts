@@ -348,16 +348,23 @@ export const SURFACE_BEST_PRACTICES = {
   forge: {
     id: "surface-forge",
     title: "Forge editor (same source as DNS)",
-    rule: "Dev Tool Forge tab embeds https://forge.grudge-studio.com — not a fork. R3F+Rapier+AI Worker+meshopt GLB+SI metres. Local tools = convert/pop-out only. In-editor export convenience; production bake = grudge-convert → R2. Play test → Preview (open/client/water/GRUDOX).",
+    rule: "Dev Tool Forge tab embeds https://forge.grudge-studio.com — not a fork. R3F+Rapier+AI Worker+meshopt GLB+SI metres. Local tools = convert/pop-out only. In-editor export convenience; production bake = grudge-convert → R2. Play test → Preview (open/client/water/GRUDOX/Multiverse).",
     category: "surfaces" as const,
     surfaces: ["forge", "pipeline", "devtools", "preview"] as const,
   },
   preview: {
     id: "surface-preview",
     title: "Preview play mode",
-    rule: "Preview tab loads production clients for admin playtests after Forge. Deep-link sceneId/glb. Targets: open.grudge-studio.com, client, water, grudox, warlords — never orphaned Vercel hosts.",
+    rule: "Preview tab loads production clients for admin playtests after Forge. Deep-link sceneId/glb. Targets: open.grudge-studio.com, client, water, grudox, multiverse (grudge-multiverse.vercel.app), warlords — never orphaned Vercel hosts. Multiverse multiplayer is its own Railway /api/mv — not Carrier.",
     category: "surfaces" as const,
     surfaces: ["preview", "forge", "devtools"] as const,
+  },
+  multiverse: {
+    id: "surface-multiverse",
+    title: "Grudge Multiverse (dedicated Railway)",
+    rule: "SPA grudge-multiverse.vercel.app; room server grudge-multiverse-room-production.up.railway.app with WS /api/mv only. Map Bermuda from R2 CDN. grudge6 RTS Toon + Main Panel. Never route Multiverse through gameopen Carrier or metaverse.grudge-studio.com. Each multiplayer game gets its own Railway when it needs rooms.",
+    category: "surfaces" as const,
+    surfaces: ["preview", "deploy", "devtools"] as const,
   },
   skeletonStore: {
     id: "surface-skeleton-store",
@@ -473,7 +480,8 @@ export function agentBestPracticesCompact(): string {
     "- D1=asset index (prepare/bind/batch); R2=binaries at assets.grudge-studio.com; Stream=long video.",
     "- Convert before upload; magic-byte verify; send 3D to Forge via CDN URL.",
     "- Forge tab = forge.grudge-studio.com (same DNS). Preview = play clients. Coder = coder.grudge-studio.com.",
-    "- Admin APIs: client · id · Railway · objectstore · info.* · assets · open · grudox · engine portal.",
+    "- Admin APIs: client · id · Railway · objectstore · info.* · assets · open · grudox · multiverse · engine portal.",
+    "- Multiverse: SPA grudge-multiverse.vercel.app + Railway /api/mv (own service, not Carrier).",
   ].join("\n");
 }
 
@@ -485,6 +493,8 @@ export const PLAY_ACCESS_ORIGINS = [
   "https://water.grudge-studio.com",
   "https://grudgewarlords.com",
   "https://grudox.grudge-studio.com",
+  "https://grudge-multiverse.vercel.app",
+  "https://grudge-multiverse-room-production.up.railway.app",
   "https://forge.grudge-studio.com",
   "https://grudge-pipeline.vercel.app",
   "https://studio.grudge-studio.com",
@@ -520,6 +530,16 @@ export const STUDIO_SURFACE_DNS = [
   { id: "character", host: "character.grudge-studio.com", role: "Foundry create + 4-slot" },
   { id: "water", host: "water.grudge-studio.com", role: "Home island production" },
   { id: "grudox", host: "grudox.grudge-studio.com", role: "GRUDOX + Carrier edge" },
+  {
+    id: "multiverse",
+    host: "grudge-multiverse.vercel.app",
+    role: "Multiverse SPA (Bermuda + grudge6) — not Metaverse",
+  },
+  {
+    id: "multiverse-room",
+    host: "grudge-multiverse-room-production.up.railway.app",
+    role: "Multiverse rooms WS /api/mv only",
+  },
   { id: "obs", host: "obs.grudge-studio.com", role: "Observatory telemetry" },
   { id: "info", host: "info.grudge-studio.com", role: "Live definition catalogs" },
   { id: "wallet", host: "wallet.grudge-studio.com", role: "Wallet site Worker" },

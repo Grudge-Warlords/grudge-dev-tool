@@ -76,10 +76,25 @@ See [Object storage](object-storage.md) · [AI · D1 · R2 · Stream](ai-workers
 | [client.grudge-studio.com](https://client.grudge-studio.com) | Live play funnel |
 | [water.grudge-studio.com](https://water.grudge-studio.com) | Home island production |
 | [grudox.grudge-studio.com](https://grudox.grudge-studio.com) | GRUDOX hub + Carrier |
+| [grudge-multiverse.vercel.app](https://grudge-multiverse.vercel.app/#room1) | **Multiverse** Bermuda island SPA (grudge6 RTS Toon) |
+| [grudge-multiverse-room-production](https://grudge-multiverse-room-production.up.railway.app/api/health) | Multiverse **dedicated** Railway rooms — WS **`/api/mv` only** |
 | [grudgewarlords.com](https://grudgewarlords.com) | Warlords shell |
-| [carrier.grudge-studio.com](https://carrier.grudge-studio.com) | Carrier edge WS |
+| [carrier.grudge-studio.com](https://carrier.grudge-studio.com) | Carrier edge WS (GRUDOX — **not** Multiverse) |
+| [metaverse.grudge-studio.com](https://metaverse.grudge-studio.com) | Metaverse avatars hub (**not** Multiverse) |
 
-**Never** use orphaned `tactical-infinity.vercel.app` for water.
+**Never** use orphaned `tactical-infinity.vercel.app` for water.  
+**Never** route Multiverse multiplayer through Carrier or gameopen-production — each multiplayer game has its own Railway when it needs rooms.
+
+### Multiverse topology (live)
+
+```text
+Browser → grudge-multiverse.vercel.app  (SPA / Three r185)
+       → assets.grudge-studio.com/models/maps/bermuda.glb  (map)
+       → assets.grudge-studio.com/models/grudge6/…          (kits)
+       → wss://grudge-multiverse-room-production…/api/mv?room=room1
+```
+
+Open library card: `gameopen` → `gameLibrary.ts` id `grudge-multiverse`.
 
 ---
 
@@ -123,7 +138,7 @@ https://assets.grudge-studio.com/<key>    # binaries
 ```text
 Assets (CDN / ObjectStore / info.*)
   → Forge (forge.grudge-studio.com)
-  → Preview (open / client / water / GRUDOX)
+  → Preview (open / client / water / GRUDOX / Multiverse)
   → Upload / Agent AI (grudge-convert → R2 → D1 seed)
 ```
 

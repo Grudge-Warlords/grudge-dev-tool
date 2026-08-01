@@ -69,8 +69,15 @@ export const FLEET_URLS = {
   dcq: "https://dcq.grudge-studio.com",
   /** Survival */
   survival: "https://grudges.grudge-studio.com",
-  /** Metaverse */
+  /** Metaverse (avatars hub — not Multiverse) */
   metaverse: "https://metaverse.grudge-studio.com",
+  /**
+   * Grudge Multiverse — Bermuda island MP (grudge6 RTS Toon).
+   * Vercel SPA + dedicated Railway room `/api/mv` (NOT Carrier / gameopen-production).
+   */
+  multiverse: "https://grudge-multiverse.vercel.app",
+  /** Multiverse multiplayer room (own Railway service) */
+  multiverseRoom: "https://grudge-multiverse-room-production.up.railway.app",
   /** Observatory telemetry */
   observatory: "https://obs.grudge-studio.com",
   /** Puter User-Pays SDK */
