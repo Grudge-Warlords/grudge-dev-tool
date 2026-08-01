@@ -198,6 +198,24 @@ fileAssociations:
     role: Viewer
     mimeType: video/quicktime
     icon: resources/icon.ico
+  - ext: m4v
+    name: Grudge M4V
+    description: M4V Video — Grudge Elite Viewer
+    role: Viewer
+    mimeType: video/x-m4v
+    icon: resources/icon.ico
+  - ext: mkv
+    name: Grudge MKV
+    description: Matroska Video — Grudge Elite Viewer
+    role: Viewer
+    mimeType: video/x-matroska
+    icon: resources/icon.ico
+  - ext: avi
+    name: Grudge AVI
+    description: AVI Video — Grudge Elite Viewer
+    role: Viewer
+    mimeType: video/x-msvideo
+    icon: resources/icon.ico
   # Data / docs
   - ext: json
     name: Grudge JSON

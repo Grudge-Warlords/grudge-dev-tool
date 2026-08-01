@@ -118,6 +118,22 @@ function joinFromParts(parts: string[], idx: number): string {
 }
 
 async function fileToAssetRef(entry: LocalEntry): Promise<AssetRef> {
+  // Video/audio: stream (grudge-media://) — never load whole MP4 into RAM
+  const stream =
+    entry.kind === "video" ||
+    entry.kind === "audio" ||
+    /\.(mp4|webm|mov|m4v|ogv|mkv|avi|mp3|wav|ogg|flac|m4a|aac|opus)$/i.test(entry.name);
+  if (stream && window.grudge.files?.mediaUrl) {
+    const url = await window.grudge.files.mediaUrl(entry.path);
+    return {
+      name: entry.path.replace(/\\/g, "/"),
+      url,
+      contentType: entry.contentType || (entry.kind === "video" ? "video/mp4" : "audio/mpeg"),
+      size: entry.size || 0,
+      localPath: entry.path,
+      stream: true,
+    };
+  }
   const file = await window.grudge.files.read(entry.path);
   const bytes = file.bytes as Uint8Array;
   const ab = bytes.buffer.slice(

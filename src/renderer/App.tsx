@@ -169,7 +169,7 @@ const FULL_HEIGHT_ROUTES = new Set<string>([
 ]);
 
 const APP_VERSION =
-  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "1.0.0";
+  typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "1.0.1";
 
 function resolveRoute(raw: string | undefined | null): Route {
   if (!raw) return "/studio";

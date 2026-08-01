@@ -12,6 +12,8 @@ export interface AssetRef {
   size: number;
   /** Absolute disk path when opened from Local Files tab. */
   localPath?: string;
+  /** Streaming media (grudge-media://) — do not blob-load. */
+  stream?: boolean;
 }
 
 /** Coarse asset category used to pick which viewer component to mount. */

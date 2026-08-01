@@ -167,27 +167,43 @@ export default function ViewMode() {
       if (!paths?.length) return;
       const path = paths[0];
       const name = path.split(/[/\\]/).pop() || path;
-      // Local file via forge read → blob URL for viewers
-      const fileData = await window.grudge.forge.readFile(path);
+      const ext = name.split(".").pop()?.toLowerCase() || "";
+      // Video/audio: stream (mp4 etc.) — double-click / picker same path as elite open
+      if (/\.(mp4|webm|mov|m4v|ogv|mkv|avi|mp3|wav|ogg|flac|m4a|aac|opus)$/i.test(name)) {
+        const url = await window.grudge.files.mediaUrl(path);
+        const ct = ext === "webm" ? "video/webm" : ext === "mp3" ? "audio/mpeg" : "video/mp4";
+        setAndStore({
+          name: path.replace(/\\/g, "/"),
+          url,
+          contentType: ct,
+          size: 0,
+          localPath: path,
+          stream: true,
+        });
+        toast.success("Opened video/audio for review", { description: name });
+        return;
+      }
+      const fileData = await window.grudge.files.read(path);
       const bytes = fileData.bytes as Uint8Array;
       const ab = bytes.buffer.slice(
         bytes.byteOffset,
         bytes.byteOffset + bytes.byteLength,
       ) as ArrayBuffer;
-      const blob = new Blob([ab]);
+      const blob = new Blob([ab], { type: fileData.mime || "application/octet-stream" });
       const url = URL.createObjectURL(blob);
-      const ext = name.split(".").pop()?.toLowerCase() || "";
       const ct =
-        ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "webp"
+        fileData.mime ||
+        (ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "webp"
           ? `image/${ext === "jpg" ? "jpeg" : ext}`
           : ext === "glb"
             ? "model/gltf-binary"
-            : "application/octet-stream";
+            : "application/octet-stream");
       setAndStore({
         name: path.replace(/\\/g, "/"),
         url,
         contentType: ct,
         size: bytes.byteLength,
+        localPath: path,
       });
       toast.success("Opened for review", { description: name });
     } catch (e: unknown) {

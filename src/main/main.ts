@@ -9,6 +9,14 @@ import * as viewer from "./viewer";
 import * as localFiles from "./localFiles";
 import * as openFileBridge from "./openFileBridge";
 import * as fileDefaults from "./fileDefaults";
+import {
+  registerMediaSchemePrivileged,
+  registerMediaFileProtocol,
+  mediaStreamUrl,
+} from "./mediaProtocol";
+
+// Privileged media scheme — BEFORE app.ready (required by Electron)
+registerMediaSchemePrivileged();
 import * as api from "./api";
 import { uploader } from "./uploader";
 import * as bk from "./blenderkit/daemon";
@@ -247,6 +255,8 @@ if (!gotLock) {
   });
 
   app.whenReady().then(async () => {
+    // Stream local mp4/webm/audio into Elite Viewer without full-file blob load
+    registerMediaFileProtocol();
     // Show UI first — never block window creation on Blender/ffmpeg probes.
     // Secrets seed runs in parallel so vault warm-up doesn't delay first paint.
     await createMainWindow();
@@ -652,11 +662,14 @@ function registerIpc() {
           extensions: [
             "png", "jpg", "jpeg", "webp", "gif", "avif", "tga", "bmp", "tif", "tiff", "heic", "svg",
             "glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend",
-            "mp3", "wav", "ogg", "flac", "mp4", "webm", "mov",
+            "mp3", "wav", "ogg", "flac", "m4a", "aac", "opus",
+            "mp4", "webm", "mov", "m4v", "mkv", "avi", "ogv",
             "json", "zip", "pdf", "ttf", "otf", "woff", "woff2",
           ],
         },
         { name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif", "avif", "tga", "bmp", "tif", "tiff", "heic", "svg"] },
+        { name: "Video", extensions: ["mp4", "webm", "mov", "m4v", "mkv", "avi", "ogv"] },
+        { name: "Audio", extensions: ["mp3", "wav", "ogg", "flac", "m4a", "aac", "opus"] },
         { name: "3D models", extensions: ["glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend"] },
         { name: "All files", extensions: ["*"] },
       ],
@@ -678,6 +691,11 @@ function registerIpc() {
   ipcMain.handle("files:read", (_e, filePath: string) => localFiles.readLocalFile(filePath));
   ipcMain.handle("files:reveal", (_e, filePath: string) => localFiles.revealInFolder(filePath));
   ipcMain.handle("files:openSystem", (_e, filePath: string) => localFiles.openWithSystem(filePath));
+  /** Stream URL for video/audio (grudge-media://) — no full RAM load */
+  ipcMain.handle("files:mediaUrl", (_e, filePath: string) => {
+    if (!filePath || typeof filePath !== "string") throw new Error("path required");
+    return mediaStreamUrl(filePath);
+  });
   ipcMain.handle("viewer:openLocal", (_e, args: { path: string; contentType?: string; size?: number }) => {
     const parent = BrowserWindow.fromWebContents(_e.sender) ?? mainWindow;
     return viewer.openLocalPath(

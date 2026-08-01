@@ -321,6 +321,9 @@ const api = {
     reveal: (filePath: string) => ipcRenderer.invoke("files:reveal", filePath) as Promise<{ ok: true }>,
     openSystem: (filePath: string) =>
       ipcRenderer.invoke("files:openSystem", filePath) as Promise<{ ok: true }>,
+    /** Streaming URL for mp4/webm/audio — use as <video src> / <audio src> */
+    mediaUrl: (filePath: string) =>
+      ipcRenderer.invoke("files:mediaUrl", filePath) as Promise<string>,
   },
   // App lifecycle
   app: {

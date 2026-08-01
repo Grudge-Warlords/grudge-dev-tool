@@ -26,6 +26,8 @@ import {
 import { optimizeWebFile, type OptimizeWebOptions, type OptimizeWebResult } from "./ingestion/optimizeWeb";
 import { requestUploadUrl } from "./api";
 import { r2PublicUrl } from "./cf/r2Direct";
+import { mediaStreamUrl, isStreamableMediaPath } from "./mediaProtocol";
+import { inferContentType } from "../shared/mediaTypes";
 
 export interface ViewerAssetRef {
   name: string;
@@ -35,9 +37,11 @@ export interface ViewerAssetRef {
   /**
    * Absolute disk path for local assets. When set, the viewer window reads
    * bytes via IPC and builds a blob: URL (blob URLs cannot cross windows).
-   * url may be a placeholder `local://…` in that case.
+   * url may be a placeholder `local://…` or streaming `grudge-media://…`.
    */
   localPath?: string;
+  /** True when url is a streaming media protocol (video/audio) */
+  stream?: boolean;
 }
 
 const assetStore = new Map<string, ViewerAssetRef>();
@@ -80,9 +84,15 @@ function normalizeAsset(raw: unknown): ViewerAssetRef {
         : "";
   let url = typeof a.url === "string" ? a.url : "";
 
-  // Local disk: use placeholder URL; viewer resolves via localPath + files.read
+  // Local disk: stream media (mp4…) or placeholder for blob resolve
   if (localPath) {
-    if (!url || url.startsWith("file:") || url.startsWith("local:")) {
+    const stream =
+      a.stream === true ||
+      isStreamableMediaPath(name || basename(localPath)) ||
+      (typeof url === "string" && url.startsWith("grudge-media:"));
+    if (stream) {
+      url = url.startsWith("grudge-media:") ? url : mediaStreamUrl(localPath);
+    } else if (!url || url.startsWith("file:") || url.startsWith("local:")) {
       url = `local://${encodeURIComponent(localPath.replace(/\\/g, "/"))}`;
     }
     return {
@@ -91,6 +101,7 @@ function normalizeAsset(raw: unknown): ViewerAssetRef {
       contentType: typeof a.contentType === "string" ? a.contentType : "",
       size: typeof a.size === "number" && Number.isFinite(a.size) ? a.size : 0,
       localPath,
+      stream,
     };
   }
 
@@ -101,9 +112,10 @@ function normalizeAsset(raw: unknown): ViewerAssetRef {
       u.protocol !== "https:" &&
       !(u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1")) &&
       u.protocol !== "blob:" &&
-      u.protocol !== "local:"
+      u.protocol !== "local:" &&
+      u.protocol !== "grudge-media:"
     ) {
-      throw new Error("Only http(s), blob, or local asset URLs are allowed");
+      throw new Error("Only http(s), blob, grudge-media, or local asset URLs are allowed");
     }
   } catch (e: any) {
     if (e?.message?.includes("Only http") || e?.message?.includes("Only http(s)")) throw e;
@@ -117,20 +129,36 @@ function normalizeAsset(raw: unknown): ViewerAssetRef {
   };
 }
 
-/** Open pop-out viewer for a file on disk (Local Files tab — not Forge). */
+/** Open pop-out viewer for a file on disk (Local Files / Explorer — not Forge). */
 export async function openLocalPath(
   filePath: string,
   meta?: { contentType?: string; size?: number },
   parent?: BrowserWindow | null,
 ): Promise<{ ok: true; token: string }> {
   const name = basename(filePath);
+  const contentType = meta?.contentType || inferContentType(name);
+  let size = meta?.size ?? 0;
+  try {
+    if (!size && existsSync(filePath)) size = (await stat(filePath)).size;
+  } catch {
+    /* optional */
+  }
+
+  // Video/audio (mp4, webm, mov, mp3…) → stream protocol so double-click
+  // works on large files without loading the whole MP4 into RAM.
+  const stream = isStreamableMediaPath(name);
+  const url = stream
+    ? mediaStreamUrl(filePath)
+    : `local://${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
+
   return openViewer(
     {
       name: filePath.replace(/\\/g, "/"),
-      url: `local://${encodeURIComponent(filePath.replace(/\\/g, "/"))}`,
-      contentType: meta?.contentType ?? "",
-      size: meta?.size ?? 0,
+      url,
+      contentType,
+      size,
       localPath: filePath,
+      stream,
     },
     parent,
   );

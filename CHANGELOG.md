@@ -4,6 +4,17 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-08-01
+
+### Added
+- **MP4 / video double-click** — Explorer + Local Files + View Mode open **video player** for mp4, webm, mov, m4v, mkv, avi.
+- **`grudge-media://` stream protocol** — large videos/audio stream from disk (no full-file RAM blob).
+- **Elite VideoViewer** — play/pause, seek, mute, loop, fullscreen, duration chrome.
+
+### Changed
+- File picker filters include **Video** and **Audio** groups.
+- Installer associations for m4v / mkv / avi.
+
 ## [1.0.0] — 2026-08-01
 
 ### Added

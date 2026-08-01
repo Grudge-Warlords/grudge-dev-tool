@@ -1062,12 +1062,40 @@ export default function ViewerWindow() {
         const grudge = (window as any).grudge;
         if (!grudge?.viewer?.getAsset) { setNotFound(true); return; }
         let revoked: string | null = null;
-        grudge.viewer.getAsset(token).then(async (a: (AssetRef & { localPath?: string }) | null) => {
+        grudge.viewer.getAsset(token).then(async (a: (AssetRef & { localPath?: string; stream?: boolean }) | null) => {
             if (!a) {
                 setNotFound(true);
                 return;
             }
-            // Local disk assets: resolve to blob: URL inside this window
+            // Streaming video/audio (mp4, webm, mov, mp3…) — no full-file blob
+            if (
+                a.url?.startsWith("grudge-media:") ||
+                a.stream ||
+                (a.localPath && /\.(mp4|webm|mov|m4v|ogv|mkv|avi|mp3|wav|ogg|flac|m4a|aac|opus)$/i.test(a.localPath))
+            ) {
+                try {
+                    let url = a.url;
+                    if (a.localPath && !url?.startsWith("grudge-media:")) {
+                        url = await grudge.files?.mediaUrl?.(a.localPath);
+                    }
+                    if (!url) throw new Error("No media stream URL");
+                    const resolved: AssetRef = {
+                        name: a.name,
+                        url,
+                        contentType: a.contentType || "",
+                        size: a.size || 0,
+                        localPath: a.localPath,
+                    };
+                    setAsset(resolved);
+                    document.title = `${basename(resolved.name)} — Grudge Elite Viewer`;
+                    return;
+                } catch (e) {
+                    console.error("media stream resolve failed", e);
+                    setNotFound(true);
+                    return;
+                }
+            }
+            // Local disk images/models: resolve to blob: URL inside this window
             if (a.localPath || a.url?.startsWith("local:")) {
                 try {
                     const path = a.localPath || decodeURIComponent(a.url.replace(/^local:\/\//, ""));
@@ -1089,7 +1117,7 @@ export default function ViewerWindow() {
                         localPath: path,
                     };
                     setAsset(resolved);
-                    document.title = `${basename(resolved.name)} — Grudge Asset Viewer`;
+                    document.title = `${basename(resolved.name)} — Grudge Elite Viewer`;
                     return;
                 } catch (e) {
                     console.error("local resolve failed", e);
@@ -1098,7 +1126,7 @@ export default function ViewerWindow() {
                 }
             }
             setAsset(a);
-            document.title = `${basename(a.name)} — Grudge Asset Viewer`;
+            document.title = `${basename(a.name)} — Grudge Elite Viewer`;
         });
         return () => {
             if (revoked) URL.revokeObjectURL(revoked);
