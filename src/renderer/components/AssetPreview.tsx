@@ -15,6 +15,7 @@ import FontViewer from "./viewers/FontViewer";
 
 const AudioViewer = React.lazy(() => import("./viewers/AudioViewer"));
 const Model3DViewer = React.lazy(() => import("./viewers/Model3DViewer"));
+const DesignViewer = React.lazy(() => import("./viewers/DesignViewer"));
 
 const KIND_ICON: Record<AssetKind, LucideIcon> = {
   image: ImageIcon,
@@ -25,6 +26,7 @@ const KIND_ICON: Record<AssetKind, LucideIcon> = {
   text: FileText,
   pdf: FileText,
   font: FileType2,
+  design: Layers3,
   unknown: FileQuestion,
 };
 
@@ -224,7 +226,7 @@ export default function AssetPreview(props: {
           {kind === "text" && <TextViewer asset={asset} />}
           {kind === "pdf" && <PdfViewer asset={asset} />}
           {kind === "font" && <FontViewer asset={asset} />}
-          {kind === "unknown" && <UnknownViewer asset={asset} />}
+          {(kind === "design" || kind === "unknown") && <DesignViewer asset={asset} />}
         </React.Suspense>
       </div>
     </div>

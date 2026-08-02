@@ -46,10 +46,11 @@ import { writeMirror, readMirror } from "../lib/workspace";
 
 const AudioViewer = React.lazy(() => import("../components/viewers/AudioViewer"));
 const Model3DViewer = React.lazy(() => import("../components/viewers/Model3DViewer"));
+const DesignViewer = React.lazy(() => import("../components/viewers/DesignViewer"));
 
 const VIEW_ASSET_KEY = "grudge.viewMode.asset";
 
-const KIND_META: Record<AssetKind | "psd", { label: string; Icon: LucideIcon }> = {
+const KIND_META: Record<AssetKind, { label: string; Icon: LucideIcon }> = {
   image: { label: "Image", Icon: ImageIcon },
   video: { label: "Video", Icon: Video },
   audio: { label: "Audio", Icon: Music },
@@ -58,13 +59,9 @@ const KIND_META: Record<AssetKind | "psd", { label: string; Icon: LucideIcon }> 
   text: { label: "Text / data", Icon: FileText },
   pdf: { label: "PDF", Icon: FileText },
   font: { label: "Font", Icon: FileText },
+  design: { label: "Design / DCC", Icon: Layers3 },
   unknown: { label: "File", Icon: FileText },
-  psd: { label: "Photoshop", Icon: ImageIcon },
 };
-
-function isPsd(name: string): boolean {
-  return /\.psd$/i.test(name);
-}
 
 const VIEW_ASSET_EVENT = "grudge:view-mode-asset";
 
@@ -131,12 +128,10 @@ export default function ViewMode() {
 
   const kind = useMemo(() => {
     if (!asset) return "unknown" as AssetKind;
-    if (isPsd(asset.name)) return "image" as AssetKind; // try image path; may fail
     return classify(asset);
   }, [asset]);
 
-  const kindKey = asset && isPsd(asset.name) ? "psd" : kind;
-  const meta = KIND_META[kindKey] || KIND_META.unknown;
+  const meta = KIND_META[kind] || KIND_META.unknown;
   const KindIcon = meta.Icon;
 
   const setAndStore = useCallback((a: AssetRef | null) => {
@@ -477,20 +472,7 @@ export default function ViewMode() {
                 {kind === "text" && <TextViewer asset={asset} />}
                 {kind === "pdf" && <PdfViewer asset={asset} />}
                 {kind === "font" && <FontViewer asset={asset} />}
-                {kind === "unknown" && (
-                  <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-                    <FileText className="h-10 w-10 text-slate-600" />
-                    <p className="text-sm text-slate-300">No inline preview for this type</p>
-                    <p className="text-[11px] text-slate-500 break-all max-w-lg">{asset.name}</p>
-                    <button
-                      type="button"
-                      className="mt-2 rounded border border-sky-700/50 px-3 py-1.5 text-xs text-sky-200"
-                      onClick={() => void window.grudge?.os?.openExternal?.(asset.url)}
-                    >
-                      Open externally
-                    </button>
-                  </div>
-                )}
+                {(kind === "design" || kind === "unknown") && <DesignViewer asset={asset} />}
               </div>
             </React.Suspense>
           )}

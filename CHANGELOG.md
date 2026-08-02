@@ -5,6 +5,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 ## [Unreleased]
 
 ### Added
+- **Elite viewer DCC formats** — open/view **PSD/PSB** (auto composite → PNG via ag-psd), **BLEND** (auto → GLB via Blender toolchain), plus GPU textures (KTX/DDS/HDR), Aseprite, Tiled TMX, VRM/USDZ. DesignViewer fallback + System open. Local Files + Explorer double-click.
 - **Workers config audit** — `scripts/audit-workers-config.mjs` + expanded checklist in `docs/ai-workers-d1-r2-stream.md` §8 (compatibility_date, nodejs_compat, observability, Env types, queues, waitUntil). Hardened fleet wrangler.toml for AI hub, CDN, id-gateway, wallet, ObjectStore, observatory, auth-legacy.
 - **Databases · sharing · backups** — Pages doc + `scripts/backup-postgres.mjs` (parallel table dumps, meta time T, optional Docker `pg_dump`). Best practices for account/character scopes, R2 offsite dumps, D1/R2 recovery. Inspired by [PlanetScale massively parallel Postgres backups](https://planetscale.com/blog/massively-parallel-postgres-backups).
 

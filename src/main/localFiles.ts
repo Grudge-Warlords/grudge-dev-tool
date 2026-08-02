@@ -12,6 +12,7 @@ import { pathToFileURL } from "node:url";
 import {
   inferContentType,
   isAudioPath,
+  isDesignPath,
   isImagePath,
   isModelPath,
   isThreeScenePath,
@@ -30,6 +31,7 @@ export type LocalEntryKind =
   | "pdf"
   | "font"
   | "archive"
+  | "design"
   | "file";
 
 export interface LocalDirEntry {
@@ -56,6 +58,7 @@ const TEXT_EXTS = new Set([
   ".txt", ".json", ".md", ".markdown", ".yml", ".yaml", ".ts", ".tsx", ".js", ".jsx",
   ".mjs", ".cjs", ".css", ".scss", ".html", ".htm", ".xml", ".csv", ".tsv", ".log",
   ".ini", ".toml", ".env", ".rs", ".go", ".py", ".sh", ".ps1", ".scene",
+  ".tmx", ".tsx", ".atlas",
 ]);
 const FONT_EXTS = new Set([".ttf", ".otf", ".woff", ".woff2"]);
 const ARCHIVE_EXTS = new Set([".zip", ".7z", ".rar", ".tar", ".gz"]);
@@ -71,8 +74,9 @@ function classifyLocal(name: string, isDirectory: boolean): LocalEntryKind {
   const ext = extname(name).toLowerCase();
   if (PDF_EXTS.has(ext)) return "pdf";
   if (FONT_EXTS.has(ext)) return "font";
-  if (TEXT_EXTS.has(ext)) return "text";
+  if (TEXT_EXTS.has(ext) || [".tmx", ".tsx", ".atlas"].includes(ext)) return "text";
   if (ARCHIVE_EXTS.has(ext)) return "archive";
+  if (isDesignPath(name)) return "design";
   return "file";
 }
 

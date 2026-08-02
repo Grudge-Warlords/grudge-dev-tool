@@ -42,6 +42,12 @@ export interface ViewerAssetRef {
   localPath?: string;
   /** True when url is a streaming media protocol (video/audio) */
   stream?: boolean;
+  /** Original path before PSD/BLEND auto-prepare */
+  sourcePath?: string;
+  /** e.g. psd | blend — shown in viewer chrome */
+  sourceFormat?: string;
+  /** Human-readable prepare note (layer count, convert path, …) */
+  prepareNote?: string;
 }
 
 const assetStore = new Map<string, ViewerAssetRef>();
@@ -102,6 +108,9 @@ function normalizeAsset(raw: unknown): ViewerAssetRef {
       size: typeof a.size === "number" && Number.isFinite(a.size) ? a.size : 0,
       localPath,
       stream,
+      sourcePath: typeof a.sourcePath === "string" ? a.sourcePath : undefined,
+      sourceFormat: typeof a.sourceFormat === "string" ? a.sourceFormat : undefined,
+      prepareNote: typeof a.prepareNote === "string" ? a.prepareNote : undefined,
     };
   }
 
@@ -135,11 +144,35 @@ export async function openLocalPath(
   meta?: { contentType?: string; size?: number },
   parent?: BrowserWindow | null,
 ): Promise<{ ok: true; token: string }> {
-  const name = basename(filePath);
+  const { needsAutoPrepare, prepareForEliteViewer } = await import("./ingestion/designPreview");
+
+  let openPath = filePath;
+  let sourcePath: string | undefined;
+  let sourceFormat: string | undefined;
+  let prepareNote: string | undefined;
+
+  // PSD → PNG composite · BLEND → GLB (Blender) so Image/Three viewers can load
+  if (needsAutoPrepare(filePath)) {
+    log.info("[viewer] auto-prepare", basename(filePath));
+    const prep = await prepareForEliteViewer(filePath);
+    if (prep.ok && prep.path) {
+      openPath = prep.path;
+      sourcePath = filePath;
+      sourceFormat = prep.sourceFormat;
+      prepareNote = prep.note;
+    } else {
+      log.warn("[viewer] prepare failed, opening original", prep.error);
+      prepareNote = prep.error || "Preview prepare failed — try system app or Convert";
+      sourcePath = filePath;
+      sourceFormat = prep.sourceFormat;
+    }
+  }
+
+  const name = basename(openPath);
   const contentType = meta?.contentType || inferContentType(name);
   let size = meta?.size ?? 0;
   try {
-    if (!size && existsSync(filePath)) size = (await stat(filePath)).size;
+    if (!size && existsSync(openPath)) size = (await stat(openPath)).size;
   } catch {
     /* optional */
   }
@@ -148,17 +181,25 @@ export async function openLocalPath(
   // works on large files without loading the whole MP4 into RAM.
   const stream = isStreamableMediaPath(name);
   const url = stream
-    ? mediaStreamUrl(filePath)
-    : `local://${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
+    ? mediaStreamUrl(openPath)
+    : `local://${encodeURIComponent(openPath.replace(/\\/g, "/"))}`;
+
+  // Display name keeps original DCC name when we prepared a preview
+  const displayName = sourcePath
+    ? sourcePath.replace(/\\/g, "/")
+    : openPath.replace(/\\/g, "/");
 
   return openViewer(
     {
-      name: filePath.replace(/\\/g, "/"),
+      name: displayName,
       url,
       contentType,
       size,
-      localPath: filePath,
+      localPath: openPath,
       stream,
+      sourcePath,
+      sourceFormat,
+      prepareNote,
     },
     parent,
   );

@@ -14,28 +14,40 @@ export interface AssetRef {
   localPath?: string;
   /** Streaming media (grudge-media://) — do not blob-load. */
   stream?: boolean;
+  /** Original DCC path before PSD→PNG / BLEND→GLB prepare. */
+  sourcePath?: string;
+  sourceFormat?: string;
+  prepareNote?: string;
 }
 
 /** Coarse asset category used to pick which viewer component to mount. */
 export type AssetKind =
   | "image" | "video" | "audio" | "model3d" | "scene3d"
-  | "text"  | "pdf"   | "font"  | "unknown";
+  | "text"  | "pdf"   | "font"  | "design" | "unknown";
 
 const EXT: Record<AssetKind, string[]> = {
   image: [
     "png", "jpg", "jpeg", "webp", "avif", "gif", "svg", "bmp", "ico", "apng",
-    "tga", "tif", "tiff", "heic", "heif", "jxl", "jp2", "psd",
+    "tga", "tif", "tiff", "heic", "heif", "jxl", "jp2",
+    // PSD opens as prepared PNG; keep listed for classify-before-prepare
+    "psd", "psb",
   ],
   video:  ["mp4", "webm", "mov", "m4v", "ogv", "mkv", "avi"],
   audio:  ["mp3", "wav", "ogg", "flac", "m4a", "aac", "opus"],
-  model3d:["glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend"],
+  model3d:["glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend", "vrm"],
   /** Three.js ObjectLoader / scene dumps — handled by Model3D path when possible. */
   scene3d:["scene"],
   text:   ["txt", "json", "md", "markdown", "yml", "yaml", "ts", "tsx", "js", "jsx",
            "mjs", "cjs", "css", "scss", "html", "htm", "xml", "csv", "tsv", "log",
-           "ini", "toml", "env", "gitignore", "rs", "go", "py", "sh", "ps1"],
+           "ini", "toml", "env", "gitignore", "rs", "go", "py", "sh", "ps1",
+           "tmx", "tsx", "atlas"],
   pdf:    ["pdf"],
   font:   ["ttf", "otf", "woff", "woff2"],
+  /** Formats without full in-app decode — DesignViewer + system open */
+  design: [
+    "xcf", "kra", "clip", "ktx", "ktx2", "basis", "dds", "hdr", "exr",
+    "ase", "aseprite", "usdz", "abc", "usd", "usda", "usdc",
+  ],
   unknown:[],
 };
 
@@ -86,4 +98,10 @@ export function isRasterImageName(name: string): boolean {
     "png", "jpg", "jpeg", "webp", "gif", "avif", "bmp", "tga",
     "tif", "tiff", "heic", "heif", "jxl", "jp2", "ico", "apng",
   ].includes(ext);
+}
+
+/** DCC sources that main process auto-prepares (PSD→PNG, BLEND→GLB). */
+export function isPreparedDesignName(name: string): boolean {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  return ["psd", "psb", "blend"].includes(ext);
 }

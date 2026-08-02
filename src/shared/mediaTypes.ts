@@ -32,6 +32,30 @@ const EXT_TO_MIME: Record<string, string> = {
   dae: "model/vnd.collada+xml",
   "3mf": "model/3mf",
   blend: "application/x-blender",
+  vrm: "model/gltf-binary",
+  usdz: "model/vnd.usdz+zip",
+  abc: "application/octet-stream",
+  usd: "model/vnd.usd",
+  usda: "model/vnd.usd+usda",
+  usdc: "model/vnd.usd+usdc",
+  // Design / DCC
+  psd: "image/vnd.adobe.photoshop",
+  psb: "image/vnd.adobe.photoshop",
+  xcf: "image/x-xcf",
+  kra: "application/x-krita",
+  clip: "application/octet-stream",
+  // GPU textures
+  ktx: "image/ktx",
+  ktx2: "image/ktx2",
+  basis: "image/basis",
+  dds: "image/vnd-ms.dds",
+  hdr: "image/vnd.radiance",
+  exr: "image/x-exr",
+  // Game data (note: .tsx stays TypeScript below — Tiled tilesets open as text/xml via path heuristics)
+  tmx: "application/xml",
+  atlas: "text/plain",
+  ase: "application/octet-stream",
+  aseprite: "application/octet-stream",
   // Audio
   mp3: "audio/mpeg",
   wav: "audio/wav",
@@ -82,12 +106,23 @@ export function isImagePath(name: string): boolean {
   const ct = inferContentType(name);
   if (ct.startsWith("image/")) return true;
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  return ["tga", "bmp", "tif", "tiff", "heic", "heif", "jxl", "jp2"].includes(ext);
+  return ["tga", "bmp", "tif", "tiff", "heic", "heif", "jxl", "jp2", "psd", "psb"].includes(ext);
 }
 
 export function isModelPath(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  return ["glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend"].includes(ext);
+  return ["glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend", "vrm"].includes(ext);
+}
+
+/** Design / DCC sources that need prepare or system app (PSD, Blender, GPU tex, maps). */
+export function isDesignPath(name: string): boolean {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  return [
+    "psd", "psb", "blend", "xcf", "kra", "clip",
+    "ktx", "ktx2", "basis", "dds", "hdr", "exr",
+    "tmx", "tsx", "atlas", "ase", "aseprite",
+    "vrm", "usdz", "abc", "usd", "usda", "usdc",
+  ].includes(ext);
 }
 
 /** Audio / sound assets the Asset Viewer can play inline. */
@@ -111,10 +146,11 @@ export function isThreeScenePath(name: string): boolean {
 
 /** File picker accept string for Upload / importers. */
 export const UPLOAD_ACCEPT =
-  ".png,.jpg,.jpeg,.webp,.gif,.avif,.tga,.bmp,.tif,.tiff,.heic,.svg," +
-  ".glb,.gltf,.fbx,.obj,.stl,.ply,.dae,.3mf,.blend," +
+  ".png,.jpg,.jpeg,.webp,.gif,.avif,.tga,.bmp,.tif,.tiff,.heic,.svg,.psd,.psb," +
+  ".glb,.gltf,.fbx,.obj,.stl,.ply,.dae,.3mf,.blend,.vrm,.usdz," +
+  ".ktx,.ktx2,.dds,.hdr,.exr," +
   ".mp3,.wav,.ogg,.flac,.mp4,.webm,.mov," +
-  ".json,.zip,.pdf,.ttf,.otf,.woff,.woff2";
+  ".json,.zip,.pdf,.ttf,.otf,.woff,.woff2,.tmx,.tsx,.atlas,.aseprite";
 
 export const IMAGE_CONVERT_FORMATS = ["png", "webp", "jpeg", "avif"] as const;
 
@@ -123,6 +159,7 @@ export function isViewerOpenablePath(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   if (!ext) return false;
   if (EXT_TO_MIME[ext]) return true;
-  if (["psd", "gfscene", "blend", "scene"].includes(ext)) return true;
+  if (["psd", "psb", "gfscene", "blend", "scene", "aseprite", "ase"].includes(ext)) return true;
+  if (isDesignPath(name)) return true;
   return isThreeScenePath(name);
 }

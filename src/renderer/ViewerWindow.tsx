@@ -29,6 +29,7 @@ import VideoViewer from "./components/viewers/VideoViewer";
 import AudioViewer from "./components/viewers/AudioViewer";
 import TextViewer from "./components/viewers/TextViewer";
 import FontViewer from "./components/viewers/FontViewer";
+import DesignViewer from "./components/viewers/DesignViewer";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -39,7 +40,7 @@ const G = () => (window as any).grudge;
 function KindBadge({ kind }: { kind: AssetKind }) {
     const colours: Record<AssetKind, string> = {
         model3d: "#ffc62a", scene3d: "#ffc62a", image: "#46d586", video: "#7c6bff", audio: "#ff9f1c",
-        text: "#88aaff", pdf: "#ff5577", font: "#dd88ff", unknown: "#9aa6c8",
+        text: "#88aaff", pdf: "#ff5577", font: "#dd88ff", design: "#c084fc", unknown: "#9aa6c8",
     };
     // info.grudge-studio.com chrome icons (never assets.*)
     const infoIcon: Partial<Record<AssetKind, string>> = {
@@ -134,8 +135,30 @@ function ViewerHeader({
                         {formatBytes(asset.size)}
                     </span>
                 )}
+                {asset.prepareNote && (
+                    <span
+                        title={asset.sourcePath || asset.prepareNote}
+                        style={{
+                            fontSize: 10, color: "#c084fc", maxWidth: 280,
+                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                        }}
+                    >
+                        {asset.prepareNote}
+                    </span>
+                )}
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                {(asset.sourcePath || asset.localPath) && (
+                    <HBtn
+                        title="Open original in system app (Photoshop / Blender / …)"
+                        onClick={() => {
+                            const p = asset.sourcePath || asset.localPath!;
+                            void G()?.files?.openSystem?.(p);
+                        }}
+                    >
+                        🖌 System
+                    </HBtn>
+                )}
                 <HBtn title="Download" onClick={download}>↓ Download</HBtn>
                 {!isLocal && <HBtn title="Copy CDN URL" onClick={copyUrl}>⧉ URL</HBtn>}
                 <HBtn title={isLocal ? "Reveal in Explorer" : "Open in browser"} onClick={openExternal}>
@@ -1030,22 +1053,23 @@ function FlatViewer({ asset, kind }: { asset: AssetRef; kind: AssetKind }) {
         case "audio": return <div style={ wrapStyle }> <AudioViewer asset={ asset } /></div >;
         case "text": return <div style={ wrapStyle }> <TextViewer  asset={ asset } /></div >;
         case "font": return <div style={ wrapStyle }> <FontViewer  asset={ asset } /></div >;
+        case "design":
+        case "unknown":
+            return <div style={wrapStyle}><DesignViewer asset={asset} /></div>;
         default:
             return (
-                <div style= {{
-                flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                <div style={{
+                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
                     flexDirection: "column", gap: 10, color: "var(--muted)",
-        }
-    }>
-        <span style={ { fontSize: 40 } }>📄</span>
-            < span > No preview available for this file type.</span>
-                < a href = { asset.url } download = { basename(asset.name) } style = {{ color: "var(--gold)" }
-}>
-    Download { basename(asset.name) }
-</a>
-    </div>
-      );
-  }
+                }}>
+                    <span style={{ fontSize: 40 }}>📄</span>
+                    <span>No preview available for this file type.</span>
+                    <a href={asset.url} download={basename(asset.name)} style={{ color: "var(--gold)" }}>
+                        Download {basename(asset.name)}
+                    </a>
+                </div>
+            );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1115,6 +1139,9 @@ export default function ViewerWindow() {
                         contentType: file.mime || a.contentType || "",
                         size: file.size || a.size || bytes.byteLength,
                         localPath: path,
+                        sourcePath: a.sourcePath,
+                        sourceFormat: a.sourceFormat,
+                        prepareNote: a.prepareNote,
                     };
                     setAsset(resolved);
                     document.title = `${basename(resolved.name)} — Grudge Elite Viewer`;

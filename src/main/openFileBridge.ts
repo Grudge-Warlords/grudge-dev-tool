@@ -33,8 +33,14 @@ export const VIEWER_EXTS = new Set([
   ".dae",
   ".3mf",
   ".blend",
+  ".vrm",
+  ".usdz",
+  ".abc",
+  ".usd",
+  ".usda",
+  ".usdc",
   ".gfscene",
-  // Images
+  // Images + design DCC
   ".png",
   ".jpg",
   ".jpeg",
@@ -53,6 +59,22 @@ export const VIEWER_EXTS = new Set([
   ".jxl",
   ".jp2",
   ".psd",
+  ".psb",
+  ".xcf",
+  ".kra",
+  // GPU / HDR textures
+  ".ktx",
+  ".ktx2",
+  ".basis",
+  ".dds",
+  ".hdr",
+  ".exr",
+  // Game maps / pixel
+  ".tmx",
+  ".tsx",
+  ".atlas",
+  ".ase",
+  ".aseprite",
   // Audio
   ".mp3",
   ".wav",
