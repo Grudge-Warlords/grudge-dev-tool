@@ -4,6 +4,8 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.0.2] — 2026-08-01
+
 ### Added
 - **Single-login SSO handoff** — one Puter/desktop session seeds fleet API bearer and injects `grudge_auth_token` + `grudgeId` into Forge / Coder / Preview / Grok Builder webviews. Settings documents tab→auth matrix; backend modes human-labeled.
 - **Elite viewer DCC formats** — open/view **PSD/PSB** (auto composite → PNG via ag-psd), **BLEND** (auto → GLB via Blender toolchain), plus GPU textures (KTX/DDS/HDR), Aseprite, Tiled TMX, VRM/USDZ. DesignViewer fallback + System open. Local Files + Explorer double-click.
@@ -12,6 +14,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ### Changed
 - **Fleet SSOT + docs** — **Grudge Multiverse** live hosts: SPA `grudge-multiverse.vercel.app`, dedicated Railway `grudge-multiverse-room-production` with WS **`/api/mv`** (not Carrier / gameopen). Preview preset, Games catalog, admin hosts, systems-api / one-truth / production-deployment / admin-architecture / Vercel SSOT updated. Multiverse ≠ Metaverse.
+- **README** — product cut for 1.0.x, install, single-login, release badges.
 
 ## [1.0.1] — 2026-08-01
 
