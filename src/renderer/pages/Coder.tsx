@@ -27,6 +27,7 @@ import {
   Code2,
 } from "lucide-react";
 import { FLEET_URLS } from "../../shared/fleet";
+import { asWebview, attachWebviewSession, embedUrlWithSession } from "../lib/webviewSession";
 
 interface CoderStatus {
   running: boolean;
@@ -65,6 +66,7 @@ function coderHandoffUrl(base: string): string {
   const u = new URL(base);
   u.searchParams.set("from", "grudge-dev-tool");
   u.searchParams.set("bootstrap", "1");
+  u.searchParams.set("embed", "1");
   return u.toString();
 }
 
@@ -98,9 +100,19 @@ export default function Coder() {
     return () => clearInterval(t);
   }, [refresh]);
 
+  // Re-stamp cloud URL with session identity on mount
+  useEffect(() => {
+    if (mode !== "cloud") return;
+    void (async () => {
+      const next = await embedUrlWithSession(coderHandoffUrl(PROD_CODER));
+      setUrl(next);
+    })();
+  }, [mode]);
+
   useEffect(() => {
     const wv = wvRef.current;
     if (!wv) return;
+    const detachAuth = attachWebviewSession(asWebview(wv));
     const refreshNav = () => {
       try {
         setCanBack(wv.canGoBack());
@@ -131,6 +143,7 @@ export default function Coder() {
     wv.addEventListener("did-navigate-in-page", onStop);
     wv.addEventListener("did-fail-load", onFail);
     return () => {
+      detachAuth();
       wv.removeEventListener("did-start-loading", onStart);
       wv.removeEventListener("did-stop-loading", onStop);
       wv.removeEventListener("did-navigate", onStop);
@@ -146,7 +159,9 @@ export default function Coder() {
 
   const switchCloud = useCallback(() => {
     setMode("cloud");
-    loadUrl(coderHandoffUrl(PROD_CODER));
+    void (async () => {
+      loadUrl(await embedUrlWithSession(coderHandoffUrl(PROD_CODER)));
+    })();
   }, [loadUrl]);
 
   const switchLocal = useCallback(() => {

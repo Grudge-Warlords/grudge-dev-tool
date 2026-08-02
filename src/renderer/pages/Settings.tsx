@@ -187,7 +187,13 @@ export default function Settings() {
   }
   async function signOutLocal() {
     await window.grudge.auth.clearSession();
-    toast.success("Signed out");
+    try {
+      const { clearHandoffCache } = await import("../lib/webviewSession");
+      clearHandoffCache();
+    } catch {
+      /* ignore */
+    }
+    toast.success("Signed out of desktop session (all embeds)");
     reload();
   }
 
@@ -292,14 +298,63 @@ export default function Settings() {
   return (
     <div>
       <h1 className="page-title">Settings</h1>
-      <p className="page-sub">All secrets stored in Windows Credential Vault via <span className="kbd">keytar</span>.</p>
+      <p className="page-sub">
+        Single desktop login powers all tabs. Secrets live in Windows Credential Vault (
+        <span className="kbd">keytar</span>).
+      </p>
+
+      <div className="card">
+        <h3 className="flex items-center gap-2" style={{ margin: "0 0 8px" }}>
+          <ShieldCheck size={16} className="text-gold" /> Single login (all services)
+        </h3>
+        <p className="muted text-sm mb-2">
+          Sign in once on the login screen. That session is shared with:
+        </p>
+        <ul className="muted text-xs mb-3" style={{ margin: "0 0 12px", paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>
+            <strong className="text-ink">REST / Upload / Store / Account</strong> — Bearer from desktop vault
+            (Puter token auto-seeds fleet API bearer)
+          </li>
+          <li>
+            <strong className="text-ink">Forge · Coder · Preview · Grok Builder</strong> — webviews inject{" "}
+            <span className="font-mono">grudge_auth_token</span> + <span className="font-mono">grudgeId</span>
+          </li>
+          <li>
+            <strong className="text-ink">Agent AI · Legion · Ollama</strong> — same desktop session + optional
+            CF / Legion keys below
+          </li>
+          <li>
+            <strong className="text-ink">Grudge ID gateway</strong> — always{" "}
+            <span className="font-mono text-gold">{FLEET_URLS.auth}</span>
+          </li>
+        </ul>
+        <table style={{ width: "100%", fontSize: 11 }}>
+          <tbody>
+            <tr>
+              <td className="muted">Desktop session</td>
+              <td className={session?.signedIn ? "status-ok" : "status-bad"}>
+                {session?.signedIn ? `Signed in · ${session.puterUser?.username ?? "—"}` : "Not signed in"}
+              </td>
+            </tr>
+            <tr>
+              <td className="muted">Grudge ID</td>
+              <td className="font-mono text-gold">{session?.grudgeId ?? "—"}</td>
+            </tr>
+            <tr>
+              <td className="muted">Fleet REST bearer</td>
+              <td>{data?.hasToken ? <span className="status-ok">in vault</span> : <span className="muted">empty (seeded on next sign-in)</span>}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <div className="card">
         <h3 className="flex items-center gap-2" style={{ margin: "0 0 8px" }}>
           <ShieldCheck size={16} className="text-gold" /> Admin access
         </h3>
         <p className="muted text-xs mb-2">
-          Admin surfaces: Upload, Forge 3D, Coder, BlenderKit, View Mode, Preview, Settings.
+          Admin-only tabs: Upload, Skeleton, Forge, Preview, Settings, Coder, BlenderKit, View Mode.
+          Games / Home / Assets / Docs stay available to all signed-in users.
           {isOpenMode() && " OPEN MODE — all signed-in users are admin (dev only)."}
           {!isOpenMode() && " Operators: grudachain, molochdadev — see Account tab for wallet & GBUX."}
         </p>
@@ -445,14 +500,14 @@ export default function Settings() {
 
       <div className="card">
         <h3 className="flex items-center gap-2" style={{ margin: "0 0 8px" }}>
-          <User size={16} className="text-gold" /> Grudge identity
+          <User size={16} className="text-gold" /> Identity &amp; ONE TRUTH hosts
         </h3>
         {session?.signedIn ? (
           <>
             <table>
               <tbody>
                 <tr><td className="muted">Grudge ID</td><td className="font-mono text-gold">{session.grudgeId}</td></tr>
-                <tr><td className="muted">Puter username</td><td className="font-mono">{session.puterUser?.username}</td></tr>
+                <tr><td className="muted">Username</td><td className="font-mono">{session.puterUser?.username}</td></tr>
                 <tr><td className="muted">Puter UUID</td><td className="font-mono">{session.puterUser?.uuid}</td></tr>
                 {session.puterUser?.email && (
                   <tr><td className="muted">Email</td><td>{session.puterUser.email} {session.puterUser.email_verified ? <span className="status-ok">✓</span> : <span className="muted">(unverified)</span>}</td></tr>
@@ -461,13 +516,16 @@ export default function Settings() {
             </table>
             <div className="flex gap-2 mt-3">
               <button className="btn ghost danger flex items-center gap-1" onClick={signOutLocal}>
-                <LogOut size={14} /> Sign out
+                <LogOut size={14} /> Sign out (all tabs)
               </button>
             </div>
           </>
         ) : (
           <>
-            <p className="muted text-sm mb-3">Sign in with Puter to mint a Grudge ID. Saves and uploads sync to your Puter cloud.</p>
+            <p className="muted text-sm mb-3">
+              You are already past the app gate when Settings loads while signed in. If you see this,
+              re-authenticate with Puter to restore vault session.
+            </p>
             <button className="btn flex items-center gap-2" onClick={() => signInWithPuter(false)} disabled={signingIn}>
               <LogIn size={14} />
               {signingIn ? "Signing in…" : "Sign in / Create Grudge account"}
@@ -478,7 +536,9 @@ export default function Settings() {
           </>
         )}
         <div style={{ marginTop: 12 }}>
-          <label className="muted text-xs flex items-center gap-1"><Link2 size={12} /> Fleet client URL (keytar)</label>
+          <label className="muted text-xs flex items-center gap-1">
+            <Link2 size={12} /> Fleet client base (API rewrites)
+          </label>
           <div className="row" style={{ marginTop: 4 }}>
             <input value={apiBase} onChange={(e) => setApiBase(e.target.value)} placeholder={FLEET_CLIENT_URL} />
             <button className="btn ghost" onClick={saveApiBase}>Save</button>
@@ -487,11 +547,12 @@ export default function Settings() {
               onClick={applyOneTruthPreset}
               title="Write full ONE TRUTH hosts into Windows Credential Vault"
             >
-              ONE TRUTH
+              Apply ONE TRUTH
             </button>
           </div>
           <div className="muted text-[10px] mt-1">
-            Auth is always <span className="font-mono text-gold">{FLEET_URLS.auth}</span>
+            Canonical: <span className="font-mono text-gold">{FLEET_CLIENT_URL}</span>
+            {" · "}Auth: <span className="font-mono text-gold">{FLEET_URLS.auth}</span>
             {" "}— never <span className="font-mono">auth.grudge-studio.com</span> or{" "}
             <span className="font-mono">api.grudge-studio.com</span>.
           </div>
@@ -543,7 +604,8 @@ export default function Settings() {
       </div>
 
       <div className="card">
-        <h3 style={{ margin: "0 0 8px" }}>BlenderKit</h3>
+        <h3 style={{ margin: "0 0 8px" }}>BlenderKit (asset download)</h3>
+        <p className="muted text-xs mb-2">Used only by the BlenderKit tab for paid/catalog downloads — not fleet SSO.</p>
         <label className="muted">BlenderKit API key</label>
         <div className="row">
           <input type="password" placeholder="bk_…" value={bkKey} onChange={(e) => setBkKey(e.target.value)} />
@@ -551,6 +613,32 @@ export default function Settings() {
           {data?.hasBlenderKitKey && <button className="btn ghost danger" onClick={clearBkKey}>Clear</button>}
         </div>
         <div className="muted" style={{ marginTop: 4 }}>{data?.hasBlenderKitKey ? "✓ key stored" : "no key stored"}</div>
+      </div>
+
+      <div className="card">
+        <h3 className="flex items-center gap-2" style={{ margin: "0 0 8px" }}>
+          <KeyRound size={16} className="text-gold" /> Optional fleet API bearer override
+        </h3>
+        <p className="muted text-xs mb-2">
+          Normally filled automatically from Puter login. Paste a Railway/JWT bearer only if you need a
+          service account separate from your Puter session.
+        </p>
+        <div className="row">
+          <input
+            type="password"
+            placeholder={data?.hasToken ? "Bearer stored (paste to replace)" : "Optional Bearer token"}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+          />
+          <button className="btn ghost" onClick={saveToken} disabled={!token.trim()}>
+            Save
+          </button>
+          {data?.hasToken && (
+            <button className="btn ghost danger" onClick={clearToken}>
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="card">
@@ -615,14 +703,22 @@ export default function Settings() {
           </tbody>
         </table>
         <div className="flex flex-wrap gap-2 mt-3 items-center">
-          <span className="muted text-xs">Backend:</span>
-          {(["auto", "r2-direct", "cloudflare-worker", "grudge"] as const).map((m) => (
+          <span className="muted text-xs">Object storage backend:</span>
+          {(
+            [
+              { id: "auto" as const, label: "Auto (prefer R2)" },
+              { id: "r2-direct" as const, label: "R2 direct (S3)" },
+              { id: "cloudflare-worker" as const, label: "ObjectStore Worker" },
+              { id: "grudge" as const, label: "Fleet client proxy" },
+            ] as const
+          ).map((m) => (
             <button
-              key={m}
-              className={"btn ghost " + (backendMode === m ? "text-gold border-gold" : "")}
-              onClick={() => chooseBackend(m)}
+              key={m.id}
+              className={"btn ghost text-xs " + (backendMode === m.id ? "text-gold border-gold" : "")}
+              onClick={() => chooseBackend(m.id)}
+              title={m.id}
             >
-              {m}
+              {m.label}
             </button>
           ))}
           <span className="flex-1" />
@@ -697,7 +793,11 @@ export default function Settings() {
       </div>
 
       <div className="card">
-        <h3 style={{ margin: "0 0 8px" }}>Toolchain</h3>
+        <h3 style={{ margin: "0 0 8px" }}>Toolchain (convert · blend · video)</h3>
+        <p className="muted text-xs mb-2">
+          Used by Upload, Skeleton, elite viewer (BLEND→GLB), and optimize. Install via{" "}
+          <span className="kbd">npm run toolchain:install</span> when missing.
+        </p>
         <table>
           <thead><tr><th>Tool</th><th>Status</th><th>Version / path</th></tr></thead>
           <tbody>

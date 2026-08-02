@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { FLEET_URLS } from "../../shared/fleet";
 import { buildForgeEditUrl, buildPlayTestUrl } from "../../shared/adminSurfaces";
+import { asWebview, attachWebviewSession, embedUrlWithSession } from "../lib/webviewSession";
 
 interface WebviewEl extends HTMLElement {
   src: string;
@@ -50,10 +51,22 @@ export default function ForgeStudio() {
   const [loading, setLoading] = useState(true);
   const [canBack, setCanBack] = useState(false);
   const [canFwd, setCanFwd] = useState(false);
+  const [bootSrc, setBootSrc] = useState<string | null>(null);
+
+  // Single-login: load Forge with embed handoff URL once session is known
+  useEffect(() => {
+    void (async () => {
+      const home = forgeEditUrl({ era: "warlords", sceneId: "warlords_grudge_airship" });
+      const withSession = await embedUrlWithSession(home);
+      setBootSrc(withSession);
+      setUrl(withSession);
+    })();
+  }, []);
 
   useEffect(() => {
     const wv = wvRef.current;
     if (!wv) return;
+    const detachAuth = attachWebviewSession(asWebview(wv));
     const refreshNav = () => {
       try {
         setCanBack(wv.canGoBack());
@@ -84,18 +97,23 @@ export default function ForgeStudio() {
     wv.addEventListener("did-navigate-in-page", onStop);
     wv.addEventListener("did-fail-load", onFail);
     return () => {
+      detachAuth();
       wv.removeEventListener("did-start-loading", onStart);
       wv.removeEventListener("did-stop-loading", onStop);
       wv.removeEventListener("did-navigate", onStop);
       wv.removeEventListener("did-navigate-in-page", onStop);
       wv.removeEventListener("did-fail-load", onFail);
     };
-  }, [url]);
+  }, [url, bootSrc]);
 
   const goHome = useCallback(() => {
-    const home = forgeEditUrl({ era: "warlords", sceneId: "warlords_grudge_airship" });
-    setUrl(home);
-    void wvRef.current?.loadURL(home);
+    void (async () => {
+      const home = await embedUrlWithSession(
+        forgeEditUrl({ era: "warlords", sceneId: "warlords_grudge_airship" }),
+      );
+      setUrl(home);
+      void wvRef.current?.loadURL(home);
+    })();
   }, []);
 
   const openExternal = useCallback(() => {
@@ -229,14 +247,15 @@ export default function ForgeStudio() {
 
       <div className="flex-1 min-h-0 relative">
         {/* Electron <webview> — attrs not fully typed in React DOM */}
-        {React.createElement("webview", {
-          ref: wvRef as unknown as React.RefObject<HTMLElement>,
-          src: forgeEditUrl({ era: "warlords", sceneId: "warlords_grudge_airship" }),
-          className: "absolute inset-0 w-full h-full",
-          allowpopups: "true",
-          webpreferences: "contextIsolation=yes, nodeIntegration=no",
-          style: { width: "100%", height: "100%" },
-        })}
+        {bootSrc &&
+          React.createElement("webview", {
+            ref: wvRef as unknown as React.RefObject<HTMLElement>,
+            src: bootSrc,
+            className: "absolute inset-0 w-full h-full",
+            allowpopups: "true",
+            webpreferences: "contextIsolation=yes, nodeIntegration=no",
+            style: { width: "100%", height: "100%" },
+          })}
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/20">
             <span className="text-xs text-violet-100 px-3 py-1.5 rounded border border-violet-500/30 bg-black/70">

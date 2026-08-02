@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { FLEET_URLS } from "../../shared/fleet";
 import { buildPlayTestUrl } from "../../shared/adminSurfaces";
 import { getPlayModes } from "../../shared/playModes";
+import { asWebview, attachWebviewSession, embedUrlWithSession } from "../lib/webviewSession";
 
 interface WebviewEl extends HTMLElement {
   src: string;
@@ -163,6 +164,7 @@ export default function Preview() {
   useEffect(() => {
     const wv = wvRef.current;
     if (!wv) return;
+    const detachAuth = attachWebviewSession(asWebview(wv));
     const refreshNav = () => {
       try {
         setCanBack(wv.canGoBack());
@@ -193,6 +195,7 @@ export default function Preview() {
     wv.addEventListener("did-navigate-in-page", onStop);
     wv.addEventListener("did-fail-load", onFail);
     return () => {
+      detachAuth();
       wv.removeEventListener("did-start-loading", onStart);
       wv.removeEventListener("did-stop-loading", onStop);
       wv.removeEventListener("did-navigate", onStop);
@@ -202,12 +205,15 @@ export default function Preview() {
   }, [pending]);
 
   const go = useCallback((raw: string, presetId?: string | null) => {
-    const url = normalizeAddress(raw);
-    setPending(url);
-    if (presetId !== undefined) setActivePreset(presetId);
-    void wvRef.current?.loadURL(url).catch(() => {
-      /* did-fail-load */
-    });
+    void (async () => {
+      const base = normalizeAddress(raw);
+      const url = base.startsWith("http") ? await embedUrlWithSession(base) : base;
+      setPending(url);
+      if (presetId !== undefined) setActivePreset(presetId);
+      void wvRef.current?.loadURL(url).catch(() => {
+        /* did-fail-load */
+      });
+    })();
   }, []);
 
   const loadPreset = useCallback(

@@ -68,7 +68,52 @@ export async function setSession(puterToken: string, user: PuterUser): Promise<{
   const userStore  = await setSecret(ACCOUNT_USER,  JSON.stringify(minimalUser));
   const gidStore   = await setSecret(ACCOUNT_GID,   JSON.stringify({ grudgeId, puterUuid: user.uuid, firstSeenAt }));
   log.info(`[auth] setSession persisted: token=${tokenStore.via} user=${userStore.via} gid=${gidStore.via} grudgeId=${grudgeId}`);
+
+  // Single-login: also seed fleet REST bearer when vault has no separate API token,
+  // so Upload / ObjectStore / economy use the same Puter session.
+  try {
+    const { getToken, setToken } = await import("../api");
+    const existing = await getToken();
+    if (!existing && puterToken) {
+      await setToken(puterToken);
+      log.info("[auth] seeded fleet API bearer from Puter session (single-login)");
+    }
+  } catch (e) {
+    log.warn("[auth] could not seed API token", e);
+  }
+
   return { grudgeId };
+}
+
+/** Payload for webview handoff + Settings SSO status (no password fields). */
+export async function getHandoffPayload(): Promise<{
+  token: string | null;
+  grudgeId: string | null;
+  username: string | null;
+  email: string | null;
+  puterUuid: string | null;
+  signedIn: boolean;
+  hasApiToken: boolean;
+}> {
+  const session = await getSession();
+  const puterToken = await getPuterToken();
+  let hasApiToken = false;
+  try {
+    const { getToken } = await import("../api");
+    hasApiToken = Boolean(await getToken());
+  } catch {
+    /* ignore */
+  }
+  // Prefer Puter session token for guest injection; API token is same when seeded
+  return {
+    token: puterToken,
+    grudgeId: session.grudgeId,
+    username: session.puterUser?.username ?? null,
+    email: session.puterUser?.email ?? null,
+    puterUuid: session.puterUser?.uuid ?? null,
+    signedIn: session.signedIn,
+    hasApiToken,
+  };
 }
 
 export async function getSession(): Promise<GrudgeSession> {

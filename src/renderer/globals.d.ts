@@ -4,6 +4,16 @@ import type { GrudgeSession } from "../shared/ipc";
 interface GrudgeElectronAPI {
     auth: {
         getSession(): Promise<GrudgeSession>;
+        getHandoff?(): Promise<{
+            token: string | null;
+            grudgeId: string | null;
+            username: string | null;
+            email: string | null;
+            puterUuid: string | null;
+            signedIn: boolean;
+            hasApiToken: boolean;
+        }>;
+        getPuterToken?(): Promise<string | null>;
         setSession(token: string, user: { uuid: string; username: string; email?: string }): Promise<{ grudgeId: string }>;
         clearSession(): Promise<void>;
         wipeIdentity(): Promise<void>;

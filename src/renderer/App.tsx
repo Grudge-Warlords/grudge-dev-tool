@@ -59,6 +59,7 @@ import StatusBar from "./components/StatusBar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { isAdmin, isOpenMode } from "./lib/admin";
 import { hydrateFromMain, persistRoute, readMirror } from "./lib/workspace";
+import { clearHandoffCache } from "./lib/webviewSession";
 
 type Route =
   | "/browser"
@@ -249,6 +250,7 @@ export default function App() {
     if (!confirm("Sign out of Grudge?")) return;
     try {
       await window.grudge.auth.clearSession();
+      clearHandoffCache();
       toast.success("Signed out");
       void refreshSession();
     } catch (err: unknown) {

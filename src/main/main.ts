@@ -732,6 +732,8 @@ function registerIpc() {
   ipcMain.handle("auth:clearSession", () => puterAuth.clearSession());
   ipcMain.handle("auth:wipeIdentity", () => puterAuth.wipeIdentity());
   ipcMain.handle("auth:getPuterToken", () => puterAuth.getPuterToken());
+  /** Single-login payload for webview embeds (Forge, Coder, Preview, Builder). */
+  ipcMain.handle("auth:getHandoff", () => puterAuth.getHandoffPayload());
   async function finishPuterLogin(
     login: () => Promise<{ token: string; user: { uuid: string; username: string; email?: string } }>,
     label: string,

@@ -2,10 +2,11 @@
  * Grok Builder — embed production SPA (grok-builder.vercel.app) in Electron webview.
  * Same pattern as ForgeStudio: live DNS/Vercel origin, not a local fork.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ExternalLink, RefreshCw, Sparkles, Hammer, Bug } from "lucide-react";
 import { toast } from "sonner";
 import { FLEET_URLS } from "../../shared/fleet";
+import { asWebview, attachWebviewSession, embedUrlWithSession } from "../lib/webviewSession";
 
 const LS_KEY = "grudge.grokBuilder.url";
 
@@ -54,11 +55,19 @@ export default function GrokBuilder() {
     }
   }, [baseUrl]);
 
-  const src = useMemo(() => embedUrl(baseUrl, nonce), [baseUrl, nonce]);
+  const [src, setSrc] = useState(() => embedUrl(baseUrl, nonce));
+
+  useEffect(() => {
+    void (async () => {
+      const stamped = await embedUrlWithSession(embedUrl(baseUrl, nonce));
+      setSrc(stamped);
+    })();
+  }, [baseUrl, nonce]);
 
   useEffect(() => {
     const wv = wvRef.current;
     if (!wv) return;
+    const detachAuth = attachWebviewSession(asWebview(wv));
     const onStart = () => setLoading(true);
     const onStop = () => setLoading(false);
     const onFail = (e: Event) => {
@@ -71,6 +80,7 @@ export default function GrokBuilder() {
     wv.addEventListener("did-stop-loading", onStop);
     wv.addEventListener("did-fail-load", onFail);
     return () => {
+      detachAuth();
       wv.removeEventListener("did-start-loading", onStart);
       wv.removeEventListener("did-stop-loading", onStop);
       wv.removeEventListener("did-fail-load", onFail);

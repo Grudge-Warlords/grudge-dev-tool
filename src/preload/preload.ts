@@ -338,6 +338,17 @@ const api = {
     clearSession: () => ipcRenderer.invoke("auth:clearSession"),
     wipeIdentity: () => ipcRenderer.invoke("auth:wipeIdentity"),
     getPuterToken: () => ipcRenderer.invoke("auth:getPuterToken"),
+    /** Desktop session for webview SSO handoff (token + grudgeId). */
+    getHandoff: () =>
+      ipcRenderer.invoke("auth:getHandoff") as Promise<{
+        token: string | null;
+        grudgeId: string | null;
+        username: string | null;
+        email: string | null;
+        puterUuid: string | null;
+        signedIn: boolean;
+        hasApiToken: boolean;
+      }>,
     /** In-app Puter OAuth; auto-falls back to system browser on failure. */
     puterLogin: () => ipcRenderer.invoke("auth:puterLogin"),
     /** Puter sign-in via default browser + localhost callback. */
