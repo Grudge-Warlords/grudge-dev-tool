@@ -35,12 +35,25 @@ export async function runDoctor(opts: {
     {
       id: "truth",
       ok: audit.score >= 85,
-      detail: `${audit.score}%`,
+      detail: `${audit.score}% critical probes`,
     },
   ];
 
   if (opts.json) {
-    console.log(JSON.stringify({ apiBase, checks, probes: audit.probes }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          apiBase,
+          checks,
+          score: audit.score,
+          criticalScore: audit.criticalScore,
+          probes: audit.probes,
+          optional: audit.optional,
+        },
+        null,
+        2,
+      ),
+    );
     return checks.every((c) => c.ok) && audit.score >= 85 ? 0 : 1;
   }
 
@@ -48,13 +61,21 @@ export async function runDoctor(opts: {
   for (const c of checks) {
     console.log(`  ${c.ok ? "✓" : "✗"} ${c.id}: ${c.detail}`);
   }
-  console.log("\n  ONE TRUTH probes:\n");
-  for (const p of audit.probes) {
+  console.log("\n  ONE TRUTH probes (scored):\n");
+  for (const p of audit.probes.filter((x) => !x.optional)) {
     console.log(
-      `    ${p.ok ? "✓" : "✗"} ${p.label.padEnd(22)} ${p.status ?? "ERR"}  ${p.detail ?? ""}`,
+      `    ${p.ok ? "✓" : "✗"} ${p.label.padEnd(28)} ${p.status ?? "ERR"}  ${p.detail ?? ""}`,
     );
   }
-  console.log(`\n  Score: ${audit.score}%`);
+  if (audit.optional?.length) {
+    console.log("\n  Optional / legacy (not scored):\n");
+    for (const p of audit.optional) {
+      console.log(
+        `    ${p.ok ? "✓" : "·"} ${p.label.padEnd(28)} ${p.status ?? "ERR"}  ${p.detail ?? ""}`,
+      );
+    }
+  }
+  console.log(`\n  Score: ${audit.score}% (critical only)`);
   console.log(`  Fleet: ${FLEET_URLS.client}\n`);
   return audit.score >= 85 ? 0 : 1;
 }

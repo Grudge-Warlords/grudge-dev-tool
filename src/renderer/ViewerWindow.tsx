@@ -6,7 +6,7 @@
  *
  * • 3-D assets  → Three.js viewport (SceneEngine) + right controls panel
  *   - Scene: wireframe, grid, HDRI, shadows, background colour
- *   - Animations: per-clip play/pause + global speed control
+ *   - Animations: exclusive per-clip select (review) + speed; never stack multi-clip
  *   - Stats: tris, verts, bones, format
  *   - Actions: Open in Forge, Convert to GLB/glTF, Screenshot, Download
  *
@@ -19,7 +19,13 @@ import React, {
 import * as THREE from "three";
 import { toast } from "sonner";
 import { SceneEngine } from "./lib/forge/sceneEngine";
-import { loadModel, isSupported } from "./lib/forge/loaders";
+import { loadModel, loadModelFromUrl, isSupported, localFileUrl } from "./lib/forge/loaders";
+import {
+    attachAnimationMixer,
+    setPrimaryAction,
+    stopMixer,
+    type AnimLoopMode,
+} from "./lib/forge/forgeAnimation";
 import {
     classify, basename, formatBytes,
     type AssetRef, type AssetKind,
@@ -260,6 +266,8 @@ function Section({ title, children }: React.PropsWithChildren<{ title: string }>
 interface ModelStats {
     triangles: number; vertices: number; bones: number;
     animations: number; format: string;
+    materialsFixed?: number;
+    missingMaps?: number;
 }
 
 function Model3DViewerFull({ asset }: { asset: AssetRef }) {
@@ -282,10 +290,12 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     const [shadows, setShadows] = useState(true);
     const [bgColour, setBgColour] = useState("#0a0e1a");
 
-    // Animation state  [index] → playing
-    const [animPlaying, setAnimPlaying] = useState<boolean[]>([]);
+    // Animation review: exclusive primary clip (never stack multi-clip)
+    const [clips, setClips] = useState<THREE.AnimationClip[]>([]);
+    const [activeClipIdx, setActiveClipIdx] = useState<number | null>(null);
+    const [animPaused, setAnimPaused] = useState(false);
     const [animSpeed, setAnimSpeed] = useState(1);
-    const [allPlaying, setAllPlaying] = useState(false);
+    const [animLoop] = useState<AnimLoopMode>("repeat");
 
     // Transform state (position / rotation deg / uniform+per-axis scale)
     const [pos, setPos] = useState<[number, number, number]>([0, 0, 0]);
@@ -293,6 +303,12 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     const [scl, setScl] = useState<[number, number, number]>([1, 1, 1]);
     const [uniformScale, setUniformScale] = useState(1);
     const transformRef = useRef({
+        pos: [0, 0, 0] as [number, number, number],
+        rot: [0, 0, 0] as [number, number, number],
+        scl: [1, 1, 1] as [number, number, number],
+    });
+    /** Author root transform at load — Reset returns here (not forced 1,1,1). */
+    const authorXformRef = useRef({
         pos: [0, 0, 0] as [number, number, number],
         rot: [0, 0, 0] as [number, number, number],
         scl: [1, 1, 1] as [number, number, number],
@@ -320,6 +336,12 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
         const engine = new SceneEngine(hostRef.current, {
             background: 0x0a0e1a, showGrid: true, showAxes: false, hdri: true,
         });
+        // Brighter ambient + slight exposure so atlases don't read as pure black
+        // under high metalness / ACES (matches Model3DViewer inline preview).
+        engine.studioLights.ambient.intensity = 0.32;
+        engine.studioLights.key.intensity = 1.35;
+        engine.studioLights.fill.intensity = 0.5;
+        engine.renderer.toneMappingExposure = 1.08;
         engineRef.current = engine;
         // Save env map reference so we can toggle it later.
         envMapRef.current = engine.scene.environment;
@@ -333,22 +355,38 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     useEffect(() => {
         let cancelled = false;
         setError(null); setLoading(true); setStats(null);
-        setAnimPlaying([]); setAllPlaying(false); clipsRef.current = [];
+        setClips([]); setActiveClipIdx(null); setAnimPaused(false);
+        clipsRef.current = [];
 
         (async () => {
             try {
                 if (!isSupported(asset.name)) throw new Error(`Unsupported format: ${asset.name}`);
-                const res = await fetch(asset.url);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const blob = await res.blob();
-                if (cancelled) return;
                 const fname = basename(asset.name);
-                const file = new File([blob], fname, { type: blob.type });
-                // diskPath enables sibling texture rebind for local elite open
-                const loaded = await loadModel(file, {
-                    diskPath: asset.localPath || undefined,
-                    sanitize: { toonStyle: true, fixDefaultYellow: true, whiteWhenMapped: true },
-                });
+                const sanitize = {
+                    toonStyle: true as const,
+                    fixDefaultYellow: true as const,
+                    whiteWhenMapped: true as const,
+                };
+                // Local elite open: diskPath + grudge-media so relative textures/MTL/TGA resolve.
+                // CDN/blob: fetch URL (embedded maps only).
+                let loaded;
+                if (asset.localPath) {
+                    const diskUrl =
+                        asset.url?.startsWith("grudge-media:")
+                            ? asset.url
+                            : localFileUrl(asset.localPath);
+                    loaded = await loadModelFromUrl(diskUrl, fname, {
+                        diskPath: asset.localPath,
+                        sanitize,
+                    });
+                } else {
+                    const res = await fetch(asset.url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const blob = await res.blob();
+                    if (cancelled) return;
+                    const file = new File([blob], fname, { type: blob.type || "application/octet-stream" });
+                    loaded = await loadModel(file, { sanitize });
+                }
                 if (cancelled || !engineRef.current) return;
 
                 // Clear previous
@@ -362,7 +400,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
                     actionsRef.current = [];
                 }
 
-                // Configure shadows + skinned mesh pose
+                // Shadows + skinned pose (prepareMeshes already set frustumCulled / normals)
                 loaded.object.traverse((n) => {
                     const m = n as THREE.Mesh;
                     if (m.isMesh) {
@@ -370,47 +408,67 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
                         m.receiveShadow = true;
                     }
                     const sm = n as THREE.SkinnedMesh;
-                    if (sm.isSkinnedMesh) sm.frustumCulled = false;
+                    if (sm.isSkinnedMesh) {
+                        sm.frustumCulled = false;
+                        sm.matrixWorldNeedsUpdate = true;
+                    }
                 });
+                loaded.object.updateMatrixWorld(true);
                 engineRef.current.scene.add(loaded.object);
                 objectRef.current = loaded.object;
-                // Reset transform UI to identity for the newly loaded object
-                loaded.object.position.set(0, 0, 0);
-                loaded.object.rotation.set(0, 0, 0);
-                loaded.object.scale.set(1, 1, 1);
-                setPos([0, 0, 0]); setRot([0, 0, 0]); setScl([1, 1, 1]); setUniformScale(1);
-                transformRef.current = { pos: [0, 0, 0], rot: [0, 0, 0], scl: [1, 1, 1] };
+                // Seed transform UI from author transform — do NOT force scale 1
+                // (FBX packs often use 0.01 unit scale; wiping it breaks mesh size).
+                const ap = loaded.object.position;
+                const ar = loaded.object.rotation;
+                const as = loaded.object.scale;
+                const seedPos: [number, number, number] = [ap.x, ap.y, ap.z];
+                const seedRot: [number, number, number] = [
+                    THREE.MathUtils.radToDeg(ar.x),
+                    THREE.MathUtils.radToDeg(ar.y),
+                    THREE.MathUtils.radToDeg(ar.z),
+                ];
+                const seedScl: [number, number, number] = [as.x, as.y, as.z];
+                setPos(seedPos);
+                setRot(seedRot);
+                setScl(seedScl);
+                setUniformScale(as.x || 1);
+                transformRef.current = { pos: seedPos, rot: seedRot, scl: seedScl };
+                authorXformRef.current = { pos: seedPos, rot: seedRot, scl: seedScl };
                 engineRef.current.frame(loaded.object);
 
-                // Animations: primary clip only (not all stacked)
+                // Animations: exclusive primary clip (select switches via setPrimaryAction)
                 if (loaded.animations.length > 0 || loaded.bones > 0) {
-                    const { attachAnimationMixer, setPrimaryAction } = await import(
-                        "./lib/forge/forgeAnimation"
-                    );
                     const handle = attachAnimationMixer(loaded.object, loaded.animations, {
                         dropRootMotion: true,
                     });
                     engineRef.current.mixers.push(handle.mixer);
                     mixerRef.current = handle.mixer;
                     clipsRef.current = handle.clips;
+                    setClips(handle.clips);
                     actionsRef.current = handle.clips.map((c) => handle.mixer.clipAction(c));
                     if (handle.clips.length) {
-                        setPrimaryAction(handle.mixer, handle.clips[0], "repeat");
-                        setAnimPlaying(handle.clips.map((_, i) => i === 0));
-                        setAllPlaying(false);
+                        const act = setPrimaryAction(handle.mixer, handle.clips[0], animLoop);
+                        handle.mixer.timeScale = animSpeed;
+                        actionsRef.current[0] = act;
+                        setActiveClipIdx(0);
+                        setAnimPaused(false);
                     } else {
-                        setAnimPlaying([]);
-                        setAllPlaying(false);
+                        setActiveClipIdx(null);
+                        setAnimPaused(false);
                     }
                     engineRef.current.setSkeletonHelper?.(loaded.object, false);
                 }
 
+                const missingMaps =
+                    loaded.materials?.issues.filter((i) => i.code === "missing-map" && !i.fixed).length ?? 0;
                 setStats({
                     triangles: loaded.triangles,
                     vertices: loaded.vertices,
                     bones: loaded.bones,
                     animations: loaded.animations.length,
                     format: loaded.format,
+                    materialsFixed: loaded.materials?.fixed,
+                    missingMaps,
                 });
             } catch (e: any) {
                 if (!cancelled) setError(e?.message ?? String(e));
@@ -467,33 +525,63 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
         engineRef.current.scene.background = new THREE.Color(hex);
     }, []);
 
-    // ── Animation handlers ────────────────────────────────────────────────────
+    // ── Animation handlers (exclusive primary clip — review/repair path) ─────
 
-    const handleToggleClip = useCallback((idx: number) => {
-        const action = actionsRef.current[idx];
-        if (!action) return;
-        const nowPlaying = !animPlaying[idx];
-        if (nowPlaying) {
-            action.paused = false;
-            if (action.time >= action.getClip().duration) action.time = 0;
-        } else {
-            action.paused = true;
+    /** Select a clip and play it alone. Click active playing → pause/resume. */
+    const handleSelectClip = useCallback((idx: number) => {
+        const mixer = mixerRef.current;
+        const clip = clipsRef.current[idx];
+        if (!mixer || !clip) return;
+
+        // Same clip already primary → toggle pause/resume (do not rebind)
+        if (activeClipIdx === idx) {
+            const existing = actionsRef.current[idx] ?? mixer.clipAction(clip);
+            if (existing.isRunning() && !existing.paused) {
+                existing.paused = true;
+                setAnimPaused(true);
+            } else {
+                existing.paused = false;
+                if (!existing.isRunning()) {
+                    existing.reset().setEffectiveWeight(1).play();
+                } else if (existing.time >= existing.getClip().duration) {
+                    existing.time = 0;
+                }
+                setAnimPaused(false);
+            }
+            actionsRef.current[idx] = existing;
+            return;
         }
-        setAnimPlaying((prev) => {
-            const copy = [...prev]; copy[idx] = nowPlaying; return copy;
-        });
-    }, [animPlaying]);
 
-    const handlePlayAll = useCallback(() => {
-        actionsRef.current.forEach((a) => { a.paused = false; if (a.time >= a.getClip().duration) a.time = 0; });
-        setAnimPlaying(actionsRef.current.map(() => true));
-        setAllPlaying(true);
-    }, []);
+        // Switch primary: stop others, play selected (Forge/SSOT setPrimaryAction)
+        const act = setPrimaryAction(mixer, clip, animLoop);
+        act.paused = false;
+        mixer.timeScale = animSpeed;
+        actionsRef.current = clipsRef.current.map((c, i) =>
+            i === idx ? act : mixer.clipAction(c),
+        );
+        setActiveClipIdx(idx);
+        setAnimPaused(false);
+    }, [activeClipIdx, animLoop, animSpeed]);
+
+    /** Restart selected (or first) clip exclusively — never stack multi-clip. */
+    const handleReplay = useCallback(() => {
+        const mixer = mixerRef.current;
+        const list = clipsRef.current;
+        if (!mixer || !list.length) return;
+        const idx = activeClipIdx != null && list[activeClipIdx] ? activeClipIdx : 0;
+        const clip = list[idx];
+        const act = setPrimaryAction(mixer, clip, animLoop);
+        act.paused = false;
+        mixer.timeScale = animSpeed;
+        actionsRef.current = list.map((c, i) => (i === idx ? act : mixer.clipAction(c)));
+        setActiveClipIdx(idx);
+        setAnimPaused(false);
+    }, [activeClipIdx, animLoop, animSpeed]);
 
     const handleStopAll = useCallback(() => {
-        actionsRef.current.forEach((a) => { a.paused = true; });
-        setAnimPlaying(actionsRef.current.map(() => false));
-        setAllPlaying(false);
+        stopMixer(mixerRef.current);
+        setAnimPaused(true);
+        // Keep selection so user can hit Play again on the same clip
     }, []);
 
     const handleSpeed = useCallback((speed: number) => {
@@ -556,10 +644,10 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     }, [applyTransform]);
 
     const resetTransform = useCallback(() => {
-        const identity: [number, number, number] = [0, 0, 0];
-        const unit: [number, number, number] = [1, 1, 1];
-        setPos(identity); setRot(identity); setScl(unit); setUniformScale(1);
-        applyTransform(identity, identity, unit);
+        const a = authorXformRef.current;
+        setPos(a.pos); setRot(a.rot); setScl(a.scl);
+        setUniformScale(a.scl[0] || 1);
+        applyTransform(a.pos, a.rot, a.scl);
     }, [applyTransform]);
 
     // ── Action handlers ───────────────────────────────────────────────────────
@@ -810,70 +898,115 @@ style = {{
                         <StatRow label="Vertices"  value = { stats.vertices.toLocaleString() } />
                             { stats.bones > 0 && <StatRow label="Bones"  value = { String(stats.bones) } />}
     { stats.animations > 0 && <StatRow label="Animations" value = { String(stats.animations) } />}
+    { typeof stats.materialsFixed === "number" && stats.materialsFixed > 0 && (
+        <StatRow label="Mats fixed" value={String(stats.materialsFixed)} />
+    )}
+    { typeof stats.missingMaps === "number" && stats.missingMaps > 0 && (
+        <StatRow label="No map" value={String(stats.missingMaps)} />
+    )}
     </tbody>
         </table>
         </Section>
         )
 }
 
-{/* Animations */ }
+{/* Animations — exclusive select = correct clip on screen */}
 {
-    clipsRef.current.length > 0 && (
-        <Section title={ `Animations (${clipsRef.current.length})` }>
-            {/* Global controls */ }
-            < div style = {{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center" }
-}>
-    <button onClick={ handlePlayAll } style = { pillBtn("var(--ok)") } >▶ All </button>
-        < button onClick = { handleStopAll } style = { pillBtn("var(--danger)") } >■ Stop </button>
-            < select
-value = { animSpeed }
-onChange = {(e) => handleSpeed(Number(e.target.value))}
-style = {{
-    fontSize: 11, padding: "1px 4px", background: "var(--bg-2)",
-        border: "1px solid var(--line)", borderRadius: 4,
-            color: "var(--text)", cursor: "pointer",
-                }}
-              >
-{
-    [0.25, 0.5, 1, 1.5, 2].map((s) => (
-        <option key= { s } value = { s } > { s }×</option>
-    ))
-}
-    </select>
-    </div>
-{/* Per-clip list */ }
-<div style={ { display: "flex", flexDirection: "column", gap: 4 } }>
-{
-    clipsRef.current.map((clip, i) => (
-        <div key= { i } style = {{
-        display: "flex", alignItems: "center", gap: 6,
-        background: "var(--bg-2)", border: "1px solid var(--line)",
-        borderRadius: 5, padding: "4px 8px",
-    }} >
-    <button
-                    onClick={ () => handleToggleClip(i) }
-title = { animPlaying[i]? "Pause" : "Play"}
-style = {{
-    flexShrink: 0, width: 20, height: 20,
-        background: animPlaying[i] ? "var(--gold)" : "var(--bg-1)",
-            border: `1px solid ${animPlaying[i] ? "var(--gold)" : "var(--line)"}`,
-                borderRadius: 4, color: animPlaying[i] ? "#1a1300" : "var(--muted)",
-                    cursor: "pointer", fontSize: 9, display: "flex",
-                        alignItems: "center", justifyContent: "center",
-                    }}
-                  > { animPlaying[i]? "▐▐" : "▶"} </button>
-    < span style = {{
-    fontSize: 11, color: "var(--text)", overflow: "hidden",
-        textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1,
-                  }} title = { clip.name } > { clip.name || `Clip ${i}` } </span>
-    < span style = {{ fontSize: 10, color: "var(--muted)", flexShrink: 0 }}>
-        { clip.duration.toFixed(1) }s
-            </span>
+    clips.length > 0 && (
+        <Section title={`Animations (${clips.length})`}>
+            <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8, lineHeight: 1.35 }}>
+                Select a clip to review. Only one plays at a time (no multi-clip stack).
             </div>
-              ))}
-</div>
-    </Section>
-        )}
+            <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center" }}>
+                <button
+                    type="button"
+                    onClick={handleReplay}
+                    style={pillBtn("var(--ok)")}
+                    title="Restart selected (or first) clip"
+                >
+                    ▶ Play
+                </button>
+                <button
+                    type="button"
+                    onClick={handleStopAll}
+                    style={pillBtn("var(--danger)")}
+                    title="Stop animation"
+                >
+                    ■ Stop
+                </button>
+                <select
+                    value={animSpeed}
+                    onChange={(e) => handleSpeed(Number(e.target.value))}
+                    style={{
+                        fontSize: 11, padding: "1px 4px", background: "var(--bg-2)",
+                        border: "1px solid var(--line)", borderRadius: 4,
+                        color: "var(--text)", cursor: "pointer",
+                    }}
+                >
+                    {[0.25, 0.5, 1, 1.5, 2].map((s) => (
+                        <option key={s} value={s}>{s}×</option>
+                    ))}
+                </select>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {clips.map((clip, i) => {
+                    const isActive = activeClipIdx === i;
+                    const isLive = isActive && !animPaused;
+                    return (
+                        <div
+                            key={`${clip.name || "clip"}-${i}`}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => handleSelectClip(i)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    handleSelectClip(i);
+                                }
+                            }}
+                            style={{
+                                display: "flex", alignItems: "center", gap: 6,
+                                background: isActive ? "rgba(255,198,42,0.12)" : "var(--bg-2)",
+                                border: `1px solid ${isActive ? "var(--gold)" : "var(--line)"}`,
+                                borderRadius: 5, padding: "4px 8px",
+                                cursor: "pointer",
+                            }}
+                            title={isLive ? "Pause this clip" : "Play this clip"}
+                        >
+                            <span
+                                style={{
+                                    flexShrink: 0, width: 20, height: 20,
+                                    background: isLive ? "var(--gold)" : "var(--bg-1)",
+                                    border: `1px solid ${isLive ? "var(--gold)" : "var(--line)"}`,
+                                    borderRadius: 4,
+                                    color: isLive ? "#1a1300" : "var(--muted)",
+                                    fontSize: 9, display: "flex",
+                                    alignItems: "center", justifyContent: "center",
+                                }}
+                            >
+                                {isLive ? "▐▐" : "▶"}
+                            </span>
+                            <span
+                                style={{
+                                    fontSize: 11,
+                                    color: isActive ? "var(--gold)" : "var(--text)",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1,
+                                    fontWeight: isActive ? 600 : 400,
+                                }}
+                                title={clip.name}
+                            >
+                                {clip.name || `Clip ${i}`}
+                            </span>
+                            <span style={{ fontSize: 10, color: "var(--muted)", flexShrink: 0 }}>
+                                {clip.duration.toFixed(1)}s
+                            </span>
+                        </div>
+                    );
+                })}
+            </div>
+        </Section>
+    )}
 
 {/* Optimize for web (gltf-transform) */ }
 <Section title="Optimize (gltf-transform)" >

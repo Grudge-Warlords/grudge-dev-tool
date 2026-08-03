@@ -79,15 +79,61 @@ function looksPureBlack(c: THREE.Color | undefined): boolean {
   return c.r < 0.02 && c.g < 0.02 && c.b < 0.02;
 }
 
+/**
+ * True only when a map is known-bad (failed decode / 1×1 stub).
+ * Keeps compressed / KTX2 sources that store data on texture.source.
+ * HTMLImage still loading (complete=false) is NOT broken — do not strip.
+ */
 function isBrokenMap(tex: THREE.Texture | null | undefined): boolean {
   if (!tex) return true;
-  const img = tex.image as { width?: number; height?: number } | undefined;
-  if (!img) return true;
-  const w = img.width ?? 0;
-  const h = img.height ?? 0;
-  // 0 or 1×1 placeholder from failed decode
-  if (w <= 1 && h <= 1) return true;
+
+  // Compressed / KTX2 / BufferGeometry-style sources
+  const src = (tex as THREE.Texture & { source?: { data?: unknown } }).source;
+  if (src?.data != null) {
+    const data = src.data as { width?: number; height?: number };
+    if (typeof data?.width === "number" && typeof data?.height === "number") {
+      return data.width <= 1 && data.height <= 1;
+    }
+    // e.g. CompressedTexture mip chain object — treat as valid
+    return false;
+  }
+
+  const img = tex.image as
+    | (HTMLImageElement & { naturalWidth?: number; naturalHeight?: number })
+    | HTMLCanvasElement
+    | ImageBitmap
+    | { width?: number; height?: number; data?: ArrayBufferView }
+    | undefined
+    | null;
+
+  if (!img) {
+    // After loadAsync, no image usually means failed external map
+    return true;
+  }
+
+  // HTMLImageElement still loading — keep (do not strip mid-flight)
+  if (typeof HTMLImageElement !== "undefined" && img instanceof HTMLImageElement) {
+    if (!img.complete) return false;
+    const w = img.naturalWidth || img.width || 0;
+    const h = img.naturalHeight || img.height || 0;
+    // complete + 0×0 = failed decode; 1×1 often FBX path-miss placeholder
+    return w <= 1 && h <= 1;
+  }
+
+  const w = (img as { width?: number }).width ?? 0;
+  const h = (img as { height?: number }).height ?? 0;
+  if (w <= 1 && h <= 1) {
+    // Typed-array data textures with only metadata may report 0 — keep if data present
+    if ((img as { data?: ArrayBufferView }).data && (w > 0 || h > 0)) return w <= 1 && h <= 1;
+    if ((img as { data?: ArrayBufferView }).data && w === 0 && h === 0) return false;
+    return true;
+  }
   return false;
+}
+
+/** Public helper for texture fill — valid non-broken map present? */
+export function hasValidColorMap(mat: THREE.MeshStandardMaterial): boolean {
+  return !!(mat.map && !isBrokenMap(mat.map));
 }
 
 function configureColorMap(tex: THREE.Texture, format?: string): void {
@@ -98,13 +144,18 @@ function configureColorMap(tex: THREE.Texture, format?: string): void {
     // GLTFLoader already sets flipY=false for baseColor; keep it
     tex.flipY = false;
   }
-  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  // Preserve RepeatWrapping when the author tiled the atlas; only default Clamp when unset
+  if (tex.wrapS === undefined || tex.wrapS === THREE.ClampToEdgeWrapping) {
+    /* keep clamp default for character atlases */
+  }
   tex.needsUpdate = true;
 }
 
 function configureDataMap(tex: THREE.Texture): void {
   tex.colorSpace = THREE.NoColorSpace;
-  tex.flipY = false;
+  // Do not force flipY=false on every data map — GLTFLoader already set correct values.
+  // Only force for maps that still have the Texture default flipY=true (common on FBX).
+  if (tex.flipY === true) tex.flipY = false;
   tex.needsUpdate = true;
 }
 

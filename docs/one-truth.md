@@ -2,7 +2,7 @@
 layout: default
 title: ONE TRUTH
 nav_order: 3
-description: Single canonical host map for Grudge Studio — client API base, never api.grudge-studio.com.
+description: Single canonical host map for Grudge Studio — client API base; api.grudge-studio.com is legacy index only.
 permalink: /one-truth.html
 ---
 
@@ -41,7 +41,7 @@ Full link table: [Systems & APIs](systems-api.md).
 
 ## Deprecated (split-brain)
 
-- `api.grudge-studio.com` (old tunnel / portal HTML)
+- `api.grudge-studio.com` as **player** or **definition SSOT** (legacy asset-index GET may still 200 — use ObjectStore + CDN instead)
 - `molochdagod.github.io/ObjectStore`
 - `grudge-objectstore.pages.dev`
 - `auth.grudgestudio.com` / `auth.grudge-studio.com` (use **`id.grudge-studio.com`**)

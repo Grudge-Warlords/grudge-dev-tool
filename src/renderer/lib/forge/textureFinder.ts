@@ -4,6 +4,7 @@
  */
 
 import * as THREE from "three";
+import { TGALoader } from "three/examples/jsm/loaders/TGALoader.js";
 
 export type TextureRole =
   | "map"
@@ -28,6 +29,17 @@ export interface TextureMatchReport {
   materialName: string;
   applied: Array<{ role: TextureRole; name: string }>;
   skipped: string[];
+}
+
+export interface ApplySmartTexturesOptions {
+  /**
+   * When true (default for elite open), only fill roles that are missing or
+   * broken — never overwrite a valid embedded / already-bound map.
+   * Prevents wrong sibling textures from scrambling correct colors.
+   */
+  onlyMissingMaps?: boolean;
+  /** Minimum name-affinity score before applying a map (default 1). */
+  minAffinity?: number;
 }
 
 const ROLE_PATTERNS: Array<{ role: TextureRole; re: RegExp; weight: number }> = [
@@ -130,21 +142,52 @@ export function findTexturesForMaterial(
 }
 
 const loader = new THREE.TextureLoader();
+const tgaLoader = new TGALoader();
 
-function loadTexture(url: string): Promise<THREE.Texture> {
+function looksLikeTga(url: string, nameHint?: string): boolean {
+  const s = `${nameHint || ""} ${url}`.toLowerCase();
+  return s.includes(".tga") || s.includes("image/targa") || s.includes("image/x-tga");
+}
+
+function loadTexture(url: string, nameHint?: string): Promise<THREE.Texture> {
   return new Promise((resolve, reject) => {
-    loader.load(
-      url,
-      (tex) => {
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.flipY = false;
-        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        resolve(tex);
-      },
-      undefined,
-      (err) => reject(err),
-    );
+    const onOk = (tex: THREE.Texture) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.flipY = false;
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.needsUpdate = true;
+      resolve(tex);
+    };
+    if (looksLikeTga(url, nameHint)) {
+      tgaLoader.load(url, onOk, undefined, (err) => reject(err));
+      return;
+    }
+    loader.load(url, onOk, undefined, (err) => reject(err));
   });
+}
+
+function mapIsUsable(tex: THREE.Texture | null | undefined): boolean {
+  if (!tex) return false;
+  const src = (tex as THREE.Texture & { source?: { data?: unknown } }).source;
+  if (src?.data != null) {
+    const data = src.data as { width?: number; height?: number };
+    if (typeof data?.width === "number" && typeof data?.height === "number") {
+      return data.width > 1 && data.height > 1;
+    }
+    return true;
+  }
+  const img = tex.image as {
+    width?: number;
+    height?: number;
+    complete?: boolean;
+    naturalWidth?: number;
+    naturalHeight?: number;
+  } | undefined;
+  if (!img) return false;
+  if (typeof img.complete === "boolean" && !img.complete) return true; // still loading
+  const w = img.naturalWidth || img.width || 0;
+  const h = img.naturalHeight || img.height || 0;
+  return w > 1 && h > 1;
 }
 
 function ensureStandard(mesh: THREE.Mesh): THREE.MeshStandardMaterial[] {
@@ -181,7 +224,10 @@ export async function applySmartTextures(
   root: THREE.Object3D,
   texturePaths: string[],
   resolveUrl: (path: string) => string | Promise<string> = (p) => p,
+  opts: ApplySmartTexturesOptions = {},
 ): Promise<TextureMatchReport[]> {
+  const onlyMissing = opts.onlyMissingMaps !== false; // default: protect good maps
+  const minAffinity = opts.minAffinity ?? 1;
   const reports: TextureMatchReport[] = [];
   const meshList: THREE.Mesh[] = [];
   root.traverse((n) => {
@@ -198,10 +244,31 @@ export async function applySmartTextures(
       const applied: TextureMatchReport["applied"] = [];
       const skipped: string[] = [];
 
+      // If base color already looks good and onlyMissing — skip entire material
+      // unless some PBR slots are empty (still fill those).
       for (const [role, cand] of matches) {
+        // Reject weak bare-folder matches that would paint random images
+        if (cand.score < 4 + minAffinity && role === "map" && mapIsUsable(mat.map)) {
+          skipped.push(`${cand.name}(weak-keep-existing)`);
+          continue;
+        }
+        if (onlyMissing) {
+          const existing = (mat as any)[role] as THREE.Texture | null | undefined;
+          if (mapIsUsable(existing)) {
+            skipped.push(`${cand.name}(keep-existing-${role})`);
+            continue;
+          }
+        }
+        // Require some name affinity for non-map roles; for map require score ≥ 5
+        // unless material has zero maps at all
+        const needsMap = !mapIsUsable(mat.map);
+        if (role === "map" && cand.score < (needsMap ? 3 : 8)) {
+          skipped.push(`${cand.name}(low-score)`);
+          continue;
+        }
         try {
           const url = await resolveUrl(cand.url);
-          const tex = await loadTexture(url);
+          const tex = await loadTexture(url, cand.name);
           if (role === "normalMap") {
             tex.colorSpace = THREE.NoColorSpace;
             mat.normalMap = tex;
@@ -232,6 +299,8 @@ export async function applySmartTextures(
             mat.transparent = true;
           } else {
             mat.map = tex;
+            // Albedo in map — keep base color white so atlas colors are true
+            mat.color?.setHex?.(0xffffff);
           }
           mat.needsUpdate = true;
           applied.push({ role, name: cand.name });

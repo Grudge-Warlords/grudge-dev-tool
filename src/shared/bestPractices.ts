@@ -36,7 +36,7 @@ export const FLEET_BEST_PRACTICES = {
   oneTruth: {
     id: "one-truth",
     title: "ONE TRUTH API base",
-    rule: "Use https://client.grudge-studio.com as the sole browser/CLI API base (rewrites → Railway + ObjectStore + auth). Never new work on api.grudge-studio.com.",
+    rule: "Use https://client.grudge-studio.com as the sole browser/CLI API base (rewrites → Railway + ObjectStore + auth). api.grudge-studio.com may still answer asset-index GETs (legacy live) — do not use it for new player APIs or as SSOT; prefer objectstore + assets CDN.",
     category: "fleet" as const,
     surfaces: ["devtools", "ai", "deploy", "coder"] as const,
   },
@@ -502,7 +502,7 @@ export function agentBestPracticesPrompt(surface?: string): string {
     "Follow Grudge Studio production best practices (AI workers, D1/R2/Stream, fleet assets):",
     ...lines,
     "",
-    "Output quality bar: production-ready convert, magic-byte verified CDN paths, D1-indexed keys, no invented meshes, no api.grudge-studio.com.",
+    "Output quality bar: production-ready convert, magic-byte verified CDN paths, D1-indexed keys, no invented meshes, no new player APIs on api.grudge-studio.com (legacy index only).",
   ].join("\n");
 }
 
@@ -576,8 +576,16 @@ export const STUDIO_SURFACE_DNS = [
     host: "grudge-multiverse-room-production.up.railway.app",
     role: "Multiverse rooms WS /api/mv only",
   },
-  { id: "obs", host: "obs.grudge-studio.com", role: "Observatory telemetry" },
+  {
+    id: "obs",
+    host: "obs.grudge-studio.com",
+    role: "Observatory — DNS often missing; optional until CNAME live",
+  },
   { id: "info", host: "info.grudge-studio.com", role: "Live definition catalogs" },
   { id: "wallet", host: "wallet.grudge-studio.com", role: "Wallet site Worker" },
-  { id: "deprecated-api", host: "api.grudge-studio.com", role: "DEAD — do not use" },
+  {
+    id: "deprecated-api",
+    host: "api.grudge-studio.com",
+    role: "LEGACY live asset index — do not use for new player APIs; prefer ObjectStore + assets CDN",
+  },
 ] as const;

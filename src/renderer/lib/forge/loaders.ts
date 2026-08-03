@@ -2,6 +2,7 @@ import * as THREE from "three";
 import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
@@ -80,11 +81,128 @@ function tallyStats(object: THREE.Object3D): { triangles: number; vertices: numb
   return { triangles: Math.round(triangles), vertices, bones };
 }
 
-/** Shared LoadingManager: TGA (Unity Toon RTS) + texture hooks. */
-function createAssetManager(): THREE.LoadingManager {
+/**
+ * Build a fetchable URL for a local absolute path via the Electron
+ * grudge-media protocol (works for models + sibling textures/TGA).
+ * Falls back to identity when not in the Dev Tool shell.
+ */
+export function localFileUrl(absolutePath: string): string {
+  const p = absolutePath.replace(/\//g, "\\");
+  // Prefer native media protocol when running inside Electron
+  if (typeof window !== "undefined") {
+    return `grudge-media://local/?path=${encodeURIComponent(p)}`;
+  }
+  return absolutePath;
+}
+
+/** Join model dir + relative texture path (Windows / posix safe). */
+function resolveAgainstDir(baseDir: string, rel: string): string {
+  const base = baseDir.replace(/\\/g, "/").replace(/\/?$/, "/");
+  let r = rel.replace(/\\/g, "/");
+  // Strip file:// and leading ./
+  if (r.startsWith("file://")) {
+    try {
+      r = decodeURIComponent(new URL(r).pathname);
+      if (/^\/[A-Za-z]:/.test(r)) r = r.slice(1);
+      return r.replace(/\//g, "\\");
+    } catch {
+      /* fall through */
+    }
+  }
+  if (/^[A-Za-z]:\//.test(r) || r.startsWith("/")) {
+    return r.replace(/\//g, "\\");
+  }
+  const parts = (base + r).split("/");
+  const out: string[] = [];
+  for (const part of parts) {
+    if (!part || part === ".") continue;
+    if (part === "..") out.pop();
+    else out.push(part);
+  }
+  // Windows drive: "C:" segment stays
+  return out.join("\\");
+}
+
+/**
+ * Shared LoadingManager: TGA (Unity Toon RTS) + optional disk-path rewrite.
+ * When resourceDir is set, relative texture/bin paths resolve via grudge-media
+ * so blob-loaded FBX/OBJ/glTF still get correct atlases and colors.
+ */
+function createAssetManager(resourceDir?: string | null): THREE.LoadingManager {
   const manager = new THREE.LoadingManager();
   manager.addHandler(/\.tga$/i, new TGALoader());
+  if (resourceDir) {
+    const dir = resourceDir.replace(/\\/g, "/").replace(/\/?$/, "/");
+    manager.setURLModifier((url) => {
+      if (!url) return url;
+      // Already absolute fetchable
+      if (
+        url.startsWith("blob:") ||
+        url.startsWith("data:") ||
+        url.startsWith("http://") ||
+        url.startsWith("https://") ||
+        url.startsWith("grudge-media:")
+      ) {
+        return url;
+      }
+      // Absolute Windows / posix disk path
+      if (/^[A-Za-z]:[\\/]/.test(url) || url.startsWith("\\\\")) {
+        return localFileUrl(url);
+      }
+      if (url.startsWith("file:")) {
+        try {
+          let p = decodeURIComponent(new URL(url).pathname);
+          if (/^\/[A-Za-z]:/.test(p)) p = p.slice(1);
+          return localFileUrl(p);
+        } catch {
+          return url;
+        }
+      }
+      // Relative to model folder (FBX external maps, glTF .bin/.png, OBJ MTL maps)
+      const abs = resolveAgainstDir(dir, url);
+      return localFileUrl(abs);
+    });
+  }
   return manager;
+}
+
+/**
+ * Mesh hygiene after load — correct bounds, normals, skinned pose for Elite/Forge.
+ * Does not alter author root transform (scale/rotation stay as authored).
+ */
+function prepareMeshes(object: THREE.Object3D): void {
+  object.updateMatrixWorld(true);
+  object.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry) return;
+    const geom = mesh.geometry as THREE.BufferGeometry;
+    if (!geom.getAttribute("normal") && geom.getAttribute("position")) {
+      geom.computeVertexNormals();
+    }
+    if (!geom.boundingBox) geom.computeBoundingBox();
+    if (!geom.boundingSphere) geom.computeBoundingSphere();
+
+    const sm = mesh as THREE.SkinnedMesh;
+    if (sm.isSkinnedMesh) {
+      sm.frustumCulled = false;
+      sm.matrixWorldNeedsUpdate = true;
+      // Ensure skeleton matrices match current bind for first paint
+      if (sm.skeleton) {
+        sm.skeleton.update();
+      }
+      try {
+        sm.computeBoundingSphere();
+      } catch {
+        /* some clones lack bone inverses until posed */
+      }
+    }
+
+    // Invisible zero-scale mesh children often break framing; leave scale but flag
+    if (mesh.visible === false) return;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+  });
+  object.updateMatrixWorld(true);
 }
 
 function finishModel(
@@ -94,6 +212,7 @@ function finishModel(
   format: ModelFormat,
   sanitizeOpts?: MaterialSanitizeOptions,
 ): LoadedModel {
+  prepareMeshes(object);
   const fmtHint =
     format === "glb" || format === "gltf" || format === "fbx" || format === "obj"
       ? format
@@ -101,6 +220,8 @@ function finishModel(
   const materials = sanitizeMaterials(object, {
     format: fmtHint,
     toonStyle: true,
+    fixDefaultYellow: true,
+    whiteWhenMapped: true,
     ...sanitizeOpts,
   });
   const stats = tallyStats(object);
@@ -137,7 +258,8 @@ function dirnamePath(p: string): string {
  * Load a model from a Blob/File using the right loader for its extension.
  * GLB/glTF: magic-byte gate + material sanitize.
  * FBX: TGA handler so Unity atlases don't decode as black.
- * diskPath: enables sibling texture rebind after load (finishImportedAsset).
+ * diskPath: load via grudge-media when possible so relative textures resolve;
+ * also enables sibling fill for materials that still lack maps.
  */
 export async function loadModel(file: File, opts: LoadModelOptions = {}): Promise<LoadedModel> {
   const format = detectFormat(file.name);
@@ -149,55 +271,75 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
     assertMeshBytes(buf, file.name);
   }
 
-  const url = URL.createObjectURL(file);
   const resourceDir =
     opts.resourceDir ||
     (opts.diskPath ? dirnamePath(opts.diskPath) : null);
-  const manager = createAssetManager();
+
+  // Prefer disk URL so FBX/OBJ/glTF external maps resolve next to the model.
+  // Blob URLs alone lose relative texture paths → wrong/missing colors.
+  let url: string;
+  let revokeBlob: string | null = null;
+  const preferDisk = Boolean(opts.diskPath && typeof window !== "undefined");
+  if (preferDisk) {
+    url = localFileUrl(opts.diskPath!);
+  } else {
+    revokeBlob = URL.createObjectURL(file);
+    url = revokeBlob;
+  }
+
+  const manager = createAssetManager(resourceDir);
   let loaded: LoadedModel;
-  try {
+
+  async function loadFrom(urlToUse: string): Promise<LoadedModel> {
     switch (format) {
       case "glb":
       case "gltf": {
-        // Blob URLs lose relative texture paths — rebind via finishImportedAsset when diskPath set.
-        const gltf = await new GLTFLoader(manager).loadAsync(url);
+        const gltf = await new GLTFLoader(manager).loadAsync(urlToUse);
         let scene = gltf.scene;
         let hasSkin = false;
         gltf.scene.traverse((n) => {
           if ((n as THREE.SkinnedMesh).isSkinnedMesh) hasSkin = true;
         });
         if (hasSkin) scene = SkeletonUtils.clone(gltf.scene) as THREE.Group;
-        loaded = finishModel(scene, gltf.animations ?? [], gltf, format, opts.sanitize);
-        break;
+        return finishModel(scene, gltf.animations ?? [], gltf, format, opts.sanitize);
       }
       case "obj": {
-        const obj = await new OBJLoader(manager).loadAsync(url);
-        loaded = finishModel(obj, [], null, format, opts.sanitize);
-        break;
+        const objLoader = new OBJLoader(manager);
+        // Sidecar MTL (same basename) — required for real materials/textures
+        if (opts.diskPath) {
+          const mtlDisk = opts.diskPath.replace(/\.obj$/i, ".mtl");
+          try {
+            const mtl = await new MTLLoader(manager).loadAsync(localFileUrl(mtlDisk));
+            mtl.preload();
+            objLoader.setMaterials(mtl);
+          } catch {
+            /* MTL optional; sibling fill may still attach maps */
+          }
+        }
+        const obj = await objLoader.loadAsync(urlToUse);
+        return finishModel(obj, [], null, format, opts.sanitize);
       }
       case "fbx": {
-        const fbx = await new FBXLoader(manager).loadAsync(url);
-        loaded = finishModel(
+        const fbx = await new FBXLoader(manager).loadAsync(urlToUse);
+        return finishModel(
           fbx,
           (fbx as any).animations ?? [],
           null,
           format,
           { toonStyle: true, fixDefaultYellow: true, ...opts.sanitize },
         );
-        break;
       }
       case "stl": {
-        const geom = await new STLLoader(manager).loadAsync(url);
+        const geom = await new STLLoader(manager).loadAsync(urlToUse);
         geom.computeVertexNormals();
         const mesh = new THREE.Mesh(
           geom,
           new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6, metalness: 0.05 }),
         );
-        loaded = finishModel(mesh, [], null, format, opts.sanitize);
-        break;
+        return finishModel(mesh, [], null, format, opts.sanitize);
       }
       case "ply": {
-        const geom = await new PLYLoader(manager).loadAsync(url);
+        const geom = await new PLYLoader(manager).loadAsync(urlToUse);
         geom.computeVertexNormals();
         const mat = new THREE.MeshStandardMaterial({
           color: 0xcccccc,
@@ -215,27 +357,24 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
                   vertexColors: !!geom.getAttribute("color"),
                 }),
               );
-        loaded = finishModel(obj, [], null, format, opts.sanitize);
-        break;
+        return finishModel(obj, [], null, format, opts.sanitize);
       }
       case "dae": {
-        const dae = await new ColladaLoader(manager).loadAsync(url);
-        loaded = finishModel(
+        const dae = await new ColladaLoader(manager).loadAsync(urlToUse);
+        return finishModel(
           dae.scene,
           (dae as any).animations ?? [],
           null,
           format,
           opts.sanitize,
         );
-        break;
       }
       case "3mf": {
-        const obj = await new ThreeMFLoader(manager).loadAsync(url);
-        loaded = finishModel(obj, [], null, format, opts.sanitize);
-        break;
+        const obj = await new ThreeMFLoader(manager).loadAsync(urlToUse);
+        return finishModel(obj, [], null, format, opts.sanitize);
       }
       case "three-json": {
-        const text = await (await fetch(url)).text();
+        const text = await (await fetch(urlToUse)).text();
         const data = JSON.parse(text);
         const loader = new THREE.ObjectLoader();
         const parsed = loader.parse(data) as THREE.Object3D;
@@ -248,30 +387,52 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
                 return g;
               })()
             : parsed;
-        loaded = finishModel(root, [], null, format, opts.sanitize);
-        break;
+        return finishModel(root, [], null, format, opts.sanitize);
       }
       default:
         throw new Error(`Unsupported format: ${format}`);
     }
-  } finally {
-    URL.revokeObjectURL(url);
   }
 
-  // Rebind sibling textures for disk-opened FBX/OBJ/GLB (elite open / Local Files)
-  if (opts.diskPath || resourceDir) {
+  try {
+    try {
+      loaded = await loadFrom(url);
+    } catch (diskErr) {
+      // grudge-media may fail outside Electron or if protocol not ready — blob fallback
+      // Only when the File actually has bytes (empty File is disk-only placeholder).
+      if (preferDisk && file.size > 0) {
+        console.warn("[loadModel] disk URL failed, falling back to blob", diskErr);
+        revokeBlob = URL.createObjectURL(file);
+        loaded = await loadFrom(revokeBlob);
+      } else {
+        throw diskErr;
+      }
+    }
+  } finally {
+    if (revokeBlob) URL.revokeObjectURL(revokeBlob);
+  }
+
+  // Fill missing maps only (never overwrite good embedded/atlas maps).
+  // Prefer the real model file path so sibling search walks the correct dirs.
+  const siblingRoot = opts.diskPath || null;
+  if (siblingRoot) {
     try {
       const { finishImportedAsset } = await import("./localMaterials");
-      await finishImportedAsset(loaded.object, opts.diskPath || resourceDir || "");
-      // Re-sanitize after map rebind
+      await finishImportedAsset(loaded.object, siblingRoot, {
+        onlyMissingMaps: true,
+      });
+      // Re-sanitize after optional map fill (colorSpace / yellow / metalness)
       loaded.materials = sanitizeMaterials(loaded.object, {
         format:
           format === "glb" || format === "gltf" || format === "fbx" || format === "obj"
             ? format
             : "other",
         toonStyle: true,
+        fixDefaultYellow: true,
+        whiteWhenMapped: true,
         ...opts.sanitize,
       });
+      prepareMeshes(loaded.object);
     } catch {
       /* sibling maps optional */
     }
@@ -280,14 +441,56 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
 }
 
 /**
- * Load from a CDN/http(s) URL with magic-byte gate on the response body.
+ * Load from a CDN/http(s)/grudge-media URL with magic-byte gate on the response body.
  * Prefer `prod/gltf/**` paths from assets.grudge-studio.com.
+ * Pass `diskPath` for local elite open so relative textures + sibling maps resolve.
  */
 export async function loadModelFromUrl(
   url: string,
   filenameHint?: string,
   opts: LoadModelOptions = {},
 ): Promise<LoadedModel> {
+  // Local disk elite path: skip full-body fetch when we can stream via grudge-media
+  if (opts.diskPath && typeof window !== "undefined") {
+    const name =
+      filenameHint ||
+      opts.diskPath.split(/[/\\]/).pop() ||
+      "model.glb";
+    const format = detectFormat(name);
+    // For GLB still need magic-byte gate — small head fetch or full via media
+    if (!opts.skipMagicBytes && (format === "glb" || format === "gltf")) {
+      try {
+        const res = await fetch(localFileUrl(opts.diskPath));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buf = await res.arrayBuffer();
+        assertMeshBytes(buf, name);
+        const type = name.toLowerCase().endsWith(".glb")
+          ? "model/gltf-binary"
+          : "application/octet-stream";
+        const file = new File([buf], name, { type });
+        return loadModel(file, {
+          ...opts,
+          diskPath: opts.diskPath,
+          skipMagicBytes: true,
+        });
+      } catch {
+        /* fall through to generic URL fetch */
+      }
+    } else {
+      // FBX/OBJ/etc: empty File + diskPath → loadModel uses grudge-media
+      const file = new File([], name, { type: "application/octet-stream" });
+      try {
+        return await loadModel(file, {
+          ...opts,
+          diskPath: opts.diskPath,
+          skipMagicBytes: true,
+        });
+      } catch {
+        /* fall through */
+      }
+    }
+  }
+
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} loading ${url}`);
   const buf = await res.arrayBuffer();

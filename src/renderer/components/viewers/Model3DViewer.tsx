@@ -44,7 +44,12 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
     (async () => {
       try {
         if (!isSupported(asset.name)) throw new Error(`Unsupported 3D format: ${asset.name}`);
-        const loaded = await loadModelFromUrl(asset.url, asset.name.split("/").pop() ?? asset.name);
+        const nameHint = asset.name.split("/").pop() ?? asset.name;
+        // Local path → diskPath so relative textures / sibling TGA atlases resolve
+        const loaded = await loadModelFromUrl(asset.url, nameHint, {
+          diskPath: asset.localPath || undefined,
+          sanitize: { toonStyle: true, fixDefaultYellow: true, whiteWhenMapped: true },
+        });
         if (cancelled || !engineRef.current) return;
 
         // Clear any previous model from the scene before adding the new one.
@@ -112,7 +117,7 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [asset.url]);
+  }, [asset.url, asset.localPath, asset.name]);
 
   function toggleAnim() {
     const next = !playing;

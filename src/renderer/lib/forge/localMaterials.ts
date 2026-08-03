@@ -132,15 +132,52 @@ export function sanitizeImportedMaterials(root: THREE.Object3D): MaterialSanitiz
   return stats;
 }
 
+export interface AutoApplyLocalOptions {
+  /** Only fill missing/broken maps (default true). */
+  onlyMissingMaps?: boolean;
+}
+
+function rootNeedsMaps(root: THREE.Object3D): boolean {
+  let needs = false;
+  root.traverse((n) => {
+    if (needs) return;
+    const mesh = n as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.material) return;
+    const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const m of list) {
+      const std = m as THREE.MeshStandardMaterial;
+      if (!std) continue;
+      if (!std.map) {
+        needs = true;
+        return;
+      }
+      const img = std.map.image as { width?: number; height?: number } | undefined;
+      if (img && (img.width ?? 0) <= 1 && (img.height ?? 0) <= 1) {
+        needs = true;
+        return;
+      }
+    }
+  });
+  return needs;
+}
+
 /**
  * Resolve diskPath folder textures and apply via smart matcher.
  * Prefer same folder / pack root over fleet CDN.
+ * Default: only fill materials that still lack usable maps (protect embedded colors).
  */
 export async function autoApplyLocalTextures(
   root: THREE.Object3D,
   diskPath: string | null | undefined,
+  opts: AutoApplyLocalOptions = {},
 ): Promise<{ reports: TextureMatchReport[]; filesTried: number; dirs: number }> {
   if (!diskPath || !window.grudge?.forge?.listSiblingTextures) {
+    return { reports: [], filesTried: 0, dirs: 0 };
+  }
+
+  const onlyMissing = opts.onlyMissingMaps !== false;
+  // Fast path: everything already has maps (typical GLB with embedded textures)
+  if (onlyMissing && !rootNeedsMaps(root)) {
     return { reports: [], filesTried: 0, dirs: 0 };
   }
 
@@ -159,14 +196,35 @@ export async function autoApplyLocalTextures(
     return aLocal - bLocal;
   });
 
-  const reports = await applySmartTextures(root, ordered, async (absPath) => {
-    // Load via main process → data URL (works without file:// privileges)
-    if (window.grudge.forge.readLocalImage) {
-      const img = await window.grudge.forge.readLocalImage(absPath);
-      return img.dataUrl;
-    }
-    return absPath;
-  });
+  const reports = await applySmartTextures(
+    root,
+    ordered,
+    async (absPath) => {
+      // Prefer grudge-media so TGA/PNG stream without huge base64 in renderer
+      const lower = absPath.toLowerCase();
+      if (/\.tga$/i.test(lower)) {
+        // TGA: use media protocol (TGALoader can fetch it) or data URL fallback
+        try {
+          const media = await window.grudge?.files?.mediaUrl?.(absPath);
+          if (media) return media;
+        } catch {
+          /* fall through */
+        }
+      }
+      if (window.grudge.forge.readLocalImage) {
+        const img = await window.grudge.forge.readLocalImage(absPath);
+        return img.dataUrl;
+      }
+      try {
+        const media = await window.grudge?.files?.mediaUrl?.(absPath);
+        if (media) return media;
+      } catch {
+        /* ignore */
+      }
+      return absPath;
+    },
+    { onlyMissingMaps: onlyMissing },
+  );
 
   return {
     reports,
@@ -175,16 +233,19 @@ export async function autoApplyLocalTextures(
   };
 }
 
-/** One-shot after model load: sanitize colors then local maps. */
+/** One-shot after model load: sanitize colors then fill missing local maps. */
 export async function finishImportedAsset(
   root: THREE.Object3D,
   diskPath: string | null | undefined,
+  opts: AutoApplyLocalOptions = {},
 ): Promise<{
   sanitize: MaterialSanitizeStats;
   textures: { reports: TextureMatchReport[]; filesTried: number; dirs: number };
 }> {
   const sanitize = sanitizeImportedMaterials(root);
-  const textures = await autoApplyLocalTextures(root, diskPath);
+  const textures = await autoApplyLocalTextures(root, diskPath, {
+    onlyMissingMaps: opts.onlyMissingMaps !== false,
+  });
   // After maps applied, re-white base colors where maps landed
   sanitizeImportedMaterials(root);
   return { sanitize, textures };

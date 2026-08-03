@@ -11,7 +11,8 @@ permalink: /systems-api.html
 **Use this page as the link map** for the published docs site and Dev Tool admin shell.  
 Code SSOT: `src/shared/fleet.ts` · `src/shared/adminSurfaces.ts` · `src/shared/fleetConnections.ts`.
 
-**Never** route new work through `https://api.grudge-studio.com` (deprecated).
+**Do not** use `https://api.grudge-studio.com` for **new** player APIs or as catalog SSOT.  
+It may still return asset-index JSON (**legacy live**, proved 200) — prefer **ObjectStore + assets CDN**.
 
 ---
 
@@ -20,10 +21,11 @@ Code SSOT: `src/shared/fleet.ts` · `src/shared/adminSurfaces.ts` · `src/shared
 | Use | URL |
 |-----|-----|
 | **Browser / CLI / Dev Tool Settings** | `https://client.grudge-studio.com` |
-| Auth (via rewrites) | `https://client.grudge-studio.com/api/auth/*` → Grudge ID |
-| Game data (via rewrites) | `https://client.grudge-studio.com/api/characters|account|wallet|…` → Railway |
-| ObjectStore proxy | `https://client.grudge-studio.com/api/objectstore/v1/*` |
+| Auth (via rewrites) | `https://client.grudge-studio.com/api/auth/me` (401 without JWT = route live) |
+| Game data (via rewrites) | `https://client.grudge-studio.com/api/characters` · `/api/account/*` · `/api/wallet/*` → Railway |
+| ObjectStore **JSON proxy** (proved) | `https://client.grudge-studio.com/api/objectstore/v1/<name>.json` |
 | Direct game-data SSOT | `https://grudge-api-production-0d46.up.railway.app` |
+| Health | `…/api/health` on client **and** Railway (same service) |
 
 ```powershell
 grudge-dev setup
@@ -111,27 +113,51 @@ Open library card: `gameopen` → `gameLibrary.ts` id `grudge-multiverse`.
 
 ---
 
-## ObjectStore list/search/upload (via ONE TRUTH)
+## ObjectStore & CDN (proved paths — 2026-08)
 
-Base: `https://client.grudge-studio.com` (preferred) or direct ObjectStore Worker.
+### JSON catalogs (public GET)
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/objectstore/list?prefix=` | List objects |
-| GET | `/api/objectstore/search?q=` | Server search (`>query` in Assets) |
-| POST | `/api/objectstore/upload-url` | Presigned PUT |
-| POST | `/api/objectstore/manifest` | Pack manifest (admin) |
-| GET | `/api/objectstore/asset/<path>` | Signed GET / metadata |
+| Method | URL | Notes |
+|--------|-----|--------|
+| GET | `https://objectstore.grudge-studio.com/api/v1/catalog` | Worker service catalog |
+| GET | `https://objectstore.grudge-studio.com/api/v1/<name>.json` | e.g. `master-items`, `weapons` |
+| GET | `https://client.grudge-studio.com/api/objectstore/v1/<name>.json` | **ONE TRUTH proxy** (proved) |
+| GET | `https://info.grudge-studio.com/api/v1/<name>.json` | Live defs when available |
+| GET | `https://assets.grudge-studio.com/<key>` | Binaries (GLB/FBX/png) |
+
+### Extract catalogs (uMMORPG → Forge / Warlords)
+
+| Catalog | URL |
+|---------|-----|
+| Extract index | `…/api/v1/ummorpg-extract-index.json` |
+| Skills for Forge | `…/api/v1/ummorpg-skills-for-forge.json` |
+| Placeables for Forge | `…/api/v1/ummorpg-placeables-for-forge.json` |
+| Warlords entities | `…/api/v1/warlords-entity-prefabs.json` |
+
+Regen (no Unity Editor):
+
+```powershell
+cd F:\GitHub\ObjectStore
+npm run catalog:ummorpg   # if wired — or:
+node scripts/extract-ummorpg-for-warlords.mjs
+node scripts/build-ummorpg-forge-catalog.mjs
+node scripts/publish-static-json.mjs ummorpg-skills-for-forge ummorpg-placeables-for-forge ummorpg-extract-index
+```
+
+Forge source: `F:\GitHub\Grudge-Studio-Forge\artifacts\game-forge\src\lib\ummorpgCatalog.ts`  
+Public data: `…/public/data/ummorpg-*.json`
+
+### Paths that are **not** live (do not document as working)
+
+| Path | Live result (2026-08 probe) |
+|------|------------------------------|
+| `client…/api/objectstore/list?prefix=` | **404** |
+| `client…/api/objectstore/search?q=` | **404** |
+| `client…/api/auth/session` | **404** (use `/api/auth/me`) |
+
+Admin upload/list: use ObjectStore Worker admin routes or Dev Tool R2/S3 — not the broken proxy list/search rows.
 
 Full examples: [API reference](api-reference.md).
-
-Public catalogs (no auth for public JSON):
-
-```text
-https://objectstore.grudge-studio.com/api/v1/master-items.json
-https://info.grudge-studio.com/api/v1/…   # live defs when available
-https://assets.grudge-studio.com/<key>    # binaries
-```
 
 ---
 

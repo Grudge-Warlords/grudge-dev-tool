@@ -78,7 +78,7 @@ Workers AI models are env-overridable: `CF_AI_DEFAULT_MODEL` (default `@cf/meta/
 | Coder IDE | `https://coder.grudge-studio.com` | browser / Dev Tool handoff |
 | Multiverse SPA | `https://grudge-multiverse.vercel.app` | browser / Preview |
 | Multiverse rooms | `https://grudge-multiverse-room-production.up.railway.app` | WS `/api/mv` only (own Railway) |
-| **Deprecated** | `https://api.grudge-studio.com` | **do not use** |
+| **Legacy (live index)** | `https://api.grudge-studio.com` | asset-index GET only — **not** new player APIs; prefer ObjectStore + CDN |
 
 ### Databases · sharing · backups
 
@@ -88,12 +88,14 @@ Workers AI models are env-overridable: `CF_AI_DEFAULT_MODEL` (default `@cf/meta/
 
 ### Production quality bar (assets + AI)
 
-1. **Browse** R2/ObjectStore in Dev Tool → preview + always-on-top Asset Viewer → send 3D to Forge (CDN URL).  
-2. **Search** with `>query` (server-side).  
+1. **Browse** R2/ObjectStore in Dev Tool → preview → send 3D to Forge (**CDN URL** only for production).  
+2. **Catalogs** via proved paths: `objectstore…/api/v1/<name>.json` or `client…/api/objectstore/v1/<name>.json` — not `/api/objectstore/list` (404).  
 3. **Bake** with `grudge-convert` before R2; magic-byte verify; seed D1/ObjectStore.  
-4. **D1** = asset index only; **R2** = binaries; **Stream** = long-form video (masters still on R2).  
-5. **AI:** Legion (`ai.grudge-studio.com`) ≠ Coder AI hub worker; Workers AI via binding/Gateway; cache deterministic only.  
-6. **Never** Meshy/capsule ship visuals; never player state on D1.
+4. **D1** = asset index only; **R2** = binaries; **Stream** = planned/partial (UI clips on R2).  
+5. **AI:** Legion (`ai.grudge-studio.com`) ≠ Coder AI hub worker; Workers AI via binding/Gateway.  
+6. **Never** Meshy/capsule ship visuals; never player state on D1.  
+7. **uMMORPG extract:** `npm run catalog:ummorpg` → Forge `ummorpgCatalog.ts` + ObjectStore placeables/skills.  
+8. **Doctor:** `npm run doctor` — critical probes only (obs + legacy api optional).
 
 Backend routing (`src/main/api.ts`): `resolveBackend()` chooses between `r2-direct`, `cf-worker`, or fleet client modes.  
 Local autonomous AI: Ollama at `OLLAMA_HOST` (default `http://localhost:11434`) via `src/main/ollama.ts` + AI preference in Settings.

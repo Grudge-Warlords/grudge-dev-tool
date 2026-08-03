@@ -29,10 +29,25 @@ size-verify → convert (FBX2glTF / Blender pack images)
 
 ## Runtime loaders (renderer)
 
-- `loadModel(file)` — TGA handler, magic bytes for GLB, `sanitizeMaterials`
+- `loadModel(file, { diskPath })` — TGA handler, magic bytes for GLB, `sanitizeMaterials`
+  - **Local / Elite open:** when `diskPath` is set, model loads via `grudge-media://` so FBX/OBJ/glTF **relative textures** resolve next to the file (not lost on blob:).
+  - LoadingManager URL modifier rewrites relative map paths → `grudge-media://local/?path=…`
+  - Sibling fill (`finishImportedAsset`) only **fills missing** maps — never overwrites good embedded atlases
 - `loadModelFromUrl(url)` — fetch + magic + sanitize (Model3DViewer, CDN)
-- `applySmartTextures` — sibling atlas rebind (`textureFinder.ts`)
+- `applySmartTextures({ onlyMissingMaps: true })` — sibling atlas fill (`textureFinder.ts`); TGA via `TGALoader`
 - `bindAtlasToRoot` — grudge6 single-atlas pattern
+
+### Elite Viewer color / mesh checklist
+
+| Symptom | Fix path |
+|--------|----------|
+| Wrong / random textures on GLB | `onlyMissingMaps` (never overwrite embeds with sibling PNGs) |
+| FBX yellow / no atlas | `diskPath` + `grudge-media` relative TGA/PNG + sanitize yellow |
+| Black silhouette | ambient boost in Elite Viewer + metalness cap in sanitize |
+| Scrambled sRGB | baseColor → sRGB; data maps → NoColorSpace |
+| Tiny / giant mesh after open | keep author root scale (do not force `scale=1`) |
+| OBJ grey / no maps | sidecar `.mtl` via MTLLoader + sibling fill |
+| Flat / black mesh | `prepareMeshes` normals + skinned `frustumCulled=false` |
 
 ## R2 layout (SSOT)
 

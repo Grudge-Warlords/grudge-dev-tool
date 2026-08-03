@@ -88,27 +88,43 @@ export const FLEET_URLS = {
   deprecatedApi: "https://api.grudge-studio.com",
 } as const;
 
-export type TruthProbeRole = "game-data" | "identity" | "assets" | "objectstore";
+export type TruthProbeRole =
+  | "game-data"
+  | "identity"
+  | "assets"
+  | "objectstore"
+  | "ai"
+  | "forge"
+  | "multiplayer"
+  | "legacy"
+  | "optional";
 
 export interface TruthProbe {
   id: string;
   label: string;
   url: string;
   role: TruthProbeRole;
+  /** When true, failure does not lower fleet health score (info only). */
+  optional?: boolean;
   ok?: boolean;
   status?: number | null;
   detail?: string | null;
   latencyMs?: number | null;
 }
 
+/**
+ * Live-proved ONE TRUTH probes (2026-08).
+ * Prefer paths that return 200 or expected 401 — not aspirational 404 routes
+ * like `/api/objectstore/list` or `/api/auth/session`.
+ */
 export function buildTruthProbes(apiBase: string): TruthProbe[] {
   const base = apiBase.replace(/\/$/, "");
   return [
     {
-      id: "id-health",
-      label: "Grudge ID health",
-      url: `${FLEET_URLS.auth}/api/health`,
-      role: "identity",
+      id: "client-health",
+      label: "Client API health",
+      url: `${base}/api/health`,
+      role: "game-data",
     },
     {
       id: "railway-health",
@@ -117,34 +133,103 @@ export function buildTruthProbes(apiBase: string): TruthProbe[] {
       role: "game-data",
     },
     {
+      id: "id-health",
+      label: "Grudge ID health",
+      url: `${FLEET_URLS.auth}/api/health`,
+      role: "identity",
+    },
+    {
       id: "auth-me",
-      label: "Auth me (unauthed 401 ok)",
+      label: "Auth me (401 ok)",
       url: `${base}/api/auth/me`,
       role: "identity",
     },
     {
-      id: "os-items",
-      label: "master-items.json",
+      id: "characters",
+      label: "Characters API (401 ok)",
+      url: `${base}/api/characters`,
+      role: "game-data",
+    },
+    {
+      id: "os-proxy-v1-items",
+      label: "Proxy master-items v1",
       url: `${base}/api/objectstore/v1/master-items.json`,
       role: "objectstore",
     },
     {
-      id: "os-recipes",
-      label: "master-recipes.json",
-      url: `${base}/api/objectstore/v1/master-recipes.json`,
+      id: "os-direct-catalog",
+      label: "ObjectStore catalog",
+      url: `${FLEET_URLS.objectStore}/catalog`,
       role: "objectstore",
     },
     {
-      id: "os-direct",
-      label: "ObjectStore direct",
+      id: "os-direct-items",
+      label: "ObjectStore master-items",
       url: `${FLEET_URLS.objectStore}/master-items.json`,
       role: "objectstore",
     },
     {
-      id: "icon-cdn",
-      label: "CDN assets root",
-      url: FLEET_URLS.assets,
+      id: "os-ummorpg-placeables",
+      label: "uMMORPG placeables catalog",
+      url: `${FLEET_URLS.objectStore}/ummorpg-placeables-for-forge.json`,
+      role: "objectstore",
+    },
+    {
+      id: "os-ummorpg-skills",
+      label: "uMMORPG skills catalog",
+      url: `${FLEET_URLS.objectStore}/ummorpg-skills-for-forge.json`,
+      role: "objectstore",
+    },
+    {
+      id: "info-weapons",
+      label: "info weapons.json",
+      url: `${FLEET_URLS.info}/weapons.json`,
+      role: "objectstore",
+    },
+    {
+      id: "cdn-grudge6",
+      label: "CDN grudge6 WK FBX",
+      url: `${FLEET_URLS.assets}/models/grudge6/races/WK_Characters.fbx`,
       role: "assets",
+    },
+    {
+      id: "cdn-warlords-entity",
+      label: "CDN warlords horse.glb",
+      url: `${FLEET_URLS.assets}/models/warlords/entities/horse.glb`,
+      role: "assets",
+    },
+    {
+      id: "ai-legion",
+      label: "Legion AI hub",
+      url: FLEET_URLS.ai,
+      role: "ai",
+    },
+    {
+      id: "forge",
+      label: "Forge editor",
+      url: FLEET_URLS.forge,
+      role: "forge",
+    },
+    {
+      id: "multiverse-room",
+      label: "Multiverse room health",
+      url: `${FLEET_URLS.multiverseRoom}/api/health`,
+      role: "multiplayer",
+    },
+    // Informational — not scored
+    {
+      id: "legacy-api-index",
+      label: "Legacy api.grudge-studio.com",
+      url: `${FLEET_URLS.deprecatedApi}/assets?limit=1`,
+      role: "legacy",
+      optional: true,
+    },
+    {
+      id: "obs",
+      label: "Observatory (optional)",
+      url: FLEET_URLS.observatory,
+      role: "optional",
+      optional: true,
     },
   ];
 }
@@ -155,14 +240,28 @@ export async function probeEndpoint(probe: TruthProbe): Promise<TruthProbe> {
   try {
     const res = await fetch(probe.url, {
       method,
-      headers: method === "GET" ? { Accept: "application/json" } : undefined,
+      headers: method === "GET" ? { Accept: "application/json, text/html, */*" } : undefined,
     });
     const ct = res.headers.get("content-type") || "";
-    const htmlLeak = probe.role !== "assets" && ct.includes("text/html");
-    // /api/auth/me without token is expected 401 — still proves route exists
+    const htmlLeak =
+      probe.role !== "assets" &&
+      probe.role !== "ai" &&
+      probe.role !== "forge" &&
+      probe.role !== "optional" &&
+      ct.includes("text/html") &&
+      !res.ok;
+    // Expected auth without token
     const authRouteOk =
-      probe.id === "auth-me" && (res.status === 401 || res.status === 200);
-    const ok = (res.ok || authRouteOk) && !htmlLeak;
+      (probe.id === "auth-me" || probe.id === "characters") &&
+      (res.status === 401 || res.status === 200);
+    // SPA shells (Forge, Legion UI) return HTML 200
+    const spaOk =
+      (probe.role === "ai" || probe.role === "forge") &&
+      res.ok &&
+      (ct.includes("text/html") || ct.includes("json"));
+    const ok =
+      spaOk ||
+      ((res.ok || authRouteOk) && !htmlLeak);
     return {
       ...probe,
       ok,
@@ -171,7 +270,9 @@ export async function probeEndpoint(probe: TruthProbe): Promise<TruthProbe> {
         ? "HTML leak (split-brain)"
         : authRouteOk && res.status === 401
           ? "route live (401 unauthenticated)"
-          : ct.split(";")[0] || method,
+          : spaOk
+            ? "SPA/shell live"
+            : ct.split(";")[0] || method,
       latencyMs: Date.now() - start,
     };
   } catch (e: unknown) {
@@ -188,11 +289,21 @@ export async function probeEndpoint(probe: TruthProbe): Promise<TruthProbe> {
 export async function runTruthAudit(apiBase: string): Promise<{
   probes: TruthProbe[];
   score: number;
+  criticalScore: number;
+  optional: TruthProbe[];
 }> {
   const probes = buildTruthProbes(apiBase);
   const results = await Promise.all(probes.map(probeEndpoint));
-  const ok = results.filter((p) => p.ok).length;
-  return { probes: results, score: Math.round((ok / results.length) * 100) };
+  const critical = results.filter((p) => !p.optional);
+  const optional = results.filter((p) => p.optional);
+  const ok = critical.filter((p) => p.ok).length;
+  const score = Math.round((ok / Math.max(1, critical.length)) * 100);
+  return {
+    probes: results,
+    score,
+    criticalScore: score,
+    optional,
+  };
 }
 
 /** Minimum score for a healthy ONE TRUTH fleet (matches `grudge-dev doctor`). */

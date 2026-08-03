@@ -4,6 +4,17 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.0.3] — 2026-08-03
+
+### Fixed
+- **Elite Viewer animation review** — selecting a clip now plays that clip exclusively via `setPrimaryAction` (same SSOT as Forge). Previously only toggled `paused` on unstarted actions, so the wrong/no animation showed. Removed multi-clip “Play All” stacking; row click = select & play, click again = pause/resume.
+- **Elite Viewer textures / materials / mesh** — local open loads via `diskPath` + `grudge-media` so relative FBX/OBJ/glTF maps and TGA atlases resolve; sibling fill only fills **missing** maps (never overwrites good embeds); broken-map strip no longer removes valid/in-flight textures; OBJ loads sidecar MTL; mesh prep (normals, skinned bounds, author scale preserved — no forced scale=1).
+
+### Changed
+- **Docs (systems-api + ai-workers-d1-r2-stream)** — Proved ObjectStore paths (`/api/objectstore/v1/*`); documented 404 list/search; `api.grudge-studio.com` as **legacy live** not DEAD; obs demoted optional; Stream marked planned/partial.
+- **uMMORPG → Forge** section + `npm run catalog:ummorpg` (ObjectStore extract + publish).
+- **Doctor probes** — critical-only score; health/auth/characters/CDN/Forge/Multiverse/uMMORPG catalogs; optional legacy api + obs (not scored).
+
 ## [1.0.2] — 2026-08-01
 
 ### Added
