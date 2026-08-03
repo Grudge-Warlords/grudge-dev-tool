@@ -27,7 +27,7 @@ See also: [AI Workers · D1 · R2 · Stream](./ai-workers-d1-r2-stream.md) and `
 Admin desktop UX:
 
 - **Browse** R2 / ObjectStore prefixes  
-- Filter `>query` → **server-side search**  
+- Search box → **all Grudge Studio Assets** (live index + CDN prod catalogs; not folder-only)  
 - Click file → **preview** + always-on-top **Asset Viewer** pop-out  
 - **Send 3D to Forge** with CDN URL  
 

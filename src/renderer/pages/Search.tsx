@@ -6,6 +6,8 @@ export default function Search() {
   const [category, setCategory] = useState("");
   const [pack, setPack] = useState("");
   const [items, setItems] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cdnBase, setCdnBase] = useState("https://assets.grudge-studio.com");
 
@@ -20,10 +22,21 @@ export default function Search() {
 
   async function go() {
     setError(null);
+    setBusy(true);
     try {
-      const res = await window.grudge.os.search({ q, category: category || undefined, pack: pack || undefined });
-      setItems(res.items);
-    } catch (e: any) { setError(e.message); }
+      const res = await window.grudge.os.search({
+        q,
+        category: category || undefined,
+        pack: pack || undefined,
+        limit: 400,
+      });
+      setItems(res.items ?? []);
+      setTotal(res.count ?? res.items?.length ?? 0);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function openInViewMode(it: any) {
@@ -39,18 +52,31 @@ export default function Search() {
 
   return (
     <div>
-      <h1 className="page-title">Manifest Search</h1>
-      <p className="page-sub">Server-side filter against per-pack <span className="kbd">manifest.json</span> catalogs. Click a row → <strong>View Mode</strong> review.</p>
+      <h1 className="page-title">Search all assets</h1>
+      <p className="page-sub">
+        Full Grudge Studio Assets catalog (live index + prod/gltf CDN packages). Same engine as the{" "}
+        <strong>Assets</strong> tab search box. Click a row → <strong>View Mode</strong>.
+      </p>
       <div className="card">
         <div className="row">
-          <input placeholder="Query (path / category / UUID substring)" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input
+            placeholder="Query (name / path / category / UUID)"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void go(); }}
+          />
           <input placeholder="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
           <input placeholder="Pack id (e.g. classic64)" value={pack} onChange={(e) => setPack(e.target.value)} />
-          <button className="btn" onClick={go}>Search</button>
+          <button className="btn" onClick={() => void go()} disabled={busy}>
+            {busy ? "Searching…" : "Search all"}
+          </button>
         </div>
       </div>
       {error && <div className="card status-bad">{error}</div>}
       <div className="card">
+        <div className="text-xs text-muted mb-2">
+          {total ? `${total.toLocaleString()} matches · showing ${items.length}` : "No results yet."}
+        </div>
         <table>
           <thead><tr><th>Pack</th><th>Path</th><th>Category</th><th>UUID</th><th>Size</th></tr></thead>
           <tbody>

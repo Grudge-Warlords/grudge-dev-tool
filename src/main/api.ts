@@ -346,48 +346,65 @@ export async function listObjects(req: ListRequest & { delimiter?: string }): Pr
   }
 }
 
+/**
+ * Search **all** Grudge Studio Assets (not just the current browser folder).
+ *
+ * Primary: full live registry + CDN prod catalogs (`assetSearch.ts`).
+ * Secondary: Worker / ObjectStore search when configured (merged).
+ * ObjectStore `/search` often 404s — never fail closed with empty when catalog works.
+ */
 export async function searchObjects(req: SearchRequest): Promise<SearchResponse> {
-  const backend = await resolveBackend();
-  if (backend === "cloudflare-worker") {
-    try {
-      return await workerSearch(req);
-    } catch {
-      return { count: 0, items: [] };
-    }
-  }
-  if (backend === "r2-direct") {
-    // Direct R2 has no full-text manifest search; emulate via listing under the
-    // 'asset-packs/' prefix and client-side filter by query substring.
-    try {
-      const all = await r2List({ prefix: "asset-packs/", delimiter: undefined, limit: 1000 });
-      const q = (req.q ?? "").toLowerCase();
-      const filtered = q ? all.items.filter((x) => x.name.toLowerCase().includes(q)) : all.items;
-      return {
-        count: filtered.length,
-        items: filtered.slice(0, req.limit ?? 200).map((x) => ({
-          path: x.name,
-          sizeBytes: x.size,
-          contentType: x.contentType,
-          category: x.name.split("/")[2] ?? null,
-          packId: x.name.split("/")[1] ?? null,
-        })),
-      };
-    } catch {
-      return { count: 0, items: [] };
-    }
-  }
-  const params = new URLSearchParams();
-  if (req.q) params.set("q", req.q);
-  if (req.category) params.set("category", req.category);
-  if (req.pack) params.set("pack", req.pack);
-  if (req.limit) params.set("limit", String(req.limit));
+  const { searchAllStudioAssets } = await import("./assetSearch");
+
+  // Always use the full catalog (6k+ assets) as SSOT for Assets tab search.
+  let primary: SearchResponse = { count: 0, items: [] };
   try {
-    const res = await authedFetchAssets(`/api/objectstore/search?${params}`);
-    return await jsonOrThrow<SearchResponse>(res);
-  } catch {
-    // Degrade gracefully — UI shows empty results instead of IPC error storm
-    return { count: 0, items: [] };
+    primary = await searchAllStudioAssets(req);
+  } catch (e) {
+    console.warn("[api] searchAllStudioAssets failed", e);
   }
+
+  // Optional: merge worker / fleet search hits that might not be in the index yet
+  const backend = await resolveBackend();
+  let extra: SearchResponse = { count: 0, items: [] };
+  try {
+    if (backend === "cloudflare-worker") {
+      extra = await workerSearch(req);
+    } else if (backend !== "r2-direct") {
+      const params = new URLSearchParams();
+      if (req.q) params.set("q", req.q);
+      if (req.category) params.set("category", req.category);
+      if (req.pack) params.set("pack", req.pack);
+      if (req.limit) params.set("limit", String(req.limit ?? 100));
+      const res = await authedFetchAssets(`/api/objectstore/search?${params}`);
+      extra = await jsonOrThrow<SearchResponse>(res);
+    }
+  } catch {
+    /* optional — catalog is enough */
+  }
+
+  if (!extra.items?.length) return primary;
+
+  const seen = new Set(primary.items.map((i) => i.path));
+  const merged = [...primary.items];
+  for (const it of extra.items) {
+    const path = it.path || (it as { name?: string }).name;
+    if (!path || seen.has(path)) continue;
+    seen.add(path);
+    merged.push({
+      packId: it.packId ?? "assets",
+      path,
+      category: it.category,
+      grudgeUUID: it.grudgeUUID,
+      sizeBytes: it.sizeBytes,
+      contentType: it.contentType,
+    });
+  }
+  const limit = req.limit ?? 200;
+  return {
+    count: Math.max(primary.count, merged.length),
+    items: merged.slice(0, limit),
+  };
 }
 
 export interface UploadUrlResponse {

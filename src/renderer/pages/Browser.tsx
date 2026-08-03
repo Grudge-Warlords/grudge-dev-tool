@@ -107,6 +107,8 @@ function Breadcrumb({ prefix, onSelect }: { prefix: string; onSelect: (p: string
 export default function Browser() {
   const [selected, setSelected] = useState<string>(() => readMirror().browserPrefix ?? ROOT_PREFIX);
   const [filter, setFilter] = useState<string>("");
+  /** Debounced query for full-catalog search (all Grudge Studio Assets). */
+  const [debouncedQ, setDebouncedQ] = useState("");
 
   useEffect(() => {
     void (async () => {
@@ -115,32 +117,39 @@ export default function Browser() {
     })();
   }, []);
 
-  const isServerSearch = filter.startsWith(">");
-  const serverQuery = isServerSearch ? filter.slice(1).trim() : "";
+  // Normalize: leading ">" is optional legacy syntax for server search
+  const rawQuery = filter.startsWith(">") ? filter.slice(1).trim() : filter.trim();
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedQ(rawQuery), 280);
+    return () => window.clearTimeout(t);
+  }, [rawQuery]);
+
+  /** Global search whenever the user types 1+ chars — entire R2 / live index. */
+  const isGlobalSearch = debouncedQ.length > 0;
 
   const listing = useQuery({
     queryKey: ["os.list.contents", selected],
     queryFn: async (): Promise<ListResp> =>
       window.grudge.os.list({ prefix: selected, delimiter: "/", limit: 500 }),
-    enabled: !isServerSearch,
+    enabled: !isGlobalSearch,
   });
 
   const search = useQuery({
-    queryKey: ["os.search", serverQuery],
-    queryFn: async (): Promise<{ items: any[] }> =>
-      window.grudge.os.search({ q: serverQuery, limit: 200 }),
-    enabled: isServerSearch && serverQuery.length > 0,
+    queryKey: ["os.search.all", debouncedQ],
+    queryFn: async (): Promise<{ count: number; items: any[] }> =>
+      window.grudge.os.search({ q: debouncedQ, limit: 400 }),
+    enabled: isGlobalSearch,
+    staleTime: 30_000,
   });
 
   const folders = listing.data?.folders ?? [];
   const files = listing.data?.items ?? [];
 
   const filtered = useMemo(() => {
-    if (isServerSearch) return [];
-    if (!filter) return files;
-    const f = filter.toLowerCase();
-    return files.filter((it) => it.name.toLowerCase().includes(f));
-  }, [files, filter, isServerSearch]);
+    // Folder browse only when not in global search mode
+    if (isGlobalSearch) return [];
+    return files;
+  }, [files, isGlobalSearch]);
 
   // CDN base resolved at runtime via cf.r2PublicUrl("") so a private deploy
   // pointing at a different domain Just Works. Defaults to the canonical
@@ -175,12 +184,11 @@ export default function Browser() {
       <div className="mb-3">
         <h1 className="page-title">Grudge Studio Assets</h1>
         <p className="page-sub">
-          D1/ObjectStore index · R2 binaries on{" "}
-          <span className="font-mono text-[11px]">assets.grudge-studio.com</span>. Click a file →
-          <strong className="text-sky-300"> View Mode</strong> (image, sound, PSD, scene, GLB…) with
-          save, Forge, storage, AI define.{" "}
-          <span className="kbd">&gt;query</span> = Agent/server search.
-          Catalogs also on <span className="font-mono text-[11px]">info.grudge-studio.com</span>.
+          Full fleet catalog · R2 binaries on{" "}
+          <span className="font-mono text-[11px]">assets.grudge-studio.com</span>.{" "}
+          <strong className="text-gold">Search</strong> queries{" "}
+          <em>all</em> assets (models, textures, audio, UI, anims, prod/gltf…). Empty search browses the folder tree. Click →
+          <strong className="text-sky-300"> View Mode</strong>.
         </p>
       </div>
 
@@ -191,61 +199,119 @@ export default function Browser() {
         </aside>
 
         <section className="flex-1 flex flex-col min-w-0 border border-line rounded-md bg-bg-1">
-          <div className="border-b border-line px-3 py-2 flex items-center gap-3">
-            <Breadcrumb prefix={selected} onSelect={setSelected} />
-            <div className="ml-auto relative">
-              <SearchIcon size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted" />
+          <div className="border-b border-line px-3 py-2 flex items-center gap-3 flex-wrap">
+            {!isGlobalSearch && <Breadcrumb prefix={selected} onSelect={setSelected} />}
+            {isGlobalSearch && (
+              <span className="text-xs text-gold font-medium">
+                All assets · “{debouncedQ}”
+              </span>
+            )}
+            <div className="ml-auto relative flex items-center gap-2">
+              <SearchIcon size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
               <input
-                placeholder="filter… (or '> query' for server search)"
+                placeholder="Search all Grudge Studio Assets…"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="bg-bg-2 border border-line rounded pl-7 pr-2 py-1 text-xs w-60"
+                className="bg-bg-2 border border-line rounded pl-7 pr-2 py-1 text-xs w-72"
+                aria-label="Search all Grudge Studio Assets"
               />
+              {filter && (
+                <button
+                  type="button"
+                  className="text-[10px] text-muted hover:text-gold"
+                  onClick={() => setFilter("")}
+                  title="Clear search"
+                >
+                  Clear
+                </button>
+              )}
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3">
-            {(listing.isLoading && !isServerSearch) && <div className="text-muted text-sm">Loading…</div>}
-            {listing.error && !isServerSearch && (
+            {(listing.isLoading && !isGlobalSearch) && <div className="text-muted text-sm">Loading…</div>}
+            {listing.error && !isGlobalSearch && (
               <div className="text-danger text-sm">{(listing.error as Error).message}</div>
             )}
 
-            {isServerSearch ? (
+            {isGlobalSearch ? (
               <div>
-                <div className="text-xs text-muted mb-2">Server search · {search.data?.items?.length ?? 0} matches</div>
-                <div className="grid grid-cols-1 gap-1">
-                  {(search.data?.items ?? []).map((it: any, i: number) => (
-                    <div
-                      key={i}
-                      className="border border-line bg-bg-2 rounded p-2 flex items-center gap-2 cursor-pointer hover:border-gold/50"
-                      title="Open in Asset Viewer"
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => openInViewMode({
-                        name: it.path,
-                        size: it.sizeBytes ?? 0,
-                        contentType: it.contentType ?? "",
-                      })}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          openInViewMode({
-                            name: it.path,
-                            size: it.sizeBytes ?? 0,
-                            contentType: it.contentType ?? "",
-                          });
-                        }
-                      }}
-                    >
-                      {fileIcon(it.contentType ?? "")}
-                      <span className="text-xs truncate flex-1">{it.path}</span>
-                      <span className="text-[10px] text-muted">{it.packId}</span>
-                      <button className="copy-btn" onClick={(e) => { e.stopPropagation(); copy(it.path, "path"); }}>
-                        <Copy size={11} />
-                      </button>
-                    </div>
-                  ))}
+                {search.isLoading && (
+                  <div className="text-muted text-sm mb-2">Searching full asset catalog…</div>
+                )}
+                {search.error && (
+                  <div className="text-danger text-sm mb-2">{(search.error as Error).message}</div>
+                )}
+                <div className="text-xs text-muted mb-2">
+                  {search.data
+                    ? `Found ${search.data.count.toLocaleString()} · showing ${search.data.items?.length ?? 0}`
+                    : "…"}
+                  {" "}across all Grudge Studio Assets
                 </div>
+                <div className="grid grid-cols-1 gap-1">
+                  {(search.data?.items ?? []).map((it: any, i: number) => {
+                    const path = it.path || it.name;
+                    return (
+                      <div
+                        key={`${path}-${i}`}
+                        className="border border-line bg-bg-2 rounded p-2 flex items-center gap-2 cursor-pointer hover:border-gold/50"
+                        title="Open in View Mode"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openInViewMode({
+                          name: path,
+                          size: it.sizeBytes ?? it.size ?? 0,
+                          contentType: it.contentType ?? "",
+                        })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openInViewMode({
+                              name: path,
+                              size: it.sizeBytes ?? it.size ?? 0,
+                              contentType: it.contentType ?? "",
+                            });
+                          }
+                        }}
+                      >
+                        {fileIcon(it.contentType ?? "")}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs truncate text-ink">{basename(path)}</div>
+                          <div className="text-[10px] text-muted truncate" title={path}>{path}</div>
+                        </div>
+                        {it.category && (
+                          <span className="text-[10px] text-gold/80 shrink-0">{it.category}</span>
+                        )}
+                        <span className="text-[10px] text-muted shrink-0">{it.packId}</span>
+                        <button
+                          type="button"
+                          className="copy-btn"
+                          title="Copy CDN URL"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copy(cdnUrl(path), "CDN URL");
+                          }}
+                        >
+                          <Copy size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          className="copy-btn"
+                          title="Open CDN URL"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.grudge?.os?.openExternal?.(cdnUrl(path));
+                          }}
+                        >
+                          <ExternalLink size={11} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {!search.isLoading && (search.data?.items?.length ?? 0) === 0 && (
+                  <div className="text-muted text-sm mt-4">No assets match “{debouncedQ}”.</div>
+                )}
               </div>
             ) : (
               <>

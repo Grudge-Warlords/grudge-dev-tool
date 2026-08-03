@@ -9,12 +9,46 @@ import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
 import { ColladaLoader } from "three/examples/jsm/loaders/ColladaLoader.js";
 import { ThreeMFLoader } from "three/examples/jsm/loaders/3MFLoader.js";
 import { TGALoader } from "three/examples/jsm/loaders/TGALoader.js";
+import { MeshoptDecoder } from "meshoptimizer";
 import { assertMeshBytes } from "../../../shared/magicBytes";
 import {
   sanitizeMaterials,
   type MaterialSanitizeReport,
   type MaterialSanitizeOptions,
 } from "./materialSanitize";
+
+/** Await once — WASM init for EXT_meshopt_compression (grudge-web-v1 optimized GLBs). */
+let meshoptReady: Promise<void> | null = null;
+
+function ensureMeshoptReady(): Promise<void> {
+  if (!meshoptReady) {
+    meshoptReady =
+      MeshoptDecoder?.ready != null
+        ? Promise.resolve(MeshoptDecoder.ready).then(() => undefined)
+        : Promise.resolve();
+  }
+  return meshoptReady;
+}
+
+/**
+ * GLTFLoader with MeshoptDecoder bound (required for meshopt-compressed GLBs).
+ * Without this, THREE throws: "setMeshoptDecoder must be called before loading compressed files"
+ * and meshes/colors/textures look wrong or empty.
+ */
+async function createGltfLoader(manager?: THREE.LoadingManager): Promise<GLTFLoader> {
+  const loader = new GLTFLoader(manager);
+  try {
+    if (MeshoptDecoder && MeshoptDecoder.supported !== false) {
+      await ensureMeshoptReady();
+      loader.setMeshoptDecoder(MeshoptDecoder);
+    } else {
+      console.warn("[loaders] MeshoptDecoder not supported in this environment");
+    }
+  } catch (e) {
+    console.warn("[loaders] MeshoptDecoder init failed — compressed GLBs may fail", e);
+  }
+  return loader;
+}
 
 /** Result of loading any supported 3D file. */
 export interface LoadedModel {
@@ -294,7 +328,8 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
     switch (format) {
       case "glb":
       case "gltf": {
-        const gltf = await new GLTFLoader(manager).loadAsync(urlToUse);
+        const gltfLoader = await createGltfLoader(manager);
+        const gltf = await gltfLoader.loadAsync(urlToUse);
         let scene = gltf.scene;
         let hasSkin = false;
         gltf.scene.traverse((n) => {

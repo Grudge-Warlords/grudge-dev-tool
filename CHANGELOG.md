@@ -4,6 +4,12 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.0.4] — 2026-08-03
+
+### Fixed
+- **Meshopt GLB load** — Elite/Forge loaders call `GLTFLoader.setMeshoptDecoder(MeshoptDecoder)` before parse. Fixes `THREE.GLTFLoader: setMeshoptDecoder must be called before loading compressed files` and wrong/missing mesh, colors, textures on grudge-web-v1 optimized assets.
+- **Assets search (all Grudge Studio Assets)** — search box on **Assets** queries the full fleet catalog (~6k live index + CDN prod/gltf packages), not only the current folder. ObjectStore `/search` 404 no longer yields empty results.
+
 ## [1.0.3] — 2026-08-03
 
 ### Fixed
