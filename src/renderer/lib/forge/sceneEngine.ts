@@ -67,20 +67,30 @@ export class SceneEngine {
     const bg = opts.background ?? 0x0a0e1a;
     this.scene.background = new THREE.Color(bg);
 
-    const w = Math.max(1, container.clientWidth);
-    const h = Math.max(1, container.clientHeight);
+    // Min 2×2 — avoids black frames / SMAA issues at 0 size (multi-canvas best practice)
+    const w = Math.max(2, container.clientWidth || 2);
+    const h = Math.max(2, container.clientHeight || 2);
     this.camera = new THREE.PerspectiveCamera(50, w / h, 0.01, 5000);
     this.camera.position.set(3, 2.5, 4);
     this.camera.lookAt(0, 0.5, 0);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Full pop-out viewer: dedicated context OK (one window).
+    // Grid previews use MultiCanvasHub instead (see multiCanvasHub.ts).
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: "high-performance",
+      preserveDrawingBuffer: true,
+      stencil: false,
+    });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
     this.renderer.setSize(w, h, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.domElement.style.cssText = "width:100%;height:100%;display:block;outline:none";
     container.appendChild(this.renderer.domElement);
 
     // Lighting — warm key + cool fill, plus IBL from RoomEnvironment for PBR materials.
@@ -411,8 +421,8 @@ export class SceneEngine {
 
   private onResize = (): void => {
     if (this.disposed) return;
-    const w = Math.max(1, this.container.clientWidth);
-    const h = Math.max(1, this.container.clientHeight);
+    const w = Math.max(2, this.container.clientWidth || 2);
+    const h = Math.max(2, this.container.clientHeight || 2);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
@@ -421,10 +431,19 @@ export class SceneEngine {
   private tick = (): void => {
     if (this.disposed) return;
     this.rafHandle = requestAnimationFrame(this.tick);
-    const dt = this.clock.getDelta();
-    for (const m of this.mixers) m.update(dt * this.timeScale);
-    this.controls.update();
-    this.renderer.render(this.scene, this.camera);
+    try {
+      const dt = Math.min(0.05, this.clock.getDelta());
+      for (const m of this.mixers) m.update(dt * this.timeScale);
+      this.controls.update();
+      // Skip zero-size paints (host hidden / tab background)
+      const w = this.container.clientWidth;
+      const h = this.container.clientHeight;
+      if (w < 2 || h < 2) return;
+      this.renderer.render(this.scene, this.camera);
+    } catch (e) {
+      // Prevent uncaught rAF flood (same class of bug as cinema tick)
+      console.warn("[SceneEngine] tick error", e);
+    }
   };
 
   /**

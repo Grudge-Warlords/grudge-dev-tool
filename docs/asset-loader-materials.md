@@ -27,6 +27,18 @@ size-verify → convert (FBX2glTF / Blender pack images)
   → signed R2 PUT → os.registerAsset / writeManifest
 ```
 
+## Multi-canvas previews (Model3DViewer)
+
+Pattern: [three.js multi-canvas](https://threejs.org/examples/?q=web%20canvas#webgpu_multiple_canvas) /
+`webgl_multiple_elements` — **one WebGLRenderer**, many display canvases.
+
+| Surface | Implementation |
+|---------|----------------|
+| Inline panel / grid (`Model3DViewer`) | `lib/forge/multiCanvasHub.ts` — shared GL, blit to 2D canvas, IntersectionObserver skip off-screen |
+| Pop-out Elite Viewer (`ViewerWindow`) | Dedicated `SceneEngine` (tools, gizmo, screenshot) |
+
+Prevents N WebGL contexts (black frames, context loss, yellow sludge when many previews open).
+
 ## Runtime loaders (renderer)
 
 - `loadModel(file, { diskPath })` — TGA handler, magic bytes for GLB, `sanitizeMaterials`
