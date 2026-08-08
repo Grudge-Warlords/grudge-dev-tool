@@ -23,7 +23,7 @@
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **Desktop app** | **v1.0.2** | Windows tray · elite open · single-login · Forge/Preview embeds · auto-update |
+| **Desktop app** | **v1.0.5** | Windows tray · elite open · textures/Draco · multi-format · convert-to-GLB · auto-update |
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
@@ -33,13 +33,14 @@
 
 ---
 
-## What's new in 1.0.2
+## What's new in 1.0.5
 
-- **Single-login SSO** — one Puter/desktop sign-in seeds fleet API bearer and injects session into Forge · Coder · Preview · Grok Builder webviews  
-- **Elite viewer DCC** — **PSD/PSB** → composite PNG; **BLEND** → GLB (Blender toolchain); KTX/HDR/Aseprite/Tiled fallbacks  
-- **Multiverse** in fleet SSOT + Preview presets (dedicated Railway `/api/mv`)  
-- **Workers checklist** audit + hardened wrangler (Legion AI hub, CDN, ObjectStore, …)  
-- **DB backups** docs + `npm run backup:postgres` parallel dumps  
+- **Elite textures** — Kenney `Textures/` fallback via media protocol; no random sibling overwrite; sRGB vs linear by map role  
+- **Draco + Meshopt** on all GLB loads; **OBJ+MTL** resource path; **VRM / HTML CSS3D** quick open  
+- **convertToGlb({ diskPath })** embeds resolved maps for game packs  
+- **Env** — Multiverse + info/CDN/Forge in `.env.example`; Windows-safe `npm run dev`  
+
+Earlier 1.0.x: single-login SSO, PSD/BLEND open, Multiverse fleet SSOT, Meshopt (1.0.4), Assets full search.
 
 ---
 

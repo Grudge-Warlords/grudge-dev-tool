@@ -36,6 +36,10 @@ function envCandidates(): string[] {
     join(process.cwd(), ".env"),
     join(process.cwd(), ".env.local"),
     join(process.cwd(), "toolchain.env"),
+    // Packaged / portable: env next to executable resources
+    ...(process.resourcesPath
+      ? [join(process.resourcesPath, ".env"), join(process.resourcesPath, "toolchain.env")]
+      : []),
     join(home, ".env"),
     join(home, ".grudge.env"),
     join(home, "grudge-secrets.txt"),
@@ -44,6 +48,7 @@ function envCandidates(): string[] {
     join(home, "Desktop", "secrets.txt"),
     join(home, "Desktop", "grudge-backend", ".env"),
     join(home, "grudge-build", ".env"),
+    join(home, "Documents", "grudge-secrets.txt"),
   ];
   if (appData) {
     candidates.push(

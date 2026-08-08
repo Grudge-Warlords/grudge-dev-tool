@@ -4,6 +4,23 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.0.5] — 2026-08-08
+
+### Fixed
+- **Elite / quick view wrong textures & colors** — `grudge-media` resolves missing maps via sibling `Textures/` / `textures/` / `Maps/` (Kenney-style) with case-insensitive basename match; do not strip in-flight maps; smart-fill uses **role-correct colorSpace** (albedo sRGB, normal/ORM linear).
+- **Compressed GLB empty/wrong mesh** — loaders bind **Draco + Meshopt** on every GLTF load.
+- **OBJ grey materials** — MTLLoader `setResourcePath` + media protocol for map_Kd next to the model.
+- **Windows `npm run dev`** — split tsc watch / electron into concurrent processes (no bash `&`).
+
+### Added
+- **More open formats** — VRM (as glTF), HTML/CSS3D preview plane, broader scene JSON (`.gfscene`, `.scene.json`); Forge accept list updated.
+- **Safer convert-to-GLB** — `convertToGlb(file, { diskPath })` loads with texture resolution then exports embedded maps for game packs.
+- **Env / ONE TRUTH sample** — `.env.example` Multiverse SPA + room, info/ObjectStore, CDN, Forge, Blender toolchain notes; bootstrapEnv also reads Documents secrets + packaged resources `.env`.
+
+### Changed
+- Docs: `asset-loader-materials.md` checklist for Kenney textures, Draco, CSS3D preview vs game bake.
+- Product description / version **1.0.5**.
+
 ## [1.0.4] — 2026-08-03
 
 ### Fixed
@@ -142,3 +159,6 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - **Legion chat** — hub/agent failure falls back to local agent stack.
 - **GRUDA Hub optional** — projects/agent work offline with local identity + local AI.
 - Agent AI UI: **Start local AI** button; removed "Open full GRUDA Agent" external browser link.
+
+[1.0.5]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.5
+
