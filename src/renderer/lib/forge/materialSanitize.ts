@@ -107,8 +107,14 @@ function isBrokenMap(tex: THREE.Texture | null | undefined): boolean {
     | null;
 
   if (!img) {
-    // After loadAsync, no image usually means failed external map
-    return true;
+    // Texture object exists but image not assigned yet (async / deferred) — keep
+    // Only treat as broken if explicitly marked failed by loader userData
+    if ((tex as THREE.Texture & { userData?: { grudgeMapFailed?: boolean } }).userData
+      ?.grudgeMapFailed) {
+      return true;
+    }
+    // Do NOT strip — sibling fill / media fallback may still populate
+    return false;
   }
 
   // HTMLImageElement still loading — keep (do not strip mid-flight)
@@ -117,6 +123,14 @@ function isBrokenMap(tex: THREE.Texture | null | undefined): boolean {
     const w = img.naturalWidth || img.width || 0;
     const h = img.naturalHeight || img.height || 0;
     // complete + 0×0 = failed decode; 1×1 often FBX path-miss placeholder
+    // Note: some valid compressed proxies report 0 until GPU upload — keep if src set
+    if (w <= 1 && h <= 1 && img.src && !img.src.startsWith("data:,")) {
+      // empty data URL or failed network often leaves 0×0
+      if (img.src.includes("grudge-media:") || img.src.startsWith("blob:")) {
+        // may still be resolving — keep once
+        return false;
+      }
+    }
     return w <= 1 && h <= 1;
   }
 

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
@@ -19,6 +20,7 @@ import {
 
 /** Await once — WASM init for EXT_meshopt_compression (grudge-web-v1 optimized GLBs). */
 let meshoptReady: Promise<void> | null = null;
+let dracoLoader: DRACOLoader | null = null;
 
 function ensureMeshoptReady(): Promise<void> {
   if (!meshoptReady) {
@@ -30,13 +32,29 @@ function ensureMeshoptReady(): Promise<void> {
   return meshoptReady;
 }
 
+function getDracoLoader(): DRACOLoader {
+  if (!dracoLoader) {
+    dracoLoader = new DRACOLoader();
+    // Google CDN decoder (same as Multiverse / fleet) — works offline after first cache
+    dracoLoader.setDecoderPath(
+      "https://www.gstatic.com/draco/versioned/decoders/1.5.7/",
+    );
+    dracoLoader.setDecoderConfig({ type: "js" });
+  }
+  return dracoLoader;
+}
+
 /**
- * GLTFLoader with MeshoptDecoder bound (required for meshopt-compressed GLBs).
- * Without this, THREE throws: "setMeshoptDecoder must be called before loading compressed files"
- * and meshes/colors/textures look wrong or empty.
+ * GLTFLoader with Meshopt + Draco bound (required for production compressed GLBs).
+ * Without Meshopt/Draco, meshes/colors/textures look wrong or empty.
  */
 async function createGltfLoader(manager?: THREE.LoadingManager): Promise<GLTFLoader> {
   const loader = new GLTFLoader(manager);
+  try {
+    loader.setDRACOLoader(getDracoLoader());
+  } catch (e) {
+    console.warn("[loaders] DRACOLoader init failed — Draco GLBs may fail", e);
+  }
   try {
     if (MeshoptDecoder && MeshoptDecoder.supported !== false) {
       await ensureMeshoptReady();
@@ -68,21 +86,43 @@ export interface LoadedModel {
 }
 
 export type ModelFormat =
-  | "glb" | "gltf" | "obj" | "fbx" | "stl" | "ply" | "dae" | "3mf" | "three-json";
+  | "glb"
+  | "gltf"
+  | "obj"
+  | "fbx"
+  | "stl"
+  | "ply"
+  | "dae"
+  | "3mf"
+  | "vrm"
+  | "three-json"
+  | "css3d";
 
 const EXT_TO_FORMAT: Record<string, ModelFormat> = {
-  glb: "glb", gltf: "gltf",
-  obj: "obj", fbx: "fbx",
-  stl: "stl", ply: "ply",
-  dae: "dae", "3mf": "3mf",
+  glb: "glb",
+  gltf: "gltf",
+  vrm: "vrm", // glTF avatar extension — load as GLB/glTF
+  obj: "obj",
+  fbx: "fbx",
+  stl: "stl",
+  ply: "ply",
+  dae: "dae",
+  "3mf": "3mf",
+  // CSS3D / HTML plane quick-view (not a mesh bake format)
+  html: "css3d",
+  htm: "css3d",
 };
 
 function isThreeJsonName(filename: string): boolean {
   const lower = filename.toLowerCase();
-  return lower.endsWith(".scene.json")
-    || lower.endsWith(".three.json")
-    || lower.endsWith(".scene")
-    || (lower.includes("/scenes/") && lower.endsWith(".json"));
+  return (
+    lower.endsWith(".scene.json") ||
+    lower.endsWith(".three.json") ||
+    lower.endsWith(".gfscene.json") ||
+    lower.endsWith(".gfscene") ||
+    lower.endsWith(".scene") ||
+    (lower.includes("/scenes/") && lower.endsWith(".json"))
+  );
 }
 
 export function detectFormat(filename: string): ModelFormat | null {
@@ -161,10 +201,14 @@ function resolveAgainstDir(baseDir: string, rel: string): string {
  * Shared LoadingManager: TGA (Unity Toon RTS) + optional disk-path rewrite.
  * When resourceDir is set, relative texture/bin paths resolve via grudge-media
  * so blob-loaded FBX/OBJ/glTF still get correct atlases and colors.
+ *
+ * Also rewrites Kenney-style `Textures/foo.png` and strips broken absolute
+ * prefixes so main mediaProtocol can fallback-search sibling texture folders.
  */
 function createAssetManager(resourceDir?: string | null): THREE.LoadingManager {
   const manager = new THREE.LoadingManager();
   manager.addHandler(/\.tga$/i, new TGALoader());
+  // BMP sometimes used as FBX sidecar
   if (resourceDir) {
     const dir = resourceDir.replace(/\\/g, "/").replace(/\/?$/, "/");
     manager.setURLModifier((url) => {
@@ -192,8 +236,12 @@ function createAssetManager(resourceDir?: string | null): THREE.LoadingManager {
           return url;
         }
       }
+      // Normalize Kenney / Unity relative refs
+      let rel = url.replace(/\\/g, "/");
+      // "./Textures/x.png" or "Textures/x.png" or "textures\\x.png"
+      rel = rel.replace(/^\.\//, "");
       // Relative to model folder (FBX external maps, glTF .bin/.png, OBJ MTL maps)
-      const abs = resolveAgainstDir(dir, url);
+      const abs = resolveAgainstDir(dir, rel);
       return localFileUrl(abs);
     });
   }
@@ -327,8 +375,14 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
   async function loadFrom(urlToUse: string): Promise<LoadedModel> {
     switch (format) {
       case "glb":
-      case "gltf": {
+      case "gltf":
+      case "vrm": {
         const gltfLoader = await createGltfLoader(manager);
+        // External .bin / textures next to glTF JSON
+        if (resourceDir) {
+          const pathBase = resourceDir.replace(/\\/g, "/").replace(/\/?$/, "/");
+          gltfLoader.setPath(pathBase.startsWith("http") ? pathBase : "");
+        }
         const gltf = await gltfLoader.loadAsync(urlToUse);
         let scene = gltf.scene;
         let hasSkin = false;
@@ -336,23 +390,88 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
           if ((n as THREE.SkinnedMesh).isSkinnedMesh) hasSkin = true;
         });
         if (hasSkin) scene = SkeletonUtils.clone(gltf.scene) as THREE.Group;
-        return finishModel(scene, gltf.animations ?? [], gltf, format, opts.sanitize);
+        const outFmt: ModelFormat = format === "vrm" ? "glb" : format;
+        return finishModel(
+          scene,
+          gltf.animations ?? [],
+          gltf,
+          outFmt,
+          opts.sanitize,
+        );
       }
       case "obj": {
         const objLoader = new OBJLoader(manager);
-        // Sidecar MTL (same basename) — required for real materials/textures
-        if (opts.diskPath) {
+        if (resourceDir) {
+          // MTLLoader resolves map_Kd relative to this path
+          const mtlLoader = new MTLLoader(manager);
+          mtlLoader.setResourcePath(resourceDir.replace(/\\/g, "/").replace(/\/?$/, "/"));
+          mtlLoader.setPath(resourceDir.replace(/\\/g, "/").replace(/\/?$/, "/"));
+          if (opts.diskPath) {
+            const mtlName = (opts.diskPath.split(/[/\\]/).pop() || "model.obj").replace(
+              /\.obj$/i,
+              ".mtl",
+            );
+            try {
+              const mtl = await mtlLoader.loadAsync(mtlName);
+              mtl.preload();
+              objLoader.setMaterials(mtl);
+            } catch {
+              // Fallback: absolute MTL path via media protocol
+              try {
+                const mtlDisk = opts.diskPath.replace(/\.obj$/i, ".mtl");
+                const mtl = await new MTLLoader(manager).loadAsync(localFileUrl(mtlDisk));
+                mtl.preload();
+                objLoader.setMaterials(mtl);
+              } catch {
+                /* sibling fill later */
+              }
+            }
+          }
+        } else if (opts.diskPath) {
           const mtlDisk = opts.diskPath.replace(/\.obj$/i, ".mtl");
           try {
             const mtl = await new MTLLoader(manager).loadAsync(localFileUrl(mtlDisk));
             mtl.preload();
             objLoader.setMaterials(mtl);
           } catch {
-            /* MTL optional; sibling fill may still attach maps */
+            /* MTL optional */
           }
         }
         const obj = await objLoader.loadAsync(urlToUse);
         return finishModel(obj, [], null, format, opts.sanitize);
+      }
+      case "css3d": {
+        // HTML / CSS quick view plane for layout mockups — not a game mesh bake.
+        // Uses a textured plane with optional iframe via CSS3DObject when available.
+        const group = new THREE.Group();
+        group.name = "css3d-preview";
+        const plane = new THREE.Mesh(
+          new THREE.PlaneGeometry(1.6, 0.9),
+          new THREE.MeshBasicMaterial({
+            color: 0x1a1a22,
+            side: THREE.DoubleSide,
+          }),
+        );
+        plane.name = "css3d-plane";
+        group.add(plane);
+        // Store source URL for Elite Viewer CSS3D overlay
+        group.userData.css3d = {
+          kind: "html",
+          url: urlToUse,
+          diskPath: opts.diskPath || null,
+        };
+        // Label marker
+        const frame = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.PlaneGeometry(1.62, 0.92)),
+          new THREE.LineBasicMaterial({ color: 0xc9a04e }),
+        );
+        group.add(frame);
+        return finishModel(group, [], null, "css3d", {
+          toonStyle: false,
+          fixDefaultYellow: false,
+          whiteWhenMapped: false,
+          ...opts.sanitize,
+        });
       }
       case "fbx": {
         const fbx = await new FBXLoader(manager).loadAsync(urlToUse);

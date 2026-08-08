@@ -149,10 +149,17 @@ function looksLikeTga(url: string, nameHint?: string): boolean {
   return s.includes(".tga") || s.includes("image/targa") || s.includes("image/x-tga");
 }
 
-function loadTexture(url: string, nameHint?: string): Promise<THREE.Texture> {
+function loadTexture(
+  url: string,
+  nameHint?: string,
+  role: TextureRole = "map",
+): Promise<THREE.Texture> {
   return new Promise((resolve, reject) => {
     const onOk = (tex: THREE.Texture) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
+      // Albedo/emissive = sRGB; data maps = linear (wrong space = muddy / inverted colors)
+      const isColor =
+        role === "map" || role === "emissiveMap";
+      tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
       tex.flipY = false;
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.needsUpdate = true;
@@ -162,7 +169,12 @@ function loadTexture(url: string, nameHint?: string): Promise<THREE.Texture> {
       tgaLoader.load(url, onOk, undefined, (err) => reject(err));
       return;
     }
-    loader.load(url, onOk, undefined, (err) => reject(err));
+    // Prefer grudge-media for absolute disk paths so main process can fallback-search Textures/
+    let fetchUrl = url;
+    if (/^[A-Za-z]:[\\/]/.test(url) || url.startsWith("\\\\")) {
+      fetchUrl = `grudge-media://local/?path=${encodeURIComponent(url.replace(/\//g, "\\"))}`;
+    }
+    loader.load(fetchUrl, onOk, undefined, (err) => reject(err));
   });
 }
 
@@ -268,21 +280,17 @@ export async function applySmartTextures(
         }
         try {
           const url = await resolveUrl(cand.url);
-          const tex = await loadTexture(url, cand.name);
+          const tex = await loadTexture(url, cand.name, role);
           if (role === "normalMap") {
-            tex.colorSpace = THREE.NoColorSpace;
             mat.normalMap = tex;
             mat.normalScale = new THREE.Vector2(1, 1);
           } else if (role === "roughnessMap") {
-            tex.colorSpace = THREE.NoColorSpace;
             mat.roughnessMap = tex;
             mat.roughness = 1;
           } else if (role === "metalnessMap") {
-            tex.colorSpace = THREE.NoColorSpace;
             mat.metalnessMap = tex;
             mat.metalness = 1;
           } else if (role === "aoMap") {
-            tex.colorSpace = THREE.NoColorSpace;
             mat.aoMap = tex;
             mat.aoMapIntensity = 1;
             // aoMap needs uv2 — duplicate uv if missing
@@ -294,7 +302,6 @@ export async function applySmartTextures(
             mat.emissiveMap = tex;
             mat.emissive = new THREE.Color(0xffffff);
           } else if (role === "alphaMap") {
-            tex.colorSpace = THREE.NoColorSpace;
             mat.alphaMap = tex;
             mat.transparent = true;
           } else {

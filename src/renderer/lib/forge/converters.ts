@@ -1,6 +1,11 @@
 import * as THREE from "three";
 import { GLTFExporter, type GLTFExporterOptions } from "three/examples/jsm/exporters/GLTFExporter.js";
-import { loadModel, type ModelFormat } from "./loaders";
+import {
+  loadModel,
+  type LoadModelOptions,
+  type ModelFormat,
+  detectFormat,
+} from "./loaders";
 
 export interface ExportResult {
   blob: Blob;
@@ -9,12 +14,14 @@ export interface ExportResult {
   triangles: number;
   vertices: number;
   durationMs: number;
+  /** True when source was css3d/html — not a production mesh bake. */
+  previewOnly?: boolean;
 }
 
 /**
  * Export an Object3D (with optional animations) as GLB.
- * GLTFExporter does the binary chunk packing for us; we then wrap in a Blob
- * the renderer can hand to URL.createObjectURL or upload via fetch().
+ * Embeds maps currently bound on materials (best-effort for game pack use).
+ * Prefer diskPath on load first so Kenney/FBX external textures are present.
  */
 export async function exportToGlb(
   object: THREE.Object3D,
@@ -23,6 +30,17 @@ export async function exportToGlb(
   opts: GLTFExporterOptions = {},
 ): Promise<ExportResult> {
   const start = performance.now();
+  // Ensure maps are ready before export (avoid blank embeds)
+  object.traverse((n) => {
+    const m = n as THREE.Mesh;
+    if (!m.isMesh || !m.material) return;
+    const list = Array.isArray(m.material) ? m.material : [m.material];
+    for (const mat of list) {
+      const std = mat as THREE.MeshStandardMaterial;
+      if (std?.map) std.map.needsUpdate = true;
+      if (std) std.needsUpdate = true;
+    }
+  });
   const exporter = new GLTFExporter();
   const buffer: ArrayBuffer = await new Promise((resolve, reject) => {
     exporter.parse(
@@ -32,7 +50,14 @@ export async function exportToGlb(
         else reject(new Error("GLTFExporter returned JSON instead of binary GLB"));
       },
       (err) => reject(err),
-      { binary: true, animations, includeCustomExtensions: true, ...opts },
+      {
+        binary: true,
+        animations,
+        includeCustomExtensions: true,
+        onlyVisible: false,
+        embedImages: true,
+        ...opts,
+      },
     );
   });
   let triangles = 0;
@@ -57,10 +82,39 @@ export async function exportToGlb(
   };
 }
 
-/** Convert an arbitrary file → GLB. Round-trip via three loaders + GLTFExporter. */
-export async function convertToGlb(file: File): Promise<ExportResult> {
-  const loaded = await loadModel(file);
-  const base = file.name.replace(/\.[^.]+$/, "");
+export interface ConvertToGlbOptions extends LoadModelOptions {
+  /** Override output basename (no extension). */
+  filenameBase?: string;
+}
+
+/**
+ * Convert an arbitrary supported file → production-oriented GLB.
+ * Always pass `diskPath` for local files so relative textures embed correctly.
+ * HTML/CSS3D sources return a placeholder plane GLB with previewOnly=true.
+ */
+export async function convertToGlb(
+  file: File,
+  opts: ConvertToGlbOptions = {},
+): Promise<ExportResult> {
+  const fmt = detectFormat(file.name);
+  if (fmt === "css3d") {
+    throw new Error(
+      "HTML/CSS3D is for Elite quick view only — convert UI mockups separately; use OBJ/FBX/GLB for game meshes",
+    );
+  }
+  const loaded = await loadModel(file, {
+    diskPath: opts.diskPath,
+    resourceDir: opts.resourceDir,
+    sanitize: {
+      toonStyle: true,
+      fixDefaultYellow: true,
+      whiteWhenMapped: true,
+      ...opts.sanitize,
+    },
+    ...opts,
+  });
+  const base =
+    opts.filenameBase || file.name.replace(/\.[^.]+$/, "").replace(/\s+/g, "_");
   return exportToGlb(loaded.object, loaded.animations, base);
 }
 
@@ -77,5 +131,46 @@ export function downloadBlob(blob: Blob, filename: string): void {
 }
 
 /** Format-supported list shown in the UI / accept attribute. */
-export const SUPPORTED_FORMATS: ModelFormat[] = ["glb", "gltf", "obj", "fbx", "stl", "ply", "dae", "3mf"];
-export const ACCEPT_ATTR = SUPPORTED_FORMATS.map((f) => `.${f}`).join(",");
+export const SUPPORTED_FORMATS: ModelFormat[] = [
+  "glb",
+  "gltf",
+  "vrm",
+  "obj",
+  "fbx",
+  "stl",
+  "ply",
+  "dae",
+  "3mf",
+  "three-json",
+  "css3d",
+];
+export const ACCEPT_ATTR = [
+  ".glb",
+  ".gltf",
+  ".vrm",
+  ".obj",
+  ".fbx",
+  ".stl",
+  ".ply",
+  ".dae",
+  ".3mf",
+  ".json",
+  ".scene.json",
+  ".gfscene",
+  ".html",
+  ".htm",
+].join(",");
+
+/** Game-ship formats (exclude css3d / pure preview). */
+export const GAME_MESH_FORMATS: ModelFormat[] = [
+  "glb",
+  "gltf",
+  "vrm",
+  "obj",
+  "fbx",
+  "stl",
+  "ply",
+  "dae",
+  "3mf",
+  "three-json",
+];

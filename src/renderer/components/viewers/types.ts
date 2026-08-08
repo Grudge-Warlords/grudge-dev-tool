@@ -34,9 +34,13 @@ const EXT: Record<AssetKind, string[]> = {
   ],
   video:  ["mp4", "webm", "mov", "m4v", "ogv", "mkv", "avi"],
   audio:  ["mp3", "wav", "ogg", "flac", "m4a", "aac", "opus"],
-  model3d:["glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend", "vrm"],
+  model3d: [
+    "glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend", "vrm",
+    // HTML CSS3D quick-view plane (preview; convert to GLB separately for games)
+    "html", "htm",
+  ],
   /** Three.js ObjectLoader / scene dumps — handled by Model3D path when possible. */
-  scene3d:["scene"],
+  scene3d: ["scene", "gfscene"],
   text:   ["txt", "json", "md", "markdown", "yml", "yaml", "ts", "tsx", "js", "jsx",
            "mjs", "cjs", "css", "scss", "html", "htm", "xml", "csv", "tsv", "log",
            "ini", "toml", "env", "gitignore", "rs", "go", "py", "sh", "ps1",

@@ -41,12 +41,15 @@ Prevents N WebGL contexts (black frames, context loss, yellow sludge when many p
 
 ## Runtime loaders (renderer)
 
-- `loadModel(file, { diskPath })` — TGA handler, magic bytes for GLB, `sanitizeMaterials`
+- `loadModel(file, { diskPath })` — TGA handler, **Draco + Meshopt**, magic bytes for GLB, `sanitizeMaterials`
   - **Local / Elite open:** when `diskPath` is set, model loads via `grudge-media://` so FBX/OBJ/glTF **relative textures** resolve next to the file (not lost on blob:).
   - LoadingManager URL modifier rewrites relative map paths → `grudge-media://local/?path=…`
+  - **mediaProtocol fallback:** if path 404s, search `Textures/`, `textures/`, `Maps/`, parents (Kenney packs)
   - Sibling fill (`finishImportedAsset`) only **fills missing** maps — never overwrites good embedded atlases
+  - **Formats:** glb/gltf/vrm, obj+mtl, fbx, stl, ply, dae, 3mf, three-json/gfscene, **html/css3d** (preview plane)
 - `loadModelFromUrl(url)` — fetch + magic + sanitize (Model3DViewer, CDN)
-- `applySmartTextures({ onlyMissingMaps: true })` — sibling atlas fill (`textureFinder.ts`); TGA via `TGALoader`
+- `convertToGlb(file, { diskPath })` — load with textures → GLTFExporter **embedImages** for game packs
+- `applySmartTextures({ onlyMissingMaps: true })` — sibling atlas fill; **role-correct colorSpace** (albedo sRGB, normal/ORM linear)
 - `bindAtlasToRoot` — grudge6 single-atlas pattern
 
 ### Elite Viewer color / mesh checklist
@@ -54,12 +57,15 @@ Prevents N WebGL contexts (black frames, context loss, yellow sludge when many p
 | Symptom | Fix path |
 |--------|----------|
 | Wrong / random textures on GLB | `onlyMissingMaps` (never overwrite embeds with sibling PNGs) |
+| Kenney pink/missing maps | mediaProtocol texture fallback + `Textures/` dir search |
 | FBX yellow / no atlas | `diskPath` + `grudge-media` relative TGA/PNG + sanitize yellow |
 | Black silhouette | ambient boost in Elite Viewer + metalness cap in sanitize |
-| Scrambled sRGB | baseColor → sRGB; data maps → NoColorSpace |
+| Scrambled sRGB / muddy normals | baseColor → sRGB; data maps → NoColorSpace |
+| Draco/Meshopt empty mesh | GLTFLoader setDRACOLoader + setMeshoptDecoder |
 | Tiny / giant mesh after open | keep author root scale (do not force `scale=1`) |
-| OBJ grey / no maps | sidecar `.mtl` via MTLLoader + sibling fill |
+| OBJ grey / no maps | sidecar `.mtl` via MTLLoader + `setResourcePath` + sibling fill |
 | Flat / black mesh | `prepareMeshes` normals + skinned `frustumCulled=false` |
+| HTML open fails | css3d format → preview plane (not game bake) |
 
 ## R2 layout (SSOT)
 

@@ -186,8 +186,14 @@ const IMAGE_EXTS = new Set([
   ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tga", ".gif", ".ktx2", ".basis",
 ]);
 const TEXTURE_DIR_NAMES = new Set([
-  "textures", "texture", "maps", "map", "materials", "material", "mat",
-  "pbr", "images", "image", "tex", "sourceimages", "source_images",
+  // Kenney / Unity / Blender common (case variants for non-Windows CI)
+  "textures", "Textures", "texture", "Texture",
+  "maps", "Maps", "map", "Map",
+  "materials", "Materials", "material", "Material", "mat", "Mat",
+  "pbr", "PBR", "images", "Images", "image", "tex", "Tex",
+  "sourceimages", "SourceImages", "source_images", "Source_Images",
+  // glTF sidecar next to GLB
+  "glTF", "gltf",
 ]);
 
 export interface SiblingTextureHit {

@@ -111,7 +111,10 @@ export function isImagePath(name: string): boolean {
 
 export function isModelPath(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  return ["glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend", "vrm"].includes(ext);
+  return [
+    "glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend", "vrm",
+    "html", "htm", // CSS3D quick view
+  ].includes(ext);
 }
 
 /** Design / DCC sources that need prepare or system app (PSD, Blender, GPU tex, maps). */

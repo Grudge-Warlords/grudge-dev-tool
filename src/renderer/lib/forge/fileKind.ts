@@ -8,12 +8,14 @@
 export type DroppedFileKind =
   | "glb"
   | "gltf"
+  | "vrm"
   | "obj"
   | "fbx"
   | "stl"
   | "ply"
   | "dae"
   | "3mf"
+  | "css3d"
   | "image"
   | "audio"
   | "scene-json"
@@ -23,19 +25,23 @@ export function classifyDroppedFile(file: { name: string }): DroppedFileKind | n
   const name = file.name.toLowerCase();
   if (name.endsWith(".glb")) return "glb";
   if (name.endsWith(".gltf")) return "gltf";
+  if (name.endsWith(".vrm")) return "vrm";
   if (name.endsWith(".obj")) return "obj";
   if (name.endsWith(".fbx")) return "fbx";
   if (name.endsWith(".stl")) return "stl";
   if (name.endsWith(".ply")) return "ply";
   if (name.endsWith(".dae")) return "dae";
   if (name.endsWith(".3mf")) return "3mf";
-  if (/\.(png|jpe?g|webp|gif|bmp|ktx2)$/.test(name)) return "image";
+  if (name.endsWith(".html") || name.endsWith(".htm")) return "css3d";
+  if (/\.(png|jpe?g|webp|gif|bmp|tga|ktx2)$/.test(name)) return "image";
   if (/\.(mp3|wav|ogg|m4a|flac)$/.test(name)) return "audio";
   if (name.endsWith(".zip")) return "zip";
   if (
     name.endsWith(".json") ||
     name.endsWith(".gfscene") ||
-    name.endsWith(".gfscene.json")
+    name.endsWith(".gfscene.json") ||
+    name.endsWith(".scene.json") ||
+    name.endsWith(".three.json")
   ) {
     return "scene-json";
   }
@@ -46,15 +52,18 @@ export function isModelKind(kind: DroppedFileKind | null): boolean {
   return (
     kind === "glb" ||
     kind === "gltf" ||
+    kind === "vrm" ||
     kind === "obj" ||
     kind === "fbx" ||
     kind === "stl" ||
     kind === "ply" ||
     kind === "dae" ||
-    kind === "3mf"
+    kind === "3mf" ||
+    kind === "css3d" ||
+    kind === "scene-json"
   );
 }
 
-/** Accept attribute for &lt;input type=file&gt; (models + scene JSON + zip). */
+/** Accept attribute for &lt;input type=file&gt; (models + scene JSON + zip + HTML CSS3D). */
 export const FORGE_IMPORT_ACCEPT =
-  ".glb,.gltf,.obj,.fbx,.stl,.ply,.dae,.3mf,.zip,.json,.gfscene,.gfscene.json,model/*,application/json";
+  ".glb,.gltf,.vrm,.obj,.fbx,.stl,.ply,.dae,.3mf,.zip,.json,.gfscene,.gfscene.json,.scene.json,.html,.htm,model/*,application/json,text/html";
