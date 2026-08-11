@@ -32,6 +32,7 @@ const EXT: Record<AssetKind, string[]> = {
     // PSD opens as prepared PNG; keep listed for classify-before-prepare
     "psd", "psb",
   ],
+  // Keep in sync with shared/mediaTypes AUDIO_EXTS / VIDEO_EXTS
   video:  ["mp4", "webm", "mov", "m4v", "ogv", "mkv", "avi"],
   audio:  ["mp3", "wav", "ogg", "flac", "m4a", "aac", "opus"],
   model3d: [

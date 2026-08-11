@@ -8,9 +8,12 @@
 import { protocol } from "electron";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { basename, dirname, join, normalize, resolve } from "node:path";
+import { isStreamableMediaPath } from "../shared/mediaTypes";
 import log from "./logger";
 
 export const MEDIA_SCHEME = "grudge-media";
+/** Re-export SSOT from mediaTypes — do not maintain a second stream regex. */
+export { isStreamableMediaPath };
 
 const TEXTURE_SUBDIRS = [
   "Textures",
@@ -145,8 +148,4 @@ export function registerMediaFileProtocol(): void {
 export function mediaStreamUrl(absolutePath: string): string {
   const p = resolve(normalize(absolutePath));
   return `${MEDIA_SCHEME}://local/?path=${encodeURIComponent(p)}`;
-}
-
-export function isStreamableMediaPath(name: string): boolean {
-  return /\.(mp4|webm|mov|m4v|ogv|mkv|avi|mp3|wav|ogg|flac|m4a|aac|opus)$/i.test(name);
 }

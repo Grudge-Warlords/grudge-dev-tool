@@ -4,6 +4,20 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.0.6] — 2026-08-11
+
+### Fixed
+- **Audio elite viewer** — stream / large files no longer force full-file waveform decode (which broke or OOM’d long tracks and `grudge-media://` SFX). Playback always uses native `<audio>`; waveform is best-effort under 24 MB.
+- **Media type drift** — `isStreamableMediaPath` and viewer extension lists live in `shared/mediaTypes` only; `openFileBridge` + `mediaProtocol` re-use them (no second regex / hardcoded ext set).
+
+### Added
+- **Local Files kind chips** — All · Audio · Video · 3D · Image · Design · Text for organizing game media packs; double-click still opens elite viewer (stream for audio/video).
+- **Audio transport** — Play/Pause, seek, loop, playback rate (0.5–2×), duration chrome aligned with Video viewer.
+
+### Changed
+- Product description / version **1.0.6**.
+- README media / double-click / SSOT notes.
+
 ## [1.0.5] — 2026-08-08
 
 ### Fixed

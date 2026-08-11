@@ -263,6 +263,10 @@ export default function LocalFiles() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  /** Kind chip filter for game media packs (audio / video / 3D / …). */
+  const [kindFilter, setKindFilter] = useState<
+    "all" | "audio" | "video" | "model3d" | "image" | "design" | "text"
+  >("all");
   const [selected, setSelected] = useState<LocalEntry | null>(null);
   const [preview, setPreview] = useState<AssetRef | null>(null);
   const [busy, setBusy] = useState(false);
@@ -374,14 +378,28 @@ export default function LocalFiles() {
   const filtered = useMemo(() => {
     const entries = listing?.entries ?? [];
     const q = filter.trim().toLowerCase();
-    if (!q) return entries;
-    return entries.filter(
-      (e) =>
+    return entries.filter((e) => {
+      // Folders always listed so media packs stay navigable under kind chips
+      if (e.isDirectory) {
+        if (!q) return true;
+        return e.name.toLowerCase().includes(q);
+      }
+      if (kindFilter !== "all") {
+        const k = e.kind;
+        if (kindFilter === "model3d") {
+          if (k !== "model3d" && k !== "scene3d") return false;
+        } else if (k !== kindFilter) {
+          return false;
+        }
+      }
+      if (!q) return true;
+      return (
         e.name.toLowerCase().includes(q) ||
         e.kind.includes(q) ||
-        e.ext.includes(q),
-    );
-  }, [listing, filter]);
+        e.ext.includes(q)
+      );
+    });
+  }, [listing, filter, kindFilter]);
 
   const openEntry = useCallback(
     async (entry: LocalEntry, mode: "preview" | "popout" | "viewmode" = "preview") => {
@@ -498,7 +516,8 @@ export default function LocalFiles() {
           <div className="flex-1 min-w-0">
             <h1 className="text-sm font-bold text-gold tracking-wide">Local Files · Elite open</h1>
             <p className="text-[11px] text-muted">
-              Double-click any file → Elite Viewer. Icons from info.grudge-studio.com. Not Forge by default.
+              Double-click file → Elite Viewer (3D · image · <strong className="text-ink">audio</strong> ·{" "}
+              <strong className="text-ink">video</strong>). Stream via grudge-media://. Not Forge by default.
             </p>
           </div>
           <button type="button" className="btn text-xs px-3 py-1.5" onClick={pickFolder}>
@@ -564,19 +583,50 @@ export default function LocalFiles() {
       <div className="flex-1 min-h-0 flex">
         {/* File list */}
         <div className="w-[42%] min-w-[260px] max-w-[520px] border-r border-line flex flex-col min-h-0">
-          <div className="shrink-0 p-2 border-b border-line flex items-center gap-2">
-            <Search size={14} className="text-muted" />
-            <input
-              className="flex-1 text-xs py-1"
-              placeholder="Filter by name, kind, ext…"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              disabled={!listing}
-            />
-            <span className="text-[10px] text-muted tabular-nums">
-              {filtered.length}
-              {listing ? ` / ${listing.entries.length}` : ""}
-            </span>
+          <div className="shrink-0 p-2 border-b border-line flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Search size={14} className="text-muted" />
+              <input
+                className="flex-1 text-xs py-1"
+                placeholder="Filter by name, kind, ext…"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                disabled={!listing}
+              />
+              <span className="text-[10px] text-muted tabular-nums">
+                {filtered.length}
+                {listing ? ` / ${listing.entries.length}` : ""}
+              </span>
+            </div>
+            {/* Kind chips — organize game media packs for quick SFX / video test */}
+            <div className="flex flex-wrap gap-1">
+              {(
+                [
+                  ["all", "All"],
+                  ["audio", "Audio"],
+                  ["video", "Video"],
+                  ["model3d", "3D"],
+                  ["image", "Image"],
+                  ["design", "Design"],
+                  ["text", "Text"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={
+                    "text-[10px] px-2 py-0.5 rounded border " +
+                    (kindFilter === id
+                      ? "border-gold/50 bg-gold/15 text-gold"
+                      : "border-line text-muted hover:border-gold/30 hover:text-ink")
+                  }
+                  onClick={() => setKindFilter(id)}
+                  disabled={!listing}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex-1 overflow-auto">

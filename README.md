@@ -5,7 +5,7 @@
 | Surface | Role |
 |---------|------|
 | **Home** | Fleet health · admin systems · primary actions |
-| **Local Files** | Disk browser · double-click → elite viewer (3D / image / video / **PSD** / **BLEND**) |
+| **Local Files** | Disk browser · kind chips · double-click → elite viewer (3D / image / **audio** / **video** / PSD / BLEND) |
 | **Assets** | R2 / ObjectStore · `>query` · pop-out viewer · send → Forge |
 | **Skeleton** | Mixamo-25 → T-pose → retarget → convert → CDN |
 | **Forge** | Production `forge.grudge-studio.com` embed (R3F + Rapier) + session handoff |
@@ -23,7 +23,7 @@
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **Desktop app** | **v1.0.5** | Windows tray · elite open · textures/Draco · multi-format · convert-to-GLB · auto-update |
+| **Desktop app** | **v1.0.6** | Windows tray · elite open · stream audio/video · media SSOT · textures/Draco · convert-to-GLB · auto-update |
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
@@ -33,14 +33,14 @@
 
 ---
 
-## What's new in 1.0.5
+## What's new in 1.0.6
 
-- **Elite textures** — Kenney `Textures/` fallback via media protocol; no random sibling overwrite; sRGB vs linear by map role  
-- **Draco + Meshopt** on all GLB loads; **OBJ+MTL** resource path; **VRM / HTML CSS3D** quick open  
-- **convertToGlb({ diskPath })** embeds resolved maps for game packs  
-- **Env** — Multiverse + info/CDN/Forge in `.env.example`; Windows-safe `npm run dev`  
+- **Media SSOT** — one extension / stream map in `src/shared/mediaTypes.ts` for Explorer open, Local Files, elite viewer, and `grudge-media://`  
+- **Stream-safe audio** — double-click MP3/WAV/OGG/… plays without full-file waveform RAM load; loop + rate for game SFX test  
+- **Local Files kind chips** — filter Audio / Video / 3D / Image packs; **double-click file → elite viewer** (folders navigate)  
+- **Video** unchanged path (1.0.1+): MP4/WebM stream + transport chrome  
 
-Earlier 1.0.x: single-login SSO, PSD/BLEND open, Multiverse fleet SSOT, Meshopt (1.0.4), Assets full search.
+Earlier: **1.0.5** textures/Draco/OBJ; **1.0.x** single-login SSO, PSD/BLEND, Multiverse, Meshopt, full Assets search.
 
 ---
 
@@ -74,6 +74,22 @@ cd cli && npm install && npm run build && npm install -g .
 grudge-dev setup
 grudge-dev doctor          # ONE TRUTH score via client.grudge-studio.com
 ```
+
+---
+
+## Media & elite open (game packs)
+
+| Action | Result |
+|--------|--------|
+| **Local Files → double-click** file | Always-on-top **Elite Viewer** (not Forge) |
+| Audio / video | Streamed via `grudge-media://` (no full-file RAM blob) |
+| Kind chips | Filter Audio · Video · 3D · Image while browsing packs |
+| Explorer **Open with** / double-click | Same elite path after **Settings → Set as default for all asset types** |
+| ObjectStore / Assets tab | Preview CDN assets; send **3D** to Forge only when you choose |
+
+SSOT: `src/shared/mediaTypes.ts` · bridge: `src/main/openFileBridge.ts` · stream: `src/main/mediaProtocol.ts`.
+
+Settings **Apply ONE TRUTH** remains the single host matrix (client.grudge-studio.com) — do not fork alternate API bases for new work.
 
 ---
 
@@ -113,7 +129,7 @@ npm run package:ci
 | Surface | What it does |
 |---------|----------------|
 | **Tray** | Left-click loader · double-click main · right-click menu |
-| **Elite viewer** | Always-on-top 3D / image / video / audio / PDF / **PSD** / **BLEND** |
+| **Elite viewer** | Always-on-top 3D / image / video / audio (stream) / PDF / **PSD** / **BLEND** |
 | **Forge embed** | Live `forge.grudge-studio.com` + desktop session handoff |
 | **Preview** | open · client · water · GRUDOX · Multiverse |
 | **Agent AI** | Make & deploy · Ollama · Legion · CF Workers AI |

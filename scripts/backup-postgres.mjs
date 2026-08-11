@@ -49,6 +49,10 @@ const DEFAULT_TABLES = [
   "gbux_transactions",
   "uuid_ledger",
   "character_professions",
+  "character_nfts",
+  "island_nfts",
+  "linked_wallets",
+  "wallet_purchases",
   "client_memberships",
 ];
 

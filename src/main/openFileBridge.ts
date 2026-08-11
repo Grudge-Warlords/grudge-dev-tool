@@ -17,110 +17,16 @@ import {
   isModelPath,
   isThreeScenePath,
   isVideoPath,
+  listViewerExtensionsWithDot,
 } from "../shared/mediaTypes";
 import log from "./logger";
 import * as viewer from "./viewer";
 
-/** Every extension the elite viewer can open from disk / Explorer. */
-export const VIEWER_EXTS = new Set([
-  // 3D
-  ".glb",
-  ".gltf",
-  ".fbx",
-  ".obj",
-  ".stl",
-  ".ply",
-  ".dae",
-  ".3mf",
-  ".blend",
-  ".vrm",
-  ".usdz",
-  ".abc",
-  ".usd",
-  ".usda",
-  ".usdc",
-  ".gfscene",
-  // Images + design DCC
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".webp",
-  ".gif",
-  ".avif",
-  ".svg",
-  ".bmp",
-  ".tga",
-  ".tif",
-  ".tiff",
-  ".ico",
-  ".heic",
-  ".heif",
-  ".apng",
-  ".jxl",
-  ".jp2",
-  ".psd",
-  ".psb",
-  ".xcf",
-  ".kra",
-  // GPU / HDR textures
-  ".ktx",
-  ".ktx2",
-  ".basis",
-  ".dds",
-  ".hdr",
-  ".exr",
-  // Game maps / pixel
-  ".tmx",
-  ".tsx",
-  ".atlas",
-  ".ase",
-  ".aseprite",
-  // Audio
-  ".mp3",
-  ".wav",
-  ".ogg",
-  ".flac",
-  ".m4a",
-  ".aac",
-  ".opus",
-  // Video
-  ".mp4",
-  ".webm",
-  ".mov",
-  ".m4v",
-  ".ogv",
-  ".mkv",
-  ".avi",
-  // Text / data
-  ".json",
-  ".txt",
-  ".md",
-  ".markdown",
-  ".yml",
-  ".yaml",
-  ".csv",
-  ".tsv",
-  ".log",
-  ".xml",
-  ".html",
-  ".htm",
-  ".css",
-  ".js",
-  ".mjs",
-  ".cjs",
-  ".ts",
-  ".tsx",
-  ".jsx",
-  ".env",
-  ".toml",
-  ".ini",
-  // Docs / fonts
-  ".pdf",
-  ".ttf",
-  ".otf",
-  ".woff",
-  ".woff2",
-]);
+/**
+ * Every extension the elite viewer can open from disk / Explorer.
+ * Built from mediaTypes SSOT — do not maintain a parallel hardcoded list.
+ */
+export const VIEWER_EXTS = new Set(listViewerExtensionsWithDot());
 
 export type EliteKind =
   | "model3d"

@@ -128,15 +128,50 @@ export function isDesignPath(name: string): boolean {
   ].includes(ext);
 }
 
+/** Audio extensions — SSOT for Local Files, elite open, stream protocol. */
+export const AUDIO_EXTS = ["mp3", "wav", "ogg", "flac", "m4a", "aac", "opus"] as const;
+
+/** Video extensions — SSOT for Local Files, elite open, stream protocol. */
+export const VIDEO_EXTS = ["mp4", "webm", "mov", "m4v", "ogv", "mkv", "avi"] as const;
+
 /** Audio / sound assets the Asset Viewer can play inline. */
 export function isAudioPath(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  return ["mp3", "wav", "ogg", "flac", "m4a", "aac", "opus"].includes(ext);
+  return (AUDIO_EXTS as readonly string[]).includes(ext);
 }
 
 export function isVideoPath(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  return ["mp4", "webm", "mov", "m4v", "ogv", "mkv", "avi"].includes(ext);
+  return (VIDEO_EXTS as readonly string[]).includes(ext);
+}
+
+/**
+ * Large media that must stream via grudge-media:// (never full RAM blob).
+ * Single source for mediaProtocol + openFileBridge + Local Files.
+ */
+export function isStreamableMediaPath(name: string): boolean {
+  return isAudioPath(name) || isVideoPath(name);
+}
+
+/**
+ * Extra text/code extensions openable in elite viewer but not always in EXT_TO_MIME.
+ * (e.g. .markdown alias, .yaml, shell scripts)
+ */
+const EXTRA_VIEWER_EXTS = [
+  "markdown", "yaml", "yml", "csv", "tsv", "log", "xml",
+  "jsx", "cjs", "scss", "env", "toml", "ini", "gitignore",
+  "rs", "go", "py", "sh", "ps1", "gfscene",
+] as const;
+
+/**
+ * All extensions the elite desktop viewer accepts (with leading dot).
+ * Used by openFileBridge / fileDefaults / installer associations — do not fork lists.
+ */
+export function listViewerExtensionsWithDot(): string[] {
+  const set = new Set<string>();
+  for (const k of Object.keys(EXT_TO_MIME)) set.add(`.${k}`);
+  for (const k of EXTRA_VIEWER_EXTS) set.add(`.${k}`);
+  return [...set].sort();
 }
 
 /** Heuristic for Three.js scene files (ObjectLoader JSON) stored in object storage. */
@@ -162,6 +197,7 @@ export function isViewerOpenablePath(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   if (!ext) return false;
   if (EXT_TO_MIME[ext]) return true;
+  if ((EXTRA_VIEWER_EXTS as readonly string[]).includes(ext)) return true;
   if (["psd", "psb", "gfscene", "blend", "scene", "aseprite", "ase"].includes(ext)) return true;
   if (isDesignPath(name)) return true;
   return isThreeScenePath(name);
