@@ -3,9 +3,9 @@ import type { AssetRef } from "./types";
 import { basename, formatBytes } from "./types";
 
 /**
- * Elite HTML5 video player for double-click / Local Files / View Mode.
- * Chromium plays mp4 (H.264), webm, mov, m4v natively with hardware accel.
- * Local large files should use grudge-media:// stream URLs (not full-file blobs).
+ * Simple reliable HTML5 video viewer for Local Files / elite open / View Mode.
+ * Prefers grudge-media:// stream URLs for large local files (no full RAM blob).
+ * Chromium: MP4 (H.264), WebM, many MOV/M4V. Unsupported codecs show a clear error.
  */
 export default function VideoViewer({ asset }: { asset: AssetRef }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -15,24 +15,59 @@ export default function VideoViewer({ asset }: { asset: AssetRef }) {
   const [current, setCurrent] = useState(0);
   const [muted, setMuted] = useState(false);
   const [loop, setLoop] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [nativeControls, setNativeControls] = useState(false);
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     setError(null);
     setPlaying(false);
     setCurrent(0);
     setDuration(0);
+    setDims(null);
+    setReady(false);
   }, [asset.url]);
+
+  // Keyboard: Space play/pause, F fullscreen, M mute (when focused in pane)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const v = videoRef.current;
+      if (!v) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (v.paused) void v.play().catch(() => undefined);
+        else v.pause();
+      } else if (e.key === "f" || e.key === "F") {
+        if (document.fullscreenElement) void document.exitFullscreen();
+        else void v.requestFullscreen?.();
+      } else if (e.key === "m" || e.key === "M") {
+        v.muted = !v.muted;
+        setMuted(v.muted);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const onLoaded = useCallback(() => {
     const v = videoRef.current;
-    if (v && Number.isFinite(v.duration)) setDuration(v.duration);
+    if (!v) return;
+    if (Number.isFinite(v.duration)) setDuration(v.duration);
+    if (v.videoWidth > 0) setDims({ w: v.videoWidth, h: v.videoHeight });
+    setReady(true);
   }, []);
 
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
-      void v.play().then(() => setPlaying(true)).catch((e) => setError(e?.message || "Play failed"));
+      void v
+        .play()
+        .then(() => setPlaying(true))
+        .catch((e: Error) => setError(e?.message || "Play failed — try native controls or MP4 H.264"));
     } else {
       v.pause();
       setPlaying(false);
@@ -67,7 +102,9 @@ export default function VideoViewer({ asset }: { asset: AssetRef }) {
         ? "video/webm"
         : /\.mov$/i.test(asset.name)
           ? "video/quicktime"
-          : "video/mp4";
+          : /\.mkv$/i.test(asset.name)
+            ? "video/x-matroska"
+            : "video/mp4";
 
   return (
     <div
@@ -90,31 +127,52 @@ export default function VideoViewer({ asset }: { asset: AssetRef }) {
           position: "relative",
         }}
         onDoubleClick={toggleFs}
+        onClick={(e) => {
+          // Single click on empty chrome area: play/pause (not on controls)
+          if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === "VIDEO") {
+            if (!nativeControls) togglePlay();
+          }
+        }}
       >
         <video
           ref={videoRef}
           key={asset.url}
-          controls={false}
+          src={asset.url}
+          controls={nativeControls}
           playsInline
           preload="metadata"
           loop={loop}
           muted={muted}
           onLoadedMetadata={onLoaded}
+          onLoadedData={onLoaded}
           onTimeUpdate={() => setCurrent(videoRef.current?.currentTime ?? 0)}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onEnded={() => setPlaying(false)}
+          onVolumeChange={() => {
+            const v = videoRef.current;
+            if (!v) return;
+            setVolume(v.volume);
+            setMuted(v.muted);
+          }}
           onError={() =>
             setError(
-              "Could not play this video. Try MP4 (H.264) or WebM. Codec may be unsupported.",
+              "Could not play this video. Prefer MP4 (H.264/AAC) or WebM. MKV/AVI may need system open. Try “Native controls”.",
             )
           }
-          style={{ maxWidth: "100%", maxHeight: "100%", background: "#000" }}
+          style={{
+            maxWidth: "100%",
+            maxHeight: "100%",
+            width: nativeControls ? "100%" : undefined,
+            height: nativeControls ? "100%" : undefined,
+            background: "#000",
+            objectFit: "contain",
+          }}
         >
           <source src={asset.url} type={mime} />
-          Your browser does not support HTML5 video.
         </video>
-        {error && (
+
+        {!ready && !error && (
           <div
             style={{
               position: "absolute",
@@ -122,19 +180,59 @@ export default function VideoViewer({ asset }: { asset: AssetRef }) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "rgba(0,0,0,0.75)",
+              color: "var(--muted, #9aa6c8)",
+              fontSize: 12,
+              pointerEvents: "none",
+            }}
+          >
+            Loading video…
+          </div>
+        )}
+
+        {error && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              background: "rgba(0,0,0,0.8)",
               color: "#ff5577",
               padding: 24,
               textAlign: "center",
               fontSize: 13,
             }}
           >
-            {error}
+            <div>{error}</div>
+            <button
+              type="button"
+              className="btn"
+              style={{ padding: "6px 14px", fontSize: 12 }}
+              onClick={() => {
+                setError(null);
+                setNativeControls(true);
+              }}
+            >
+              Retry with native controls
+            </button>
+            {asset.localPath && (
+              <button
+                type="button"
+                className="btn ghost"
+                style={{ padding: "6px 14px", fontSize: 12 }}
+                onClick={() => void (window as any).grudge?.files?.openSystem?.(asset.localPath)}
+              >
+                System open
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {/* Elite chrome controls */}
+      {/* Simple chrome */}
       <div
         style={{
           flexShrink: 0,
@@ -161,9 +259,26 @@ export default function VideoViewer({ asset }: { asset: AssetRef }) {
           >
             {basename(asset.name)}
           </span>
-          {asset.size > 0 && (
+          {dims && (
             <span style={{ fontSize: 11, color: "var(--muted, #9aa6c8)" }}>
-              {formatBytes(asset.size)}
+              {dims.w}×{dims.h}
+            </span>
+          )}
+          {asset.size > 0 && (
+            <span style={{ fontSize: 11, color: "var(--muted, #9aa6c8)" }}>{formatBytes(asset.size)}</span>
+          )}
+          {(asset.stream || /^grudge-media:/i.test(asset.url || "")) && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: "var(--gold, #ffc62a)",
+                border: "1px solid var(--gold, #ffc62a)",
+                borderRadius: 999,
+                padding: "1px 8px",
+              }}
+            >
+              STREAM
             </span>
           )}
           <span
@@ -180,44 +295,88 @@ export default function VideoViewer({ asset }: { asset: AssetRef }) {
           </span>
         </div>
 
-        <input
-          type="range"
-          min={0}
-          max={duration || 0}
-          step={0.05}
-          value={current}
-          onChange={(e) => seek(Number(e.target.value))}
-          style={{ width: "100%", accentColor: "#ffc62a" }}
-        />
+        {!nativeControls && (
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.05}
+            value={current}
+            onChange={(e) => seek(Number(e.target.value))}
+            style={{ width: "100%", accentColor: "#ffc62a" }}
+          />
+        )}
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" className="btn" style={{ padding: "4px 12px", fontSize: 12 }} onClick={togglePlay}>
-            {playing ? "Pause" : "Play"}
-          </button>
+          {!nativeControls && (
+            <>
+              <button type="button" className="btn" style={{ padding: "4px 12px", fontSize: 12 }} onClick={togglePlay}>
+                {playing ? "Pause" : "Play"}
+              </button>
+              <button
+                type="button"
+                className="btn ghost"
+                style={{ padding: "4px 10px", fontSize: 11 }}
+                onClick={() => {
+                  const next = !muted;
+                  setMuted(next);
+                  if (videoRef.current) videoRef.current.muted = next;
+                }}
+              >
+                {muted ? "Unmute" : "Mute"}
+              </button>
+              <label style={{ fontSize: 11, color: "var(--muted)", display: "flex", alignItems: "center", gap: 6 }}>
+                Vol
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={muted ? 0 : volume}
+                  onChange={(e) => {
+                    const vol = Number(e.target.value);
+                    setVolume(vol);
+                    setMuted(vol === 0);
+                    if (videoRef.current) {
+                      videoRef.current.volume = vol;
+                      videoRef.current.muted = vol === 0;
+                    }
+                  }}
+                  style={{ width: 72, accentColor: "#ffc62a" }}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn ghost"
+                style={{ padding: "4px 10px", fontSize: 11 }}
+                onClick={() => setLoop((l) => !l)}
+              >
+                Loop {loop ? "on" : "off"}
+              </button>
+              <button type="button" className="btn ghost" style={{ padding: "4px 10px", fontSize: 11 }} onClick={toggleFs}>
+                Fullscreen
+              </button>
+            </>
+          )}
           <button
             type="button"
             className="btn ghost"
             style={{ padding: "4px 10px", fontSize: 11 }}
-            onClick={() => {
-              setMuted((m) => !m);
-              if (videoRef.current) videoRef.current.muted = !muted;
+            onClick={() => setNativeControls((n) => !n)}
+            title="Toggle Chromium native video controls"
+          >
+            {nativeControls ? "Custom controls" : "Native controls"}
+          </button>
+          <span
+            style={{
+              marginLeft: "auto",
+              fontSize: 11,
+              color: "var(--muted, #9aa6c8)",
+              fontVariantNumeric: "tabular-nums",
             }}
           >
-            {muted ? "Unmute" : "Mute"}
-          </button>
-          <button
-            type="button"
-            className="btn ghost"
-            style={{ padding: "4px 10px", fontSize: 11 }}
-            onClick={() => setLoop((l) => !l)}
-          >
-            Loop {loop ? "on" : "off"}
-          </button>
-          <button type="button" className="btn ghost" style={{ padding: "4px 10px", fontSize: 11 }} onClick={toggleFs}>
-            Fullscreen
-          </button>
-          <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--muted, #9aa6c8)", fontVariantNumeric: "tabular-nums" }}>
             {fmt(current)} / {fmt(duration)}
+            <span style={{ opacity: 0.6, marginLeft: 8 }}>Space · F · M</span>
           </span>
         </div>
       </div>

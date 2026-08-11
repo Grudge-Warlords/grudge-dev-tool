@@ -378,6 +378,38 @@ const api = {
   model: {
     inspect: (path: string) => ipcRenderer.invoke("model:inspect", path),
   },
+  /**
+   * Asset understand — markdown + JSON card for AI (kind, open path, model stats, optional vision).
+   * Use before agent tools so AI routes video/audio/image/3D correctly.
+   */
+  asset: {
+    understand: (args: {
+      path?: string;
+      name?: string;
+      url?: string;
+      contentType?: string;
+      size?: number;
+      /** When true, run vision caption for images (CF Workers AI / Legion). */
+      withAi?: boolean;
+    }) =>
+      ipcRenderer.invoke("asset:understand", args) as Promise<
+        | {
+            ok: true;
+            name: string;
+            path: string | null;
+            url: string | null;
+            kind: string;
+            contentType: string;
+            sizeBytes: number;
+            markdown: string;
+            summary: string;
+            aiNote: string | null;
+            openHints: string[];
+            stream: boolean;
+          }
+        | { ok: false; error: string }
+      >,
+  },
   // Forge3D editor / Windows 3D viewer
   forge: {
     /** Returns the path captured from argv before the renderer mounted (or null). */

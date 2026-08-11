@@ -727,6 +727,34 @@ export default function LocalFiles() {
               >
                 System open
               </button>
+              <button
+                type="button"
+                className="btn ghost text-[11px] px-2 py-1"
+                title="Copy AI asset card (kind, open hints, model/vision notes)"
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      const r = await (window as any).grudge?.asset?.understand?.({
+                        path: selected.path,
+                        name: selected.name,
+                        contentType: selected.contentType,
+                        size: selected.size,
+                        withAi: selected.kind === "image" || selected.kind === "model3d",
+                      });
+                      if (!r?.ok) {
+                        toast.error(r?.error || "Understand failed");
+                        return;
+                      }
+                      await navigator.clipboard.writeText(r.markdown);
+                      toast.success("AI asset card copied", { description: r.summary?.slice(0, 100) });
+                    } catch (e: unknown) {
+                      toast.error(e instanceof Error ? e.message : "Understand failed");
+                    }
+                  })();
+                }}
+              >
+                AI card
+              </button>
             </div>
           )}
         </div>

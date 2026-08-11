@@ -4,6 +4,18 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.0.7] — 2026-08-11
+
+### Added
+- **Simple video viewer** — reliable HTML5 player: direct `src`, native-controls fallback, volume, Space/F/M keys, dimensions, STREAM badge, system-open on codec fail.
+- **AI asset cards** — `asset:understand` IPC builds markdown cards (kind, mime, size, stream, open hints, GLB inspect, optional vision caption). Elite viewer **AI card** / **AI+** and Local Files **AI card** copy to clipboard for agents.
+
+### Fixed
+- Elite stream resolve now stamps `stream: true` so audio/video viewers skip full-file waveform/blob paths.
+
+### Changed
+- Product **1.0.7**; README media + AI understand notes.
+
 ## [1.0.6] — 2026-08-11
 
 ### Fixed

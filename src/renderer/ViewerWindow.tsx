@@ -93,6 +93,8 @@ function ViewerHeader({
     asset: AssetRef; kind: AssetKind;
 }) {
     const fname = useMemo(() => basename(asset.name), [asset.name]);
+    const [aiBusy, setAiBusy] = useState(false);
+    const isLocal = Boolean(asset.localPath) || asset.url?.startsWith("blob:") || asset.url?.startsWith("local:");
 
     function download() {
         const a = document.createElement("a");
@@ -112,7 +114,32 @@ function ViewerHeader({
         G()?.os?.openExternal?.(asset.url);
     }
     function closeWindow() { window.close(); }
-    const isLocal = Boolean(asset.localPath) || asset.url?.startsWith("blob:") || asset.url?.startsWith("local:");
+
+    async function understandAsset(withAi: boolean) {
+        setAiBusy(true);
+        try {
+            const r = await G()?.asset?.understand?.({
+                path: asset.localPath || asset.sourcePath,
+                name: asset.name,
+                url: asset.url?.startsWith("blob:") || asset.url?.startsWith("local:") ? undefined : asset.url,
+                contentType: asset.contentType,
+                size: asset.size,
+                withAi,
+            });
+            if (!r?.ok) {
+                toast.error(r?.error || "Understand failed");
+                return;
+            }
+            await navigator.clipboard.writeText(r.markdown);
+            toast.success(withAi ? "AI asset card copied" : "Asset card copied", {
+                description: r.summary?.slice(0, 120) || r.kind,
+            });
+        } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : "Understand failed");
+        } finally {
+            setAiBusy(false);
+        }
+    }
 
     return (
         <div style={{
@@ -154,6 +181,20 @@ function ViewerHeader({
                 )}
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                <HBtn
+                    title="Copy asset card for AI (kind, open hints, model stats)"
+                    onClick={() => void understandAsset(false)}
+                >
+                    {aiBusy ? "…" : "AI card"}
+                </HBtn>
+                {(kind === "image" || kind === "model3d") && (
+                    <HBtn
+                        title="Understand with vision / model inspect + copy card"
+                        onClick={() => void understandAsset(true)}
+                    >
+                        AI+
+                    </HBtn>
+                )}
                 {(asset.sourcePath || asset.localPath) && (
                     <HBtn
                         title="Open original in system app (Photoshop / Blender / …)"
@@ -1242,6 +1283,7 @@ export default function ViewerWindow() {
                         contentType: a.contentType || "",
                         size: a.size || 0,
                         localPath: a.localPath,
+                        stream: true,
                     };
                     setAsset(resolved);
                     document.title = `${basename(resolved.name)} — Grudge Elite Viewer`;

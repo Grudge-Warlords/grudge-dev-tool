@@ -23,6 +23,7 @@ import * as bk from "./blenderkit/daemon";
 import { detectAll } from "./ingestion/toolchain";
 import { ingestOne, convertFile, verifyFile } from "./ingestion";
 import { inspectModel } from "./ingestion/modelInspect";
+import { understandAsset } from "./assetUnderstand";
 import { extractZip } from "./ingestion/archive";
 import log, { initLogger, getLogFilePath } from "./logger";
 import { startConnectivity, stopConnectivity, getConnectivity } from "./connectivity";
@@ -887,6 +888,15 @@ function registerIpc() {
 
   // Model inspection (gltf-transform scene graph — parent/child tree, meshes, materials, skins, animations)
   ipcMain.handle("model:inspect", (_e, path: string) => inspectModel(path));
+
+  // Asset understand — structured card for AI agents (kind, open hints, model inspect, optional vision)
+  ipcMain.handle(
+    "asset:understand",
+    (
+      _e,
+      args: { path?: string; name?: string; url?: string; contentType?: string; size?: number; withAi?: boolean },
+    ) => understandAsset(args ?? {}),
+  );
 
   // Archive extraction (fflate unzip — for asset pack imports and Sketchfab downloads)
   ipcMain.handle("archive:unzip", (_e, path: string, destDir?: string) => extractZip(path, destDir));

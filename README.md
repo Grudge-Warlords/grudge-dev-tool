@@ -23,7 +23,7 @@
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **Desktop app** | **v1.0.6** | Windows tray · elite open · stream audio/video · media SSOT · textures/Draco · convert-to-GLB · auto-update |
+| **Desktop app** | **v1.0.7** | Windows tray · simple video · AI asset cards · stream audio/video · media SSOT · convert-to-GLB · auto-update |
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
@@ -33,14 +33,13 @@
 
 ---
 
-## What's new in 1.0.6
+## What's new in 1.0.7
 
-- **Media SSOT** — one extension / stream map in `src/shared/mediaTypes.ts` for Explorer open, Local Files, elite viewer, and `grudge-media://`  
-- **Stream-safe audio** — double-click MP3/WAV/OGG/… plays without full-file waveform RAM load; loop + rate for game SFX test  
-- **Local Files kind chips** — filter Audio / Video / 3D / Image packs; **double-click file → elite viewer** (folders navigate)  
-- **Video** unchanged path (1.0.1+): MP4/WebM stream + transport chrome  
+- **Simple video viewer** — double-click MP4/WebM/MOV → elite player (stream, native-controls fallback, Space/F/M, volume)  
+- **AI asset cards** — **AI card** / **AI+** copies markdown for agents (kind, open hints, GLB inspect, image vision when signed in)  
+- Builds on **1.0.6**: media SSOT, stream audio, Local Files kind chips  
 
-Earlier: **1.0.5** textures/Draco/OBJ; **1.0.x** single-login SSO, PSD/BLEND, Multiverse, Meshopt, full Assets search.
+Earlier: **1.0.5** textures/Draco; **1.0.x** SSO, PSD/BLEND, Multiverse, Meshopt.
 
 ---
 
@@ -82,12 +81,13 @@ grudge-dev doctor          # ONE TRUTH score via client.grudge-studio.com
 | Action | Result |
 |--------|--------|
 | **Local Files → double-click** file | Always-on-top **Elite Viewer** (not Forge) |
-| Audio / video | Streamed via `grudge-media://` (no full-file RAM blob) |
+| Audio / video | Streamed via `grudge-media://` (no full-file RAM blob); simple VideoViewer chrome |
 | Kind chips | Filter Audio · Video · 3D · Image while browsing packs |
 | Explorer **Open with** / double-click | Same elite path after **Settings → Set as default for all asset types** |
+| **AI card** | Clipboard markdown: kind, open hints, model stats / vision — for Legion/Ollama agents |
 | ObjectStore / Assets tab | Preview CDN assets; send **3D** to Forge only when you choose |
 
-SSOT: `src/shared/mediaTypes.ts` · bridge: `src/main/openFileBridge.ts` · stream: `src/main/mediaProtocol.ts`.
+SSOT: `src/shared/mediaTypes.ts` · open: `openFileBridge` · stream: `mediaProtocol` · AI: `assetUnderstand` (`asset:understand`).
 
 Settings **Apply ONE TRUTH** remains the single host matrix (client.grudge-studio.com) — do not fork alternate API bases for new work.
 
