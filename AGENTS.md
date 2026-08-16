@@ -1,7 +1,8 @@
 # Grudge Dev Tool — Agent Instructions
 
-**Product:** `Grudge Studio Forge` (`com.grudgestudio.forge`) — Electron 41 tray app for game developers.  
-**Repo:** `Grudge-Warlords/grudge-dev-tool` · Auto-updates via GitHub Releases.
+**Product:** **Grudge Dev Tool** (`com.grudgestudio.devtool`) — Electron 41 tray hub (Elite viewer, Assets, Studio).  
+**Repo:** `Grudge-Warlords/grudge-dev-tool` · Auto-updates via GitHub Releases.  
+**Not Forge.** Live Forge is `forge.grudge-studio.com`. Live scene editor is ThreeFlow `threeflow.vercel.app`.
 
 > **Note:** Electron 41 is a pre-release/internal build — standard compatibility docs may not apply.
 

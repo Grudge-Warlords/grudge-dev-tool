@@ -6,9 +6,9 @@
 |---------|------|
 | **Home** | Fleet health · admin systems · primary actions |
 | **Local Files** | Disk browser · kind chips · double-click → elite viewer (3D / image / **audio** / **video** / PSD / BLEND) |
-| **Assets** | R2 / ObjectStore · `>query` · pop-out viewer · send → Forge |
+| **Assets** | R2 / ObjectStore · `>query` · pop-out Elite viewer · Open in ThreeFlow / Forge |
 | **Skeleton** | Mixamo-25 → T-pose → retarget → convert → CDN |
-| **Forge** | Production `forge.grudge-studio.com` embed (R3F + Rapier) + session handoff |
+| **Forge** | Production `forge.grudge-studio.com` embed (R3F + Rapier deploy) |
 | **Preview** | Open · client · water · GRUDOX · **Multiverse** playtests |
 | **Games** | Fleet catalog launcher |
 | **Agent AI** | Make & deploy · Ollama / Legion / Workers AI |
@@ -23,7 +23,7 @@
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **Desktop app** | **v1.0.7** | Windows tray · simple video · AI asset cards · stream audio/video · media SSOT · convert-to-GLB · auto-update |
+| **Desktop app** | **v1.0.9** | Windows tray · r185 Elite loaders · ThreeFlow/Forge `?asset=` · blob-free convert · auto-update |
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
@@ -33,13 +33,14 @@
 
 ---
 
-## What's new in 1.0.7
+## What's new in 1.0.8
 
-- **Simple video viewer** — double-click MP4/WebM/MOV → elite player (stream, native-controls fallback, Space/F/M, volume)  
-- **AI asset cards** — **AI card** / **AI+** copies markdown for agents (kind, open hints, GLB inspect, image vision when signed in)  
-- Builds on **1.0.6**: media SSOT, stream audio, Local Files kind chips  
+- **Production GLTF factory** (same as ThreeFlow): bundled Draco + Meshopt + lazy KTX2 — no gstatic/jsDelivr  
+- **Open in ThreeFlow** / **Open in Forge (live)** via `src/shared/editorHandoff.ts` (`?asset=`)  
+- **three 0.185** + `three/addons/*` · local Ollama = `grudge-dev` + `llama3.2` only  
+- Blender/ffmpeg **not** shipped in the repo; `npm run toolchain:install` when convert needs them  
 
-Earlier: **1.0.5** textures/Draco; **1.0.x** SSO, PSD/BLEND, Multiverse, Meshopt.
+Earlier: **1.0.7** video + AI cards · **1.0.6** media SSOT · **1.0.5** Elite textures/Draco.
 
 ---
 

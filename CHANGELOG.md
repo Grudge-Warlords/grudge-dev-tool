@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.0.9] — 2026-08-16
+
+### Changed
+- SSOT identity: product is **Grudge Dev Tool** (`com.grudgestudio.devtool`), not Forge. README + best practices name the editor trio (Elite / ThreeFlow / Forge live).
+
 ## [1.0.8] — 2026-08-16
 
 ### Changed
