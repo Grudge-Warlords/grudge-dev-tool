@@ -4,6 +4,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.0.8] — 2026-08-16
+
+### Changed
+- r185 production loaders, blob purge, ThreeFlow/Forge handoff.
+
 ### Fixed
 - **Elite / Forge compressed GLB loaders** — viewer CSP blocked gstatic Draco + jsDelivr Basis, and forced JS Draco. Viewer now uses the same **ThreeFlow production factory** (`gltfProdLoader.ts`): r185 bundled Draco WASM + `three/addons` Meshopt + lazy KTX2, plus `wasm-unsafe-eval` on viewer/index CSP.
 
@@ -215,4 +220,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - Agent AI UI: **Start local AI** button; removed "Open full GRUDA Agent" external browser link.
 
 [1.0.5]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.5
-
+[1.0.8]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.8
