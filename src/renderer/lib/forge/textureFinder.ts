@@ -4,7 +4,7 @@
  */
 
 import * as THREE from "three";
-import { TGALoader } from "three/examples/jsm/loaders/TGALoader.js";
+import { TGALoader } from "three/addons/loaders/TGALoader.js";
 
 export type TextureRole =
   | "map"
@@ -80,9 +80,10 @@ function detectRole(filename: string): { role: TextureRole; weight: number } | n
       best = { role: p.role, weight: p.weight };
     }
   }
-  // Fallback: bare albedo-like if no role tag
+  // Bare files without role tags are weak candidates — only apply when
+  // name affinity is very high (prevents random folder PNGs scrambling colors).
   if (!best && IMAGE_EXT.test(name)) {
-    best = { role: "map", weight: 2 };
+    best = { role: "map", weight: 1 };
   }
   return best;
 }
@@ -239,7 +240,8 @@ export async function applySmartTextures(
   opts: ApplySmartTexturesOptions = {},
 ): Promise<TextureMatchReport[]> {
   const onlyMissing = opts.onlyMissingMaps !== false; // default: protect good maps
-  const minAffinity = opts.minAffinity ?? 1;
+  // Higher default: bare "texture.png" must share mesh/mat name tokens to apply
+  const minAffinity = opts.minAffinity ?? 2;
   const reports: TextureMatchReport[] = [];
   const meshList: THREE.Mesh[] = [];
   root.traverse((n) => {
@@ -260,7 +262,7 @@ export async function applySmartTextures(
       // unless some PBR slots are empty (still fill those).
       for (const [role, cand] of matches) {
         // Reject weak bare-folder matches that would paint random images
-        if (cand.score < 4 + minAffinity && role === "map" && mapIsUsable(mat.map)) {
+        if (cand.score < 6 + minAffinity && role === "map" && mapIsUsable(mat.map)) {
           skipped.push(`${cand.name}(weak-keep-existing)`);
           continue;
         }
@@ -271,11 +273,19 @@ export async function applySmartTextures(
             continue;
           }
         }
-        // Require some name affinity for non-map roles; for map require score ≥ 5
-        // unless material has zero maps at all
+        // Albedo: require role-tagged name OR strong mesh/mat affinity.
+        // Bare random PNGs in the folder must not recolor every mesh.
         const needsMap = !mapIsUsable(mat.map);
-        if (role === "map" && cand.score < (needsMap ? 3 : 8)) {
-          skipped.push(`${cand.name}(low-score)`);
+        const roleTagged = /(?:albedo|basecolor|base_color|diffuse|diff|color|col|alb)/i.test(
+          cand.name,
+        );
+        const mapMin = needsMap ? (roleTagged ? 5 : 9) : 12;
+        if (role === "map" && cand.score < mapMin) {
+          skipped.push(`${cand.name}(low-score-random-guard)`);
+          continue;
+        }
+        if (role !== "map" && cand.score < 6 + minAffinity) {
+          skipped.push(`${cand.name}(low-score-${role})`);
           continue;
         }
         try {

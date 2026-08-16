@@ -10,7 +10,7 @@ Format: `SLOT-TIER-ITEMID-TIMESTAMP-COUNTER`
 - **ITEMID** (4 digits) — `0001`–`9999`
 - **TIMESTAMP** (12 digits) — `HHMMMMDDYYYY` in Texas time (CST/CDT)
 - **COUNTER** (6 alphanum) — base-36 (`000001`–`zzzzzz`)
-Authoritative spec lives in `GrudgeBuilder/docs/UUID_SYSTEM.md`. The dev tool's local copy in `src/shared/grudgeUUID.ts` is kept in sync — any change in one MUST be mirrored to the other.
+Authoritative spec lives in `GrudgeBuilder/docs/UUID_SYSTEM.md`. Fleet ID taxonomy (character UUID vs item Grudge UUID vs wallet vs `grudge_id`): `GrudgeBuilder/docs/FLEET_ACCOUNT_WALLET_UUID_SSOT.md`. The dev tool's local copy in `src/shared/grudgeUUID.ts` is kept in sync — **change Builder first**, then mirror here.
 ## Asset-pack codes (added by this tool)
 | Code   | Meaning                                  |
 |--------|------------------------------------------|

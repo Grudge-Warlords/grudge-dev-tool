@@ -21,6 +21,7 @@ import {
 } from "../shared/mediaTypes";
 import log from "./logger";
 import * as viewer from "./viewer";
+import { resolveSceneOpenPath } from "./forge";
 
 /**
  * Every extension the elite viewer can open from disk / Explorer.
@@ -41,20 +42,33 @@ export type EliteKind =
 
 export function classifyPath(filePath: string): EliteKind {
   const name = basename(filePath);
-  if (isThreeScenePath(name) || /\.gfscene$/i.test(name) || /\.scene\.json$/i.test(name)) {
+  if (
+    isThreeScenePath(name) ||
+    /\.gfscene$/i.test(name) ||
+    /\.scene\.json$/i.test(name) ||
+    /\.forge-scene\.json$/i.test(name) ||
+    /\.three\.json$/i.test(name)
+  ) {
     return "scene3d";
   }
-  if (isModelPath(name)) return "model3d";
+  // .bin companions + glTF packs open as 3D (resolved to .gltf on open)
+  if (isModelPath(name) || /\.bin$/i.test(name)) return "model3d";
   if (isImagePath(name) || /\.psd$/i.test(name)) return "image";
   if (isAudioPath(name)) return "audio";
   if (isVideoPath(name)) return "video";
   if (/\.pdf$/i.test(name)) return "pdf";
   if (/\.(ttf|otf|woff2?)$/i.test(name)) return "font";
+  // Plain .json under /scenes/ already scene3d; other JSON stays text unless name matches
   if (
-    /\.(json|txt|md|markdown|ya?ml|csv|tsv|log|xml|html?|css|js|mjs|cjs|tsx?|jsx|env|toml|ini)$/i.test(
+    /\.(txt|md|markdown|ya?ml|csv|tsv|log|xml|html?|css|js|mjs|cjs|tsx?|jsx|env|toml|ini)$/i.test(
       name,
     )
   ) {
+    return "text";
+  }
+  if (/\.json$/i.test(name)) {
+    // Prefer 3D scene when name hints; Elite open still content-sniffs
+    if (/scene|forge|three|gfscene/i.test(name)) return "scene3d";
     return "text";
   }
   return "file";
@@ -115,15 +129,44 @@ export async function openPathInEliteViewer(
   mainWindow: BrowserWindow | null,
 ): Promise<{ ok: true; token: string; kind: EliteKind } | { ok: false; error: string }> {
   try {
-    const p = resolve(filePath);
+    let p = resolve(filePath);
     if (!existsSync(p)) return { ok: false, error: "File not found: " + p };
     if (!statSync(p).isFile()) return { ok: false, error: "Not a file: " + p };
 
-    const kind = classifyPath(p);
+    const sourcePath = p;
+    let openNote: string | undefined;
+    // .bin → sibling .gltf; JSON scene sniff; keep multi-file pack root
+    try {
+      const ext = extname(p).toLowerCase();
+      if (
+        ext === ".bin" ||
+        ext === ".json" ||
+        ext === ".gfscene" ||
+        ext === ".scene" ||
+        ext === ".three" ||
+        /\.(forge-scene|scene|three|gfscene)\.json$/i.test(basename(p))
+      ) {
+        const resolved = await resolveSceneOpenPath(p);
+        if (resolved.path !== p) {
+          log.info(`[openFile] resolved ${basename(p)} → ${basename(resolved.path)} (${resolved.note || resolved.role})`);
+        }
+        p = resolved.path;
+        openNote = resolved.note;
+      }
+    } catch (resolveErr: unknown) {
+      const msg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
+      return { ok: false, error: msg };
+    }
+
+    let kind = classifyPath(p);
+    // Content-resolved three/forge scenes
+    if (openNote?.includes("ObjectLoader") || openNote?.includes("Forge multi")) {
+      kind = "scene3d";
+    }
     const contentType = inferContentType(basename(p));
     const size = statSync(p).size;
 
-    log.info(`[openFile] elite viewer ← ${kind} ${p}`);
+    log.info(`[openFile] elite viewer ← ${kind} ${p}${openNote ? ` (${openNote})` : ""}`);
     const { token } = await viewer.openLocalPath(
       p,
       { contentType, size },
@@ -137,12 +180,14 @@ export async function openPathInEliteViewer(
       mainWindow.webContents.send("nav", "/local");
       mainWindow.webContents.send("openFile:opened", {
         path: p,
+        sourcePath,
         name: basename(p),
         dir: dirname(p),
         kind,
         contentType,
         size,
         token,
+        note: openNote,
       });
     }
 

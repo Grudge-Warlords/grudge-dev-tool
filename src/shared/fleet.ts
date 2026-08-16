@@ -44,6 +44,11 @@ export const FLEET_URLS = {
   /** Forge 3D editor (production) — develop + deploy 3D games */
   forge: "https://forge.grudge-studio.com",
   /**
+   * ThreeFlow — Warlords scene editor / deploy surface (Vue + three r185).
+   * Viewer/Forge hand off CDN URLs via ?asset= — not a second play host.
+   */
+  threeflow: "https://threeflow.vercel.app",
+  /**
    * Game UI Studio (HYDRA) — HUD / menus / settings / packs for all editors.
    * Open hosts GRUDOX as voxel launcher; UI is shared chrome SSOT.
    */

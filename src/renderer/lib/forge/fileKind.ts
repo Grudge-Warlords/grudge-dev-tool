@@ -8,6 +8,7 @@
 export type DroppedFileKind =
   | "glb"
   | "gltf"
+  | "gltf-bin"
   | "vrm"
   | "obj"
   | "fbx"
@@ -25,6 +26,7 @@ export function classifyDroppedFile(file: { name: string }): DroppedFileKind | n
   const name = file.name.toLowerCase();
   if (name.endsWith(".glb")) return "glb";
   if (name.endsWith(".gltf")) return "gltf";
+  if (name.endsWith(".bin")) return "gltf-bin";
   if (name.endsWith(".vrm")) return "vrm";
   if (name.endsWith(".obj")) return "obj";
   if (name.endsWith(".fbx")) return "fbx";
@@ -41,7 +43,10 @@ export function classifyDroppedFile(file: { name: string }): DroppedFileKind | n
     name.endsWith(".gfscene") ||
     name.endsWith(".gfscene.json") ||
     name.endsWith(".scene.json") ||
-    name.endsWith(".three.json")
+    name.endsWith(".three.json") ||
+    name.endsWith(".forge-scene.json") ||
+    name.endsWith(".scene") ||
+    name.endsWith(".three")
   ) {
     return "scene-json";
   }
@@ -52,6 +57,7 @@ export function isModelKind(kind: DroppedFileKind | null): boolean {
   return (
     kind === "glb" ||
     kind === "gltf" ||
+    kind === "gltf-bin" ||
     kind === "vrm" ||
     kind === "obj" ||
     kind === "fbx" ||
@@ -66,4 +72,4 @@ export function isModelKind(kind: DroppedFileKind | null): boolean {
 
 /** Accept attribute for &lt;input type=file&gt; (models + scene JSON + zip + HTML CSS3D). */
 export const FORGE_IMPORT_ACCEPT =
-  ".glb,.gltf,.vrm,.obj,.fbx,.stl,.ply,.dae,.3mf,.zip,.json,.gfscene,.gfscene.json,.scene.json,.html,.htm,model/*,application/json,text/html";
+  ".glb,.gltf,.bin,.vrm,.obj,.fbx,.stl,.ply,.dae,.3mf,.zip,.json,.gfscene,.gfscene.json,.scene.json,.three.json,.forge-scene.json,.scene,.html,.htm,model/*,application/json,text/html";

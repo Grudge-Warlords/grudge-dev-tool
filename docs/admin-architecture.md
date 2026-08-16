@@ -31,6 +31,7 @@ Code SSOT: `src/shared/adminSurfaces.ts` · `src/shared/fleet.ts` · `src/shared
 | **UUID** | system | `shared/grudgeUUID.ts` | Generate/parse only — agents must not invent formats |
 | **Legion Chat** | hybrid | **https://ai.grudge-studio.com** | Fleet Legion — **≠** Coder AI hub worker |
 | **Agent AI** | local | Ollama + Legion + tools | Make & deploy; same CDN/convert contracts |
+| **Plugin host** | local loopback | `127.0.0.1:17380` | VS Code + standalone + viewer + CLI attach — not a second product |
 | **Docs** | docs | repo `docs/` → GitHub Pages | Same Markdown as this site |
 
 ---

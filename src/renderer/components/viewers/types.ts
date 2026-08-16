@@ -36,12 +36,12 @@ const EXT: Record<AssetKind, string[]> = {
   video:  ["mp4", "webm", "mov", "m4v", "ogv", "mkv", "avi"],
   audio:  ["mp3", "wav", "ogg", "flac", "m4a", "aac", "opus"],
   model3d: [
-    "glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend", "vrm",
+    "glb", "gltf", "bin", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend", "vrm",
     // HTML CSS3D quick-view plane (preview; convert to GLB separately for games)
     "html", "htm",
   ],
-  /** Three.js ObjectLoader / scene dumps — handled by Model3D path when possible. */
-  scene3d: ["scene", "gfscene"],
+  /** Three.js ObjectLoader / Forge scene dumps — Elite Viewer uses same 3D path. */
+  scene3d: ["scene", "gfscene", "three"],
   text:   ["txt", "json", "md", "markdown", "yml", "yaml", "ts", "tsx", "js", "jsx",
            "mjs", "cjs", "css", "scss", "html", "htm", "xml", "csv", "tsv", "log",
            "ini", "toml", "env", "gitignore", "rs", "go", "py", "sh", "ps1",
@@ -57,9 +57,14 @@ const EXT: Record<AssetKind, string[]> = {
 };
 
 function isThreeSceneName(name: string): boolean {
-  const lower = name.toLowerCase();
+  const lower = name.toLowerCase().replace(/\\/g, "/");
   return lower.endsWith(".scene.json")
     || lower.endsWith(".three.json")
+    || lower.endsWith(".forge-scene.json")
+    || lower.endsWith(".gfscene.json")
+    || lower.endsWith(".gfscene")
+    || lower.endsWith(".scene")
+    || lower.endsWith(".three")
     || (lower.includes("/scenes/") && lower.endsWith(".json"));
 }
 
@@ -67,6 +72,9 @@ function isThreeSceneName(name: string): boolean {
  *  returns application/octet-stream), then fall back to MIME-prefix sniffing. */
 export function classify(ref: AssetRef): AssetKind {
   if (isThreeSceneName(ref.name)) return "scene3d";
+  const base = basename(ref.name);
+  // glTF multi-file: .bin companions are 3D (resolved to sibling .gltf on open)
+  if (base.toLowerCase().endsWith(".bin")) return "model3d";
   const dotIdx = ref.name.lastIndexOf(".");
   const ext = dotIdx !== -1 ? ref.name.slice(dotIdx + 1).toLowerCase() : "";
   for (const [kind, list] of Object.entries(EXT) as [AssetKind, string[]][]) {

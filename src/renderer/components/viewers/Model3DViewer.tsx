@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { loadModelFromUrl, isSupported } from "../../lib/forge/loaders";
+import { measureObjectSi } from "../../lib/forge/siMeasure";
 import {
   getMultiCanvasHub,
   type MultiCanvasView,
@@ -15,6 +16,7 @@ interface Stats {
   format: string;
   materialsFixed?: number;
   missingMaps?: number;
+  heightM?: number;
 }
 
 /**
@@ -96,6 +98,7 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
 
         const missingMaps =
           loaded.materials?.issues.filter((i) => i.code === "missing-map" && !i.fixed).length ?? 0;
+        const si = measureObjectSi(loaded.object);
         setStats({
           triangles: loaded.triangles,
           vertices: loaded.vertices,
@@ -104,6 +107,7 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
           format: loaded.format,
           materialsFixed: loaded.materials?.fixed,
           missingMaps,
+          heightM: si.h,
         });
       } catch (e: unknown) {
         if (!cancelled) {
@@ -190,6 +194,9 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
           <span>{stats.triangles.toLocaleString()} tris</span>
           <span>{stats.vertices.toLocaleString()} verts</span>
           {stats.bones > 0 && <span>{stats.bones} bones</span>}
+          {typeof stats.heightM === "number" && stats.heightM > 0 && (
+            <span title="SI height">{stats.heightM.toFixed(2)} m</span>
+          )}
           {typeof stats.materialsFixed === "number" && stats.materialsFixed > 0 && (
             <span title="Material sanitize fixed yellow/black/colorSpace" style={{ color: "#7dffa0" }}>
               mats+{stats.materialsFixed}

@@ -11,7 +11,7 @@ export interface GraphNode {
   isBone: boolean;
 }
 
-const SKIP_TYPES = new Set(["GridHelper", "AxesHelper", "SkeletonHelper"]);
+const SKIP_TYPES = new Set(["GridHelper", "AxesHelper", "SkeletonHelper", "Box3Helper"]);
 
 export function isEngineHelper(node: THREE.Object3D): boolean {
   if (node.userData.forgeInternal) return true;

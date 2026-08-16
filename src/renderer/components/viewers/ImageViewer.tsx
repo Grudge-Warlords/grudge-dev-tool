@@ -102,6 +102,7 @@ export default function ImageViewer({ asset }: { asset: AssetRef }) {
         name: asset.name,
         format,
         quality: format === "png" ? 90 : 86,
+        localPath: asset.localPath || asset.sourcePath,
       });
       if (!r.ok || !r.path) {
         toast.error("Convert failed", { description: r.error });

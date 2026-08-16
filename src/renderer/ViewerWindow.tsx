@@ -18,7 +18,7 @@ import React, {
 } from "react";
 import * as THREE from "three";
 import { toast } from "sonner";
-import { SceneEngine } from "./lib/forge/sceneEngine";
+import { SceneEngine, type StudioView } from "./lib/forge/sceneEngine";
 import { loadModel, loadModelFromUrl, isSupported, localFileUrl } from "./lib/forge/loaders";
 import {
     attachAnimationMixer,
@@ -26,10 +26,22 @@ import {
     stopMixer,
     type AnimLoopMode,
 } from "./lib/forge/forgeAnimation";
+import { formatSiMeters, type SiBounds } from "./lib/forge/siMeasure";
+import AssetStudioInspector from "./components/viewers/AssetStudioInspector";
+import {
+    cloneViewerObject,
+    findViewerItemId,
+    newViewerItemId,
+    nextPlaceX,
+    readAuthorXform,
+    stampViewerItem,
+    type ViewerSceneItem,
+} from "./lib/forge/viewerScene";
 import {
     classify, basename, formatBytes,
     type AssetRef, type AssetKind,
 } from "./components/viewers/types";
+import { isPublicCdnUrl, forgeStudioAssetUrl, threeflowAssetUrl } from "../shared/editorHandoff";
 import ImageViewer from "./components/viewers/ImageViewer";
 import VideoViewer from "./components/viewers/VideoViewer";
 import AudioViewer from "./components/viewers/AudioViewer";
@@ -315,6 +327,8 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     const hostRef = useRef<HTMLDivElement | null>(null);
     const engineRef = useRef<SceneEngine | null>(null);
     const objectRef = useRef<THREE.Object3D | null>(null);
+    const itemsRef = useRef<ViewerSceneItem[]>([]);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
     const mixerRef = useRef<THREE.AnimationMixer | null>(null);
     const actionsRef = useRef<THREE.AnimationAction[]>([]);
     const clipsRef = useRef<THREE.AnimationClip[]>([]);
@@ -329,7 +343,15 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     const [grid, setGrid] = useState(true);
     const [hdri, setHdri] = useState(true);
     const [shadows, setShadows] = useState(true);
+    const [skeleton, setSkeleton] = useState(false);
+    const [boundsOn, setBoundsOn] = useState(false);
+    const [si, setSi] = useState<SiBounds | null>(null);
+    const [viewKind, setViewKind] = useState<StudioView>("persp");
     const [bgColour, setBgColour] = useState("#0a0e1a");
+    const [items, setItems] = useState<ViewerSceneItem[]>([]);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [gizmoSpace, setGizmoSpace] = useState<"world" | "local">("world");
+    const [adding, setAdding] = useState(false);
 
     // Animation review: exclusive primary clip (never stack multi-clip)
     const [clips, setClips] = useState<THREE.AnimationClip[]>([]);
@@ -386,11 +408,150 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
         engineRef.current = engine;
         // Save env map reference so we can toggle it later.
         envMapRef.current = engine.scene.environment;
+        const unsub = engine.onTransformChange(() => {
+            const obj = objectRef.current;
+            if (!obj) return;
+            const nextPos: [number, number, number] = [obj.position.x, obj.position.y, obj.position.z];
+            const nextRot: [number, number, number] = [
+                THREE.MathUtils.radToDeg(obj.rotation.x),
+                THREE.MathUtils.radToDeg(obj.rotation.y),
+                THREE.MathUtils.radToDeg(obj.rotation.z),
+            ];
+            const nextScl: [number, number, number] = [obj.scale.x, obj.scale.y, obj.scale.z];
+            transformRef.current = { pos: nextPos, rot: nextRot, scl: nextScl };
+            setPos(nextPos); setRot(nextRot); setScl(nextScl);
+            setUniformScale(obj.scale.x || 1);
+            setSi(engine.measureBounds(obj));
+        });
         return () => {
+            unsub();
             engine.dispose();
             engineRef.current = null;
         };
     }, []);
+
+    const applySelection = useCallback((item: ViewerSceneItem | null) => {
+        const engine = engineRef.current;
+        if (!item) {
+            objectRef.current = null;
+            mixerRef.current = null;
+            clipsRef.current = [];
+            setClips([]);
+            setSelectedId(null);
+            setSi(null);
+            engine?.detach();
+            return;
+        }
+        objectRef.current = item.object;
+        mixerRef.current = item.mixer;
+        clipsRef.current = item.animations;
+        setClips(item.animations);
+        setSelectedId(item.id);
+        setActiveClipIdx(item.animations.length ? 0 : null);
+        const cur = readAuthorXform(item.object);
+        transformRef.current = { pos: cur.pos, rot: cur.rot, scl: cur.scl };
+        authorXformRef.current = item.authorXform;
+        setPos(cur.pos); setRot(cur.rot); setScl(cur.scl);
+        setUniformScale(cur.scl[0] || 1);
+        engine?.attach(item.object);
+        engine?.pulseSelect(item.object);
+        if (engine) setSi(engine.measureBounds(item.object));
+        setStats({
+            triangles: item.triangles,
+            vertices: item.vertices,
+            bones: item.bones,
+            animations: item.animations.length,
+            format: item.format,
+        });
+        if (engine) {
+            engine.setSkeletonHelper(item.object, skeleton && item.bones > 0);
+            engine.setBoundsHelper(item.object, boundsOn);
+        }
+    }, [skeleton, boundsOn]);
+
+    const clearSceneItems = useCallback(() => {
+        const engine = engineRef.current;
+        for (const it of itemsRef.current) {
+            if (it.mixer) engine?.removeMixer(it.mixer);
+            engine?.removeSkeletonHelper(it.object);
+            engine?.scene.remove(it.object);
+            disposeTree(it.object);
+        }
+        itemsRef.current = [];
+        setItems([]);
+        applySelection(null);
+    }, [applySelection]);
+
+    const commitLoaded = useCallback((
+        loaded: {
+            object: THREE.Object3D;
+            animations: THREE.AnimationClip[];
+            triangles: number;
+            vertices: number;
+            bones: number;
+            format: string;
+        },
+        name: string,
+        opts?: { diskPath?: string; replace?: boolean; placeBeside?: boolean },
+    ): ViewerSceneItem | null => {
+        const engine = engineRef.current;
+        if (!engine) return null;
+        if (opts?.replace) clearSceneItems();
+        loaded.object.traverse((n) => {
+            const m = n as THREE.Mesh;
+            if (m.isMesh) {
+                m.castShadow = true;
+                m.receiveShadow = true;
+            }
+            const sm = n as THREE.SkinnedMesh;
+            if (sm.isSkinnedMesh) {
+                sm.frustumCulled = false;
+                sm.matrixWorldNeedsUpdate = true;
+            }
+        });
+        loaded.object.updateMatrixWorld(true);
+        if (opts?.placeBeside && itemsRef.current.length) {
+            loaded.object.position.x += nextPlaceX(itemsRef.current);
+        }
+        const id = newViewerItemId();
+        stampViewerItem(loaded.object, id);
+        engine.scene.add(loaded.object);
+        let mixer: THREE.AnimationMixer | null = null;
+        let clips: THREE.AnimationClip[] = loaded.animations;
+        if (loaded.animations.length > 0 || loaded.bones > 0) {
+            const handle = attachAnimationMixer(loaded.object, loaded.animations, {
+                dropRootMotion: true,
+            });
+            engine.mixers.push(handle.mixer);
+            mixer = handle.mixer;
+            clips = handle.clips;
+            if (handle.clips.length) {
+                setPrimaryAction(handle.mixer, handle.clips[0], "repeat");
+                handle.mixer.timeScale = animSpeed;
+            }
+        }
+        const item: ViewerSceneItem = {
+            id,
+            name,
+            format: loaded.format,
+            object: loaded.object,
+            animations: clips,
+            mixer,
+            triangles: loaded.triangles,
+            vertices: loaded.vertices,
+            bones: loaded.bones,
+            visible: true,
+            diskPath: opts?.diskPath,
+            authorXform: readAuthorXform(loaded.object),
+        };
+        itemsRef.current = [...itemsRef.current, item];
+        setItems(itemsRef.current);
+        applySelection(item);
+        engine.setSkeletonHelper(loaded.object, loaded.bones > 0);
+        setSkeleton(loaded.bones > 0);
+        engine.frame(loaded.object);
+        return item;
+    }, [applySelection, animSpeed, clearSceneItems]);
 
     // ── Load model ────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -430,75 +591,11 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
                 }
                 if (cancelled || !engineRef.current) return;
 
-                // Clear previous
-                if (objectRef.current) {
-                    engineRef.current.scene.remove(objectRef.current);
-                    disposeTree(objectRef.current);
-                }
-                if (mixerRef.current) {
-                    engineRef.current.removeMixer(mixerRef.current);
-                    mixerRef.current = null;
-                    actionsRef.current = [];
-                }
-
-                // Shadows + skinned pose (prepareMeshes already set frustumCulled / normals)
-                loaded.object.traverse((n) => {
-                    const m = n as THREE.Mesh;
-                    if (m.isMesh) {
-                        m.castShadow = true;
-                        m.receiveShadow = true;
-                    }
-                    const sm = n as THREE.SkinnedMesh;
-                    if (sm.isSkinnedMesh) {
-                        sm.frustumCulled = false;
-                        sm.matrixWorldNeedsUpdate = true;
-                    }
+                commitLoaded(loaded, fname, {
+                    diskPath: asset.localPath,
+                    replace: true,
                 });
-                loaded.object.updateMatrixWorld(true);
-                engineRef.current.scene.add(loaded.object);
-                objectRef.current = loaded.object;
-                // Seed transform UI from author transform — do NOT force scale 1
-                // (FBX packs often use 0.01 unit scale; wiping it breaks mesh size).
-                const ap = loaded.object.position;
-                const ar = loaded.object.rotation;
-                const as = loaded.object.scale;
-                const seedPos: [number, number, number] = [ap.x, ap.y, ap.z];
-                const seedRot: [number, number, number] = [
-                    THREE.MathUtils.radToDeg(ar.x),
-                    THREE.MathUtils.radToDeg(ar.y),
-                    THREE.MathUtils.radToDeg(ar.z),
-                ];
-                const seedScl: [number, number, number] = [as.x, as.y, as.z];
-                setPos(seedPos);
-                setRot(seedRot);
-                setScl(seedScl);
-                setUniformScale(as.x || 1);
-                transformRef.current = { pos: seedPos, rot: seedRot, scl: seedScl };
-                authorXformRef.current = { pos: seedPos, rot: seedRot, scl: seedScl };
-                engineRef.current.frame(loaded.object);
-
-                // Animations: exclusive primary clip (select switches via setPrimaryAction)
-                if (loaded.animations.length > 0 || loaded.bones > 0) {
-                    const handle = attachAnimationMixer(loaded.object, loaded.animations, {
-                        dropRootMotion: true,
-                    });
-                    engineRef.current.mixers.push(handle.mixer);
-                    mixerRef.current = handle.mixer;
-                    clipsRef.current = handle.clips;
-                    setClips(handle.clips);
-                    actionsRef.current = handle.clips.map((c) => handle.mixer.clipAction(c));
-                    if (handle.clips.length) {
-                        const act = setPrimaryAction(handle.mixer, handle.clips[0], animLoop);
-                        handle.mixer.timeScale = animSpeed;
-                        actionsRef.current[0] = act;
-                        setActiveClipIdx(0);
-                        setAnimPaused(false);
-                    } else {
-                        setActiveClipIdx(null);
-                        setAnimPaused(false);
-                    }
-                    engineRef.current.setSkeletonHelper?.(loaded.object, false);
-                }
+                setBoundsOn(false);
 
                 const missingMaps =
                     loaded.materials?.issues.filter((i) => i.code === "missing-map" && !i.fixed).length ?? 0;
@@ -524,8 +621,10 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
 
     const handleWireframe = useCallback((enabled: boolean) => {
         setWireframe(enabled);
-        if (!objectRef.current) return;
-        objectRef.current.traverse((n) => {
+        const roots = itemsRef.current.length
+            ? itemsRef.current.map((it) => it.object)
+            : objectRef.current ? [objectRef.current] : [];
+        for (const root of roots) root.traverse((n) => {
             const mesh = n as THREE.Mesh;
             if (!mesh.isMesh) return;
             const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -537,7 +636,107 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
 
     const handleGrid = useCallback((enabled: boolean) => {
         setGrid(enabled);
-        engineRef.current?.setHelpers(enabled);
+        engineRef.current?.setGridVisible(enabled);
+    }, []);
+
+    const handleSkeleton = useCallback((enabled: boolean) => {
+        setSkeleton(enabled);
+        if (objectRef.current) engineRef.current?.setSkeletonHelper(objectRef.current, enabled);
+    }, []);
+
+    const handleBounds = useCallback((enabled: boolean) => {
+        setBoundsOn(enabled);
+        if (objectRef.current) engineRef.current?.setBoundsHelper(objectRef.current, enabled);
+    }, []);
+
+    const applyView = useCallback((kind: StudioView) => {
+        engineRef.current?.setView(kind, objectRef.current);
+        setViewKind(kind);
+    }, []);
+
+    const applyGizmoSpace = useCallback((space: "world" | "local") => {
+        setGizmoSpace(space);
+        try { engineRef.current?.transform.setSpace(space); } catch { /* ignore */ }
+    }, []);
+
+    const addFilesFromList = useCallback(async (files: FileList | File[]) => {
+        const list = Array.from(files);
+        if (!list.length) return;
+        setAdding(true);
+        try {
+            for (const file of list) {
+                if (!isSupported(file.name)) {
+                    toast.error(`Unsupported: ${file.name}`);
+                    continue;
+                }
+                const diskPath = (file as File & { path?: string }).path;
+                const loaded = await loadModel(file, {
+                    diskPath,
+                    sanitize: { toonStyle: true, fixDefaultYellow: true, whiteWhenMapped: true },
+                });
+                commitLoaded(loaded, file.name, { diskPath, placeBeside: true });
+            }
+            toast.success(`Added ${list.length} asset(s)`);
+        } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : "Add failed");
+        } finally {
+            setAdding(false);
+        }
+    }, [commitLoaded]);
+
+    const removeItem = useCallback((id: string) => {
+        const engine = engineRef.current;
+        const it = itemsRef.current.find((x) => x.id === id);
+        if (!it || !engine) return;
+        if (it.mixer) engine.removeMixer(it.mixer);
+        engine.removeSkeletonHelper(it.object);
+        engine.detach();
+        engine.scene.remove(it.object);
+        disposeTree(it.object);
+        const next = itemsRef.current.filter((x) => x.id !== id);
+        itemsRef.current = next;
+        setItems(next);
+        applySelection(next[next.length - 1] ?? null);
+        if (next.length) engine.frame(next[next.length - 1].object);
+    }, [applySelection]);
+
+    const duplicateItem = useCallback((id: string) => {
+        const engine = engineRef.current;
+        const src = itemsRef.current.find((x) => x.id === id);
+        if (!src || !engine) return;
+        const clone = cloneViewerObject(src.object);
+        clone.position.x += 0.5;
+        const newId = newViewerItemId();
+        stampViewerItem(clone, newId);
+        engine.scene.add(clone);
+        const item: ViewerSceneItem = {
+            ...src,
+            id: newId,
+            name: src.name.replace(/(\.[^.]+)?$/, " copy$1"),
+            object: clone,
+            mixer: null,
+            authorXform: readAuthorXform(clone),
+        };
+        itemsRef.current = [...itemsRef.current, item];
+        setItems(itemsRef.current);
+        applySelection(item);
+        engine.attach(clone);
+        toast.success("Duplicated");
+    }, [applySelection]);
+
+    const toggleItemVisible = useCallback((id: string) => {
+        const next = itemsRef.current.map((it) => {
+            if (it.id !== id) return it;
+            it.object.visible = !it.object.visible;
+            return { ...it, visible: it.object.visible };
+        });
+        itemsRef.current = next;
+        setItems(next);
+    }, []);
+
+    const frameAll = useCallback(() => {
+        const roots = itemsRef.current.filter((it) => it.visible).map((it) => it.object);
+        if (roots.length) engineRef.current?.frameMany(roots);
     }, []);
 
     const handleHdri = useCallback((enabled: boolean) => {
@@ -691,7 +890,99 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
         applyTransform(a.pos, a.rot, a.scl);
     }, [applyTransform]);
 
+    // Blender-style views + gizmo (viewer only — not combat keys)
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            const t = e.target as HTMLElement | null;
+            if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) {
+                return;
+            }
+            if (e.key === "1") { e.preventDefault(); applyView("front"); }
+            else if (e.key === "3") { e.preventDefault(); applyView("right"); }
+            else if (e.key === "7") { e.preventDefault(); applyView("top"); }
+            else if (e.key === "5") {
+                e.preventDefault();
+                engineRef.current?.togglePerspOrtho(objectRef.current);
+                setViewKind(engineRef.current?.getViewKind() ?? "persp");
+            } else if (e.key === "a" && e.shiftKey) {
+                e.preventDefault();
+                fileInputRef.current?.click();
+            } else if (e.key === "a" || e.key === "A" || e.key === "Home") {
+                e.preventDefault();
+                frameAll();
+            } else if (e.key === "d" && e.shiftKey && selectedId) {
+                e.preventDefault();
+                duplicateItem(selectedId);
+            } else if ((e.key === "x" || e.key === "X" || e.key === "Delete") && selectedId) {
+                e.preventDefault();
+                removeItem(selectedId);
+            } else if (e.key === "h" && e.altKey) {
+                e.preventDefault();
+                const next = itemsRef.current.map((it) => {
+                    it.object.visible = true;
+                    return { ...it, visible: true };
+                });
+                itemsRef.current = next;
+                setItems(next);
+            } else if ((e.key === "h" || e.key === "H") && selectedId) {
+                e.preventDefault();
+                toggleItemVisible(selectedId);
+            } else if (e.key === "z" || e.key === "Z") {
+                e.preventDefault();
+                if (objectRef.current) engineRef.current?.frame(objectRef.current);
+            } else if (e.key === "`") {
+                e.preventDefault();
+                handleGrid(!grid);
+            } else if (e.key === "g" || e.key === "G" || e.key === "w" || e.key === "W") {
+                e.preventDefault();
+                engineRef.current?.setGizmoMode("translate");
+            } else if (e.key === "e" || e.key === "E" || e.key === "r" || e.key === "R") {
+                e.preventDefault();
+                engineRef.current?.setGizmoMode("rotate");
+            } else if (e.key === "s" || e.key === "S") {
+                e.preventDefault();
+                engineRef.current?.setGizmoMode("scale");
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [applyView, grid, handleGrid, frameAll, selectedId, duplicateItem, removeItem, toggleItemVisible]);
+
+    // Click mesh → select item + attach gizmo (empty click deselects gizmo)
+    useEffect(() => {
+        const engine = engineRef.current;
+        if (!engine) return;
+        const el = engine.canvas;
+        const onClick = (ev: MouseEvent) => {
+            const rect = el.getBoundingClientRect();
+            if (ev.clientX > rect.right - 128 && ev.clientY > rect.bottom - 128) return;
+            const roots = itemsRef.current.map((it) => it.object);
+            const hit = roots.length ? engine.pick(ev.clientX, ev.clientY, roots) : null;
+            if (!hit) {
+                engine.detach();
+                engine.pulseSelect(null);
+                return;
+            }
+            const itemId = findViewerItemId(hit.object);
+            const item = itemId ? itemsRef.current.find((x) => x.id === itemId) : null;
+            if (item && item.id !== selectedId) {
+                applySelection(item);
+                engine.attach(item.object);
+                engine.pulseSelect(item.object);
+            } else {
+                engine.attach(hit.object);
+                engine.pulseSelect(hit.object);
+            }
+        };
+        el.addEventListener("click", onClick);
+        return () => el.removeEventListener("click", onClick);
+    }, [loading, selectedId, applySelection]);
+
     // ── Action handlers ───────────────────────────────────────────────────────
+
+    function cdnAssetUrl(): string | null {
+        return isPublicCdnUrl(asset.url) ? asset.url : null;
+    }
 
     async function sendToForge() {
         const result = await G()?.viewer?.sendToForge({ url: asset.url, name: asset.name });
@@ -699,10 +990,33 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
         else toast.error(result?.error ?? "Failed to send to Forge");
     }
 
+    function openForgeLive() {
+        const cdn = cdnAssetUrl();
+        if (!cdn) {
+            toast.error("Forge live needs a CDN/http URL — upload first");
+            return;
+        }
+        G()?.os?.openExternal?.(forgeStudioAssetUrl(cdn));
+    }
+
+    function openThreeFlow() {
+        const cdn = cdnAssetUrl();
+        if (!cdn) {
+            toast.error("ThreeFlow needs a CDN/http URL — upload or copy a public asset first");
+            return;
+        }
+        G()?.os?.openExternal?.(threeflowAssetUrl(cdn));
+    }
+
     async function convertAndSave(targetFormat: "glb" | "gltf") {
         setConverting(true);
         try {
-            const r = await G()?.viewer?.convertModel({ url: asset.url, name: asset.name, targetFormat });
+            const r = await G()?.viewer?.convertModel({
+                url: asset.url,
+                name: asset.name,
+                targetFormat,
+                localPath: asset.localPath || asset.sourcePath,
+            });
             if (!r?.ok) { toast.error(r?.error ?? "Conversion failed"); return; }
             const s = await G()?.viewer?.saveConvertedFile({ path: r.path, defaultName: r.name });
             if (s?.ok) toast.success(`Saved as ${s.savedPath.split(/[\\/]/).pop()}`);
@@ -724,7 +1038,12 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
         setOptimizing(true);
         setOptResult(null);
         try {
-            const r = await G()?.viewer?.optimizeForWeb({ url: asset.url, name: asset.name });
+            const r = await G()?.viewer?.optimizeForWeb({
+                url: asset.url,
+                name: asset.name,
+                // Local / blob / grudge-media assets must use disk — net.request is http(s) only
+                localPath: asset.localPath || asset.sourcePath,
+            });
             if (!r?.ok || !r.path) {
                 toast.error(r?.error ?? "Optimize failed");
                 if (r?.warnings?.length) {
@@ -822,7 +1141,26 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
         <div style= {{ flex: 1, display: "flex", overflow: "hidden" }
 }>
     {/* 3-D viewport */ }
-    < div ref = { hostRef } style = {{ flex: 1, position: "relative", overflow: "hidden" }}>
+    < div
+        ref = { hostRef }
+        style = {{ flex: 1, position: "relative", overflow: "hidden" }}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+        onDrop={(e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files?.length) void addFilesFromList(e.dataTransfer.files);
+        }}
+    >
+        <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".glb,.gltf,.fbx,.obj,.stl,.ply,.dae,.3mf,.vrm"
+            style={{ display: "none" }}
+            onChange={(e) => {
+                if (e.target.files?.length) void addFilesFromList(e.target.files);
+                e.target.value = "";
+            }}
+        />
         { loading && (
             <div style={
     {
@@ -846,17 +1184,50 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
 }> { error } </span>
     </div>
         )}
-{/* Viewport overlay: orbit hint */ }
 {
     !loading && !error && (
-        <div style={
-        {
-            position: "absolute", bottom: 8, left: 8, zIndex: 10,
-                fontSize: 10, color: "var(--muted)", pointerEvents: "none",
-          }
-    }>
-        Orbit: left drag · Pan: right drag · Zoom: scroll
+        <>
+            <div style={{
+                position: "absolute", top: 8, left: 8, zIndex: 10,
+                fontSize: 11, color: "var(--text)",
+                background: "rgba(10,14,26,0.72)", border: "1px solid var(--line)",
+                borderRadius: 6, padding: "4px 8px", pointerEvents: "none",
+                fontVariantNumeric: "tabular-nums",
+            }}>
+                {si
+                    ? `${si.source === "bones" ? "Bones" : "Mesh"} · H ${formatSiMeters(si.h)} · W ${formatSiMeters(si.w)} · D ${formatSiMeters(si.d)}${si.boneCount ? ` · ${si.boneCount} bones` : ""}`
+                    : "—"}
+                {" · "}{viewKind}
             </div>
+            <div style={{
+                position: "absolute", top: 8, right: 8, zIndex: 10,
+                display: "flex", gap: 4, pointerEvents: "auto",
+            }}>
+                {(["persp", "front", "right", "top"] as StudioView[]).map((v) => (
+                    <button
+                        key={v}
+                        type="button"
+                        onClick={() => applyView(v)}
+                        style={{
+                            fontSize: 10, padding: "2px 6px",
+                            border: `1px solid ${viewKind === v ? "var(--gold)" : "var(--line)"}`,
+                            background: viewKind === v ? "rgba(255,198,42,0.16)" : "rgba(10,14,26,0.72)",
+                            color: viewKind === v ? "var(--gold)" : "var(--muted)",
+                            borderRadius: 4, cursor: "pointer",
+                        }}
+                    >
+                        {v}
+                    </button>
+                ))}
+            </div>
+            <div style={{
+                position: "absolute", bottom: 8, left: 8, zIndex: 10,
+                fontSize: 10, color: "var(--muted)", pointerEvents: "none",
+            }}>
+                {adding ? "Adding…" : `${items.length} object(s)`}
+                {" · "}G/R/S gizmo · click select · drop files · Shift+A add · Shift+D copy · X delete · A frame all
+            </div>
+        </>
         )
 }
 </div>
@@ -874,6 +1245,8 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     < Section title = "Scene" >
         <Toggle label="Wireframe" checked = { wireframe } onChange = { handleWireframe } />
             <Toggle label="Grid"      checked = { grid }      onChange = { handleGrid } />
+                <Toggle label="Skeleton" checked = { skeleton } onChange = { handleSkeleton } />
+                <Toggle label="Bounds"   checked = { boundsOn } onChange = { handleBounds } />
                 <Toggle label="HDRI lighting" checked = { hdri }  onChange = { handleHdri } />
                     <Toggle label="Shadows"   checked = { shadows }   onChange = { handleShadows } />
                         <div style={ { marginTop: 6, display: "flex", alignItems: "center", gap: 8 } }>
@@ -893,6 +1266,58 @@ style = {{
             borderRadius: 5, color: "var(--muted)", fontSize: 11, cursor: "pointer",
           }}>⊕ Reset Camera </button>
     </Section>
+
+{!loading && !error && objectRef.current && (
+        <Section title="Studio">
+            <AssetStudioInspector
+                engine={engineRef.current}
+                root={objectRef.current}
+                asset={asset}
+                clips={clips}
+                mixer={mixerRef.current}
+                si={si}
+                onSiChange={setSi}
+                onTransformTick={() => {
+                    const obj = objectRef.current;
+                    if (!obj) return;
+                    const nextPos: [number, number, number] = [obj.position.x, obj.position.y, obj.position.z];
+                    const nextRot: [number, number, number] = [
+                        THREE.MathUtils.radToDeg(obj.rotation.x),
+                        THREE.MathUtils.radToDeg(obj.rotation.y),
+                        THREE.MathUtils.radToDeg(obj.rotation.z),
+                    ];
+                    const nextScl: [number, number, number] = [obj.scale.x, obj.scale.y, obj.scale.z];
+                    transformRef.current = { pos: nextPos, rot: nextRot, scl: nextScl };
+                    setPos(nextPos); setRot(nextRot); setScl(nextScl);
+                    setUniformScale(obj.scale.x || 1);
+                    if (engineRef.current) setSi(engineRef.current.measureBounds(obj));
+                }}
+                onClipsChange={(next) => {
+                    clipsRef.current = next;
+                    setClips(next);
+                    setActiveClipIdx(next.length ? 0 : null);
+                    const it = itemsRef.current.find((x) => x.id === selectedId);
+                    if (it) it.animations = next;
+                }}
+                skeletonOn={skeleton}
+                onSkeleton={handleSkeleton}
+                sceneItems={items.map((it) => ({
+                    id: it.id, name: it.name, visible: it.visible, bones: it.bones,
+                }))}
+                selectedItemId={selectedId}
+                onSelectItem={(id) => {
+                    const it = itemsRef.current.find((x) => x.id === id);
+                    if (it) applySelection(it);
+                }}
+                onRemoveItem={removeItem}
+                onDuplicateItem={duplicateItem}
+                onToggleItemVisible={toggleItemVisible}
+                onAddFiles={() => fileInputRef.current?.click()}
+                gizmoSpace={gizmoSpace}
+                onGizmoSpace={applyGizmoSpace}
+            />
+        </Section>
+    )}
 
 {/* Transform — position / rotate / scale */ }
 {
@@ -1108,7 +1533,9 @@ style = {{
 
 {/* Actions */ }
 <Section title="Actions" >
-    <ActionBtn onClick={ sendToForge } icon = "⚔" label = "Add to Forge Scene" color = "var(--gold)" />
+    <ActionBtn onClick={ sendToForge } icon = "⚔" label = "Add to local Forge tools" color = "var(--gold)" />
+    <ActionBtn onClick={ openForgeLive } icon = "⚔" label = "Open in Forge (live)" color = "var(--gold)" />
+    <ActionBtn onClick={ openThreeFlow } icon = "✦" label = "Open in ThreeFlow" color = "#7c6bff" />
         <ActionBtn
             onClick={ () => convertAndSave("glb") }
 disabled = { converting || optimizing }

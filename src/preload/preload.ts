@@ -112,7 +112,7 @@ const api = {
       } | null>,
     sendToForge: (args: { url: string; name?: string }) =>
       ipcRenderer.invoke("viewer:sendToForge", args) as Promise<{ ok: true; path: string; name: string } | { ok: false; error: string }>,
-    convertModel: (args: { url: string; name: string; targetFormat: "glb" | "gltf" }) =>
+    convertModel: (args: { url: string; name: string; targetFormat: "glb" | "gltf"; localPath?: string }) =>
       ipcRenderer.invoke("viewer:convertModel", args) as Promise<{ ok: true; path: string; name: string } | { ok: false; error: string }>,
     convertImage: (args: {
       url: string;
@@ -121,6 +121,7 @@ const api = {
       quality?: number;
       maxWidth?: number;
       maxHeight?: number;
+      localPath?: string;
     }) =>
       ipcRenderer.invoke("viewer:convertImage", args) as Promise<{
         ok: boolean;
@@ -151,6 +152,8 @@ const api = {
     optimizeForWeb: (args: {
       url: string;
       name: string;
+      /** Disk path for Local Files / blob: assets (required when url is not http(s)) */
+      localPath?: string;
       opts?: {
         maxTextureSize?: number;
         textureQuality?: number;
@@ -419,6 +422,21 @@ const api = {
     /** List texture images next to a model (same folder + pack roots). */
     listSiblingTextures: (modelPath: string) =>
       ipcRenderer.invoke("forge:listSiblingTextures", modelPath),
+    /** List glTF / .bin / Three scene files next to a path. */
+    listSiblingSceneFiles: (modelPath: string) =>
+      ipcRenderer.invoke("forge:listSiblingSceneFiles", modelPath) as Promise<{
+        modelDir: string;
+        files: Array<{ path: string; name: string; role: string }>;
+      }>,
+    /** Resolve .bin → sibling .gltf; classify JSON scene kinds. */
+    resolveSceneOpenPath: (modelPath: string) =>
+      ipcRenderer.invoke("forge:resolveSceneOpenPath", modelPath) as Promise<{
+        path: string;
+        sourcePath: string;
+        name: string;
+        role: string;
+        note?: string;
+      }>,
     /** Read local image as data URL for Three.js TextureLoader. */
     readLocalImage: (imagePath: string) =>
       ipcRenderer.invoke("forge:readLocalImage", imagePath),
@@ -482,6 +500,10 @@ const api = {
       ipcRenderer.invoke("agent:orchestrate", opts),
     chat: (opts: { messages: Array<{ role: string; content: string }> }) =>
       ipcRenderer.invoke("agent:chat", opts),
+  },
+  plugin: {
+    status: () => ipcRenderer.invoke("plugin:status"),
+    token: () => ipcRenderer.invoke("plugin:token"),
   },
   // Ollama / GRUDACHAIN local agentic AI
   ollama: {

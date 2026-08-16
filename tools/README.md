@@ -1,6 +1,6 @@
 # Portable toolchain
 
-Install Blender 4.x LTS, ffmpeg, and blender-mcp addon:
+Blender and ffmpeg are **not** stored in this repo (~1.8 GB). Install when convert needs them:
 
 ```bash
 npm run toolchain:install

@@ -67,6 +67,7 @@ See [Object storage](object-storage.md) · [AI · D1 · R2 · Stream](ai-workers
 |------|------|--------------|
 | [forge.grudge-studio.com](https://forge.grudge-studio.com) | R3F + Rapier scene editor | **Forge** (same source) |
 | [coder.grudge-studio.com](https://coder.grudge-studio.com) | Vibe IDE | **Coder** |
+| `http://127.0.0.1:17380` | Plugin host (VS Code / standalone / viewer / agentic) | **Agent AI** (while dest-tool running) |
 | [grudge-pipeline.vercel.app](https://grudge-pipeline.vercel.app) | Convert handoff | Pipeline |
 | Grok Builder (see `FLEET_URLS.grokBuilder`) | Agentic Three/Rapier builder | **Grok Builder** |
 
@@ -108,6 +109,7 @@ Open library card: `gameopen` → `gameLibrary.ts` id `grudge-multiverse`.
 |------|------|
 | [ai.grudge-studio.com](https://ai.grudge-studio.com) | **Legion** fleet chat / roles |
 | Coder AI hub worker | Event/job ingest only (≠ Legion) |
+| Dev Tool plugin host | `127.0.0.1:17380` — local attach; see [Plugin attach](plugin-attach.md) |
 | `http://localhost:11434` | GRUDACHAIN Ollama (desktop agentic) |
 | [obs.grudge-studio.com](https://obs.grudge-studio.com) | Observatory telemetry |
 

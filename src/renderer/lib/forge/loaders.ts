@@ -1,71 +1,38 @@
 import * as THREE from "three";
-import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
-import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
-import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
-import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
-import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
-import { ColladaLoader } from "three/examples/jsm/loaders/ColladaLoader.js";
-import { ThreeMFLoader } from "three/examples/jsm/loaders/3MFLoader.js";
-import { TGALoader } from "three/examples/jsm/loaders/TGALoader.js";
-import { MeshoptDecoder } from "meshoptimizer";
-import { assertMeshBytes } from "../../../shared/magicBytes";
+import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
+import { type GLTF } from "three/addons/loaders/GLTFLoader.js";
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
+import { STLLoader } from "three/addons/loaders/STLLoader.js";
+import { PLYLoader } from "three/addons/loaders/PLYLoader.js";
+import { ColladaLoader } from "three/addons/loaders/ColladaLoader.js";
+import { ThreeMFLoader } from "three/addons/loaders/3MFLoader.js";
+import { TGALoader } from "three/addons/loaders/TGALoader.js";
+import { createProductionGltfLoader } from "./gltfProdLoader";
+import {
+  assertMeshBytes,
+  assertMeshResponseHeaders,
+  probeMagic,
+} from "../../../shared/magicBytes";
+import {
+  classifyJsonSceneContent,
+  isGltfBinFileName,
+  isThreeSceneFileName,
+} from "../../../shared/sceneKinds";
 import {
   sanitizeMaterials,
   type MaterialSanitizeReport,
   type MaterialSanitizeOptions,
 } from "./materialSanitize";
-
-/** Await once — WASM init for EXT_meshopt_compression (grudge-web-v1 optimized GLBs). */
-let meshoptReady: Promise<void> | null = null;
-let dracoLoader: DRACOLoader | null = null;
-
-function ensureMeshoptReady(): Promise<void> {
-  if (!meshoptReady) {
-    meshoptReady =
-      MeshoptDecoder?.ready != null
-        ? Promise.resolve(MeshoptDecoder.ready).then(() => undefined)
-        : Promise.resolve();
-  }
-  return meshoptReady;
-}
-
-function getDracoLoader(): DRACOLoader {
-  if (!dracoLoader) {
-    dracoLoader = new DRACOLoader();
-    // Google CDN decoder (same as Multiverse / fleet) — works offline after first cache
-    dracoLoader.setDecoderPath(
-      "https://www.gstatic.com/draco/versioned/decoders/1.5.7/",
-    );
-    dracoLoader.setDecoderConfig({ type: "js" });
-  }
-  return dracoLoader;
-}
+import { applyMatrix, type ForgeSceneDocument } from "./sceneSerializer";
 
 /**
- * GLTFLoader with Meshopt + Draco bound (required for production compressed GLBs).
- * Without Meshopt/Draco, meshes/colors/textures look wrong or empty.
+ * GLTFLoader with Meshopt + Draco + KTX2 (ThreeFlow / fleet production factory).
+ * Per-open so LoadingManager can rewrite sibling maps via grudge-media.
  */
-async function createGltfLoader(manager?: THREE.LoadingManager): Promise<GLTFLoader> {
-  const loader = new GLTFLoader(manager);
-  try {
-    loader.setDRACOLoader(getDracoLoader());
-  } catch (e) {
-    console.warn("[loaders] DRACOLoader init failed — Draco GLBs may fail", e);
-  }
-  try {
-    if (MeshoptDecoder && MeshoptDecoder.supported !== false) {
-      await ensureMeshoptReady();
-      loader.setMeshoptDecoder(MeshoptDecoder);
-    } else {
-      console.warn("[loaders] MeshoptDecoder not supported in this environment");
-    }
-  } catch (e) {
-    console.warn("[loaders] MeshoptDecoder init failed — compressed GLBs may fail", e);
-  }
-  return loader;
+async function createGltfLoader(manager?: THREE.LoadingManager) {
+  return createProductionGltfLoader(manager);
 }
 
 /** Result of loading any supported 3D file. */
@@ -88,6 +55,7 @@ export interface LoadedModel {
 export type ModelFormat =
   | "glb"
   | "gltf"
+  | "gltf-bin"
   | "obj"
   | "fbx"
   | "stl"
@@ -96,11 +64,13 @@ export type ModelFormat =
   | "3mf"
   | "vrm"
   | "three-json"
+  | "forge-scene"
   | "css3d";
 
 const EXT_TO_FORMAT: Record<string, ModelFormat> = {
   glb: "glb",
   gltf: "gltf",
+  bin: "gltf-bin", // buffer companion → resolve sibling .gltf
   vrm: "vrm", // glTF avatar extension — load as GLB/glTF
   obj: "obj",
   fbx: "fbx",
@@ -111,28 +81,108 @@ const EXT_TO_FORMAT: Record<string, ModelFormat> = {
   // CSS3D / HTML plane quick-view (not a mesh bake format)
   html: "css3d",
   htm: "css3d",
+  // Three.js scene dumps (also matched by isThreeJsonName)
+  scene: "three-json",
+  three: "three-json",
+  gfscene: "three-json",
 };
 
 function isThreeJsonName(filename: string): boolean {
-  const lower = filename.toLowerCase();
-  return (
-    lower.endsWith(".scene.json") ||
-    lower.endsWith(".three.json") ||
-    lower.endsWith(".gfscene.json") ||
-    lower.endsWith(".gfscene") ||
-    lower.endsWith(".scene") ||
-    (lower.includes("/scenes/") && lower.endsWith(".json"))
-  );
+  return isThreeSceneFileName(filename);
 }
 
 export function detectFormat(filename: string): ModelFormat | null {
   if (isThreeJsonName(filename)) return "three-json";
+  if (filename.toLowerCase().endsWith(".forge-scene.json")) return "forge-scene";
   const ext = filename.toLowerCase().split(".").pop() ?? "";
   return EXT_TO_FORMAT[ext] ?? null;
 }
 
 export function isSupported(filename: string): boolean {
   return detectFormat(filename) !== null;
+}
+
+/** Resolve .bin companion to sibling .gltf via main process or same-dir heuristics. */
+async function resolveBinToGltf(diskPath: string): Promise<{ path: string; name: string; note?: string }> {
+  const grudge = typeof window !== "undefined" ? (window as any).grudge : null;
+  if (grudge?.forge?.resolveSceneOpenPath) {
+    const r = await grudge.forge.resolveSceneOpenPath(diskPath);
+    if (r?.path && r.path.toLowerCase() !== diskPath.toLowerCase()) {
+      return { path: r.path, name: r.name || r.path.split(/[/\\]/).pop() || "scene.gltf", note: r.note };
+    }
+    if (r?.path?.toLowerCase().endsWith(".gltf") || r?.path?.toLowerCase().endsWith(".glb")) {
+      return { path: r.path, name: r.name, note: r.note };
+    }
+  }
+  // Fallback: same stem / scene.gltf (renderer cannot readdir — error if no IPC)
+  throw new Error(
+    `${diskPath.split(/[/\\]/).pop()} is a glTF .bin buffer. Open scene.gltf (or matching .gltf) in the same folder.`,
+  );
+}
+
+/**
+ * Load Forge multi-entity scene document (entities[] + disk paths).
+ * Builds one Group for Elite Viewer / preview.
+ */
+async function loadForgeSceneDoc(
+  data: ForgeSceneDocument,
+  opts: LoadModelOptions,
+): Promise<LoadedModel> {
+  const root = new THREE.Group();
+  root.name = data.name || "forge-scene";
+  root.userData.forgeScene = {
+    version: data.version,
+    entityCount: data.entities?.length ?? 0,
+  };
+  const animations: THREE.AnimationClip[] = [];
+  let loadedN = 0;
+  const grudge = typeof window !== "undefined" ? (window as any).grudge : null;
+
+  for (const ent of data.entities || []) {
+    if (!ent.diskPath) continue;
+    try {
+      let file: File;
+      let diskPath = ent.diskPath;
+      if (grudge?.forge?.readFile) {
+        const res = await grudge.forge.readFile(ent.diskPath);
+        file = new File([res.bytes as BlobPart], res.name || ent.name, {
+          type: res.mime || "application/octet-stream",
+        });
+        diskPath = ent.diskPath;
+      } else {
+        continue;
+      }
+      const child = await loadModel(file, {
+        diskPath,
+        sanitize: opts.sanitize,
+        skipMagicBytes: false,
+      });
+      child.object.name = ent.name || child.object.name;
+      if (ent.matrix?.length === 16) applyMatrix(child.object, ent.matrix);
+      child.object.visible = ent.visible !== false;
+      root.add(child.object);
+      if (child.animations?.length) animations.push(...child.animations);
+      loadedN++;
+    } catch (e) {
+      console.warn("[loaders] forge-scene entity failed", ent.name, e);
+    }
+  }
+
+  if (loadedN === 0) {
+    // Empty scene placeholder so viewer still frames something
+    const marker = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.5, 0.5),
+      new THREE.MeshStandardMaterial({ color: 0x666688, wireframe: true }),
+    );
+    marker.name = "forge-scene-empty";
+    root.add(marker);
+  }
+
+  return finishModel(root, animations, null, "forge-scene", {
+    toonStyle: true,
+    fixDefaultYellow: true,
+    ...opts.sanitize,
+  });
 }
 
 /** Recursively count triangles, vertices, and bones in an Object3D tree. */
@@ -344,13 +394,54 @@ function dirnamePath(p: string): string {
  * also enables sibling fill for materials that still lack maps.
  */
 export async function loadModel(file: File, opts: LoadModelOptions = {}): Promise<LoadedModel> {
-  const format = detectFormat(file.name);
+  let format = detectFormat(file.name);
+  if (!format && file.name.toLowerCase().endsWith(".json")) {
+    // Content sniff for plain .json (ObjectLoader / glTF / forge-scene)
+    try {
+      const text =
+        file.size > 0
+          ? await file.text()
+          : opts.diskPath
+            ? await (await fetch(localFileUrl(opts.diskPath))).text()
+            : "";
+      const kind = classifyJsonSceneContent(text);
+      if (kind === "gltf-json") format = "gltf";
+      else if (kind === "forge-scene") format = "forge-scene";
+      else if (kind === "three-objectloader") format = "three-json";
+    } catch {
+      /* leave null */
+    }
+  }
   if (!format) throw new Error(`Unsupported format: ${file.name}`);
 
-  // Magic-byte gate for binary glTF — the #1 cause of "black cube" from CDN HTML.
-  if (!opts.skipMagicBytes && (format === "glb" || format === "gltf")) {
-    const buf = await file.arrayBuffer();
-    assertMeshBytes(buf, file.name);
+  // .bin buffer companion → load sibling glTF scene instead
+  if (format === "gltf-bin" || isGltfBinFileName(file.name)) {
+    if (!opts.diskPath) {
+      throw new Error(
+        `${file.name} is a glTF .bin buffer companion. Open it from Local Files (disk) so scene.gltf can be resolved.`,
+      );
+    }
+    const resolved = await resolveBinToGltf(opts.diskPath);
+    const empty = new File([], resolved.name, { type: "model/gltf+json" });
+    return loadModel(empty, {
+      ...opts,
+      diskPath: resolved.path,
+      resourceDir: dirnamePath(resolved.path),
+    });
+  }
+
+  // Magic-byte gate for glTF — rejects HTML error pages and empty stubs.
+  // Empty File + diskPath: probe disk (Local Files placeholder has size 0).
+  if (!opts.skipMagicBytes && (format === "glb" || format === "gltf" || format === "vrm")) {
+    if (file.size > 0) {
+      const buf = await file.arrayBuffer();
+      assertMeshBytes(buf, file.name);
+    } else if (opts.diskPath) {
+      const res = await fetch(localFileUrl(opts.diskPath));
+      assertMeshResponseHeaders(res, file.name);
+      const buf = await res.arrayBuffer();
+      assertMeshBytes(buf, file.name);
+    }
   }
 
   const resourceDir =
@@ -374,14 +465,40 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
 
   async function loadFrom(urlToUse: string): Promise<LoadedModel> {
     switch (format) {
+      case "forge-scene": {
+        const text = await (await fetch(urlToUse)).text();
+        const data = JSON.parse(text) as ForgeSceneDocument;
+        return loadForgeSceneDoc(data, opts);
+      }
       case "glb":
       case "gltf":
       case "vrm": {
         const gltfLoader = await createGltfLoader(manager);
-        // External .bin / textures next to glTF JSON
+        // External .bin / textures: URL modifier rewrites relatives when resourceDir set.
+        // For CDN multi-file glTF, setPath to the directory URL (http only).
         if (resourceDir) {
           const pathBase = resourceDir.replace(/\\/g, "/").replace(/\/?$/, "/");
-          gltfLoader.setPath(pathBase.startsWith("http") ? pathBase : "");
+          if (pathBase.startsWith("http://") || pathBase.startsWith("https://")) {
+            gltfLoader.setPath(pathBase);
+          } else {
+            gltfLoader.setPath("");
+          }
+        } else if (
+          /^https?:\/\//i.test(urlToUse) &&
+          (format === "gltf" || file.name.toLowerCase().endsWith(".gltf"))
+        ) {
+          // Remote scene.gltf — resolve buffers/images relative to parent URL
+          try {
+            const u = new URL(urlToUse);
+            const path = u.pathname;
+            const slash = path.lastIndexOf("/");
+            u.pathname = slash >= 0 ? path.slice(0, slash + 1) : "/";
+            u.search = "";
+            u.hash = "";
+            gltfLoader.setPath(u.toString());
+          } catch {
+            /* leave default */
+          }
         }
         const gltf = await gltfLoader.loadAsync(urlToUse);
         let scene = gltf.scene;
@@ -515,9 +632,10 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
       }
       case "dae": {
         const dae = await new ColladaLoader(manager).loadAsync(urlToUse);
+        if (!dae?.scene) throw new Error("Collada load returned empty scene");
         return finishModel(
           dae.scene,
-          (dae as any).animations ?? [],
+          (dae as { animations?: THREE.AnimationClip[] }).animations ?? [],
           null,
           format,
           opts.sanitize,
@@ -529,19 +647,82 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
       }
       case "three-json": {
         const text = await (await fetch(urlToUse)).text();
+        const kind = classifyJsonSceneContent(text);
         const data = JSON.parse(text);
-        const loader = new THREE.ObjectLoader();
+
+        // Forge multi-entity document saved with a .scene.json name
+        if (kind === "forge-scene" || (data?.entities && Array.isArray(data.entities) && data.version != null)) {
+          return loadForgeSceneDoc(data as ForgeSceneDocument, opts);
+        }
+
+        // glTF JSON misnamed as .scene.json
+        if (kind === "gltf-json") {
+          const gltfLoader = await createGltfLoader(manager);
+          if (resourceDir) {
+            const pathBase = resourceDir.replace(/\\/g, "/").replace(/\/?$/, "/");
+            if (pathBase.startsWith("http://") || pathBase.startsWith("https://")) {
+              gltfLoader.setPath(pathBase);
+            }
+          }
+          // Write temp blob as .gltf for GLTFLoader
+          const blob = new Blob([text], { type: "model/gltf+json" });
+          const gltfUrl = URL.createObjectURL(blob);
+          try {
+            const gltf = await gltfLoader.loadAsync(
+              preferDisk && opts.diskPath ? urlToUse : gltfUrl,
+            );
+            let scene = gltf.scene;
+            let hasSkin = false;
+            gltf.scene.traverse((n) => {
+              if ((n as THREE.SkinnedMesh).isSkinnedMesh) hasSkin = true;
+            });
+            if (hasSkin) scene = SkeletonUtils.clone(gltf.scene) as THREE.Group;
+            return finishModel(scene, gltf.animations ?? [], gltf, "gltf", opts.sanitize);
+          } finally {
+            URL.revokeObjectURL(gltfUrl);
+          }
+        }
+
+        // Three.js ObjectLoader scene graph
+        const loader = new THREE.ObjectLoader(manager);
         const parsed = loader.parse(data) as THREE.Object3D;
+        const anims: THREE.AnimationClip[] = [];
+        // ObjectLoader may attach animations as sibling key (map of name → clip)
+        if (Array.isArray((data as { animations?: unknown }).animations)) {
+          try {
+            const parsedAnims = loader.parseAnimations(
+              (data as { animations: unknown[] }).animations as never,
+            );
+            if (parsedAnims && typeof parsedAnims === "object") {
+              anims.push(...Object.values(parsedAnims));
+            }
+          } catch {
+            /* optional */
+          }
+        }
         const root =
-          parsed.type === "Scene"
+          parsed.type === "Scene" || (parsed as THREE.Scene).isScene
             ? (() => {
                 const g = new THREE.Group();
-                g.name = "three-scene";
+                g.name = parsed.name || "three-scene";
+                g.userData.threeScene = true;
+                // Preserve lights/cameras/meshes as children
                 while (parsed.children.length) g.add(parsed.children[0]);
+                // Copy fog / background if present
+                const sc = parsed as THREE.Scene;
+                if (sc.background) g.userData.sceneBackground = sc.background;
+                if (sc.environment) g.userData.sceneEnvironment = sc.environment;
+                if (sc.fog) g.userData.sceneFog = sc.fog;
                 return g;
               })()
             : parsed;
-        return finishModel(root, [], null, format, opts.sanitize);
+        root.userData.threeObjectLoader = true;
+        return finishModel(root, anims, null, "three-json", {
+          toonStyle: false,
+          fixDefaultYellow: true,
+          whiteWhenMapped: true,
+          ...opts.sanitize,
+        });
       }
       default:
         throw new Error(`Unsupported format: ${format}`);
@@ -604,49 +785,31 @@ export async function loadModelFromUrl(
   filenameHint?: string,
   opts: LoadModelOptions = {},
 ): Promise<LoadedModel> {
-  // Local disk elite path: skip full-body fetch when we can stream via grudge-media
+  // Local disk elite path: stream via grudge-media so relatives (bin/png/tga) resolve
   if (opts.diskPath && typeof window !== "undefined") {
     const name =
       filenameHint ||
       opts.diskPath.split(/[/\\]/).pop() ||
       "model.glb";
     const format = detectFormat(name);
-    // For GLB still need magic-byte gate — small head fetch or full via media
-    if (!opts.skipMagicBytes && (format === "glb" || format === "gltf")) {
-      try {
-        const res = await fetch(localFileUrl(opts.diskPath));
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buf = await res.arrayBuffer();
-        assertMeshBytes(buf, name);
-        const type = name.toLowerCase().endsWith(".glb")
-          ? "model/gltf-binary"
-          : "application/octet-stream";
-        const file = new File([buf], name, { type });
-        return loadModel(file, {
-          ...opts,
-          diskPath: opts.diskPath,
-          skipMagicBytes: true,
-        });
-      } catch {
-        /* fall through to generic URL fetch */
-      }
-    } else {
-      // FBX/OBJ/etc: empty File + diskPath → loadModel uses grudge-media
+    try {
+      // Empty File + diskPath: loadModel probes magic from disk and loads via media protocol
       const file = new File([], name, { type: "application/octet-stream" });
-      try {
-        return await loadModel(file, {
-          ...opts,
-          diskPath: opts.diskPath,
-          skipMagicBytes: true,
-        });
-      } catch {
-        /* fall through */
-      }
+      return await loadModel(file, {
+        ...opts,
+        diskPath: opts.diskPath,
+        skipMagicBytes: format !== "glb" && format !== "gltf" && format !== "vrm"
+          ? true
+          : opts.skipMagicBytes,
+      });
+    } catch (diskErr) {
+      console.warn("[loadModelFromUrl] disk path failed", diskErr);
+      /* fall through to URL fetch */
     }
   }
 
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} loading ${url}`);
+  assertMeshResponseHeaders(res, filenameHint || url);
   const buf = await res.arrayBuffer();
   const name =
     filenameHint ||
@@ -654,23 +817,45 @@ export async function loadModelFromUrl(
     "model.glb";
   if (!opts.skipMagicBytes) {
     const lower = name.toLowerCase();
-    if (lower.endsWith(".glb") || lower.endsWith(".gltf") || !detectFormat(name)) {
-      if (lower.endsWith(".glb") || lower.endsWith(".gltf") || buf.byteLength > 12) {
-        try {
-          assertMeshBytes(buf, name);
-        } catch (e) {
-          const { probeMagic } = await import("../../../shared/magicBytes");
-          const p = probeMagic(buf);
-          if (!p.okForMesh) throw e;
-        }
+    if (lower.endsWith(".glb") || lower.endsWith(".gltf") || lower.endsWith(".vrm")) {
+      try {
+        assertMeshBytes(buf, name);
+      } catch (e) {
+        const p = probeMagic(buf);
+        if (!p.okForMesh) throw e;
+      }
+    } else if (!detectFormat(name) && buf.byteLength > 12) {
+      // Unknown ext — still refuse HTML/empty stubs if it claims to be mesh bytes
+      const p = probeMagic(buf);
+      if (p.kind === "html" || p.kind === "json-stub" || p.bytes === 0) {
+        throw new Error(
+          `${name}: not a valid mesh (${p.detail}). Reject HTML/error pages and empty stubs.`,
+        );
       }
     }
   }
   const type = name.toLowerCase().endsWith(".glb")
     ? "model/gltf-binary"
-    : "application/octet-stream";
+    : name.toLowerCase().endsWith(".gltf")
+      ? "model/gltf+json"
+      : "application/octet-stream";
   const file = new File([buf], name, { type });
-  return loadModel(file, { ...opts, skipMagicBytes: true });
+  // For remote multi-file .gltf, pass resourceDir from URL parent
+  let resourceDir = opts.resourceDir;
+  if (!resourceDir && /^https?:\/\//i.test(url) && name.toLowerCase().endsWith(".gltf")) {
+    try {
+      const u = new URL(url);
+      const path = u.pathname;
+      const slash = path.lastIndexOf("/");
+      u.pathname = slash >= 0 ? path.slice(0, slash + 1) : "/";
+      u.search = "";
+      u.hash = "";
+      resourceDir = u.toString();
+    } catch {
+      /* ignore */
+    }
+  }
+  return loadModel(file, { ...opts, resourceDir, skipMagicBytes: true });
 }
 
 /** Compute a tight bounding box in world space (after applying transforms). */

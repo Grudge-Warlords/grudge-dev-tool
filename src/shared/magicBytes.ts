@@ -2,7 +2,9 @@
  * Magic-byte gates for mesh/texture bytes — shared by main (Node Buffer)
  * and renderer (ArrayBuffer / Uint8Array).
  *
- * Blocks HTML error pages served as "GLB", empty stubs, and non-glTF binary.
+ * Blocks HTML error pages served as "GLB", empty stubs, JSON API errors,
+ * and non-glTF binary. Recognizes multi-file glTF JSON (scene.gltf) that
+ * starts with `{\n  ` (bytes 7b 0a 20 20) when "asset" appears later in file.
  */
 
 export type MagicKind =
@@ -14,6 +16,7 @@ export type MagicKind =
   | "gif"
   | "fbx"
   | "html"
+  | "json-stub"
   | "unknown";
 
 export interface MagicProbe {
@@ -36,9 +39,35 @@ function ascii(bytes: Uint8Array, start: number, len: number): string {
   return s;
 }
 
+function hexMagic(b: Uint8Array): string {
+  const n = Math.min(4, b.length);
+  const parts: string[] = [];
+  for (let i = 0; i < n; i++) parts.push(b[i].toString(16));
+  return parts.join(" ");
+}
+
+/** Strip UTF-8 BOM and leading whitespace for text probes. */
+function trimTextStart(s: string): string {
+  return s.replace(/^\uFEFF/, "").trimStart();
+}
+
+/**
+ * Probe first bytes (and up to 64 KiB of text) to classify mesh/texture content.
+ * Prefer full file or ≥4 KiB head for .gltf JSON — "asset" may sit after extensions.
+ */
 export function probeMagic(input: ArrayBuffer | Uint8Array): MagicProbe {
   const b = u8(input);
   const n = b.length;
+
+  if (n === 0) {
+    return {
+      kind: "unknown",
+      okForMesh: false,
+      okForTexture: false,
+      detail: "empty stub (0 bytes)",
+      bytes: 0,
+    };
+  }
   if (n < 4) {
     return {
       kind: "unknown",
@@ -49,13 +78,13 @@ export function probeMagic(input: ArrayBuffer | Uint8Array): MagicProbe {
     };
   }
 
-  // glTF binary: "glTF"
+  // glTF binary: "glTF" (0x67 0x6c 0x54 0x46)
   if (b[0] === 0x67 && b[1] === 0x6c && b[2] === 0x54 && b[3] === 0x46) {
     return {
       kind: "glb",
-      okForMesh: n >= 100,
+      okForMesh: n >= 20,
       okForTexture: false,
-      detail: n >= 100 ? "GLB magic glTF" : "GLB magic but truncated",
+      detail: n >= 20 ? "GLB magic glTF" : "GLB magic but truncated",
       bytes: n,
     };
   }
@@ -80,8 +109,21 @@ export function probeMagic(input: ArrayBuffer | Uint8Array): MagicProbe {
     return { kind: "gif", okForMesh: false, okForTexture: true, detail: "GIF", bytes: n };
   }
 
-  const head = ascii(b, 0, Math.min(64, n));
-  if (/<!DOCTYPE|<html|<HTML/i.test(head)) {
+  // Text sample for HTML / glTF JSON / error stubs (scene.gltf often starts `{\n  `)
+  const sampleLen = Math.min(n, 64 * 1024);
+  const sample = ascii(b, 0, sampleLen);
+  const head = sample.slice(0, 96);
+  const trimmed = trimTextStart(sample);
+
+  // HTML / XML error pages (CDN 404, Cloudflare, auth walls)
+  if (
+    /^(?:<!DOCTYPE\s+html|<html\b|<\?xml)/i.test(trimmed.slice(0, 64)) ||
+    /<!DOCTYPE\s+html|<html[\s>]/i.test(head) ||
+    (/<body[\s>]/i.test(sample.slice(0, 2000)) &&
+      /(?:Error\s+\d{3}|Access Denied|Cloudflare|Just a moment|nginx|Bad Gateway)/i.test(
+        sample.slice(0, 4000),
+      ))
+  ) {
     return {
       kind: "html",
       okForMesh: false,
@@ -91,27 +133,99 @@ export function probeMagic(input: ArrayBuffer | Uint8Array): MagicProbe {
     };
   }
 
-  // glTF JSON
-  if (head.trimStart().startsWith("{") && /"asset"\s*:/.test(head + ascii(b, 64, 256))) {
-    return {
-      kind: "gltf-json",
-      okForMesh: true,
-      okForTexture: false,
-      detail: "glTF JSON",
-      bytes: n,
-    };
+  // FBX binary starts with "Kaydara FBX Binary"
+  if (head.startsWith("Kaydara FBX Binary") || trimmed.startsWith("Kaydara FBX Binary")) {
+    return { kind: "fbx", okForMesh: true, okForTexture: false, detail: "FBX binary", bytes: n };
+  }
+  // ASCII FBX
+  if (/^; FBX/i.test(trimmed.slice(0, 32)) || /^FBX/i.test(trimmed.slice(0, 8))) {
+    return { kind: "fbx", okForMesh: true, okForTexture: false, detail: "FBX ascii", bytes: n };
   }
 
-  // FBX binary starts with "Kaydara FBX Binary"
-  if (head.startsWith("Kaydara FBX Binary") || head.includes("FBX")) {
-    return { kind: "fbx", okForMesh: true, okForTexture: false, detail: "FBX", bytes: n };
+  // JSON-like (includes glTF, API errors, empty stubs)
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    // Empty / near-empty stubs
+    if (n < 24 || /^\{\s*\}$/.test(trimmed.slice(0, 48)) || /^\[\s*\]$/.test(trimmed.slice(0, 48))) {
+      return {
+        kind: "json-stub",
+        okForMesh: false,
+        okForTexture: false,
+        detail: "empty JSON stub",
+        bytes: n,
+      };
+    }
+
+    const hasAssetObj = /"asset"\s*:\s*\{/.test(sample);
+    const hasVersion = /"version"\s*:\s*"[0-9.]+"/.test(sample);
+    const hasMeshes = /"meshes"\s*:\s*\[/.test(sample);
+    const hasNodes = /"nodes"\s*:\s*\[/.test(sample);
+    const hasScenes = /"scenes"\s*:\s*\[/.test(sample);
+    const hasBuffers = /"buffers"\s*:\s*\[/.test(sample);
+    const hasAccessors = /"accessors"\s*:\s*\[/.test(sample);
+    const hasMaterials = /"materials"\s*:\s*\[/.test(sample);
+    const gltfish =
+      hasAssetObj ||
+      (hasMeshes && hasNodes) ||
+      (hasScenes && hasNodes) ||
+      (hasBuffers && hasAccessors) ||
+      (hasMaterials && hasAccessors);
+
+    // API / CDN JSON errors without glTF structure
+    const looksError =
+      /"error"\s*:/.test(sample) ||
+      /"success"\s*:\s*false/.test(sample) ||
+      /"statusCode"\s*:\s*\d+/.test(sample) ||
+      /"message"\s*:\s*"(?:Not Found|Unauthorized|Forbidden|Internal)/i.test(sample);
+    if (looksError && !gltfish) {
+      return {
+        kind: "json-stub",
+        okForMesh: false,
+        okForTexture: false,
+        detail: "JSON error/stub (not glTF). Reject HTML/error pages and empty stubs.",
+        bytes: n,
+      };
+    }
+
+    // Valid glTF JSON — scan full sample so `{\n  "extensionsUsed"... "asset"` still matches
+    if (hasAssetObj && (hasVersion || hasMeshes || hasNodes || hasScenes || hasBuffers || hasAccessors)) {
+      return {
+        kind: "gltf-json",
+        okForMesh: true,
+        okForTexture: false,
+        detail: "glTF JSON",
+        bytes: n,
+      };
+    }
+    // Structure-only (rare exporters / truncated head still has meshes+nodes)
+    if ((hasMeshes && hasNodes) || (hasScenes && hasNodes && (hasAccessors || hasBuffers))) {
+      return {
+        kind: "gltf-json",
+        okForMesh: true,
+        okForTexture: false,
+        detail: "glTF JSON (structure match)",
+        bytes: n,
+      };
+    }
+
+    // Starts with `{` but is not glTF — classic false path that used to show
+    // "unknown magic [7b a 20 20]" for scene.gltf error pages AND valid files
+    // when "asset" was beyond the old 320-byte window.
+    return {
+      kind: "json-stub",
+      okForMesh: false,
+      okForTexture: false,
+      detail:
+        `JSON but not glTF (no asset/meshes; magic [${hexMagic(b)}]). ` +
+        `Reject HTML/error pages and empty stubs.`,
+      bytes: n,
+    };
   }
 
   return {
     kind: "unknown",
     okForMesh: false,
     okForTexture: false,
-    detail: `unknown magic [${b[0].toString(16)} ${b[1].toString(16)} ${b[2].toString(16)} ${b[3].toString(16)}]`,
+    detail: `unknown magic [${hexMagic(b)}]. Reject HTML/error pages and empty stubs.`,
     bytes: n,
   };
 }
@@ -128,4 +242,30 @@ export function assertMeshBytes(
     );
   }
   return p;
+}
+
+/** True when Content-Type looks like an HTML error page (CDN fake 200). */
+export function isHtmlContentType(ct: string | null | undefined): boolean {
+  if (!ct) return false;
+  const c = ct.toLowerCase();
+  return c.includes("text/html") || c.includes("application/xhtml");
+}
+
+/**
+ * Gate a fetch Response before treating body as mesh.
+ * Rejects HTML content-types even when status is 200.
+ */
+export function assertMeshResponseHeaders(
+  res: { ok: boolean; status: number; headers: { get(name: string): string | null } },
+  label = "asset",
+): void {
+  if (!res.ok) {
+    throw new Error(`${label}: HTTP ${res.status} — not a mesh`);
+  }
+  const ct = res.headers.get("content-type");
+  if (isHtmlContentType(ct)) {
+    throw new Error(
+      `${label}: Content-Type ${ct} is HTML (error page), not a mesh. Reject HTML/error pages and empty stubs.`,
+    );
+  }
 }

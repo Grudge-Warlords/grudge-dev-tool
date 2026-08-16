@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { SceneEngine } from "../lib/forge/sceneEngine";
 import { loadModel, type LoadedModel } from "../lib/forge/loaders";
+import { makeBoneLabel } from "../lib/forge/skeletonOverlay";
 import {
   MIXAMO_25_CORE,
   ANIM_WEAPON_PACKS,
@@ -105,20 +106,7 @@ function collectBoneNames(root: THREE.Object3D): string[] {
 }
 
 function makeLabel(text: string): THREE.Sprite {
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 64;
-  const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "rgba(0,0,0,0.65)";
-  ctx.fillRect(0, 0, 256, 64);
-  ctx.fillStyle = "#67e8f9";
-  ctx.font = "bold 22px sans-serif";
-  ctx.fillText(text.slice(0, 28), 8, 40);
-  const tex = new THREE.CanvasTexture(canvas);
-  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
-  const spr = new THREE.Sprite(mat);
-  spr.scale.set(0.45, 0.12, 1);
-  return spr;
+  return makeBoneLabel(text);
 }
 
 function apiReady(): boolean {

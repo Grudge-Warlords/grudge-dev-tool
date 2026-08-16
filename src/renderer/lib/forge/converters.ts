@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GLTFExporter, type GLTFExporterOptions } from "three/examples/jsm/exporters/GLTFExporter.js";
+import { GLTFExporter, type GLTFExporterOptions } from "three/addons/exporters/GLTFExporter.js";
 import {
   loadModel,
   type LoadModelOptions,
@@ -88,9 +88,13 @@ export interface ConvertToGlbOptions extends LoadModelOptions {
 }
 
 /**
- * Convert an arbitrary supported file → production-oriented GLB.
+ * Convert an arbitrary supported file → convenience GLB (Elite / local Forge).
+ * Uses the same production `loadModel` (Draco + Meshopt + KTX2 + sanitize).
  * Always pass `diskPath` for local files so relative textures embed correctly.
- * HTML/CSS3D sources return a placeholder plane GLB with previewOnly=true.
+ * HTML/CSS3D is not a game bake.
+ *
+ * Production CDN bake stays main-process `convertFile` (FBX2glTF / Blender)
+ * then `optimizeWebFile` (gltf-transform meshopt) — not this browser exporter.
  */
 export async function convertToGlb(
   file: File,
@@ -134,6 +138,7 @@ export function downloadBlob(blob: Blob, filename: string): void {
 export const SUPPORTED_FORMATS: ModelFormat[] = [
   "glb",
   "gltf",
+  "gltf-bin",
   "vrm",
   "obj",
   "fbx",
@@ -142,11 +147,13 @@ export const SUPPORTED_FORMATS: ModelFormat[] = [
   "dae",
   "3mf",
   "three-json",
+  "forge-scene",
   "css3d",
 ];
 export const ACCEPT_ATTR = [
   ".glb",
   ".gltf",
+  ".bin",
   ".vrm",
   ".obj",
   ".fbx",
@@ -156,7 +163,10 @@ export const ACCEPT_ATTR = [
   ".3mf",
   ".json",
   ".scene.json",
+  ".three.json",
+  ".forge-scene.json",
   ".gfscene",
+  ".scene",
   ".html",
   ".htm",
 ].join(",");
@@ -173,4 +183,5 @@ export const GAME_MESH_FORMATS: ModelFormat[] = [
   "dae",
   "3mf",
   "three-json",
+  "forge-scene",
 ];

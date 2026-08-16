@@ -90,6 +90,7 @@ function buildProbes(): Array<{ name: string; region: string; probe: () => Promi
     probe("asset-cdn", "cloudflare", FLEET_URLS.assets),
     probe("legion-ai-hub", "cloudflare", `${FLEET_URLS.ai}/health`),
     probe("forge-editor", "vercel", FLEET_URLS.forge),
+    probe("threeflow-editor", "vercel", FLEET_URLS.threeflow),
     probe("coder-ide", "cloudflare", FLEET_URLS.coder),
     probe("pipeline", "vercel", FLEET_URLS.pipeline),
     probe("water-island", "vercel", FLEET_URLS.water),

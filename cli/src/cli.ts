@@ -6,6 +6,7 @@ import { runLogin } from "./commands/login.js";
 import { runFleet } from "./commands/fleet.js";
 import { runUploadPack } from "./commands/upload-pack.js";
 import { runSearch } from "./commands/search.js";
+import { runPlugin } from "./commands/plugin.js";
 import { loadConfig } from "./lib/config.js";
 
 const VERSION = "0.5.0";
@@ -77,6 +78,17 @@ program
   .option("--json", "Machine-readable output")
   .action(async (opts) => {
     process.exit(await runSearch(opts));
+  });
+
+program
+  .command("plugin")
+  .description("Attach to Grudge Dev Tool plugin host (127.0.0.1:17380)")
+  .argument("[action]", "status | practices | chat | viewer", "status")
+  .option("--task <text>", "Agent task (chat)")
+  .option("--path <fileOrUrl>", "Local path or CDN URL (viewer)")
+  .option("--json", "Machine-readable output")
+  .action(async (action: string, opts: { task?: string; path?: string; json?: boolean }) => {
+    process.exit(await runPlugin({ action, task: opts.task, path: opts.path, json: opts.json }));
   });
 
 program

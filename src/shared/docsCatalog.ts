@@ -131,6 +131,15 @@ export const DOCS_CATALOG: DocEntry[] = [
     group: "assets",
   },
   {
+    id: "plugin-attach",
+    title: "Plugin attach",
+    file: "plugin-attach.md",
+    pagesPath: "/plugin-attach.html",
+    description: "VS Code, standalone, viewer, and agentic attach to dest-tool :17380.",
+    group: "ai",
+    primary: true,
+  },
+  {
     id: "ai-d1-r2",
     title: "AI Workers · D1 · R2 · Stream",
     file: "ai-workers-d1-r2-stream.md",

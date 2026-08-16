@@ -94,14 +94,18 @@ function probeVersion(bin: string, args: string[]): string | undefined {
 
 function winBlenderCandidates(): string[] {
   const toolsRoot = join(appRootDir(), "tools");
+  const home = process.env.USERPROFILE ?? process.env.HOME ?? "";
   const versions = ["5.2", "5.1", "5.0", "4.5", "4.4", "4.3", "4.2", "4.1", "4.0"];
   const pf: string[] = [];
   for (const v of versions) {
     pf.push(`C:\\Program Files\\Blender Foundation\\Blender ${v}\\blender.exe`);
     pf.push(join(process.env.LOCALAPPDATA ?? "", `Programs\\Blender Foundation\\Blender ${v}\\blender.exe`));
   }
-  // Portable under tools/blender/**/blender.exe (resolved via findBinaryUnder)
+  // Fleet portable (skill SSOT) — not the repo tools/ tree (gitignored, not committed)
   return [
+    process.env.GRUDGE_BLENDER ?? "",
+    process.env.BLENDER_PATH ?? "",
+    join(home, "tools", "Blender", "blender.exe"),
     ...pf,
     join(toolsRoot, "blender", "blender.exe"),
   ].filter(Boolean);

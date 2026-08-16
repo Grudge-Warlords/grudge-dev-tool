@@ -11,6 +11,9 @@ import {
   type UnriggedPreset,
 } from "./animApply";
 import { applySmartTextures, filterImagePaths } from "./textureFinder";
+import { loadModelFromUrl } from "./loaders";
+import { exportToGlb, downloadBlob } from "./converters";
+import { threeflowAssetUrl, forgeStudioAssetUrl, isPublicCdnUrl } from "../../../shared/editorHandoff";
 
 export interface ForgeScriptItem {
   id: string;
@@ -140,6 +143,60 @@ export function buildForgeApi(host: ForgeScriptHost) {
       log(`${names.length} bones`);
       return names;
     },
+    /** ThreeFlow scratch-pad names — same graph, not a second runner. */
+    get scene() {
+      return host.engine.scene;
+    },
+    get camera() {
+      return host.engine.activeCamera;
+    },
+    get renderer() {
+      return host.engine.renderer;
+    },
+    get object() {
+      return host.getSelected()?.object ?? null;
+    },
+    async loadUrl(url: string, nameHint?: string) {
+      const localMedia = url.startsWith("grudge-media:");
+      if (!isPublicCdnUrl(url) && !localMedia) {
+        log("loadUrl: need https CDN or grudge-media URL");
+        return null;
+      }
+      const loaded = await loadModelFromUrl(url, nameHint);
+      log(`loaded ${loaded.format} · ${loaded.triangles} tris · ${loaded.animations.length} clips`);
+      return loaded;
+    },
+    async exportSelected(filenameBase = "export") {
+      const s = host.getSelected();
+      if (!s) {
+        log("Nothing selected");
+        return null;
+      }
+      const result = await exportToGlb(s.object, s.animations, filenameBase);
+      downloadBlob(result.blob, result.filename);
+      log(`exported ${result.filename} (${result.triangles} tris)`);
+      return result.filename;
+    },
+    openThreeFlow(cdnUrl: string) {
+      if (!isPublicCdnUrl(cdnUrl)) {
+        log("openThreeFlow: need public https URL");
+        return null;
+      }
+      const href = threeflowAssetUrl(cdnUrl);
+      void window.grudge?.os?.openExternal?.(href);
+      log(href);
+      return href;
+    },
+    openForge(cdnUrl: string) {
+      if (!isPublicCdnUrl(cdnUrl)) {
+        log("openForge: need public https URL");
+        return null;
+      }
+      const href = forgeStudioAssetUrl(cdnUrl);
+      void window.grudge?.os?.openExternal?.(href);
+      log(href);
+      return href;
+    },
     help() {
       const lines = [
         "api.frame() / api.frameAll()",
@@ -148,7 +205,10 @@ export function buildForgeApi(host: ForgeScriptHost) {
         "api.applyAnimsFrom(sourceItemId)",
         "api.findAndApplyTextures(pathArray)",
         "api.listBones() · api.items · api.selected · api.select(id)",
-        "api.log(msg) · api.THREE",
+        "api.loadUrl(cdn) · api.exportSelected('name')",
+        "api.openThreeFlow(cdn) · api.openForge(cdn)",
+        "api.scene · api.camera · api.renderer · api.object · api.THREE",
+        "api.log(msg)",
       ];
       lines.forEach(log);
       return lines;

@@ -21,7 +21,24 @@ npm run publish:manual # bump patch → package → git tag → gh release creat
 
 **Node ≥ 22, npm ≥ 10 required.** Store all secrets via `src/main/auth/secretStore.ts` — see **Secrets** in Key Conventions below for the full rule.
 
+**Scripts:** `doctor` · `fleet:probe` · `backup:postgres` · `audit:workers` · `secret:*` · `toolchain:*` · `publish:manual` · `upload-pack` · `catalog:ummorpg` · `test:magic`.
+
+**Toolchain blobs stay off-disk** until `npm run toolchain:install` (Blender/ffmpeg write under `tools/` and stay gitignored). Do not commit `release/`, `dist/`, `dev.venv/`. Installed app: `C:\Program Files\Grudge Dev Tool`.
+
 ---
+
+## Editors (do not invent a fourth)
+
+| Surface | Role | Loader / convert |
+|---------|------|------------------|
+| **Elite Viewer** (this app, pop-out) | Preview, SI, screenshot, convenience convert | `loadModel` → `gltfProdLoader` |
+| **ThreeFlow** (`threeflow.vercel.app`) | **Best scene editor** — Warlords library, SI place, play-bake | same production GLTF factory; handoff `?asset=` |
+| **Forge live** (`forge.grudge-studio.com`) | R3F + Rapier + `.gfscene` deploy | CDN URL only |
+| Local Forge3D / workbench | Pop-out mesh tools, script pad | same `loadModel` / `convertToGlb` |
+
+Production bake: main `convertFile` (FBX2glTF → Blender fallback) then `optimizeWebFile`. Browser `exportToGlb` is convenience only.
+
+Handoff SSOT: `src/shared/editorHandoff.ts`.
 
 ## Architecture
 
@@ -38,7 +55,8 @@ See [docs/production-config.md](docs/production-config.md) for full credential r
 See [docs/object-storage.md](docs/object-storage.md) for R2 bucket layout and manifest schema.  
 See [docs/ai-workers-d1-r2-stream.md](docs/ai-workers-d1-r2-stream.md) for AI workers, Cloudflare AI, D1, R2, Stream production practices.  
 See [docs/admin-architecture.md](docs/admin-architecture.md) for **admin shell** map (Forge = DNS, Preview play mode, Coder hybrid, same-source docs).  
-Code SSOT: `src/shared/bestPractices.ts`, `src/shared/adminSurfaces.ts`, `src/shared/docsCatalog.ts`, `src/shared/fleet.ts`.
+See [docs/plugin-attach.md](docs/plugin-attach.md) for the loopback plugin host (`127.0.0.1:17380`) used by VS Code / standalone / viewer / agentic.  
+Code SSOT: `src/shared/bestPractices.ts`, `src/shared/plugin/`, `src/shared/adminSurfaces.ts`, `src/shared/docsCatalog.ts`, `src/shared/fleet.ts`.
 
 ---
 
@@ -98,13 +116,22 @@ Workers AI models are env-overridable: `CF_AI_DEFAULT_MODEL` (default `@cf/meta/
 8. **Doctor:** `npm run doctor` — critical probes only (obs + legacy api optional).
 
 Backend routing (`src/main/api.ts`): `resolveBackend()` chooses between `r2-direct`, `cf-worker`, or fleet client modes.  
-Local autonomous AI: Ollama at `OLLAMA_HOST` (default `http://localhost:11434`) via `src/main/ollama.ts` + AI preference in Settings.
+Local autonomous AI: Ollama at `OLLAMA_HOST` (default `http://localhost:11434`) via `src/main/ollama.ts`. Preferred model **`grudge-dev`** (Modelfile on `llama3.2`); `ensureRunning` creates it if missing.
 
 ---
 
 ## Upgrade Surfaces
 
 These are the tracked upgrade and connection-improvement opportunities. When working on an upgrade surface, update the corresponding row in this document's table AND add an entry to CHANGELOG.md. If a GitHub Issue tracks it, close that issue with a reference commit. If an upgrade is investigated and explicitly deferred, add a note in the table row with the reason and a target review date, e.g., "Deferred: upstream breaking change unresolved, revisit 2025-Q3".
+
+### 0. Plugin host (current)
+
+| Piece | Status |
+|---|---|
+| dest-tool `src/main/pluginHost.ts` | Loopback `:17380` — VS Code / standalone / CLI / viewer / agentic |
+| Practices | `src/shared/plugin/practices.ts` — dest-tool + live ai/coder/forge |
+| VS Code | `F:\\GitHub\\GrudachainCode\\packages\\vscode-extension` attaches dest-tool first |
+| CLI | `grudge-dev plugin status\|practices\|chat\|viewer` |
 
 ### 1. npm Dependencies — Pinned Versions to Bump
 
@@ -120,7 +147,7 @@ These are the tracked upgrade and connection-improvement opportunities. When wor
 | `electron-builder` | `^26.8.1` | Pin together with `electron-updater` |
 | `lucide-react` | `^0.408.0` | Icon API stable; safe to bump |
 | `react` / `react-dom` | `^18.3.1` | Do NOT upgrade to React 19 without a dedicated migration task. React 19 removes legacy APIs used in the renderer — audit for `ReactDOM.render`, `unstable_*` APIs, and ref forwarding patterns before scheduling the upgrade. |
-| `three` | `^0.169.0` | Three.js r170+ removes named exports from the main package — all imports must use `import { X } from 'three'` (already correct) but addon imports like `three/examples/jsm/*` must be verified. Run `grep -r "three/examples" src/` and update any affected paths before bumping. |
+| `three` | `^0.185.1` | Fleet pin (same as ThreeFlow / Open). All renderer addons import `three/addons/*`. Production GLTF factory: `src/renderer/lib/forge/gltfProdLoader.ts`. |
 | `sonner` | `^1.5.0` | Toast lib — safe minor bump |
 | `typescript` | `^5.7.0` | 5.8+ adds `erasableSyntaxOnly`; no breaking changes |
 | `vite` | `^8.0.10` | Confirmed installed version (verified in package.json); watch for patch updates |
@@ -186,6 +213,7 @@ Defined in `src/main/fleet/healthCheck.ts`:
 | No `meshoptimizer` | Large meshes shipped as-is | Wire `@gltf-transform/functions` `meshopt()` pass |
 | BlenderKit enrichment | Subprocess to Python script | Consider daemon REST endpoint once BK daemon is stable |
 | FBX → GLB conversion | Blender subprocess (slow) | Evaluate `fbx2glb` npm package for non-rigged assets |
+| Elite 3D viewport | Infinite SI grid + ViewHelper + inspector (2026-08) | Do not add `three-viewport-gizmo` / second viewer app — extend `SceneEngine` + `ViewerWindow` |
 
 ### 8. Grudge UUID System — Slot Expansion
 

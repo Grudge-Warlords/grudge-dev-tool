@@ -8,11 +8,12 @@
  */
 
 import { promises as fs } from "node:fs";
-import { basename, extname, join } from "node:path";
+import { basename, extname, join, dirname } from "node:path";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { convertFile } from "./convert";
 import { verifyFile } from "./sizeVerify";
+import { assertMeshFile, probeFileMagic } from "./magicVerify";
 
 export const OPTIMIZE_PROFILE = "grudge-web-v1" as const;
 
@@ -123,6 +124,47 @@ export async function optimizeWebFile(
   await fs.mkdir(outDir, { recursive: true });
 
   try {
+    // Gate HTML/error stubs before any convert/transform work
+    const extIn = extname(absPath).toLowerCase();
+    if (extIn === ".glb" || extIn === ".gltf") {
+      try {
+        await assertMeshFile(absPath);
+        steps.push("magic-ok");
+      } catch (e: any) {
+        return {
+          ok: false,
+          error: e?.message ?? String(e),
+          profile: OPTIMIZE_PROFILE,
+          beforeBytes,
+          afterBytes: 0,
+          reductionPct: 0,
+          steps,
+          warnings,
+        };
+      }
+      // Multi-file glTF: keep reading from original folder so .bin + textures resolve
+      if (extIn === ".gltf") {
+        const dir = dirname(absPath);
+        warnings.push(
+          `Reading multi-file glTF from ${dir} (external .bin/images must sit next to the .gltf)`,
+        );
+      }
+    } else {
+      const probe = await probeFileMagic(absPath).catch(() => null);
+      if (probe && (probe.kind === "html" || probe.kind === "json-stub")) {
+        return {
+          ok: false,
+          error: `${basename(absPath)}: ${probe.detail}`,
+          profile: OPTIMIZE_PROFILE,
+          beforeBytes,
+          afterBytes: 0,
+          reductionPct: 0,
+          steps,
+          warnings,
+        };
+      }
+    }
+
     const prepared = await ensureGltfOnDisk(absPath, outDir);
     warnings.push(...prepared.warnings);
     if (prepared.path !== absPath) {
@@ -130,6 +172,21 @@ export async function optimizeWebFile(
       try {
         beforeBytes = (await fs.stat(prepared.path)).size;
       } catch { /* keep original beforeBytes */ }
+      // Re-assert after convert (reject HTML-as-GLB convert mistakes)
+      try {
+        await assertMeshFile(prepared.path);
+      } catch (e: any) {
+        return {
+          ok: false,
+          error: e?.message ?? String(e),
+          profile: OPTIMIZE_PROFILE,
+          beforeBytes,
+          afterBytes: 0,
+          reductionPct: 0,
+          steps,
+          warnings,
+        };
+      }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -160,6 +217,7 @@ export async function optimizeWebFile(
       });
     }
 
+    // Read from prepared path (original .gltf dir for multi-file packs)
     const doc = await io.read(prepared.path);
     const beforeStats = docStats(doc);
 

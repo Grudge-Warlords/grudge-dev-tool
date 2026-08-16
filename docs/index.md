@@ -30,6 +30,7 @@ Windows x64 NSIS · electron-updater · Studio Hub · Asset Viewer · Forge embe
 | **Skeleton** | Mixamo-25 → T-pose → retarget → grudge-convert → CDN |
 | **Store / BlenderKit / UUID / Legion** | Catalogs, ingest, IDs, fleet AI chat |
 | **Agent AI** | Make & deploy · convert · upload · Forge handoff |
+| **Plugin host** | `127.0.0.1:17380` — VS Code / standalone / viewer / agentic attach |
 | **Docs** | Same `docs/` Markdown as this GitHub Pages site |
 
 [⬇ Latest installer](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }

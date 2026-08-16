@@ -97,12 +97,29 @@ export default function AIWorkspace() {
   const [localPods, setLocalPods] = useState<LocalPod[]>([]);
   const [hubPods, setHubPods] = useState<HubPod[]>([]);
   const [workspaceDir, setWorkspaceDir] = useState("");
+  const [pluginInfo, setPluginInfo] = useState<{
+    origin?: string;
+    running?: boolean;
+    token?: string;
+    port?: number;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       // Warm local AI (Ollama) — non-blocking for UI
       void ensureLocalAgent().then((r) => setAiStatus(r.detail));
+      void window.grudge?.plugin?.token?.().then((p: {
+        token?: string;
+        status?: { running?: boolean; origin?: string; port?: number };
+      }) => {
+        setPluginInfo({
+          token: p?.token,
+          running: p?.status?.running,
+          origin: p?.status?.origin,
+          port: p?.status?.port,
+        });
+      }).catch(() => setPluginInfo(null));
       const [me, list, dir] = await Promise.all([
         hubMe(),
         listProjects(),
@@ -326,6 +343,48 @@ export default function AIWorkspace() {
           </button>
         </div>
       </div>
+
+      {pluginInfo && (
+        <div className="rounded-lg border border-white/10 bg-[#12182a] px-4 py-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="font-medium text-gold">Plugin host (VS Code · standalone · viewer)</div>
+              <p className="text-muted text-xs mt-0.5">
+                {pluginInfo.running ? "Listening" : "Stopped"}{" "}
+                <code>{pluginInfo.origin ?? "http://127.0.0.1:17380"}</code>
+                {" "}· attach the Coder VS Code extension or open standalone.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn ghost text-xs"
+                onClick={() => {
+                  if (pluginInfo.origin) void window.grudge?.os?.openExternal?.(pluginInfo.origin);
+                }}
+              >
+                Open standalone
+              </button>
+              <button
+                type="button"
+                className="btn ghost text-xs"
+                onClick={async () => {
+                  const t = pluginInfo.token;
+                  if (!t) return;
+                  try {
+                    await navigator.clipboard.writeText(t);
+                    toast.success("Plugin token copied");
+                  } catch {
+                    toast.message(t);
+                  }
+                }}
+              >
+                Copy token
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="card text-xs text-muted flex flex-wrap gap-2 items-center">
         <span>

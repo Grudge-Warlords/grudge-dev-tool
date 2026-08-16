@@ -29,6 +29,8 @@ Each step tab **runs or focuses a real pipeline action**:
 
 Toolbar always: **Open model** · **Convert GLB** (`ingest:convert`).
 
+Elite pop-out viewer can **apply** a local library pack (`rest.glb` clips → one mixer) and **Save GLB + skeleton-mapping.json**. It does not replace this wizard.
+
 ## Pipeline
 
 1. **Load** FBX / GLB / OBJ  

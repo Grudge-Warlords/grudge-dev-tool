@@ -13,10 +13,10 @@ export async function probeFileMagic(absPath: string): Promise<MagicProbe> {
   const fh = await fs.open(absPath, "r");
   try {
     const { size } = await fh.stat();
-    const len = Math.min(size, 64 * 1024);
+    // glTF JSON may put "asset" after a long extensionsUsed block — read 256 KiB head
+    const len = Math.min(size, 256 * 1024);
     const buf = Buffer.alloc(len);
     await fh.read(buf, 0, len, 0);
-    // Magic is in first 4 bytes; report full file size from stat.
     const p = probeMagic(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
     return { ...p, bytes: size };
   } finally {

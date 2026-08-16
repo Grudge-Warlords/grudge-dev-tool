@@ -11,7 +11,8 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, copyFile, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, extname, join } from "node:path";
+import { basename, extname, join, normalize, resolve as pathResolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import log from "./logger";
 import * as forge from "./forge";
 import { convertFile, verifyFile } from "./ingestion";
@@ -299,7 +300,7 @@ export async function sendToForge(
   }
 }
 
-function downloadToBuffer(url: string): Promise<Buffer> {
+function downloadHttpToBuffer(url: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     const req = net.request({ method: "GET", url });
@@ -318,6 +319,86 @@ function downloadToBuffer(url: string): Promise<Buffer> {
   });
 }
 
+/**
+ * Resolve disk path from local:// or grudge-media:// viewer placeholders.
+ * Electron net.request only accepts http(s) — local Elite Viewer assets never
+ * go through that path when localPath or these schemes are present.
+ */
+function diskPathFromViewerUrl(url: string): string | null {
+  if (!url || typeof url !== "string") return null;
+  const trimmed = url.trim();
+  if (trimmed.startsWith("file:")) {
+    try {
+      return fileURLToPath(trimmed);
+    } catch {
+      return null;
+    }
+  }
+  if (trimmed.startsWith("local://")) {
+    try {
+      // Built as local://${encodeURIComponent(path with /)}
+      const raw = decodeURIComponent(trimmed.slice("local://".length));
+      return pathResolve(normalize(raw.replace(/\//g, "\\")));
+    } catch {
+      return null;
+    }
+  }
+  if (trimmed.startsWith("grudge-media:")) {
+    try {
+      const u = new URL(trimmed);
+      let filePath = u.searchParams.get("path") || "";
+      if (!filePath) {
+        filePath = decodeURIComponent(u.pathname || "");
+        if (filePath.startsWith("/") && /^[A-Za-z]:/.test(filePath.slice(1))) {
+          filePath = filePath.slice(1);
+        }
+      } else {
+        filePath = decodeURIComponent(filePath);
+      }
+      return pathResolve(normalize(filePath));
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Load asset bytes for convert / optimize / image tools.
+ * Prefer absolute disk path; never pass blob:/local:/grudge-media: to net.request.
+ */
+async function loadAssetBytes(args: {
+  url?: string;
+  localPath?: string;
+}): Promise<Buffer> {
+  const disk =
+    (args.localPath && args.localPath.trim()) ||
+    diskPathFromViewerUrl(args.url || "");
+  if (disk) {
+    const abs = pathResolve(normalize(disk));
+    if (!existsSync(abs)) {
+      throw new Error(`Local file not found: ${abs}`);
+    }
+    return readFile(abs);
+  }
+
+  const url = (args.url || "").trim();
+  if (!url) {
+    throw new Error("No url or localPath to load asset");
+  }
+  if (url.startsWith("blob:")) {
+    throw new Error(
+      "Cannot optimize a blob: URL from the main process — re-open the file from Local Files (disk path) or use an https CDN URL",
+    );
+  }
+  if (url.startsWith("http:") || url.startsWith("https:")) {
+    return downloadHttpToBuffer(url);
+  }
+  throw new Error(
+    `ClientRequest only supports http: and https: protocols — got "${url.slice(0, 48)}…". Pass localPath or use an https CDN URL.`,
+  );
+}
+
 /** Download remote image, convert via sharp, return temp path for save dialog. */
 export async function convertImage(args: {
   url: string;
@@ -326,13 +407,16 @@ export async function convertImage(args: {
   quality?: number;
   maxWidth?: number;
   maxHeight?: number;
+  /** Absolute disk path when opened from Local Files — required for blob:/local: URLs */
+  localPath?: string;
 }): Promise<ImageConvertResult> {
   try {
-    if (!args?.url || !args?.name) return { ok: false, error: "url and name required" };
+    if (!args?.name) return { ok: false, error: "name required" };
+    if (!args?.url && !args?.localPath) return { ok: false, error: "url or localPath required" };
     if (!isConvertibleImagePath(args.name) && !args.name.match(/\.(png|jpe?g|webp|gif|tga|tiff?|bmp|heic|avif)$/i)) {
       // Still try — remote may have wrong extension in key
     }
-    const buf = await downloadToBuffer(args.url);
+    const buf = await loadAssetBytes({ url: args.url, localPath: args.localPath });
     const dir = await mkdtemp(join(tmpdir(), "grudge-viewer-img-"));
     const srcName = basename(args.name) || "image.bin";
     const srcPath = join(dir, srcName);
@@ -353,9 +437,10 @@ export async function convertImage(args: {
 export async function inspectRemoteImage(args: {
   url: string;
   name: string;
+  localPath?: string;
 }): Promise<{ ok: true; meta: ImageMeta } | { ok: false; error: string }> {
   try {
-    const buf = await downloadToBuffer(args.url);
+    const buf = await loadAssetBytes({ url: args.url, localPath: args.localPath });
     const dir = await mkdtemp(join(tmpdir(), "grudge-viewer-meta-"));
     const srcPath = join(dir, basename(args.name) || "image.bin");
     await writeFile(srcPath, buf);
@@ -372,10 +457,12 @@ export async function convertModel(args: {
   url: string;
   name: string;
   targetFormat: "glb" | "gltf";
+  localPath?: string;
 }): Promise<{ ok: true; path: string; name: string } | { ok: false; error: string }> {
   try {
-    if (!args?.url || !args?.name) return { ok: false, error: "url and name required" };
-    const buf = await downloadToBuffer(args.url);
+    if (!args?.name) return { ok: false, error: "name required" };
+    if (!args?.url && !args?.localPath) return { ok: false, error: "url or localPath required" };
+    const buf = await loadAssetBytes({ url: args.url, localPath: args.localPath });
     const dir = await mkdtemp(join(tmpdir(), "grudge-viewer-convert-"));
     const srcName = basename(args.name) || "model.bin";
     const srcPath = join(dir, srcName);
@@ -449,21 +536,57 @@ export type OptimizeForWebResult =
 /**
  * Download CDN/local asset → grudge-web-v1 optimize → temp .web.glb + before/after sizes.
  * `objectKey` is the original bucket path (`asset.name`) for optional re-upload.
+ * Local Elite Viewer assets must pass `localPath` (blob:/local: are not http).
  */
 export async function optimizeForWeb(args: {
   url: string;
   name: string;
   opts?: OptimizeWebOptions;
+  localPath?: string;
 }): Promise<OptimizeForWebResult> {
   try {
-    if (!args?.url || !args?.name) {
-      return { ok: false, error: "url and name required" };
+    if (!args?.name) {
+      return { ok: false, error: "name required" };
     }
+    if (!args?.url && !args?.localPath) {
+      return { ok: false, error: "url or localPath required" };
+    }
+
+    // Prefer disk. For multi-file .gltf, optimize FROM the original path so
+    // external .bin + textures resolve (copying only scene.gltf orphans maps).
+    const diskHint =
+      (args.localPath && args.localPath.trim()) ||
+      diskPathFromViewerUrl(args.url || "");
     const dir = await mkdtemp(join(tmpdir(), "grudge-viewer-opt-"));
-    const srcName = basename(args.name) || "model.bin";
-    const srcPath = join(dir, srcName);
-    const buf = await downloadToBuffer(args.url);
-    await writeFile(srcPath, buf);
+    let srcPath: string;
+
+    if (diskHint && existsSync(pathResolve(normalize(diskHint)))) {
+      const abs = pathResolve(normalize(diskHint));
+      const ext = extname(abs).toLowerCase();
+      if (ext === ".gltf") {
+        srcPath = abs;
+      } else {
+        const srcName = basename(abs) || basename(args.name) || "model.bin";
+        srcPath = join(dir, srcName);
+        await copyFile(abs, srcPath);
+      }
+    } else {
+      const srcName = basename(args.name) || "model.bin";
+      srcPath = join(dir, srcName);
+      const buf = await loadAssetBytes({ url: args.url, localPath: args.localPath });
+      // Reject HTML/error stubs before writing temp + optimize
+      const { assertMeshBytes } = await import("../shared/magicBytes");
+      const lower = srcName.toLowerCase();
+      if (lower.endsWith(".glb") || lower.endsWith(".gltf") || lower.endsWith(".bin")) {
+        assertMeshBytes(buf, srcName);
+      }
+      await writeFile(srcPath, buf);
+      if (lower.endsWith(".gltf")) {
+        log.warn(
+          "Optimize downloaded a lone .gltf without sibling .bin/textures — embed may miss maps. Prefer Local Files open of the full pack folder.",
+        );
+      }
+    }
 
     const result = await optimizeWebFile(srcPath, { ...args.opts, outDir: dir });
     if (!result.ok || !result.path) {

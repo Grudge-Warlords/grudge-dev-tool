@@ -25,6 +25,8 @@ const EXT_TO_MIME: Record<string, string> = {
   // 3D
   glb: "model/gltf-binary",
   gltf: "model/gltf+json",
+  /** glTF buffer companion (open resolves to sibling .gltf) */
+  bin: "application/octet-stream",
   fbx: "application/octet-stream",
   obj: "model/obj",
   stl: "model/stl",
@@ -38,6 +40,9 @@ const EXT_TO_MIME: Record<string, string> = {
   usd: "model/vnd.usd",
   usda: "model/vnd.usd+usda",
   usdc: "model/vnd.usd+usdc",
+  /** Three.js ObjectLoader / Forge scene dumps */
+  gfscene: "application/json",
+  three: "application/json",
   // Design / DCC
   psd: "image/vnd.adobe.photoshop",
   psb: "image/vnd.adobe.photoshop",
@@ -112,7 +117,7 @@ export function isImagePath(name: string): boolean {
 export function isModelPath(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   return [
-    "glb", "gltf", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend", "vrm",
+    "glb", "gltf", "bin", "fbx", "obj", "stl", "ply", "dae", "3mf", "blend", "vrm",
     "html", "htm", // CSS3D quick view
   ].includes(ext);
 }
@@ -174,10 +179,13 @@ export function listViewerExtensionsWithDot(): string[] {
   return [...set].sort();
 }
 
-/** Heuristic for Three.js scene files (ObjectLoader JSON) stored in object storage. */
+/** Heuristic for Three.js / Forge scene files stored on disk or object storage. */
 export function isThreeScenePath(name: string): boolean {
-  const lower = name.toLowerCase();
+  const lower = name.toLowerCase().replace(/\\/g, "/");
   if (lower.endsWith(".scene.json") || lower.endsWith(".three.json")) return true;
+  if (lower.endsWith(".forge-scene.json")) return true;
+  if (lower.endsWith(".gfscene.json") || lower.endsWith(".gfscene")) return true;
+  if (lower.endsWith(".scene") || lower.endsWith(".three")) return true;
   if (lower.includes("/scenes/") && lower.endsWith(".json")) return true;
   return false;
 }
@@ -185,10 +193,11 @@ export function isThreeScenePath(name: string): boolean {
 /** File picker accept string for Upload / importers. */
 export const UPLOAD_ACCEPT =
   ".png,.jpg,.jpeg,.webp,.gif,.avif,.tga,.bmp,.tif,.tiff,.heic,.svg,.psd,.psb," +
-  ".glb,.gltf,.fbx,.obj,.stl,.ply,.dae,.3mf,.blend,.vrm,.usdz," +
+  ".glb,.gltf,.bin,.fbx,.obj,.stl,.ply,.dae,.3mf,.blend,.vrm,.usdz," +
   ".ktx,.ktx2,.dds,.hdr,.exr," +
   ".mp3,.wav,.ogg,.flac,.mp4,.webm,.mov," +
-  ".json,.zip,.pdf,.ttf,.otf,.woff,.woff2,.tmx,.tsx,.atlas,.aseprite";
+  ".json,.scene.json,.three.json,.forge-scene.json,.gfscene,.scene," +
+  ".zip,.pdf,.ttf,.otf,.woff,.woff2,.tmx,.tsx,.atlas,.aseprite";
 
 export const IMAGE_CONVERT_FORMATS = ["png", "webp", "jpeg", "avif"] as const;
 
@@ -198,7 +207,9 @@ export function isViewerOpenablePath(name: string): boolean {
   if (!ext) return false;
   if (EXT_TO_MIME[ext]) return true;
   if ((EXTRA_VIEWER_EXTS as readonly string[]).includes(ext)) return true;
-  if (["psd", "psb", "gfscene", "blend", "scene", "aseprite", "ase"].includes(ext)) return true;
+  if (["psd", "psb", "gfscene", "blend", "scene", "aseprite", "ase", "bin", "three"].includes(ext)) {
+    return true;
+  }
   if (isDesignPath(name)) return true;
   return isThreeScenePath(name);
 }

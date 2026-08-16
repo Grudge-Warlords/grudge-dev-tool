@@ -72,6 +72,7 @@ https://client.grudge-studio.com
 cd cli && npm install && npm run build && npm install -g .
 grudge-dev setup
 grudge-dev doctor          # ONE TRUTH score via client.grudge-studio.com
+grudge-dev plugin status   # dest-tool must be running (127.0.0.1:17380)
 ```
 
 ---

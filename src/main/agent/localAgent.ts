@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { aiChat } from "../fleet/aiWorkerManager";
 import * as ollama from "../ollama";
 import log from "../logger";
+import { pluginAgentPracticesPrompt } from "../../shared/plugin/practices";
 
 export interface LocalAgentStep {
   step: number;
@@ -44,14 +45,17 @@ export interface LocalOrchestratorResult {
   source: string;
 }
 
-const AGENT_SYSTEM = `You are GRUDA, the in-app Grudge Studio Agent AI (desktop shell).
+const AGENT_SYSTEM = `You are GRUDA, the in-app Grudge Studio Agent AI (desktop shell + plugin host).
 You help ship games, assets, Forge scenes, R2 packs, and fleet ops.
 Be concrete and actionable. Prefer ONE TRUTH:
 - client.grudge-studio.com
 - assets.grudge-studio.com
 - Railway game-data
 - Forge tools in this desktop app (not external browser).
-When listing steps, use short numbered actions.`;
+VS Code / standalone attach to this same host (127.0.0.1:17380).
+When listing steps, use short numbered actions.
+
+${pluginAgentPracticesPrompt()}`;
 
 const ORCH_SYSTEM = `You are the Grudge Studio local orchestrator inside the desktop app.
 Return ONLY JSON (no markdown):
@@ -342,7 +346,7 @@ export async function localAgentStatus(): Promise<{
       nativePath: null,
       nativeRunning: false,
       models: [],
-      preferredModel: "llama3.2",
+      preferredModel: "grudge-dev",
       aiPref: "auto",
       agenticReady: false,
       steps: [],

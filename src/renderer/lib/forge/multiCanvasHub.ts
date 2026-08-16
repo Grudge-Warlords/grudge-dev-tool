@@ -12,8 +12,8 @@
  * Full pop-out ViewerWindow still uses dedicated SceneEngine (interactive tools).
  */
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 export type MultiCanvasQuality = "low" | "medium" | "high";
 

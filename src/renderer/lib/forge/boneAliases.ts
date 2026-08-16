@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { retargetClip as skuRetargetClip } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { retargetClip as skuRetargetClip } from "three/addons/utils/SkeletonUtils.js";
 
 export const RIGHT_HAND_ALIASES = [
   // ── Grudge6 Bip001 weapon container (preferred — most specific) ──

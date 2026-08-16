@@ -54,6 +54,22 @@ export interface ForgeImportItem {
  */
 export const FORGE_IMPROVEMENT_SCAFFOLD: ForgeImportItem[] = [
   {
+    id: "prod-loader",
+    label: "ThreeFlow production GLTF loader (Draco + Meshopt + KTX2)",
+    status: "ported",
+    upstream: "F:\\GitHub\\ThreeFlow\\src\\utils\\gltfProdLoader.ts",
+    local: "src/renderer/lib/forge/gltfProdLoader.ts",
+    notes: "Elite / Forge3D / convertToGlb all call loadModel → this factory. No bare GLTFLoader.",
+  },
+  {
+    id: "editor-handoff",
+    label: "ThreeFlow + Forge live ?asset= handoff",
+    status: "ported",
+    upstream: "threeflow.vercel.app ?asset=",
+    local: "src/shared/editorHandoff.ts",
+    notes: "Elite Open in ThreeFlow / Forge live. ThreeFlow consumeDevToolAsset after init.",
+  },
+  {
     id: "file-kind",
     label: "fileKind classifier (glb/fbx/zip/gfscene)",
     status: "ported",
@@ -140,15 +156,6 @@ export function listScaffoldForgeImports(): ForgeImportItem[] {
   );
 }
 
-/** Build a production Forge URL that loads a CDN mesh (when Forge supports ?mesh=). */
-export function forgeStudioMeshUrl(meshUrl: string, extra?: Record<string, string>): string {
-  const u = new URL(FORGE_STUDIO_LIVE);
-  u.searchParams.set("edit", "1");
-  u.searchParams.set("mode", "edit");
-  u.searchParams.set("from", "grudge-dev-tool");
-  u.searchParams.set("mesh", meshUrl);
-  if (extra) {
-    for (const [k, v] of Object.entries(extra)) u.searchParams.set(k, v);
-  }
-  return u.toString();
-}
+/** Build a production Forge URL that loads a CDN mesh (`?asset=` + `?mesh=`). */
+export { forgeStudioAssetUrl as forgeStudioMeshUrl } from "../../../shared/editorHandoff";
+export { threeflowAssetUrl, bestEditorUrl } from "../../../shared/editorHandoff";

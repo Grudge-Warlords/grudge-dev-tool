@@ -408,6 +408,13 @@ export const SURFACE_BEST_PRACTICES = {
     category: "surfaces" as const,
     surfaces: ["devtools", "assets", "pipeline"] as const,
   },
+  pluginAttach: {
+    id: "surface-plugin",
+    title: "Plugin attach (VS Code / standalone / viewer)",
+    rule: "Grudge Dev Tool hosts the plugin kernel at 127.0.0.1:17380. VS Code (GrudachainCode packages/vscode-extension), standalone GET /, CLI `grudge-dev plugin`, and elite viewer all attach here. Token in %APPDATA%/grudge-dev-tool/plugin-token. Legion = brain, Forge = hands, Coder = IDE — do not merge names.",
+    category: "surfaces" as const,
+    surfaces: ["devtools", "ai", "coder", "forge"] as const,
+  },
   docsSameSource: {
     id: "surface-docs",
     title: "Docs same source as Pages",
@@ -515,6 +522,7 @@ export function agentBestPracticesCompact(): string {
     "- D1=asset index (prepare/bind/batch); R2=binaries at assets.grudge-studio.com; Stream=long video.",
     "- Convert before upload; magic-byte verify; send 3D to Forge via CDN URL.",
     "- Forge tab = forge.grudge-studio.com (same DNS). Preview = play clients. Coder = coder.grudge-studio.com.",
+    "- Plugin: dest-tool hosts 127.0.0.1:17380 for VS Code / standalone / viewer / agentic. Legion=brain, Forge=hands, Coder=IDE.",
     "- Admin APIs: client · id · Railway · objectstore · info.* · assets · open · grudox · multiverse · engine portal.",
     "- Multiverse: SPA grudge-multiverse.vercel.app + Railway /api/mv (own service, not Carrier).",
     "- DB: player SSOT = Railway Postgres; dump via npm run backup:postgres (parallel tables); never commit backups/; share bag via account APIs not D1.",

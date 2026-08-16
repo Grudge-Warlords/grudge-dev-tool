@@ -1,9 +1,29 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { TransformControls } from "three/addons/controls/TransformControls.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+// Official three.js editor view cube (no extra npm). JS addon — local type.
+import { ViewHelper as ViewHelperImpl } from "three/addons/helpers/ViewHelper.js";
+
+type ViewHelperApi = {
+  animating: boolean;
+  center: THREE.Vector3;
+  setLabels: (x: string, y: string, z: string) => void;
+  handleClick: (event: PointerEvent) => boolean;
+  update: (delta: number) => void;
+  render: (renderer: THREE.WebGLRenderer) => void;
+  dispose: () => void;
+};
+const ViewHelper = ViewHelperImpl as unknown as new (
+  camera: THREE.Camera,
+  dom: HTMLElement,
+) => ViewHelperApi;
+import { createInfiniteGrid } from "./infiniteGrid";
+import { attachBoneNameLabels, disposeBoneLabelGroup } from "./skeletonOverlay";
+import { measureObjectSi, type SiBounds } from "./siMeasure";
 
 export type GizmoMode = "translate" | "rotate" | "scale";
+export type StudioView = "persp" | "front" | "right" | "top";
 
 export interface StudioLightState {
   key: { color: number; intensity: number; position: [number, number, number] };
@@ -33,6 +53,8 @@ export interface SceneEngineOptions {
 export class SceneEngine {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
+  /** Camera used for render / pick / orbit (persp or ortho). */
+  activeCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
   readonly renderer: THREE.WebGLRenderer;
   readonly controls: OrbitControls;
   readonly transform: TransformControls;
@@ -56,9 +78,15 @@ export class SceneEngine {
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
 
-  private grid: THREE.GridHelper | null = null;
+  private grid: THREE.Object3D | null = null;
   private skeletonHelpers = new Map<THREE.Object3D, THREE.SkeletonHelper>();
+  private boneLabelGroups = new Map<THREE.Object3D, THREE.Group>();
+  private boundsHelpers = new Map<THREE.Object3D, THREE.Box3Helper>();
   private axes: THREE.AxesHelper | null = null;
+  private viewHelper: ViewHelperApi | null = null;
+  private orthoCam: THREE.OrthographicCamera | null = null;
+  private viewKind: StudioView = "persp";
+  private shiftPanBound = false;
   private rafHandle = 0;
   private resizeObserver?: ResizeObserver;
   private disposed = false;
@@ -73,6 +101,7 @@ export class SceneEngine {
     this.camera = new THREE.PerspectiveCamera(50, w / h, 0.01, 5000);
     this.camera.position.set(3, 2.5, 4);
     this.camera.lookAt(0, 0.5, 0);
+    this.activeCamera = this.camera;
 
     // Full pop-out viewer: dedicated context OK (one window).
     // Grid previews use MultiCanvasHub instead (see multiCanvasHub.ts).
@@ -83,7 +112,7 @@ export class SceneEngine {
       preserveDrawingBuffer: true,
       stencil: false,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.setSize(w, h, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -92,6 +121,14 @@ export class SceneEngine {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.domElement.style.cssText = "width:100%;height:100%;display:block;outline:none";
     container.appendChild(this.renderer.domElement);
+    // KTX2Loader.detectSupport (gltfProdLoader) reuses the live Elite/Forge GL context
+    try {
+      (window as unknown as { __grudgeWebGLRenderer?: THREE.WebGLRenderer }).__grudgeWebGLRenderer =
+        this.renderer;
+    } catch {
+      /* non-browser */
+    }
+    void import("./gltfProdLoader").then((m) => m.bindProductionKtx2(this.renderer));
 
     // Lighting — warm key + cool fill, plus IBL from RoomEnvironment for PBR materials.
     const key = new THREE.DirectionalLight(0xfff1d6, 1.4);
@@ -123,10 +160,7 @@ export class SceneEngine {
     }
 
     if (opts.showGrid !== false) {
-      this.grid = new THREE.GridHelper(20, 20, 0xffc62a, 0x1c2a55);
-      this.grid.userData.forgeInternal = true;
-      (this.grid.material as THREE.Material).transparent = true;
-      (this.grid.material as THREE.Material).opacity = 0.6;
+      this.grid = createInfiniteGrid();
       this.scene.add(this.grid);
     }
     if (opts.showAxes !== false) {
@@ -139,6 +173,14 @@ export class SceneEngine {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.target.set(0, 0.5, 0);
+    // Chrome 3D Viewer + Blender: LMB orbit, RMB/MMB pan, Shift+LMB pan, scroll zoom
+    this.controls.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.PAN,
+      RIGHT: THREE.MOUSE.PAN,
+    };
+    this.bindShiftPan();
+    this.bindViewHelper();
 
     this.transform = new TransformControls(this.camera, this.renderer.domElement);
     this.transform.addEventListener("dragging-changed", (e: any) => {
@@ -175,6 +217,79 @@ export class SceneEngine {
     if (this.axes) this.axes.visible = enabled;
   }
 
+  setGridVisible(enabled: boolean): void {
+    if (this.grid) this.grid.visible = enabled;
+  }
+
+  setAxesVisible(enabled: boolean): void {
+    if (!this.axes && enabled) {
+      this.axes = new THREE.AxesHelper(0.75);
+      this.axes.userData.forgeInternal = true;
+      this.scene.add(this.axes);
+    }
+    if (this.axes) this.axes.visible = enabled;
+  }
+
+  getViewKind(): StudioView {
+    return this.viewKind;
+  }
+
+  isOrtho(): boolean {
+    return this.activeCamera !== this.camera;
+  }
+
+  /** Numpad-style views: 1 front · 3 right · 7 top · persp. */
+  setView(kind: StudioView, frameTarget?: THREE.Object3D | null): void {
+    this.viewKind = kind;
+    if (kind === "persp") {
+      this.activeCamera = this.camera;
+      this.controls.enableRotate = true;
+    } else {
+      this.ensureOrtho();
+      this.activeCamera = this.orthoCam!;
+      this.placeAxisView(kind);
+    }
+    this.controls.object = this.activeCamera;
+    try {
+      (this.transform as unknown as { camera: THREE.Camera }).camera = this.activeCamera;
+    } catch {
+      /* r169 camera is ctor-only on some builds */
+    }
+    this.bindViewHelper();
+    if (frameTarget) this.frame(frameTarget);
+    else this.controls.update();
+  }
+
+  /** Blender 5: toggle perspective / ortho keeping the current look. */
+  togglePerspOrtho(frameTarget?: THREE.Object3D | null): void {
+    if (this.activeCamera === this.camera) {
+      this.ensureOrtho();
+      const dir = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
+      const dist = Math.max(0.5, dir.length());
+      this.orthoCam!.position.copy(this.controls.target).addScaledVector(dir.normalize(), dist);
+      this.orthoCam!.quaternion.copy(this.camera.quaternion);
+      this.orthoCam!.up.copy(this.camera.up);
+      this.syncOrthoFrustum(Math.max(2, dist * 0.6), 1);
+      this.activeCamera = this.orthoCam!;
+      this.viewKind = this.guessViewFromDir(dir);
+    } else {
+      this.camera.position.copy(this.activeCamera.position);
+      this.camera.quaternion.copy(this.activeCamera.quaternion);
+      this.camera.up.copy(this.activeCamera.up);
+      this.activeCamera = this.camera;
+      this.viewKind = "persp";
+    }
+    this.controls.object = this.activeCamera;
+    try {
+      (this.transform as unknown as { camera: THREE.Camera }).camera = this.activeCamera;
+    } catch {
+      /* ignore */
+    }
+    this.bindViewHelper();
+    if (frameTarget) this.frame(frameTarget);
+    else this.controls.update();
+  }
+
   setGizmoMode(mode: GizmoMode): void {
     this.transform.setMode(mode);
   }
@@ -205,7 +320,7 @@ export class SceneEngine {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-    this.raycaster.setFromCamera(this.pointer, this.camera);
+    this.raycaster.setFromCamera(this.pointer, this.activeCamera);
     const targets = roots?.length
       ? roots
       : this.scene.children.filter((c) => !c.userData?.forgeInternal && c !== this.transformHelper);
@@ -315,6 +430,7 @@ export class SceneEngine {
 
   /** Reset camera to default studio home (origin look). */
   focusHome(): void {
+    this.setView("persp");
     this.camera.position.set(3, 2.5, 4);
     this.camera.near = 0.01;
     this.camera.far = 5000;
@@ -332,17 +448,26 @@ export class SceneEngine {
     box.getCenter(center);
     // Guard zero-size (single point / empty mesh)
     const maxDim = Math.max(size.x, size.y, size.z, 0.05);
-    const fov = THREE.MathUtils.degToRad(this.camera.fov);
     const aspect = Math.max(0.1, this.camera.aspect);
-    // Fit both height and width against perspective frustum
+    const dir = new THREE.Vector3().subVectors(this.activeCamera.position, this.controls.target);
+    if (dir.lengthSq() < 1e-6) dir.set(1, 0.65, 1);
+    dir.normalize();
+
+    if (this.activeCamera instanceof THREE.OrthographicCamera) {
+      const dist = Math.max(2, maxDim * paddingFactor);
+      this.activeCamera.position.copy(center).addScaledVector(dir, dist);
+      this.syncOrthoFrustum(maxDim, paddingFactor);
+      this.controls.target.copy(center);
+      this.controls.minDistance = Math.max(0.01, maxDim * 0.05);
+      this.controls.maxDistance = Math.max(50, dist * 8);
+      this.controls.update();
+      return;
+    }
+
+    const fov = THREE.MathUtils.degToRad(this.camera.fov);
     const fitH = maxDim / (2 * Math.tan(fov / 2));
     const fitW = maxDim / (2 * Math.tan(fov / 2) * aspect);
     const dist = Math.max(fitH, fitW) * paddingFactor;
-    // Prefer current orbit direction if camera is already framed; else default 3/4 view
-    const dir = new THREE.Vector3()
-      .subVectors(this.camera.position, this.controls.target);
-    if (dir.lengthSq() < 1e-6) dir.set(1, 0.65, 1);
-    dir.normalize();
     this.camera.position.copy(center).addScaledVector(dir, dist);
     this.camera.near = Math.max(0.001, maxDim / 500);
     this.camera.far = Math.max(this.camera.near * 100, dist * 20 + maxDim * 10);
@@ -425,6 +550,12 @@ export class SceneEngine {
     const h = Math.max(2, this.container.clientHeight || 2);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    if (this.orthoCam) {
+      const halfH = (this.orthoCam.top - this.orthoCam.bottom) / 2;
+      this.orthoCam.left = -halfH * this.camera.aspect;
+      this.orthoCam.right = halfH * this.camera.aspect;
+      this.orthoCam.updateProjectionMatrix();
+    }
     this.renderer.setSize(w, h, false);
   };
 
@@ -435,11 +566,16 @@ export class SceneEngine {
       const dt = Math.min(0.05, this.clock.getDelta());
       for (const m of this.mixers) m.update(dt * this.timeScale);
       this.controls.update();
+      if (this.viewHelper) {
+        this.viewHelper.center.copy(this.controls.target);
+        if (this.viewHelper.animating) this.viewHelper.update(dt);
+      }
       // Skip zero-size paints (host hidden / tab background)
       const w = this.container.clientWidth;
       const h = this.container.clientHeight;
       if (w < 2 || h < 2) return;
-      this.renderer.render(this.scene, this.camera);
+      this.renderer.render(this.scene, this.activeCamera);
+      this.viewHelper?.render(this.renderer);
     } catch (e) {
       // Prevent uncaught rAF flood (same class of bug as cinema tick)
       console.warn("[SceneEngine] tick error", e);
@@ -473,7 +609,12 @@ export class SceneEngine {
         helper = new THREE.SkeletonHelper(skelTarget);
         helper.name = "GrudgeSkeletonHelper";
         helper.userData.forgeInternal = true;
-        (helper.material as THREE.LineBasicMaterial).depthTest = true;
+        const line = helper.material as THREE.LineBasicMaterial;
+        line.depthTest = false;
+        line.linewidth = 2;
+        line.color.setHex(0xffc62a);
+        line.transparent = true;
+        line.opacity = 0.92;
         this.scene.add(helper);
         this.skeletonHelpers.set(root, helper);
         root.userData.grudgeSkeletonHelper = helper;
@@ -481,7 +622,42 @@ export class SceneEngine {
       helper.visible = true;
     } else if (helper) {
       helper.visible = false;
+      const labels = this.boneLabelGroups.get(root);
+      if (labels) labels.visible = false;
     }
+  }
+
+  setBoneLabelsVisible(root: THREE.Object3D, visible: boolean): void {
+    let labels = this.boneLabelGroups.get(root);
+    if (visible && !labels) {
+      labels = attachBoneNameLabels(root, this.scene);
+      this.boneLabelGroups.set(root, labels);
+    }
+    if (labels) labels.visible = visible;
+  }
+
+  setBoundsHelper(root: THREE.Object3D, visible: boolean): void {
+    let helper = this.boundsHelpers.get(root);
+    if (visible) {
+      const box = new THREE.Box3().setFromObject(root);
+      if (box.isEmpty()) return;
+      if (!helper) {
+        helper = new THREE.Box3Helper(box, 0x67e8f9);
+        helper.name = "GrudgeBoundsHelper";
+        helper.userData.forgeInternal = true;
+        this.scene.add(helper);
+        this.boundsHelpers.set(root, helper);
+      } else {
+        helper.box.copy(box);
+      }
+      helper.visible = true;
+    } else if (helper) {
+      helper.visible = false;
+    }
+  }
+
+  measureBounds(root: THREE.Object3D): SiBounds {
+    return measureObjectSi(root);
   }
 
   removeSkeletonHelper(root: THREE.Object3D): void {
@@ -494,6 +670,17 @@ export class SceneEngine {
       else mat?.dispose();
       this.skeletonHelpers.delete(root);
       delete root.userData.grudgeSkeletonHelper;
+    }
+    const labels = this.boneLabelGroups.get(root);
+    if (labels) {
+      disposeBoneLabelGroup(labels);
+      this.boneLabelGroups.delete(root);
+    }
+    const bounds = this.boundsHelpers.get(root);
+    if (bounds) {
+      this.scene.remove(bounds);
+      (bounds.material as THREE.Material)?.dispose?.();
+      this.boundsHelpers.delete(root);
     }
   }
 
@@ -520,6 +707,17 @@ export class SceneEngine {
       }
       removeHelper.dispose?.();
     } catch { /* ignore */ }
+    this.unbindShiftPan();
+    this.renderer.domElement.removeEventListener("pointerdown", this.onViewHelperPointer);
+    this.viewHelper?.dispose();
+    this.viewHelper = null;
+    for (const g of this.boneLabelGroups.values()) disposeBoneLabelGroup(g);
+    this.boneLabelGroups.clear();
+    for (const h of this.boundsHelpers.values()) {
+      this.scene.remove(h);
+      (h.material as THREE.Material)?.dispose?.();
+    }
+    this.boundsHelpers.clear();
     this.controls.dispose();
     this.scene.traverse((node) => {
       const m = node as THREE.Mesh;
@@ -534,5 +732,89 @@ export class SceneEngine {
     if (this.renderer.domElement.parentElement === this.container) {
       this.container.removeChild(this.renderer.domElement);
     }
+  }
+
+  private bindViewHelper(): void {
+    this.renderer.domElement.removeEventListener("pointerdown", this.onViewHelperPointer);
+    this.viewHelper?.dispose();
+    this.viewHelper = new ViewHelper(this.activeCamera, this.renderer.domElement);
+    this.viewHelper.setLabels("X", "Y", "Z");
+    this.viewHelper.center.copy(this.controls.target);
+    this.renderer.domElement.addEventListener("pointerdown", this.onViewHelperPointer);
+  }
+
+  private onViewHelperPointer = (event: PointerEvent): void => {
+    if (!this.viewHelper) return;
+    const handled = this.viewHelper.handleClick(event);
+    if (handled) {
+      event.stopPropagation();
+      this.viewHelper.center.copy(this.controls.target);
+    }
+  };
+
+  private bindShiftPan(): void {
+    if (this.shiftPanBound) return;
+    this.shiftPanBound = true;
+    window.addEventListener("keydown", this.onShiftPanKey);
+    window.addEventListener("keyup", this.onShiftPanKey);
+    window.addEventListener("blur", this.onShiftPanBlur);
+  }
+
+  private unbindShiftPan(): void {
+    if (!this.shiftPanBound) return;
+    this.shiftPanBound = false;
+    window.removeEventListener("keydown", this.onShiftPanKey);
+    window.removeEventListener("keyup", this.onShiftPanKey);
+    window.removeEventListener("blur", this.onShiftPanBlur);
+  }
+
+  private onShiftPanKey = (e: KeyboardEvent): void => {
+    if (e.key !== "Shift") return;
+    this.controls.mouseButtons.LEFT = e.type === "keydown" ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+  };
+
+  private onShiftPanBlur = (): void => {
+    this.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+  };
+
+  private ensureOrtho(): void {
+    if (this.orthoCam) return;
+    const aspect = Math.max(0.1, this.camera.aspect);
+    this.orthoCam = new THREE.OrthographicCamera(-4 * aspect, 4 * aspect, 4, -4, 0.01, 5000);
+  }
+
+  private syncOrthoFrustum(maxDim: number, paddingFactor: number): void {
+    if (!this.orthoCam) return;
+    const aspect = Math.max(0.1, this.camera.aspect);
+    const half = Math.max(0.25, (maxDim * paddingFactor) / 2);
+    this.orthoCam.left = -half * aspect;
+    this.orthoCam.right = half * aspect;
+    this.orthoCam.top = half;
+    this.orthoCam.bottom = -half;
+    this.orthoCam.near = 0.01;
+    this.orthoCam.far = Math.max(100, maxDim * 40);
+    this.orthoCam.updateProjectionMatrix();
+  }
+
+  private placeAxisView(kind: Exclude<StudioView, "persp">): void {
+    this.ensureOrtho();
+    const target = this.controls.target.clone();
+    const dist = Math.max(2, this.camera.position.distanceTo(target));
+    const cam = this.orthoCam!;
+    if (kind === "front") cam.position.set(target.x, target.y, target.z + dist);
+    else if (kind === "right") cam.position.set(target.x + dist, target.y, target.z);
+    else cam.position.set(target.x, target.y + dist, target.z);
+    cam.up.set(0, kind === "top" ? 0 : 1, kind === "top" ? -1 : 0);
+    cam.lookAt(target);
+    this.syncOrthoFrustum(dist * 0.55, 1);
+  }
+
+  private guessViewFromDir(dir: THREE.Vector3): StudioView {
+    const ax = Math.abs(dir.x);
+    const ay = Math.abs(dir.y);
+    const az = Math.abs(dir.z);
+    if (ay > ax && ay > az) return "top";
+    if (ax > az) return "right";
+    return "front";
   }
 }

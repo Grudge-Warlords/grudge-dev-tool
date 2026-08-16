@@ -71,6 +71,12 @@ import {
   localAgentStatus,
   localAgentChat,
 } from "./agent/localAgent";
+import {
+  startPluginHost,
+  stopPluginHost,
+  getPluginHostStatus,
+  getPluginToken,
+} from "./pluginHost";
 
 // Load .env from package / home / AppData (does not override existing process env).
 const envLoad = loadEnvFiles();
@@ -309,6 +315,15 @@ if (!gotLock) {
     // Auto-update (no-op in dev).
     setupAutoUpdater(() => mainWindow);
 
+    // Loopback plugin host — VS Code / standalone / CLI attach here.
+    void startPluginHost({
+      showMain: () => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        mainWindow.show();
+        mainWindow.focus();
+      },
+    }).catch((err) => log.warn("[pluginHost] start failed", err));
+
     // Auto-plug GRUDACHAIN Ollama + agentic local AI on open.
     // If session is already grudachain/admin, run full agentic ensure (prefer ollama + model pull).
     void (async () => {
@@ -348,6 +363,7 @@ app.on("before-quit", () => {
   viewer.disposeAllViewers();
   bk.shutdownSpawned();
   coder.shutdownCoder();
+  stopPluginHost();
   ollama.shutdown();
 });
 
@@ -815,6 +831,10 @@ function registerIpc() {
   ipcMain.handle("forge:readFile", async (_e, pathOrObj: unknown) => forge.readModelFile(pathOrObj));
   ipcMain.handle("forge:listSiblingTextures", async (_e, modelPath: unknown) =>
     forge.listSiblingTextures(modelPath));
+  ipcMain.handle("forge:listSiblingSceneFiles", async (_e, modelPath: unknown) =>
+    forge.listSiblingSceneFiles(modelPath));
+  ipcMain.handle("forge:resolveSceneOpenPath", async (_e, modelPath: unknown) =>
+    forge.resolveSceneOpenPath(modelPath));
   ipcMain.handle("forge:readLocalImage", async (_e, imagePath: unknown) =>
     forge.readLocalImage(imagePath));
   ipcMain.handle("forge:writeTempFile", async (_e, args: { name: string; bytes: Uint8Array }) =>
@@ -982,6 +1002,12 @@ function registerIpc() {
     (_e, opts: { messages: Array<{ role: "system" | "user" | "assistant"; content: string }> }) =>
       localAgentChat(opts?.messages ?? []),
   );
+
+  ipcMain.handle("plugin:status", () => getPluginHostStatus());
+  ipcMain.handle("plugin:token", () => ({
+    token: getPluginToken(),
+    status: getPluginHostStatus(),
+  }));
 
   // Ollama / GRUDACHAIN local agentic AI
   ipcMain.handle("ollama:health", () => ollama.ollamaHealth());

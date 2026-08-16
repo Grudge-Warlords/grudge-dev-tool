@@ -149,7 +149,8 @@ export default function ForgeWorkbench(props: Props) {
   );
 
   async function importAnimFile(file: File) {
-    const loaded = await loadModel(file);
+    const diskPath = (file as File & { path?: string }).path || item.diskPath || null;
+    const loaded = await loadModel(file, { diskPath });
     if (!loaded.animations.length) {
       toast.info("No clips in file");
       return;

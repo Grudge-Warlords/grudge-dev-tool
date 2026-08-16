@@ -1,9 +1,11 @@
 import { BrowserWindow, net } from "electron";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, writeFile, readdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import log from "./logger";
+import { classifyJsonSceneContent } from "../shared/sceneKinds";
 
 /**
  * Forge3D file-open bridge (explicit in-app Forge tools only).
@@ -18,14 +20,17 @@ import log from "./logger";
 const SUPPORTED_EXTS = new Set([
   ".glb",
   ".gltf",
+  ".bin", // glTF buffer companion → resolve sibling .gltf
   ".obj",
   ".fbx",
   ".stl",
   ".ply",
   ".dae",
   ".3mf",
-  ".json", // .gfscene.json (scene graph — loaded when renderer supports it)
+  ".json", // ObjectLoader / forge-scene / scenes/
   ".gfscene",
+  ".scene",
+  ".three",
 ]);
 const ALLOWED_REMOTE_HOSTS = /(^|\.)(grudge-studio\.com|grudgewarlords\.com|localhost)$/i;
 
@@ -87,13 +92,194 @@ export interface ReadFileResult {
 const MIME_BY_EXT: Record<string, string> = {
   ".glb": "model/gltf-binary",
   ".gltf": "model/gltf+json",
+  ".bin": "application/octet-stream",
   ".obj": "model/obj",
   ".fbx": "application/octet-stream",
   ".stl": "model/stl",
   ".ply": "application/octet-stream",
   ".dae": "model/vnd.collada+xml",
   ".3mf": "model/3mf",
+  ".json": "application/json",
+  ".gfscene": "application/json",
+  ".scene": "application/json",
+  ".three": "application/json",
 };
+
+export type ResolvedSceneOpen = {
+  /** Path to actually load (may differ from source for .bin companions). */
+  path: string;
+  sourcePath: string;
+  name: string;
+  role: "gltf" | "glb" | "three-scene" | "forge-scene" | "passthrough";
+  note?: string;
+};
+
+/**
+ * Resolve .bin → sibling scene.gltf / matching .gltf; classify JSON scenes.
+ * Elite open and loaders call this so multi-file packs and Three scenes open correctly.
+ */
+export async function resolveSceneOpenPath(filePathInput: unknown): Promise<ResolvedSceneOpen> {
+  const sourcePath = resolve(resolveModelPath(filePathInput));
+  const name = basename(sourcePath);
+  const ext = extname(sourcePath).toLowerCase();
+  const dir = dirname(sourcePath);
+
+  // glTF buffer companion — not a mesh; open the JSON/GLB descriptor next to it
+  if (ext === ".bin") {
+    const stem = name.replace(/\.bin$/i, "");
+    const preferred = [
+      join(dir, `${stem}.gltf`),
+      join(dir, "scene.gltf"),
+      join(dir, `${stem}.glb`),
+      join(dir, "scene.glb"),
+      join(dir, `${stem}.vrm`),
+    ];
+    for (const c of preferred) {
+      if (existsSync(c)) {
+        const cExt = extname(c).toLowerCase();
+        return {
+          path: c,
+          sourcePath,
+          name: basename(c),
+          role: cExt === ".glb" || cExt === ".vrm" ? "glb" : "gltf",
+          note: `Opened ${basename(c)} (companion for ${name})`,
+        };
+      }
+    }
+    let gltfs: string[] = [];
+    try {
+      gltfs = (await readdir(dir)).filter((e) => /\.gltf$/i.test(e));
+    } catch {
+      gltfs = [];
+    }
+    if (gltfs.length === 1) {
+      const only = join(dir, gltfs[0]);
+      return {
+        path: only,
+        sourcePath,
+        name: gltfs[0],
+        role: "gltf",
+        note: `Opened ${gltfs[0]} (only glTF next to ${name})`,
+      };
+    }
+    if (gltfs.map((g) => g.toLowerCase()).includes("scene.gltf")) {
+      const scene = join(dir, gltfs.find((g) => g.toLowerCase() === "scene.gltf")!);
+      return {
+        path: scene,
+        sourcePath,
+        name: "scene.gltf",
+        role: "gltf",
+        note: `Opened scene.gltf (companion for ${name})`,
+      };
+    }
+    throw new Error(
+      `${name} is a glTF buffer companion, not a mesh. ` +
+        `Open scene.gltf (or the matching .gltf) in the same folder. ` +
+        (gltfs.length
+          ? `Found: ${gltfs.join(", ")}`
+          : "No .gltf found next to this .bin"),
+    );
+  }
+
+  // JSON / scene dumps — content sniff when extension is ambiguous
+  if (
+    ext === ".json" ||
+    ext === ".gfscene" ||
+    ext === ".scene" ||
+    ext === ".three" ||
+    name.toLowerCase().endsWith(".forge-scene.json") ||
+    name.toLowerCase().endsWith(".scene.json") ||
+    name.toLowerCase().endsWith(".three.json") ||
+    name.toLowerCase().endsWith(".gfscene.json")
+  ) {
+    try {
+      const head = await readFile(sourcePath, { encoding: "utf8" });
+      // Cap for classify (file may be huge ObjectLoader dumps)
+      const sample = head.length > 256 * 1024 ? head.slice(0, 256 * 1024) : head;
+      const kind = classifyJsonSceneContent(sample);
+      if (kind === "gltf-json") {
+        return { path: sourcePath, sourcePath, name, role: "gltf" };
+      }
+      if (kind === "forge-scene") {
+        return {
+          path: sourcePath,
+          sourcePath,
+          name,
+          role: "forge-scene",
+          note: "Forge multi-entity scene",
+        };
+      }
+      if (kind === "three-objectloader") {
+        return {
+          path: sourcePath,
+          sourcePath,
+          name,
+          role: "three-scene",
+          note: "Three.js ObjectLoader scene",
+        };
+      }
+      // Name still says scene — try ObjectLoader path anyway
+      if (
+        name.toLowerCase().includes("scene") ||
+        name.toLowerCase().includes("gfscene") ||
+        name.toLowerCase().includes("forge-scene")
+      ) {
+        return {
+          path: sourcePath,
+          sourcePath,
+          name,
+          role: "three-scene",
+          note: "Scene JSON (content ambiguous — loader will try ObjectLoader / forge-scene)",
+        };
+      }
+    } catch (e) {
+      log.warn("[forge] resolveSceneOpenPath JSON probe failed", e);
+    }
+  }
+
+  if (ext === ".gltf") {
+    return { path: sourcePath, sourcePath, name, role: "gltf" };
+  }
+  if (ext === ".glb" || ext === ".vrm") {
+    return { path: sourcePath, sourcePath, name, role: "glb" };
+  }
+
+  return { path: sourcePath, sourcePath, name, role: "passthrough" };
+}
+
+/** List glTF/GLB/scene files next to a path (pack browser). */
+export async function listSiblingSceneFiles(modelPathInput: unknown): Promise<{
+  modelDir: string;
+  files: Array<{ path: string; name: string; role: string }>;
+}> {
+  const modelPath = resolve(resolveModelPath(modelPathInput));
+  const modelDir = dirname(modelPath);
+  const files: Array<{ path: string; name: string; role: string }> = [];
+  try {
+    const entries = await readdir(modelDir);
+    for (const ent of entries) {
+      const lower = ent.toLowerCase();
+      let role = "";
+      if (lower.endsWith(".gltf")) role = "gltf";
+      else if (lower.endsWith(".glb") || lower.endsWith(".vrm")) role = "glb";
+      else if (lower.endsWith(".bin")) role = "gltf-bin";
+      else if (
+        lower.endsWith(".scene.json") ||
+        lower.endsWith(".three.json") ||
+        lower.endsWith(".forge-scene.json") ||
+        lower.endsWith(".gfscene") ||
+        lower.endsWith(".gfscene.json")
+      ) {
+        role = "three-scene";
+      }
+      if (!role) continue;
+      files.push({ path: join(modelDir, ent), name: ent, role });
+    }
+  } catch {
+    /* empty */
+  }
+  return { modelDir, files };
+}
 
 /** Accept a path string or `{ path }` from older renderer builds. */
 export function resolveModelPath(input: unknown): string {

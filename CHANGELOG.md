@@ -4,6 +4,34 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Fixed
+- **Elite / Forge compressed GLB loaders** — viewer CSP blocked gstatic Draco + jsDelivr Basis, and forced JS Draco. Viewer now uses the same **ThreeFlow production factory** (`gltfProdLoader.ts`): r185 bundled Draco WASM + `three/addons` Meshopt + lazy KTX2, plus `wasm-unsafe-eval` on viewer/index CSP.
+
+### Changed
+- `three` **0.169 → 0.185.1** (fleet pin). All Elite/Forge addons import `three/addons/*`.
+- Local Ollama preferred models are **`grudge-dev` + `llama3.2` only** (dropped leftover `qwen2.5-coder:7b`).
+- Dropped needless `preset:*` / `scaffold:r3f` / `fleet:probe:vercel` aliases. Dropped unused `bs58` + `puppeteer`.
+- Removed unused local Forge demos (`towerDefenseDemo`, `driveDemo`).
+- Deleted on-disk blobs (~3 GB): portable `tools/blender` + `tools/ffmpeg` + zips, `release/` NSIS/unpacked, `dev.venv`, `classic64-dry-run.json`. Reinstall convert tools with `npm run toolchain:install` when needed. FBX2glTF stays in `resources/tools`.
+
+### Added
+- Viewer actions: **Open in Forge (live)** + **Open in ThreeFlow** via `editorHandoff.ts` (`?asset=`). Local “Add to Forge tools” stays secondary.
+- Fleet registry + health probe for `https://threeflow.vercel.app`.
+- Forge script pad: `api.loadUrl` / `api.exportSelected` / `api.openThreeFlow` / `api.openForge` plus ThreeFlow names (`scene`, `camera`, `renderer`, `object`).
+- ThreeFlow consumes Dev Tool `?asset=` / `?mesh=` after scene init (same `loadModel` path).
+- **Studio plugin host** on dest-tool (`127.0.0.1:17380`) — VS Code, standalone panel, CLI, elite viewer, and agentic share one kernel. Practices migrated from live **ai.*** / **coder.*** / **forge.*** (Legion one-brain, Coder specialties + handoff, Forge command stack / Rapier / SI). Token: `%APPDATA%/grudge-dev-tool/plugin-token`. Docs: `docs/plugin-attach.md`. CLI: `grudge-dev plugin`.
+- **Elite 3D viewer — Blender-style viewport** on existing `SceneEngine` (not a second app):
+  - Infinite SI fade grid (1 m cells), official Three.js `ViewHelper` cube, ortho views **1/3/7** + **5** persp toggle
+  - Skeleton overlay default-on for skinned assets, optional bone names, SI bounds (`Box3Helper`)
+  - Chrome-style orbit: LMB rotate, RMB / MMB / Shift+LMB pan, scroll zoom
+  - `AssetStudioInspector` — Scene tree, Object (W/E/R, ground, fit 1.8 m bones only), Material, Rig fingerprint, apply local anim library `rest.glb`, Save GLB + `skeleton-mapping.json`
+- Inline `Model3DViewer` shows SI height + bone count (still MultiCanvasHub).
+- **Multi-asset elite viewer** — drop / Shift+A add more GLB/FBX into the same scene; click select; G/R/S (or W/E) gizmo on the active object; Shift+D duplicate; X delete; H hide; A frame all; World/Local space. Same `SceneEngine`, no second viewer.
+
+### Changed
+- `GridHelper` 20×20 replaced by infinite fade grid in `SceneEngine` (Forge 3D + Skeleton Studio inherit it).
+- Skeleton Studio bone labels use shared `skeletonOverlay.ts`.
+
 ## [1.0.7] — 2026-08-11
 
 ### Added

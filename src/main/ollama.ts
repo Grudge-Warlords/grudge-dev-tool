@@ -24,7 +24,9 @@ const CONTAINER_NAME = process.env.GRUDACHAIN_OLLAMA_CONTAINER ?? "GRUDACHAIN";
 const CONTAINER_IMAGE = process.env.GRUDACHAIN_OLLAMA_IMAGE ?? "ollama/ollama:latest";
 const CONTAINER_VOLUME = process.env.GRUDACHAIN_OLLAMA_VOLUME ?? "grudachain-ollama";
 const HOST_PORT = Number(process.env.OLLAMA_PORT ?? 11434);
-const DEFAULT_MODEL = process.env.OLLAMA_DEFAULT_MODEL ?? "llama3.2";
+const DEFAULT_MODEL = process.env.OLLAMA_DEFAULT_MODEL ?? "grudge-dev";
+/** Installed order for local AI: Grudge Modelfile first, then llama3.2 weights only. */
+const PREFERRED_LOCAL_MODELS = ["grudge-dev", "llama3.2"];
 
 /**
  * Normalize Ollama base URL for client fetch().
@@ -393,10 +395,76 @@ async function listModelNames(host: string): Promise<string[]> {
   }
 }
 
+function matchInstalled(requested: string, installed: string[]): string | null {
+  const want = requested.replace(/:latest$/i, "").toLowerCase();
+  for (const have of installed) {
+    const h = have.replace(/:latest$/i, "").toLowerCase();
+    if (h === want || have.toLowerCase() === requested.toLowerCase()) return have;
+  }
+  return null;
+}
+
 async function pickDefaultModel(host: string): Promise<string> {
   const models = await listModelNames(host);
+  for (const name of PREFERRED_LOCAL_MODELS) {
+    const hit = matchInstalled(name, models);
+    if (hit) return hit;
+  }
   if (models.length) return models[0];
   return DEFAULT_MODEL;
+}
+
+/**
+ * Ensure `grudge-dev` exists (Modelfile on llama3.2). Pulls llama3.2 if the store is empty.
+ */
+async function ensureGrudgeDevModel(
+  host: string,
+  steps: string[],
+): Promise<void> {
+  const models = await listModelNames(host);
+  if (matchInstalled("grudge-dev", models)) {
+    steps.push("grudge-dev already installed");
+    return;
+  }
+  if (!matchInstalled("llama3.2", models)) {
+    steps.push("No llama3.2 — pulling base weights");
+    const pull = await pullModel("llama3.2");
+    if (!pull.ok) {
+      steps.push(`llama3.2 pull failed: ${pull.error ?? "unknown"}`);
+      return;
+    }
+    steps.push("Pulled llama3.2");
+  }
+  steps.push("Creating grudge-dev from llama3.2 + Grudge system prompt");
+  try {
+    const res = await fetch(`${normalizeOllamaBaseUrl(host)}/api/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "grudge-dev",
+        from: "llama3.2",
+        stream: false,
+        parameters: { temperature: 0.3, num_ctx: 8192, top_p: 0.9 },
+        system:
+          "You are Grudge Dev, the local offline assistant for Grudge Studio. " +
+          "Extend existing SSOT. Do not invent parallel systems. " +
+          "Failover hop after Legion → fleet → Puter → BYOK. " +
+          "SI 1m, loadRaceKit play meshes, one mixer, Railway player SSOT.",
+      }),
+      signal: AbortSignal.timeout(180_000),
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      steps.push(`grudge-dev create HTTP ${res.status}: ${t.slice(0, 180)}`);
+      return;
+    }
+    steps.push("Created grudge-dev");
+    setPreferredModel("grudge-dev");
+  } catch (e: unknown) {
+    steps.push(
+      `grudge-dev create failed: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
 }
 
 export async function ollamaHealth(): Promise<{
@@ -624,22 +692,14 @@ async function doEnsure(opts: EnsureOpts): Promise<OllamaRuntimeStatus> {
   }
 
   if (health.ok && admin) {
+    await ensureGrudgeDevModel(host, steps);
     const models = await listModelNames(host);
-    if (models.length === 0) {
-      steps.push(`No models — pulling ${DEFAULT_MODEL}`);
-      const pull = await pullModel(DEFAULT_MODEL);
-      if (pull.ok) {
-        steps.push(`Pulled ${DEFAULT_MODEL}`);
-        setPreferredModel(DEFAULT_MODEL);
-      } else {
-        steps.push(`Pull failed: ${pull.error ?? "unknown"}`);
-      }
-    } else {
-      const pref = await getPreferredModel();
-      if (!pref || !models.some((m) => m === pref || m.startsWith(`${pref}:`))) {
-        setPreferredModel(models[0]);
-        steps.push(`Preferred model set to ${models[0]}`);
-      }
+    const pref = await getPreferredModel();
+    const prefHit = pref ? matchInstalled(pref, models) : null;
+    if (!prefHit) {
+      const picked = await pickDefaultModel(host);
+      setPreferredModel(picked);
+      steps.push(`Preferred model set to ${picked}`);
     }
   }
 
