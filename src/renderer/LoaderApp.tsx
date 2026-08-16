@@ -325,7 +325,7 @@ export default function LoaderApp() {
         {tab === "browse" && (
           <div className="loader-section">
             <Breadcrumb prefix={prefix} onSelect={(p) => browse(p)} />
-            <div className="loader-hint">Click a file to open the frontmost Asset Viewer (models · images · audio · scenes). Box icon adds models to Forge 3D.</div>
+            <div className="loader-hint">Click a mesh → ThreeFlow editor. Images/audio/video → Elite. Path copies the R2 key.</div>
             <div className="loader-bar">
               <input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="prefix" />
               <button type="button" onClick={() => browse(prefix)}>Go</button>
@@ -389,6 +389,14 @@ export default function LoaderApp() {
                       <div className="loader-asset-name" title={it.name}>{it.name.split("/").slice(-1)[0]}</div>
                       <div className="muted small">{(it.size / 1024).toFixed(1)} KB</div>
                     </div>
+                    <button
+                      type="button"
+                      className="copy-btn"
+                      title="Copy as path (R2 key)"
+                      onClick={(e) => { e.stopPropagation(); copy(it.name, "path"); }}
+                    >
+                      Path
+                    </button>
                     <button
                       type="button"
                       className="copy-btn"

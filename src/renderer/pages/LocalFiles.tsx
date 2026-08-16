@@ -358,7 +358,7 @@ export default function LocalFiles() {
 
   const pickFolder = useCallback(async () => {
     try {
-      const dir = await window.grudge.files.pickDirectory();
+      const dir = await window.grudge.files.pickDirectory(cwd || undefined);
       if (!dir) return;
       setSelected(null);
       revokePreview();
@@ -423,7 +423,12 @@ export default function LocalFiles() {
               size: entry.size,
             });
           }
-          toast.success("Elite viewer", { description: entry.name });
+          toast.success(
+            entry.kind === "model3d" || entry.kind === "scene3d"
+              ? "ThreeFlow editor"
+              : "Elite viewer",
+            { description: entry.name },
+          );
           return;
         }
 
@@ -662,7 +667,7 @@ export default function LocalFiles() {
                         title={
                           entry.isDirectory
                             ? entry.path
-                            : `${entry.path}\nDouble-click = elite viewer`
+                            : `${entry.path}\nDouble-click = ${entry.kind === "model3d" || entry.kind === "scene3d" ? "ThreeFlow editor" : "elite viewer"}`
                         }
                       >
                         <KindImg kind={entry.isDirectory ? "dir" : entry.kind} size={16} />
@@ -694,7 +699,21 @@ export default function LocalFiles() {
                 onClick={() => void openEntry(selected, "popout")}
               >
                 <Maximize2 size={12} className="inline mr-1" />
-                Pop-out viewer
+                {selected.kind === "model3d" || selected.kind === "scene3d"
+                  ? "Pop-out ThreeFlow"
+                  : "Pop-out viewer"}
+              </button>
+              <button
+                type="button"
+                className="btn ghost text-[11px] px-2 py-1"
+                title="Copy full disk path"
+                onClick={() => {
+                  void window.grudge.files.copyPath(selected.path).then((r: { path: string }) => {
+                    toast.success("Path copied", { description: r.path });
+                  }).catch((e: Error) => toast.error(e?.message || "Copy failed"));
+                }}
+              >
+                Copy as path
               </button>
               <button
                 type="button"

@@ -9,6 +9,7 @@
  *   ?intent=asset
  */
 import { FLEET_URLS } from "./fleet";
+import { DEFAULT_PLUGIN_PORT } from "./plugin/contract";
 
 export type EditorSurface = "threeflow" | "forge" | "elite";
 
@@ -44,6 +45,15 @@ export function forgeStudioAssetUrl(cdnUrl: string, extra?: Record<string, strin
   u.searchParams.set("mesh", cdnUrl);
   withExtra(u, extra);
   return u.toString();
+}
+
+/** Loopback mesh URL so live ThreeFlow can load a disk file (plugin host). */
+export function localLoopbackAssetUrl(
+  absPath: string,
+  port = DEFAULT_PLUGIN_PORT,
+): string {
+  const p = absPath.replace(/\\/g, "/");
+  return `http://127.0.0.1:${port}/v1/local-file?path=${encodeURIComponent(p)}`;
 }
 
 /** Default live editor for a production mesh is ThreeFlow. */

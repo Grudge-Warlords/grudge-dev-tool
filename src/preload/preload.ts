@@ -295,7 +295,10 @@ const api = {
   files: {
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
     pickForUpload: () => ipcRenderer.invoke("files:pickForUpload") as Promise<string[]>,
-    pickDirectory: () => ipcRenderer.invoke("files:pickDirectory") as Promise<string | null>,
+    pickDirectory: (defaultPath?: string) =>
+      ipcRenderer.invoke("files:pickDirectory", defaultPath) as Promise<string | null>,
+    copyPath: (filePath: string) =>
+      ipcRenderer.invoke("files:copyPath", filePath) as Promise<{ ok: true; path: string }>,
     listDir: (dirPath: string) =>
       ipcRenderer.invoke("files:listDir", dirPath) as Promise<{
         path: string;

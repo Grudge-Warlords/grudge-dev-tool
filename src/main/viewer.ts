@@ -28,7 +28,8 @@ import { optimizeWebFile, type OptimizeWebOptions, type OptimizeWebResult } from
 import { requestUploadUrl } from "./api";
 import { r2PublicUrl } from "./cf/r2Direct";
 import { mediaStreamUrl, isStreamableMediaPath } from "./mediaProtocol";
-import { inferContentType } from "../shared/mediaTypes";
+import { inferContentType, isModelPath } from "../shared/mediaTypes";
+import { localLoopbackAssetUrl, threeflowAssetUrl } from "../shared/editorHandoff";
 
 export interface ViewerAssetRef {
   name: string;
@@ -139,6 +140,70 @@ function normalizeAsset(raw: unknown): ViewerAssetRef {
   };
 }
 
+function isThreeFlowMeshName(name: string): boolean {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "html" || ext === "htm") return false;
+  return isModelPath(name);
+}
+
+/**
+ * Pop-out ThreeFlow scene editor (rotate / scale / add / remove meshes).
+ * CDN URL or local mesh via loopback plugin host.
+ */
+export function openThreeFlowEditor(opts: {
+  name: string;
+  cdnUrl?: string;
+  localPath?: string;
+}): { ok: true; url: string } {
+  let assetUrl = "";
+  if (opts.cdnUrl && /^https?:\/\//i.test(opts.cdnUrl) && !opts.cdnUrl.startsWith("blob:")) {
+    assetUrl = opts.cdnUrl;
+  } else if (opts.localPath) {
+    assetUrl = localLoopbackAssetUrl(opts.localPath);
+  }
+  if (!assetUrl) throw new Error("ThreeFlow needs a CDN URL or local mesh path");
+
+  const href = threeflowAssetUrl(assetUrl, { name: opts.name });
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 800,
+    minHeight: 520,
+    show: false,
+    frame: true,
+    autoHideMenuBar: true,
+    backgroundColor: "#0a0e1a",
+    title: `${basename(opts.name)} — ThreeFlow`,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    icon: nativeImage.createFromPath(viewerIconPath()),
+    webPreferences: {
+      preload: join(__dirname, "..", "preload", "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  win.setAlwaysOnTop(true, "screen-saver");
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  win.once("ready-to-show", () => {
+    win.show();
+    win.focus();
+    win.moveTop();
+  });
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      if (/^https?:/i.test(url)) void shell.openExternal(url);
+    } catch {
+      /* ignore */
+    }
+    return { action: "deny" };
+  });
+  void win.loadURL(href);
+  log.info("ThreeFlow pop-out", opts.name, href.slice(0, 120));
+  return { ok: true, url: href };
+}
+
 /** Open pop-out viewer for a file on disk (Local Files / Explorer — not Forge). */
 export async function openLocalPath(
   filePath: string,
@@ -190,6 +255,15 @@ export async function openLocalPath(
     ? sourcePath.replace(/\\/g, "/")
     : openPath.replace(/\\/g, "/");
 
+  if (isThreeFlowMeshName(name)) {
+    try {
+      openThreeFlowEditor({ name: displayName, localPath: openPath });
+      return { ok: true, token: "threeflow" };
+    } catch (e) {
+      log.warn("ThreeFlow pop-out failed, Elite fallback", e);
+    }
+  }
+
   return openViewer(
     {
       name: displayName,
@@ -209,6 +283,22 @@ export async function openLocalPath(
 /** Open an always-on-top viewer window for the given asset (independent of parent so it can float above Loader + main). */
 export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: true; token: string } {
   const asset = normalizeAsset(raw);
+  if (isThreeFlowMeshName(asset.name) && !asset.stream) {
+    const cdn =
+      /^https?:\/\//i.test(asset.url) && !asset.url.startsWith("blob:") ? asset.url : undefined;
+    if (cdn || asset.localPath) {
+      try {
+        openThreeFlowEditor({
+          name: asset.name,
+          cdnUrl: cdn,
+          localPath: asset.localPath,
+        });
+        return { ok: true, token: "threeflow" };
+      } catch (e) {
+        log.warn("ThreeFlow pop-out failed, Elite fallback", e);
+      }
+    }
+  }
   const token = newToken();
   assetStore.set(token, asset);
 
@@ -259,6 +349,8 @@ export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: 
       if (u.protocol === "file:" && u.pathname.endsWith("viewer.html")) return;
       if (u.protocol === "http:" && u.hostname === "localhost") return;
       if (u.protocol === "https:" && /(^|\.)grudge-studio\.com$/.test(u.hostname)) return;
+      if (u.protocol === "https:" && /(^|\.)vercel\.app$/.test(u.hostname)) return;
+      if (u.hostname === "127.0.0.1" || u.hostname === "localhost") return;
     } catch { /* deny */ }
     event.preventDefault();
   });

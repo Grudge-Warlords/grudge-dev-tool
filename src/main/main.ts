@@ -695,15 +695,31 @@ function registerIpc() {
   });
 
   // Local Files tab — browse folders on disk; open into viewers (not Forge)
-  ipcMain.handle("files:pickDirectory", async () => {
-    const parent =
-      mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()
-        ? mainWindow
-        : getLoaderWindow() && !getLoaderWindow()!.isDestroyed()
-          ? getLoaderWindow()
-          : null;
-    return localFiles.pickDirectory(parent);
+  ipcMain.handle("files:pickDirectory", async (e, defaultPath?: string) => {
+    const sender = BrowserWindow.fromWebContents(e.sender);
+    const loader = getLoaderWindow();
+    const lifted: BrowserWindow[] = [];
+    for (const w of [sender, mainWindow, loader]) {
+      if (w && !w.isDestroyed() && w.isAlwaysOnTop()) {
+        w.setAlwaysOnTop(false);
+        lifted.push(w);
+      }
+    }
+    try {
+      const parent =
+        sender && !sender.isDestroyed()
+          ? sender
+          : mainWindow && !mainWindow.isDestroyed()
+            ? mainWindow
+            : null;
+      return await localFiles.pickDirectory(parent, defaultPath);
+    } finally {
+      for (const w of lifted) {
+        if (!w.isDestroyed()) w.setAlwaysOnTop(true, "screen-saver");
+      }
+    }
   });
+  ipcMain.handle("files:copyPath", (_e, filePath: string) => localFiles.copyPathToClipboard(filePath));
   ipcMain.handle("files:listDir", (_e, dirPath: string) => localFiles.listDirectory(dirPath));
   ipcMain.handle("files:read", (_e, filePath: string) => localFiles.readLocalFile(filePath));
   ipcMain.handle("files:reveal", (_e, filePath: string) => localFiles.revealInFolder(filePath));

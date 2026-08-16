@@ -4,6 +4,13 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Fixed
+- **Open folder** — folder picker uses the window that clicked it and drops always-on-top so the dialog is not hidden behind Loader/Elite.
+
+### Added
+- **Copy as path** on Local Files, Assets browser, and Elite header (disk path or R2 key).
+- **3D pop-out = ThreeFlow** — GLB/glTF/FBX/OBJ open the live ThreeFlow scene editor (rotate / scale / add / remove). Local meshes served from plugin `GET /v1/local-file`. Images/video/audio stay Elite.
+
 ## [1.0.9] — 2026-08-16
 
 ### Changed

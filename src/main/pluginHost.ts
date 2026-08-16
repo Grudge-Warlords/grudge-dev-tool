@@ -4,10 +4,11 @@
  */
 
 import http from "node:http";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join, normalize, resolve as pathResolve } from "node:path";
+import { inferContentType, isModelPath, isThreeScenePath } from "../shared/mediaTypes";
 import { randomBytes } from "node:crypto";
 import { app, shell } from "electron";
 import log from "./logger";
@@ -87,6 +88,18 @@ function allowOrigin(req: http.IncomingMessage): string {
     origin === "null"
   ) {
     return origin;
+  }
+  try {
+    const host = new URL(origin).hostname;
+    if (
+      host === "threeflow.vercel.app" ||
+      host.endsWith(".vercel.app") ||
+      host.endsWith(".grudge-studio.com")
+    ) {
+      return origin;
+    }
+  } catch {
+    /* keep default */
   }
   return "http://127.0.0.1";
 }
@@ -237,6 +250,34 @@ export async function startPluginHost(opts: { showMain: () => void }): Promise<P
           });
           return;
         }
+        if (req.method === "GET" && url.pathname === "/v1/local-file") {
+          const raw = url.searchParams.get("path") || "";
+          if (!raw.trim()) {
+            send(res, req, 400, { ok: false, error: "path_required" });
+            return;
+          }
+          const disk = pathResolve(normalize(raw.trim()));
+          if (!existsSync(disk) || !statSync(disk).isFile()) {
+            send(res, req, 404, { ok: false, error: "not_found" });
+            return;
+          }
+          const name = basename(disk);
+          if (!isModelPath(name) && !isThreeScenePath(name)) {
+            send(res, req, 403, { ok: false, error: "not_a_mesh" });
+            return;
+          }
+          const data = await readFile(disk);
+          res.writeHead(200, {
+            "Content-Type": inferContentType(name) || "application/octet-stream",
+            "Access-Control-Allow-Origin": allowOrigin(req),
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Content-Disposition": `inline; filename="${name.replace(/"/g, "")}"`,
+            "Cache-Control": "no-store",
+          });
+          res.end(data);
+          return;
+        }
+
         if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
           send(
             res,

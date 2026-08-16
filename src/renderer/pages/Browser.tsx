@@ -286,6 +286,17 @@ export default function Browser() {
                         <button
                           type="button"
                           className="copy-btn"
+                          title="Copy as path (R2 key)"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copy(path, "path");
+                          }}
+                        >
+                          Path
+                        </button>
+                        <button
+                          type="button"
+                          className="copy-btn"
                           title="Copy CDN URL"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -366,6 +377,13 @@ export default function Browser() {
                           <span>{(it.size / 1024).toFixed(1)} KB</span>
                           <button
                             className="ml-auto copy-btn opacity-0 group-hover:opacity-100"
+                            title="Copy as path (R2 key)"
+                            onClick={(e) => { e.stopPropagation(); copy(it.name, "path"); }}
+                          >
+                            Path
+                          </button>
+                          <button
+                            className="copy-btn opacity-0 group-hover:opacity-100"
                             title="Copy CDN URL"
                             onClick={(e) => { e.stopPropagation(); copy(cdnUrl(it.name), "CDN URL"); }}
                           >

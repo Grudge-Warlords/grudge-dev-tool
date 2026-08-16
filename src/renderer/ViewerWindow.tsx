@@ -118,6 +118,18 @@ function ViewerHeader({
             .then(() => toast.success("URL copied"))
             .catch(() => toast.error("Copy failed"));
     }
+    function copyPath() {
+        const p = asset.localPath || asset.sourcePath || asset.url;
+        if (asset.localPath || asset.sourcePath) {
+            void G()?.files?.copyPath?.(p).then((r: { path?: string }) => {
+                toast.success("Path copied", { description: r?.path || p });
+            }).catch(() => {
+                void navigator.clipboard.writeText(p).then(() => toast.success("Path copied"));
+            });
+            return;
+        }
+        void navigator.clipboard.writeText(p).then(() => toast.success("Path copied"));
+    }
     function openExternal() {
         if (asset.localPath) {
             void G()?.files?.reveal?.(asset.localPath);
@@ -219,6 +231,7 @@ function ViewerHeader({
                     </HBtn>
                 )}
                 <HBtn title="Download" onClick={download}>↓ Download</HBtn>
+                <HBtn title="Copy disk path or CDN URL" onClick={copyPath}>⧉ Path</HBtn>
                 {!isLocal && <HBtn title="Copy CDN URL" onClick={copyUrl}>⧉ URL</HBtn>}
                 <HBtn title={isLocal ? "Reveal in Explorer" : "Open in browser"} onClick={openExternal}>
                     {isLocal ? "📁 Reveal" : "↗ External"}

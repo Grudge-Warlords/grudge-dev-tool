@@ -5,7 +5,8 @@
  * — not into Forge by default. Forge remains an explicit secondary action.
  */
 
-import { BrowserWindow, dialog, shell } from "electron";
+import { BrowserWindow, clipboard, dialog, shell } from "electron";
+import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -90,13 +91,25 @@ function safeResolve(absPath: string): string {
 
 export async function pickDirectory(
   parent?: BrowserWindow | null,
+  defaultPath?: string | null,
 ): Promise<string | null> {
-  const r = await dialog.showOpenDialog(parent ?? (undefined as any), {
+  const opts: Electron.OpenDialogOptions = {
     title: "Open local folder for viewing",
-    properties: ["openDirectory"],
-  });
+    defaultPath: defaultPath && existsSync(defaultPath) ? defaultPath : undefined,
+    properties: ["openDirectory", "createDirectory"],
+  };
+  const r =
+    parent && !parent.isDestroyed()
+      ? await dialog.showOpenDialog(parent, opts)
+      : await dialog.showOpenDialog(opts);
   if (r.canceled || !r.filePaths[0]) return null;
   return r.filePaths[0];
+}
+
+export function copyPathToClipboard(filePath: string): { ok: true; path: string } {
+  const path = safeResolve(filePath);
+  clipboard.writeText(path);
+  return { ok: true, path };
 }
 
 export async function listDirectory(dirPath: string): Promise<ListDirResult> {
