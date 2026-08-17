@@ -166,18 +166,10 @@ function ViewerHeader({
     }
 
     return (
-        <div style={{
-            flexShrink: 0, display: "flex", alignItems: "center", gap: 10,
-            padding: "0 14px", height: 46,
-            background: "var(--bg-1)", borderBottom: "1px solid var(--line)",
-            overflow: "hidden",
-        }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-                <span style={{
-                    fontWeight: 700, fontSize: 14, color: "var(--text)",
-                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                }} title={asset.localPath || asset.name}>
-                    {fname}
+        <div className="elite-header">
+            <div className="elite-header-meta">
+                <span className="elite-header-title" title={asset.localPath || asset.name}>
+                    Elite · {fname}
                 </span>
                 <KindBadge kind={kind} />
                 {isLocal && (
@@ -204,7 +196,7 @@ function ViewerHeader({
                     </span>
                 )}
             </div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+            <div className="elite-header-actions">
                 <HBtn
                     title="Copy asset card for AI (kind, open hints, model stats)"
                     onClick={() => void understandAsset(false)}
@@ -252,19 +244,16 @@ function HBtn({
     const [hover, setHover] = useState(false);
     return (
         <button
-      title= { title }
-    onClick = { onClick }
-    onMouseEnter = {() => setHover(true)
-}
-onMouseLeave = {() => setHover(false)}
-style = {{
-    background: hover ? "var(--bg-2)" : "transparent",
-        color: "var(--muted)", border: "1px solid var(--line)",
-            borderRadius: 5, padding: "3px 10px", fontSize: 11,
-                cursor: "pointer", fontFamily: "inherit", transition: "background 0.12s",
-        ...extraStyle,
-      }}
-    > { children } </button>
+            className="elite-hbtn"
+            title={title}
+            onClick={onClick}
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+            style={{
+                background: hover ? "rgb(69 137 255 / 16%)" : "transparent",
+                ...extraStyle,
+            }}
+        >{children}</button>
   );
 }
 
@@ -336,7 +325,7 @@ interface ModelStats {
     missingMaps?: number;
 }
 
-function Model3DViewerFull({ asset }: { asset: AssetRef }) {
+function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
     const hostRef = useRef<HTMLDivElement | null>(null);
     const engineRef = useRef<SceneEngine | null>(null);
     const objectRef = useRef<THREE.Object3D | null>(null);
@@ -360,7 +349,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     const [boundsOn, setBoundsOn] = useState(false);
     const [si, setSi] = useState<SiBounds | null>(null);
     const [viewKind, setViewKind] = useState<StudioView>("persp");
-    const [bgColour, setBgColour] = useState("#0a0e1a");
+    const [bgColour, setBgColour] = useState("#efd1b5");
     const [items, setItems] = useState<ViewerSceneItem[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [gizmoSpace, setGizmoSpace] = useState<"world" | "local">("world");
@@ -410,14 +399,20 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     useEffect(() => {
         if (!hostRef.current) return;
         const engine = new SceneEngine(hostRef.current, {
-            background: 0x0a0e1a, showGrid: true, showAxes: false, hdri: true,
+            background: 0xefd1b5,
+            showGrid: true,
+            showAxes: false,
+            hdri: true,
+            showGround: true,
+            gridCellColor: 0x7a5a38,
+            gridSectionColor: 0x3d2818,
         });
-        // Brighter ambient + slight exposure so atlases don't read as pure black
-        // under high metalness / ACES (matches Model3DViewer inline preview).
-        engine.studioLights.ambient.intensity = 0.32;
-        engine.studioLights.key.intensity = 1.35;
-        engine.studioLights.fill.intensity = 0.5;
-        engine.renderer.toneMappingExposure = 1.08;
+        // Studio, not blown-out: keep IBL + key, avoid ACES white-out on sand floor.
+        engine.studioLights.ambient.intensity = 0.28;
+        engine.studioLights.key.intensity = 1.15;
+        engine.studioLights.fill.intensity = 0.4;
+        engine.renderer.toneMappingExposure = 1.0;
+        engine.resize();
         engineRef.current = engine;
         // Save env map reference so we can toggle it later.
         envMapRef.current = engine.scene.environment;
@@ -569,6 +564,12 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     // ── Load model ────────────────────────────────────────────────────────────
     useEffect(() => {
         let cancelled = false;
+        if (!asset) {
+            setError(null);
+            setLoading(false);
+            setStats(null);
+            return;
+        }
         setError(null); setLoading(true); setStats(null);
         setClips([]); setActiveClipIdx(null); setAnimPaused(false);
         clipsRef.current = [];
@@ -628,7 +629,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
             }
         })();
         return () => { cancelled = true; };
-    }, [asset.url]);
+    }, [asset?.url, asset?.localPath]);
 
     // ── Scene control handlers ────────────────────────────────────────────────
 
@@ -994,10 +995,11 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     // ── Action handlers ───────────────────────────────────────────────────────
 
     function cdnAssetUrl(): string | null {
-        return isPublicCdnUrl(asset.url) ? asset.url : null;
+        return asset && isPublicCdnUrl(asset.url) ? asset.url : null;
     }
 
     async function sendToForge() {
+        if (!asset) { toast.error("No asset"); return; }
         const result = await G()?.viewer?.sendToForge({ url: asset.url, name: asset.name });
         if (result?.ok) toast.success("Added to local Forge tools", { description: "Main window → Forge tools (secondary). Use Forge tab for forge.grudge-studio.com" });
         else toast.error(result?.error ?? "Failed to send to Forge");
@@ -1022,6 +1024,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     }
 
     async function convertAndSave(targetFormat: "glb" | "gltf") {
+        if (!asset) { toast.error("No asset"); return; }
         setConverting(true);
         try {
             const r = await G()?.viewer?.convertModel({
@@ -1048,6 +1051,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
     }
 
     async function optimizeForWeb() {
+        if (!asset) { toast.error("No asset"); return; }
         setOptimizing(true);
         setOptResult(null);
         try {
@@ -1137,26 +1141,51 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
         if (!dataUrl) return;
         const a = document.createElement("a");
         a.href = dataUrl;
-        a.download = `${basename(asset.name).replace(/\.[^.]+$/, "")}-screenshot.png`;
+        a.download = `${basename(asset?.name || "studio").replace(/\.[^.]+$/, "")}-screenshot.png`;
         a.click();
         toast.success("Screenshot saved");
     }
 
     function resetCamera() {
         if (objectRef.current) engineRef.current?.frame(objectRef.current);
+        else engineRef.current?.focusHome();
     }
 
     // ── Render ────────────────────────────────────────────────────────────────
 
-    const PANEL_WIDTH = 264;
-
     return (
-        <div style= {{ flex: 1, display: "flex", overflow: "hidden" }
-}>
-    {/* 3-D viewport */ }
-    < div
-        ref = { hostRef }
-        style = {{ flex: 1, position: "relative", overflow: "hidden" }}
+        <div className="elite-body">
+            <aside className="elite-left">
+                <div className="elite-left-title">Scene</div>
+                {items.length === 0 && (
+                    <div style={{ padding: "4px 12px 10px", color: "var(--elite-muted)", fontSize: 11 }}>
+                        Empty studio — drop a GLB or click Add
+                    </div>
+                )}
+                {items.map((it) => (
+                    <div
+                        key={it.id}
+                        className={`elite-tree-item${selectedId === it.id ? " is-active" : ""}`}
+                        onClick={() => applySelection(it)}
+                    >
+                        <span style={{ opacity: it.visible ? 1 : 0.4 }}>{it.name}</span>
+                    </div>
+                ))}
+                <div className="elite-left-actions">
+                    <button
+                        type="button"
+                        className="elite-hbtn"
+                        style={{ width: "100%" }}
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        + Add mesh
+                    </button>
+                </div>
+            </aside>
+            <div className="elite-stage">
+    <div
+        ref={hostRef}
+        className="elite-viewport"
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
         onDrop={(e) => {
             e.preventDefault();
@@ -1174,88 +1203,39 @@ function Model3DViewerFull({ asset }: { asset: AssetRef }) {
                 e.target.value = "";
             }}
         />
-        { loading && (
-            <div style={
-    {
-        position: "absolute", top: 12, left: 12, zIndex: 10,
-            background: "rgba(15,21,48,0.9)", border: "1px solid var(--line)",
-                padding: "6px 12px", borderRadius: 6, fontSize: 12, color: "var(--gold)",
-          }
-}> Loading model…</div>
-        )}
-{
-    error && (
-        <div style={
-        {
-            position: "absolute", inset: 0, zIndex: 10, display: "flex",
-                alignItems: "center", justifyContent: "center",
-                    flexDirection: "column", gap: 8,
-          }
-    }>
-        <span style={ { color: "var(--danger)", fontSize: 14 } }>⚠ Load error </span>
-            < span style = {{ color: "var(--muted)", fontSize: 12, maxWidth: 420, textAlign: "center" }
-}> { error } </span>
-    </div>
-        )}
-{
-    !loading && !error && (
+        {loading && <div className="elite-banner">Loading model…</div>}
+        {error && <div className="elite-banner is-error">Load error · {error}</div>}
+        {!loading && !error && (
         <>
-            <div style={{
-                position: "absolute", top: 8, left: 8, zIndex: 10,
-                fontSize: 11, color: "var(--text)",
-                background: "rgba(10,14,26,0.72)", border: "1px solid var(--line)",
-                borderRadius: 6, padding: "4px 8px", pointerEvents: "none",
-                fontVariantNumeric: "tabular-nums",
-            }}>
+            <div className="elite-hud elite-hud-tl">
                 {si
                     ? `${si.source === "bones" ? "Bones" : "Mesh"} · H ${formatSiMeters(si.h)} · W ${formatSiMeters(si.w)} · D ${formatSiMeters(si.d)}${si.boneCount ? ` · ${si.boneCount} bones` : ""}`
-                    : "—"}
+                    : "Studio"}
                 {" · "}{viewKind}
             </div>
-            <div style={{
-                position: "absolute", top: 8, right: 8, zIndex: 10,
-                display: "flex", gap: 4, pointerEvents: "auto",
-            }}>
+            <div className="elite-hud elite-hud-tr">
                 {(["persp", "front", "right", "top"] as StudioView[]).map((v) => (
                     <button
                         key={v}
                         type="button"
+                        className={`elite-view-btn${viewKind === v ? " is-on" : ""}`}
                         onClick={() => applyView(v)}
-                        style={{
-                            fontSize: 10, padding: "2px 6px",
-                            border: `1px solid ${viewKind === v ? "var(--gold)" : "var(--line)"}`,
-                            background: viewKind === v ? "rgba(255,198,42,0.16)" : "rgba(10,14,26,0.72)",
-                            color: viewKind === v ? "var(--gold)" : "var(--muted)",
-                            borderRadius: 4, cursor: "pointer",
-                        }}
                     >
                         {v}
                     </button>
                 ))}
             </div>
-            <div style={{
-                position: "absolute", bottom: 8, left: 8, zIndex: 10,
-                fontSize: 10, color: "var(--muted)", pointerEvents: "none",
-            }}>
+            <div className="elite-hud elite-hud-bl">
                 {adding ? "Adding…" : `${items.length} object(s)`}
-                {" · "}G/R/S gizmo · click select · drop files · Shift+A add · Shift+D copy · X delete · A frame all
+                {" · "}G/R/S · drop files · Shift+A add · Shift+D copy · X delete · A frame
             </div>
         </>
-        )
-}
-</div>
+        )}
+    </div>
+    </div>
 
-{/* Controls panel */ }
-<div style={
-    {
-        width: PANEL_WIDTH, flexShrink: 0,
-            background: "var(--bg-1)", borderLeft: "1px solid var(--line)",
-                overflowY: "auto", padding: "14px 14px",
-                    display: "flex", flexDirection: "column", gap: 0,
-      }
-}>
-    {/* Scene controls */ }
-    < Section title = "Scene" >
+    <aside className="elite-right">
+    <Section title="Scene">
         <Toggle label="Wireframe" checked = { wireframe } onChange = { handleWireframe } />
             <Toggle label="Grid"      checked = { grid }      onChange = { handleGrid } />
                 <Toggle label="Skeleton" checked = { skeleton } onChange = { handleSkeleton } />
@@ -1280,7 +1260,7 @@ style = {{
           }}>⊕ Reset Camera </button>
     </Section>
 
-{!loading && !error && objectRef.current && (
+{!loading && !error && objectRef.current && asset && (
         <Section title="Studio">
             <AssetStudioInspector
                 engine={engineRef.current}
@@ -1561,9 +1541,9 @@ disabled = { converting || optimizing }
 icon = "⇄" label = { converting? "Converting…": "Convert → glTF" }
 color = "var(--ok)"
     />
-    <ActionBtn onClick={ screenshot } icon = "📷" label = "Screenshot (PNG)" color = "var(--muted)" />
+    <ActionBtn onClick={screenshot} icon="📷" label="Screenshot (PNG)" color="var(--muted)" />
         </Section>
-        </div>
+        </aside>
         </div>
   );
 }
@@ -1775,41 +1755,29 @@ export default function ViewerWindow() {
         };
     }, []);
 
-    if (notFound) {
+    if (!asset) {
         return (
-            <div style= {{
-            height: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-                background: "var(--bg-0)", color: "var(--danger)", flexDirection: "column", gap: 10,
-      }
-    }>
-        <span style={ { fontSize: 32 } }>⚠</span>
-            < span > Asset not found.This window may have been opened from a stale session.</span>
+            <div className="elite-shell">
+                <div className="elite-header">
+                    <span className="elite-header-title">Grudge Elite</span>
+                    <span style={{ color: "var(--elite-muted)", fontSize: 11 }}>
+                        {notFound ? "No asset token — empty studio" : "Loading asset…"}
+                    </span>
                 </div>
-    );
-}
+                <Model3DViewerFull asset={null} />
+            </div>
+        );
+    }
 
-if (!asset) {
+    const kind = classify(asset);
+    const is3d = kind === "model3d" || kind === "scene3d";
+
     return (
-        <div style= {{
-        height: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-            background: "var(--bg-0)", color: "var(--gold)",
-      }
-}> Loading asset…</div>
+        <div className="elite-shell">
+            <ViewerHeader asset={asset} kind={kind} />
+            {is3d
+                ? <Model3DViewerFull asset={asset} />
+                : <FlatViewer asset={asset} kind={kind} />}
+        </div>
     );
-  }
-
-const kind = classify(asset);
-const is3d = kind === "model3d" || kind === "scene3d";
-
-return (
-    <div style= {{
-    display: "flex", flexDirection: "column", height: "100vh",
-        background: "var(--bg-0)", color: "var(--text)", overflow: "hidden",
-    }}>
-    <ViewerHeader asset={ asset } kind = { kind } />
-        { is3d
-        ? <Model3DViewerFull asset={ asset } />
-        : <FlatViewer asset={ asset } kind = { kind } />}
-</div>
-  );
 }

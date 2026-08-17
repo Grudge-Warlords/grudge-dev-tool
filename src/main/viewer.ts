@@ -28,7 +28,7 @@ import { optimizeWebFile, type OptimizeWebOptions, type OptimizeWebResult } from
 import { requestUploadUrl } from "./api";
 import { r2PublicUrl } from "./cf/r2Direct";
 import { mediaStreamUrl, isStreamableMediaPath } from "./mediaProtocol";
-import { inferContentType, isModelPath } from "../shared/mediaTypes";
+import { inferContentType } from "../shared/mediaTypes";
 import { localLoopbackAssetUrl, threeflowAssetUrl } from "../shared/editorHandoff";
 
 export interface ViewerAssetRef {
@@ -140,15 +140,10 @@ function normalizeAsset(raw: unknown): ViewerAssetRef {
   };
 }
 
-function isThreeFlowMeshName(name: string): boolean {
-  const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  if (ext === "html" || ext === "htm") return false;
-  return isModelPath(name);
-}
-
 /**
  * Pop-out ThreeFlow scene editor (rotate / scale / add / remove meshes).
  * CDN URL or local mesh via loopback plugin host.
+ * Elite remains the local preview — call this only from an explicit Open action.
  */
 export function openThreeFlowEditor(opts: {
   name: string;
@@ -255,15 +250,6 @@ export async function openLocalPath(
     ? sourcePath.replace(/\\/g, "/")
     : openPath.replace(/\\/g, "/");
 
-  if (isThreeFlowMeshName(name)) {
-    try {
-      openThreeFlowEditor({ name: displayName, localPath: openPath });
-      return { ok: true, token: "threeflow" };
-    } catch (e) {
-      log.warn("ThreeFlow pop-out failed, Elite fallback", e);
-    }
-  }
-
   return openViewer(
     {
       name: displayName,
@@ -283,22 +269,6 @@ export async function openLocalPath(
 /** Open an always-on-top viewer window for the given asset (independent of parent so it can float above Loader + main). */
 export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: true; token: string } {
   const asset = normalizeAsset(raw);
-  if (isThreeFlowMeshName(asset.name) && !asset.stream) {
-    const cdn =
-      /^https?:\/\//i.test(asset.url) && !asset.url.startsWith("blob:") ? asset.url : undefined;
-    if (cdn || asset.localPath) {
-      try {
-        openThreeFlowEditor({
-          name: asset.name,
-          cdnUrl: cdn,
-          localPath: asset.localPath,
-        });
-        return { ok: true, token: "threeflow" };
-      } catch (e) {
-        log.warn("ThreeFlow pop-out failed, Elite fallback", e);
-      }
-    }
-  }
   const token = newToken();
   assetStore.set(token, asset);
 

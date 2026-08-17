@@ -6,10 +6,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ### Fixed
 - **Open folder** — folder picker uses the window that clicked it and drops always-on-top so the dialog is not hidden behind Loader/Elite.
+- **Elite black viewport** — official `ViewHelper.render()` was auto-clearing the whole canvas (only the corner cube survived). `SceneEngine` now matches ThreeFlow: `autoClear=false` + explicit `clear()`. 3D stays in local Elite (not a remote ThreeFlow pop-out). Host is absolute-fill. Studio ground + sand `#EFD1B5`.
 
 ### Added
 - **Copy as path** on Local Files, Assets browser, and Elite header (disk path or R2 key).
-- **3D pop-out = ThreeFlow** — GLB/glTF/FBX/OBJ open the live ThreeFlow scene editor (rotate / scale / add / remove). Local meshes served from plugin `GET /v1/local-file`. Images/video/audio stay Elite.
+- **Elite ThreeFlow chrome** — 32px header, left scene tree, center viewport, right inspector. Same `SceneEngine` (no fourth editor, no iframe). Open in ThreeFlow remains an explicit action.
 
 ## [1.0.9] — 2026-08-16
 

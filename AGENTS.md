@@ -32,8 +32,8 @@ npm run publish:manual # bump patch → package → git tag → gh release creat
 
 | Surface | Role | Loader / convert |
 |---------|------|------------------|
-| **Elite Viewer** (this app, pop-out) | Images / video / audio / text preview | `loadModel` only as fallback |
-| **ThreeFlow** (`threeflow.vercel.app`) | **3D pop-out scene editor** — rotate, scale, add, remove | `gltfProdLoader`; `?asset=` or loopback `/v1/local-file` |
+| **Elite Viewer** (this app, pop-out) | Local 3D + media preview (Three.js editor chrome) | `SceneEngine` + `gltfProdLoader` |
+| **ThreeFlow** (`threeflow.vercel.app`) | Warlords **scene** editor — explicit Open in ThreeFlow | `?asset=` CDN URL (do not iframe) |
 | **Forge live** (`forge.grudge-studio.com`) | R3F + Rapier + `.gfscene` deploy | CDN URL only |
 | Local Forge3D / workbench | Pop-out mesh tools, script pad | same `loadModel` / `convertToGlb` |
 
