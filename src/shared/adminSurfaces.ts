@@ -154,9 +154,9 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     label: "Legion Chat",
     kind: "hybrid",
     prodUrl: FLEET_URLS.ai,
-    apis: [FLEET_URLS.ai, FLEET_URLS.auth],
+    apis: [FLEET_URLS.ai, FLEET_URLS.auth, FLEET_URLS.puterSpace],
     description:
-      "Fleet Legion AI (ai.grudge-studio.com) — not Coder AI hub worker. Roles, chat, agent tools.",
+      "Fleet Legion AI (ai.grudge-studio.com) — not Coder AI hub worker. Roles, chat, agent tools. Account cloud: /puter-space.",
     adminOnly: true,
   },
   {

@@ -568,6 +568,7 @@ export const STUDIO_SURFACE_DNS = [
   { id: "assets", host: "assets.grudge-studio.com", role: "R2 CDN binaries" },
   { id: "objectstore", host: "objectstore.grudge-studio.com", role: "JSON catalogs + search Worker" },
   { id: "ai", host: "ai.grudge-studio.com", role: "Legion AI Gateway hub" },
+  { id: "puter-space", host: "ai.grudge-studio.com/puter-space", role: "Player account Puter FS + site deploy (not bag SSOT)" },
   { id: "forge", host: "forge.grudge-studio.com", role: "R3F + Rapier + .gfscene deploy editor" },
   { id: "threeflow", host: "threeflow.vercel.app", role: "Warlords scene editor (Elite ?asset=)" },
   { id: "pipeline", host: "grudge-pipeline.vercel.app", role: "FBX/GLB ingest → bake handoff" },

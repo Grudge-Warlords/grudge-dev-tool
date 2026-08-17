@@ -28,6 +28,11 @@ export const FLEET_URLS = {
   client: FLEET_CLIENT_URL,
   /** Legion / GRUDA AI hub */
   ai: "https://ai.grudge-studio.com",
+  /**
+   * Player account User-Pays cloud (FS + puter.site deploy).
+   * Sign in with Grudge ID. Never bag / roster / wallet SSOT.
+   */
+  puterSpace: "https://ai.grudge-studio.com/puter-space",
   warlords: "https://grudgewarlords.com",
   /** Open launcher (canonical library) */
   open: "https://open.grudge-studio.com",
@@ -207,6 +212,12 @@ export function buildTruthProbes(apiBase: string): TruthProbe[] {
       id: "ai-legion",
       label: "Legion AI hub",
       url: FLEET_URLS.ai,
+      role: "ai",
+    },
+    {
+      id: "puter-space",
+      label: "Puter Space (account cloud)",
+      url: FLEET_URLS.puterSpace,
       role: "ai",
     },
     {

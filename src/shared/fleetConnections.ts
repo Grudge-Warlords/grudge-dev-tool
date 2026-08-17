@@ -29,6 +29,7 @@ export const FLEET_ENDPOINTS: FleetEndpoint[] = [
   { id: "objectstore", label: "ObjectStore JSON", url: FLEET_URLS.objectStore, role: "objectstore", adminCritical: true },
   { id: "info", label: "info.* catalogs", url: FLEET_URLS.info, role: "info", adminCritical: true },
   { id: "ai", label: "Legion AI Hub", url: FLEET_URLS.ai, role: "ai", adminCritical: true },
+  { id: "puter-space", label: "Puter Space (account cloud)", url: FLEET_URLS.puterSpace, role: "ai" },
   { id: "forge", label: "Forge editor", url: FLEET_URLS.forge, role: "frontend", adminCritical: true },
   { id: "coder", label: "Coder IDE", url: FLEET_URLS.coder, role: "frontend", adminCritical: true },
   { id: "pipeline", label: "Grudge Pipeline", url: FLEET_URLS.pipeline, role: "frontend" },
