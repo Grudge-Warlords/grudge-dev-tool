@@ -2,7 +2,7 @@
 layout: default
 title: ONE TRUTH
 nav_order: 3
-description: Single canonical host map for Grudge Studio — client API base; api.grudge-studio.com is legacy index only.
+description: Single canonical host map — client API base, Grudge ID login, puter-space account cloud; api.grudge-studio.com is legacy index only.
 permalink: /one-truth.html
 ---
 
@@ -23,7 +23,8 @@ Full link table: [Systems & APIs](systems-api.md).
 | JSON catalog | `objectstore.grudge-studio.com` | `/api/objectstore/v1/*` |
 | Live defs | `info.grudge-studio.com` | `/api/v1/*` |
 | Binary CDN | `assets.grudge-studio.com` | GLB / tex / audio |
-| Legion AI | `ai.grudge-studio.com` | Chat / agents |
+| Legion AI | `ai.grudge-studio.com` | Chat / agents · `GET /v1/context` |
+| Account cloud | `ai.grudge-studio.com/puter-space` | Puter FS + `*.puter.site` — **never** bag/roster |
 | Forge | `forge.grudge-studio.com` | Scene editor (Dev Tool **Forge** tab) |
 | Coder | `coder.grudge-studio.com` | IDE (Dev Tool **Coder** tab) |
 | Open | `open.grudge-studio.com` | Launcher (Preview) |
@@ -33,7 +34,10 @@ Full link table: [Systems & APIs](systems-api.md).
 | Water | `water.grudge-studio.com` | Home island |
 | Docs | [grudge-warlords.github.io/grudge-dev-tool](https://grudge-warlords.github.io/grudge-dev-tool/) | This site |
 
-**Always use `https://client.grudge-studio.com` as API base** in CLI and Settings — not raw Railway in browser apps, not deprecated hosts.
+**Always use `https://client.grudge-studio.com` as API base** in CLI and Settings — not raw Railway in browser apps, not deprecated hosts.  
+**Sign in** at `https://id.grudge-studio.com` (Grudge ID). Puter Space is account files only.
+
+Play binaries: `assets.grudge-studio.com` — GLB `model/gltf-binary`, PNG `image/png`, JS `application/javascript`, FBX `application/octet-stream`. Load Toon play bodies with `loadRaceKit` / `gltfProdLoader` (r185 Draco+Meshopt+KTX2). D1 is the asset **index** only.
 
 **Multiverse ≠ Metaverse.** Multiverse multiplayer does **not** use Carrier (`/api/carrier`) or gameopen-production — it uses its dedicated Railway and `/api/mv`.
 

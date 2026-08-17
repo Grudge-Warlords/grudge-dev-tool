@@ -5,7 +5,7 @@ nav_order: 13
 ---
 # Asset loader · materials · prod/gltf · D1
 
-Grudge Dev Tool (v0.9.6+) production import path.
+Grudge Dev Tool (v1.0.10+) production import path. Play bodies: Toon RTS GLB via `loadRaceKit` / `gltfProdLoader` (r185 Draco+Meshopt+KTX2). CDN MIME: GLB `model/gltf-binary`, FBX `application/octet-stream`.
 
 ## Why assets look yellow or black
 

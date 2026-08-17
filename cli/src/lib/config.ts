@@ -22,10 +22,9 @@ const CONFIG_PATH = path.join(CONFIG_DIR, "config.json");
 
 const REPO_CANDIDATES = [
   process.env.GRUDGE_BUILDER_ROOT,
-  "D:\\repos\\grudge-builder",
-  "D:\\GrudgeRepos\\RTS-Grudge",
-  path.join(os.homedir(), "Desktop", "grudge-builder"),
-  path.join(os.homedir(), "Documents", "grudge-builder"),
+  "F:\\GitHub\\GrudgeBuilder",
+  path.join(os.homedir(), "Documents", "GrudgeBuilder"),
+  path.join(os.homedir(), "Desktop", "GrudgeBuilder"),
 ].filter(Boolean) as string[];
 
 const API_CANDIDATES = [

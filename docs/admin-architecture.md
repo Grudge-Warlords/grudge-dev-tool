@@ -8,8 +8,8 @@ permalink: /admin-architecture.html
 
 # Admin architecture (Dev Tool SSOT)
 
-**Product:** Grudge Studio Forge tray (`grudge-dev-tool`) — desktop **admin** shell for the fleet.  
-**Rule:** Tabs embed or call the **same production hosts** used on DNS. No parallel editors, no orphaned Vercel play URLs.
+**Product:** **Grudge Dev Tool** (`com.grudgestudio.devtool`) — desktop **admin** shell for the fleet.  
+**Rule:** Tabs embed or call the **same production hosts** used on DNS. No parallel editors, no orphaned Vercel play URLs. **Forge** is one tab (live `forge.grudge-studio.com`), not the product name.
 
 Code SSOT: `src/shared/adminSurfaces.ts` · `src/shared/fleet.ts` · `src/shared/docsCatalog.ts` · `src/shared/bestPractices.ts`.
 
@@ -80,7 +80,8 @@ Multiverse rooms: own Railway `…/api/mv` — **not** Carrier.
 | Layer | Host | Use in Dev Tool |
 |-------|------|-----------------|
 | ONE TRUTH API | `client.grudge-studio.com` | Settings base · doctor · rewrites |
-| Auth | `id.grudge-studio.com` | Puter/Grudge ID sign-in |
+| Auth | `id.grudge-studio.com` | **Grudge ID** sign-in (product login) |
+| Account cloud | `ai.grudge-studio.com/puter-space` | Puter FS + site deploy — never bag/roster |
 | Game data | Railway `grudge-api-production-0d46` | Characters / bag / wallet SSOT |
 | Portal / ENGINE | `grudge-studio.com` | Identity shell (not game-data) |
 | Catalogs | `objectstore.grudge-studio.com/api/v1` + `info.grudge-studio.com/api/v1` | JSON definitions |

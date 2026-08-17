@@ -1,6 +1,6 @@
 # Grudge Dev Tool
 
-**Best-in-class Grudge Studio admin shell** — Elite Three.js studio (local preview), ObjectStore/R2 browser, Forge embed, Preview playtests, Skeleton Studio, Agent AI, and **single-login SSO** across all tabs against ONE TRUTH (Railway · CDN · ObjectStore · fleet hosts).
+**Best-in-class Grudge Studio admin shell** — Elite Three.js studio (local preview), ObjectStore/R2 browser, Forge embed, Preview playtests, Skeleton Studio, Agent AI, and **single-login SSO (Grudge ID)** across all tabs against ONE TRUTH (Railway · CDN · ObjectStore · [puter-space](https://ai.grudge-studio.com/puter-space) · fleet hosts).
 
 | Surface | Role |
 |---------|------|
@@ -12,7 +12,7 @@
 | **Preview** | Open · client · water · GRUDOX · **Multiverse** playtests |
 | **Games** | Fleet catalog launcher |
 | **Agent AI** | Make & deploy · Ollama / Legion / Workers AI |
-| **Settings** | ONE TRUTH · single-login matrix · R2/CF · toolchain · defaults |
+| **Settings** | ONE TRUTH · Grudge ID matrix · R2/CF · toolchain · defaults |
 
 [![Release](https://img.shields.io/github/v/release/Grudge-Warlords/grudge-dev-tool?display_name=tag&sort=semver)](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest)
 [![Pages](https://img.shields.io/github/actions/workflow/status/Grudge-Warlords/grudge-dev-tool/pages.yml?label=docs)](https://grudge-warlords.github.io/grudge-dev-tool/)
@@ -27,7 +27,8 @@
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
-· [Systems & APIs](docs/systems-api.md) · [ONE TRUTH](docs/one-truth.md) · [Databases · backups](docs/database-backups-sharing.md) · [AI · Workers](docs/ai-workers-d1-r2-stream.md) · [Admin architecture](docs/admin-architecture.md)
+· [Systems & APIs](docs/systems-api.md) · [ONE TRUTH](docs/one-truth.md) · [Databases · backups](docs/database-backups-sharing.md) · [AI · Workers](docs/ai-workers-d1-r2-stream.md) · [Admin architecture](docs/admin-architecture.md)  
+· **Account cloud:** <https://ai.grudge-studio.com/puter-space> (never bag/roster)
 
 ⬇ **Installer (latest):** [GitHub Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) · Windows x64 · NSIS · **electron-updater**
 
@@ -62,12 +63,13 @@ https://client.grudge-studio.com
 
 ### Desktop first-run
 
-1. Install the `.exe` from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) (or auto-update).  
-2. **Sign in once** (Puter) — that session powers all tabs and embeds.  
+1. Install **Grudge Dev Tool Setup** from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) (or auto-update). Not `Grudge Studio Forge-Setup`.  
+2. **Sign in once with Grudge ID** (`id.grudge-studio.com`) — that JWT powers tabs and embeds. Puter is **not** product login.  
 3. **Settings → Apply ONE TRUTH** — writes `client.grudge-studio.com` + host matrix into keytar.  
-4. Admin allowlist (`grudachain` / `molochdadev`) → GRUDACHAIN Ollama agentic stack.  
-5. Optional: `npm run secret:import path\to\secrets.txt` for R2 / CF AI / Legion keys.  
-6. **Settings → Set as default for all asset types** — Explorer opens elite viewer (not Forge).
+4. Account files / `*.puter.site` → [puter-space](https://ai.grudge-studio.com/puter-space). Railway still owns bag / characters / wallet.  
+5. Admin allowlist (`grudachain` / `molochdadev`) → GRUDACHAIN Ollama agentic stack.  
+6. Optional: `npm run secret:import path\to\secrets.txt` for R2 / CF AI / Legion keys.  
+7. **Settings → Set as default for all asset types** — Explorer opens elite viewer (not Forge).
 
 ### CLI
 

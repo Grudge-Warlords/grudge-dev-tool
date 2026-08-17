@@ -39,7 +39,8 @@ grudge-dev doctor
 
 | Host | Role |
 |------|------|
-| [id.grudge-studio.com](https://id.grudge-studio.com) | Grudge ID SSO (`/login?redirect_uri=`) |
+| [id.grudge-studio.com](https://id.grudge-studio.com) | Grudge ID SSO (`/login?redirect_uri=`) — **product login** |
+| [ai.grudge-studio.com/puter-space](https://ai.grudge-studio.com/puter-space) | Player account cloud (Puter FS + site deploy). **Not** bag/roster |
 | [grudge-studio.com](https://grudge-studio.com) | Portal / The-ENGINE shell (not player-state SSOT) |
 | [character.grudge-studio.com](https://character.grudge-studio.com) | Character Foundry (create + 4-slot only) |
 
@@ -49,7 +50,7 @@ grudge-dev doctor
 
 | Host | Role |
 |------|------|
-| [assets.grudge-studio.com](https://assets.grudge-studio.com) | R2 binary CDN (GLB, textures, audio) |
+| [assets.grudge-studio.com](https://assets.grudge-studio.com) | R2 binary CDN — GLB `model/gltf-binary`, PNG `image/png`, FBX `application/octet-stream` |
 | [objectstore.grudge-studio.com/api/v1](https://objectstore.grudge-studio.com/api/v1) | JSON catalogs + search index |
 | [info.grudge-studio.com/api/v1](https://info.grudge-studio.com/api/v1) | Live definition catalogs |
 | D1 `grudge-assets-db` / ObjectStore D1 | **Index only** — never player bag/XP |
@@ -107,7 +108,8 @@ Open library card: `gameopen` → `gameLibrary.ts` id `grudge-multiverse`.
 
 | Host | Role |
 |------|------|
-| [ai.grudge-studio.com](https://ai.grudge-studio.com) | **Legion** fleet chat / roles |
+| [ai.grudge-studio.com](https://ai.grudge-studio.com) | **Legion** fleet chat / roles · `GET /v1/context` (puter_space + asset_serve) |
+| [ai.grudge-studio.com/puter-space](https://ai.grudge-studio.com/puter-space) | Account cloud UI (Grudge ID sign-in) |
 | Coder AI hub worker | Event/job ingest only (≠ Legion) |
 | Dev Tool plugin host | `127.0.0.1:17380` — local attach; see [Plugin attach](plugin-attach.md) |
 | `http://localhost:11434` | GRUDACHAIN Ollama (desktop agentic) |

@@ -4,6 +4,9 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Changed
+- **Docs / GitHub Pages / README** — product name is Grudge Dev Tool (not Forge Setup). Sign-in is **Grudge ID**, not Puter. Account cloud is `https://ai.grudge-studio.com/puter-space` (never bag). CLI Pages fence uses `text` so commands stay on separate lines. `doctor` probes puter-space + Toon `human.glb`. Repo About text matches the live tray.
+
 ## [1.0.10] — 2026-08-16
 
 ### Fixed

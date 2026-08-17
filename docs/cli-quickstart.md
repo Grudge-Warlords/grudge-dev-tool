@@ -12,7 +12,7 @@ Host map: [Systems & APIs](systems-api.md) · [ONE TRUTH](one-truth.md).
 
 ## Install
 
-```powershell
+```text
 git clone https://github.com/Grudge-Warlords/grudge-dev-tool.git
 cd grudge-dev-tool/cli
 npm install
@@ -36,9 +36,9 @@ grudge-dev setup
 This will:
 
 1. Probe `https://client.grudge-studio.com` (then `http://localhost:5000` if local dev is up).
-2. Locate `grudge-builder` on disk (`D:\repos\grudge-builder`, Desktop, etc.).
+2. Locate a **GrudgeBuilder** checkout if present (`F:\GitHub\GrudgeBuilder`, or `GRUDGE_BUILDER_ROOT`).
 3. Write `%USERPROFILE%\.grudge-dev\config.json`.
-4. Run ONE TRUTH probes and print a score.
+4. Run ONE TRUTH probes (includes Legion, puter-space, Toon `human.glb`) and print a score.
 
 ## Auth
 

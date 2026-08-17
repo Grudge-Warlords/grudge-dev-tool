@@ -165,7 +165,7 @@ export async function localAgentChat(
   }
 
   throw new Error(
-    `Free agentic AI unavailable. Sign in with Puter, start Ollama, or bake OPENAI/ANTHROPIC/GEMINI/CF keys in env.\n${errors.join("\n")}`,
+    `Free agentic AI unavailable. Sign in with Grudge ID, start Ollama, use puter-space User-Pays AI, or bake OPENAI/ANTHROPIC/GEMINI/CF keys in env.\n${errors.join("\n")}`,
   );
 }
 

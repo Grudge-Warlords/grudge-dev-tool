@@ -21,7 +21,8 @@ description: ONE TRUTH production deploy map for Grudge Dev Tool, Forge, AI work
 | ObjectStore | `https://objectstore.grudge-studio.com/api/v1` | JSON catalogs |
 | info.* catalogs | `https://info.grudge-studio.com/api/v1` | Live definitions (often fuller) |
 | Assets CDN | `https://assets.grudge-studio.com` | R2 binaries |
-| Legion AI | `https://ai.grudge-studio.com` | Fleet AI hub (≠ Coder AI worker) |
+| Legion AI | `https://ai.grudge-studio.com` | Fleet AI hub (≠ Coder AI worker) · `/v1/context` |
+| Account cloud | `https://ai.grudge-studio.com/puter-space` | Puter FS + `*.puter.site` — never bag/roster |
 | Forge editor | `https://forge.grudge-studio.com` | **Same SPA as Dev Tool Forge tab** (R3F + Rapier) |
 | Coder IDE | `https://coder.grudge-studio.com` | Vibe IDE (Dev Tool Coder tab) |
 | Pipeline | `https://grudge-pipeline.vercel.app` | Ingest → bake handoff |

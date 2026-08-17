@@ -10,11 +10,13 @@ Full map: [Admin architecture](admin-architecture.md).
 
 ## 1. Install
 
-Download the latest **`Grudge Studio Forge-Setup-*.exe`** from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) and run it. It installs under `%LOCALAPPDATA%\Programs\` by default and adds:
+Download the latest **`Grudge Dev Tool Setup-*.exe`** from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) and run it. It installs under `%LOCALAPPDATA%\Programs\` by default and adds:
 
-- A Start-menu shortcut **Grudge Studio Forge**
+- A Start-menu shortcut **Grudge Dev Tool**
 - An optional desktop shortcut
 - An entry in the system tray
+
+Do **not** look for `Grudge Studio Forge-Setup-*.exe` — that was the old product name.
 
 ## 2. First launch
 
@@ -22,11 +24,12 @@ The window may start hidden — only the tray icon appears. Left-click the icon 
 
 On open, Forge **auto-ensures** the **GRUDACHAIN** Ollama container (Docker) or native `ollama serve` so local agentic AI is available.
 
-## 3. Sign in as admin (grudachain)
+## 3. Sign in with Grudge ID
 
-1. Sign in with Puter as **`grudachain`** (or another allowlisted admin).
-2. Admin sign-in runs a full **agentic** ensure: prefer Ollama, pull a default model if the container has none.
+1. Sign in at **[id.grudge-studio.com](https://id.grudge-studio.com)** (Grudge ID). That is product login — **not** Puter as the account.
+2. Allowlisted admins (`grudachain`, `molochdadev`) run a full **agentic** ensure: prefer Ollama, pull a default model if the container has none.
 3. Status bar shows gold **ADMIN** + **OLLAMA · AGENTIC** when ready.
+4. Player files / `*.puter.site` deploys: **[Puter Space](https://ai.grudge-studio.com/puter-space)**. Never bag or roster.
 
 Canonical admins: `grudachain`, `molochdadev` (plus allowlisted emails baked into the build).
 

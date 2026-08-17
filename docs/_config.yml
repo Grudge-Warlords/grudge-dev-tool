@@ -1,5 +1,5 @@
 title: Grudge Dev Tool
-description: Grudge Studio admin shell v1.0.10 — Elite Three.js studio, ONE TRUTH, Forge, Preview, Coder.
+description: Grudge Studio admin shell v1.0.10 — Elite Three.js studio, ONE TRUTH, Forge, Preview, Puter Space.
 url: "https://grudge-warlords.github.io"
 baseurl: "/grudge-dev-tool"
 remote_theme: just-the-docs/just-the-docs
@@ -25,6 +25,7 @@ aux_links:
   "Coder": "https://coder.grudge-studio.com"
   "Open": "https://open.grudge-studio.com"
   "AI Hub": "https://ai.grudge-studio.com"
+  "Puter Space": "https://ai.grudge-studio.com/puter-space"
   "Grudge ID": "https://id.grudge-studio.com"
 nav_external_links:
   - title: "GitHub"
@@ -39,6 +40,10 @@ nav_external_links:
     url:   "https://coder.grudge-studio.com"
   - title: "Open launcher"
     url:   "https://open.grudge-studio.com"
+  - title: "Puter Space"
+    url:   "https://ai.grudge-studio.com/puter-space"
+  - title: "Grudge ID"
+    url:   "https://id.grudge-studio.com"
   - title: "Warlords"
     url:   "https://grudgewarlords.com"
 exclude:

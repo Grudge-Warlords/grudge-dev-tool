@@ -8,7 +8,7 @@ permalink: /
 # Grudge Dev Tool
 
 {: .fs-9 }
-Desktop **admin** shell for Grudge Studio — **Elite** Three.js studio, Assets, **Forge** (forge.grudge-studio.com), **Preview** playtests, Coder, Skeleton, Legion, Agent AI.
+Desktop **admin** shell for Grudge Studio — **Elite** Three.js studio, Assets, **Forge**, **Preview**, Coder, Skeleton, Legion, and player **Puter Space**.
 {: .fs-5 .fw-300 }
 
 [⬇ Download latest installer →](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
@@ -22,7 +22,7 @@ Windows x64 NSIS · **v1.0.10** · electron-updater · Elite Three.js studio · 
 
 | Surface | Role |
 |---------|------|
-| **Home** | Fleet health + admin systems (client, info.*, ENGINE, open, GRUDOX, Forge, Coder) |
+| **Home** | Fleet health + admin systems (client, info.*, ENGINE, open, GRUDOX, Forge, Coder, puter-space) |
 | **Elite** | Local Three.js preview — header / scene tree / sand + SI grid / inspector. Double-click 3D stays here. |
 | **Assets** | R2/ObjectStore · `>query` · Elite pop-out · explicit Open in ThreeFlow / Forge |
 | **ThreeFlow** | Warlords scene editor (`threeflow.vercel.app?asset=`) — button, not iframe |
@@ -41,13 +41,14 @@ Windows x64 NSIS · **v1.0.10** · electron-updater · Elite Three.js studio · 
 
 ### First connection (ONE TRUTH)
 
-1. Install from **Releases** (or auto-update).
-2. **Settings → ONE TRUTH** → `https://client.grudge-studio.com`.
-3. Sign in as admin (`grudachain` / allowlist) — GRUDACHAIN Ollama starts when configured.
-4. **Assets** / Local Files → Elite studio → **Open in ThreeFlow** or **Forge** when you want scene/deploy edit → **Preview** playtest.
-5. Optional: `npm run secret:import` for R2 / AI / Legion keys.
+1. Install **Grudge Dev Tool Setup** from **Releases** (or auto-update). Product name is **Grudge Dev Tool**, not Forge.
+2. **Settings → ONE TRUTH** → API base `https://client.grudge-studio.com` (rewrites → Railway + ObjectStore + id).
+3. **Sign in with Grudge ID** (`https://id.grudge-studio.com`) — not Puter as product login. Admin allowlist (`grudachain` / `molochdadev`) starts GRUDACHAIN Ollama when configured.
+4. Player account files → [Puter Space](https://ai.grudge-studio.com/puter-space) (User-Pays FS + `*.puter.site`). **Never** bag / roster / wallet.
+5. **Assets** / Local Files → Elite studio → **Open in ThreeFlow** or **Forge** → **Preview** playtest.
+6. Optional: `npm run secret:import` for R2 / AI / Legion keys.
 
-**Do not** point Settings at `api.grudge-studio.com` (deprecated).
+**Do not** point Settings at `api.grudge-studio.com` (deprecated). Login is **id.*** only.
 {: .fs-3 .text-grey-dk-100 }
 
 ---
@@ -67,7 +68,7 @@ Details: [Admin architecture](admin-architecture.md) · [AI · D1 · R2 · Strea
 
 ## CLI
 
-```powershell
+```text
 git clone https://github.com/Grudge-Warlords/grudge-dev-tool.git
 cd grudge-dev-tool/cli
 npm install && npm run build
@@ -120,7 +121,8 @@ grudge-dev upload-pack --root "C:\packs\MyPack" --pack-id my-pack --dry-run
 | [threeflow.vercel.app](https://threeflow.vercel.app) | Warlords scene editor (Elite `?asset=`) |
 | [forge.grudge-studio.com](https://forge.grudge-studio.com) | Map/scene deploy editor |
 | [coder.grudge-studio.com](https://coder.grudge-studio.com) | Vibe IDE |
-| [ai.grudge-studio.com](https://ai.grudge-studio.com) | Legion AI |
+| [ai.grudge-studio.com](https://ai.grudge-studio.com) | Legion AI (`/v1/context` 1.6.1+) |
+| [ai.grudge-studio.com/puter-space](https://ai.grudge-studio.com/puter-space) | Player account cloud (FS + site deploy — not bag) |
 | [open.grudge-studio.com](https://open.grudge-studio.com) | Open launcher |
 | [grudox.grudge-studio.com](https://grudox.grudge-studio.com) | GRUDOX / Carrier |
 | [grudge-multiverse.vercel.app](https://grudge-multiverse.vercel.app/#room1) | Multiverse Bermuda MP (SPA) |

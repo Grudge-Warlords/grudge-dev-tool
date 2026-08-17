@@ -12,6 +12,8 @@ export const FLEET_URLS = {
   info: "https://info.grudge-studio.com/api/v1",
   client: "https://client.grudge-studio.com",
   ai: "https://ai.grudge-studio.com",
+  /** Player account cloud — FS + puter.site. Never bag/roster. */
+  puterSpace: "https://ai.grudge-studio.com/puter-space",
   warlords: "https://grudgewarlords.com",
   forge: "https://forge.grudge-studio.com",
   pipeline: "https://grudge-pipeline.vercel.app",
@@ -131,6 +133,18 @@ export function buildTruthProbes(apiBase: string): TruthProbe[] {
       label: "Legion AI hub",
       url: FLEET_URLS.ai,
       role: "ai",
+    },
+    {
+      id: "puter-space",
+      label: "Puter Space (account cloud)",
+      url: FLEET_URLS.puterSpace,
+      role: "ai",
+    },
+    {
+      id: "cdn-toon-human",
+      label: "CDN Toon human.glb",
+      url: `${FLEET_URLS.assets}/asset-packs/toon-rts-characters/glb/characters/human.glb`,
+      role: "assets",
     },
     {
       id: "forge",
