@@ -54,7 +54,7 @@ Requires **Docker Desktop** (preferred) or native Ollama at `%LOCALAPPDATA%\Prog
 ## 5. Daily admin loop
 
 1. **Assets** — browse R2; click for always-on-top Viewer; `>query` for Agent/server search; send GLB to Forge (CDN URL).
-   Elite 3D viewer: infinite SI grid + view cube; **1/3/7/5** views; **G/R/S** (or W/E) gizmo; drop / **Shift+A** add more models in the same scene; click select; **Shift+D** copy; **X** delete; **A** frame all; Studio inspector. Mesh paint/weld stays in **Forge 3D**. Place Mixamo-25 in **Skeleton**.
+   **Elite** (v1.0.10) is a Three.js studio: sand floor + SI grid + view cube, left scene tree, right inspector. **1/3/7/5** views; **G/R/S** gizmo; drop / **Shift+A** add; **Shift+D** copy; **X** delete; **A** frame. Double-click GLB stays in Elite (viewport is not black). **Open in ThreeFlow** is a button (`?asset=`). Mesh paint/weld stays in **Forge 3D**. Mixamo-25 in **Skeleton**.
 2. **Forge** — production editor (R3F + Rapier). Same host as DNS. Use **Play test** when ready.
 3. **Preview** — load open / client / water / GRUDOX / Multiverse with optional `sceneId` / `glb`.
 4. **Coder** — cloud IDE embed, or Local server for full PTY.

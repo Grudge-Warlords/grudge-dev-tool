@@ -11,6 +11,12 @@ A running list of every error we've seen and the exact fix. Cross-referenced fro
 1. TOC
 {:toc}
 ---
+## Elite viewer
+### Viewport is black (only the XYZ cube shows)
+**Symptom.** Pop-out Elite 3D window is a black hole; the corner view cube still draws.
+**Cause.** Three.js `ViewHelper.render()` calls `renderer.render()` with `autoClear=true` and only a corner viewport. That **clears the whole color buffer**, then paints the cube. Fixed in **v1.0.10** (`SceneEngine`: `autoClear=false` + explicit `clear()`, same as ThreeFlow).
+**Fix.** Update to [v1.0.10+](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest). Do not iframe ThreeFlow into Elite — 3D double-click stays in the local studio; Open in ThreeFlow is a button.
+---
 ## App / installer
 ### "Tray icon doesn't appear"
 **Symptom.** Installer succeeds, no error, but no gold-helm icon in the Windows notification area (bottom-right).

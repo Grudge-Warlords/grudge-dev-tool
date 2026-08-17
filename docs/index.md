@@ -8,7 +8,7 @@ permalink: /
 # Grudge Dev Tool
 
 {: .fs-9 }
-Desktop **admin** shell for Grudge Studio — Assets, **Forge** (same as forge.grudge-studio.com), **Preview** playtests, Coder, Skeleton, Legion, Agent AI.
+Desktop **admin** shell for Grudge Studio — **Elite** Three.js studio, Assets, **Forge** (forge.grudge-studio.com), **Preview** playtests, Coder, Skeleton, Legion, Agent AI.
 {: .fs-5 .fw-300 }
 
 [⬇ Download latest installer →](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
@@ -18,12 +18,14 @@ Desktop **admin** shell for Grudge Studio — Assets, **Forge** (same as forge.g
 
 ## Production tray (current package)
 
-Windows x64 NSIS · electron-updater · Studio Hub · Asset Viewer · Forge embed · Preview play mode · Agent AI · GRUDACHAIN Ollama.
+Windows x64 NSIS · **v1.0.10** · electron-updater · Elite Three.js studio · Forge embed · Preview · Agent AI · GRUDACHAIN Ollama.
 
 | Surface | Role |
 |---------|------|
 | **Home** | Fleet health + admin systems (client, info.*, ENGINE, open, GRUDOX, Forge, Coder) |
-| **Assets** | R2/ObjectStore · `>query` Agent search · always-on-top Viewer · send 3D → Forge |
+| **Elite** | Local Three.js preview — header / scene tree / sand + SI grid / inspector. Double-click 3D stays here. |
+| **Assets** | R2/ObjectStore · `>query` · Elite pop-out · explicit Open in ThreeFlow / Forge |
+| **ThreeFlow** | Warlords scene editor (`threeflow.vercel.app?asset=`) — button, not iframe |
 | **Forge** | **Same source as https://forge.grudge-studio.com** — R3F + Rapier + AI Worker |
 | **Preview** | Play-mode clients (open · client · water · GRUDOX · Multiverse) after Forge |
 | **Coder** | Embed coder.grudge-studio.com + optional local PTY |
@@ -42,7 +44,7 @@ Windows x64 NSIS · electron-updater · Studio Hub · Asset Viewer · Forge embe
 1. Install from **Releases** (or auto-update).
 2. **Settings → ONE TRUTH** → `https://client.grudge-studio.com`.
 3. Sign in as admin (`grudachain` / allowlist) — GRUDACHAIN Ollama starts when configured.
-4. **Assets** → browse → Viewer → **Forge** (production) → **Preview** playtest.
+4. **Assets** / Local Files → Elite studio → **Open in ThreeFlow** or **Forge** when you want scene/deploy edit → **Preview** playtest.
 5. Optional: `npm run secret:import` for R2 / AI / Legion keys.
 
 **Do not** point Settings at `api.grudge-studio.com` (deprecated).
@@ -115,7 +117,8 @@ grudge-dev upload-pack --root "C:\packs\MyPack" --pack-id my-pack --dry-run
 |------|------|
 | [client.grudge-studio.com](https://client.grudge-studio.com) | ONE TRUTH API base |
 | [id.grudge-studio.com](https://id.grudge-studio.com) | Grudge ID |
-| [forge.grudge-studio.com](https://forge.grudge-studio.com) | Map/scene editor |
+| [threeflow.vercel.app](https://threeflow.vercel.app) | Warlords scene editor (Elite `?asset=`) |
+| [forge.grudge-studio.com](https://forge.grudge-studio.com) | Map/scene deploy editor |
 | [coder.grudge-studio.com](https://coder.grudge-studio.com) | Vibe IDE |
 | [ai.grudge-studio.com](https://ai.grudge-studio.com) | Legion AI |
 | [open.grudge-studio.com](https://open.grudge-studio.com) | Open launcher |

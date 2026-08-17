@@ -1,12 +1,12 @@
 # Grudge Dev Tool
 
-**Best-in-class Grudge Studio admin shell** — elite asset viewer/opener, ObjectStore/R2 browser, Forge embed, Preview playtests, Skeleton Studio, Agent AI, and **single-login SSO** across all tabs against ONE TRUTH (Railway · CDN · ObjectStore · fleet hosts).
+**Best-in-class Grudge Studio admin shell** — Elite Three.js studio (local preview), ObjectStore/R2 browser, Forge embed, Preview playtests, Skeleton Studio, Agent AI, and **single-login SSO** across all tabs against ONE TRUTH (Railway · CDN · ObjectStore · fleet hosts).
 
 | Surface | Role |
 |---------|------|
 | **Home** | Fleet health · admin systems · primary actions |
-| **Local Files** | Disk browser · kind chips · double-click → elite viewer (3D / image / **audio** / **video** / PSD / BLEND) |
-| **Assets** | R2 / ObjectStore · `>query` · pop-out Elite viewer · Open in ThreeFlow / Forge |
+| **Local Files** | Disk browser · kind chips · double-click → **Elite** (3D studio / image / **audio** / **video** / PSD / BLEND) |
+| **Assets** | R2 / ObjectStore · `>query` · pop-out Elite · explicit Open in ThreeFlow / Forge |
 | **Skeleton** | Mixamo-25 → T-pose → retarget → convert → CDN |
 | **Forge** | Production `forge.grudge-studio.com` embed (R3F + Rapier deploy) |
 | **Preview** | Open · client · water · GRUDOX · **Multiverse** playtests |
@@ -23,7 +23,7 @@
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **Desktop app** | **v1.0.9** | Windows tray · r185 Elite loaders · ThreeFlow/Forge `?asset=` · blob-free convert · auto-update |
+| **Desktop app** | **v1.0.10** | Windows tray · Elite Three.js studio · r185 loaders · ThreeFlow/Forge `?asset=` · auto-update |
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
@@ -33,14 +33,16 @@
 
 ---
 
-## What's new in 1.0.8
+## What's new in 1.0.10
 
-- **Production GLTF factory** (same as ThreeFlow): bundled Draco + Meshopt + lazy KTX2 — no gstatic/jsDelivr  
-- **Open in ThreeFlow** / **Open in Forge (live)** via `src/shared/editorHandoff.ts` (`?asset=`)  
-- **three 0.185** + `three/addons/*` · local Ollama = `grudge-dev` + `llama3.2` only  
-- Blender/ffmpeg **not** shipped in the repo; `npm run toolchain:install` when convert needs them  
+- **Elite viewport is not black** — `ViewHelper` was wiping the scene every frame; `SceneEngine` now matches ThreeFlow (`autoClear=false` + explicit clear).  
+- **Elite is a clean Three.js studio** — header, left scene tree, sand floor + SI grid, right inspector. Same `SceneEngine` (no fourth editor, no iframe).  
+- **3D double-click stays in Elite.** Open in ThreeFlow / Forge live remains an explicit `?asset=` button.  
+- **Copy as path** on Local Files, Assets, and Elite header.  
 
-Earlier: **1.0.7** video + AI cards · **1.0.6** media SSOT · **1.0.5** Elite textures/Draco.
+Docs: <https://grudge-warlords.github.io/grudge-dev-tool/>
+
+Earlier: **1.0.9** editor trio name · **1.0.8** r185 loaders · **1.0.7** video + AI cards.
 
 ---
 
@@ -82,7 +84,7 @@ grudge-dev plugin status   # dest-tool must be running (127.0.0.1:17380)
 
 | Action | Result |
 |--------|--------|
-| **Local Files → double-click** file | Always-on-top **Elite Viewer** (not Forge) |
+| **Local Files → double-click** file | Always-on-top **Elite** studio (3D) or media viewer — not Forge / not ThreeFlow |
 | Audio / video | Streamed via `grudge-media://` (no full-file RAM blob); simple VideoViewer chrome |
 | Kind chips | Filter Audio · Video · 3D · Image while browsing packs |
 | Explorer **Open with** / double-click | Same elite path after **Settings → Set as default for all asset types** |
@@ -131,7 +133,7 @@ npm run package:ci
 | Surface | What it does |
 |---------|----------------|
 | **Tray** | Left-click loader · double-click main · right-click menu |
-| **Elite viewer** | Always-on-top 3D / image / video / audio (stream) / PDF / **PSD** / **BLEND** |
+| **Elite studio** | Always-on-top Three.js editor chrome: 3D grid + gizmos / image / video / audio (stream) / PDF / **PSD** / **BLEND** |
 | **Forge embed** | Live `forge.grudge-studio.com` + desktop session handoff |
 | **Preview** | open · client · water · GRUDOX · Multiverse |
 | **Agent AI** | Make & deploy · Ollama · Legion · CF Workers AI |
