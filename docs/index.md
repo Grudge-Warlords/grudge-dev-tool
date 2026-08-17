@@ -89,7 +89,7 @@ grudge-dev upload-pack --root "C:\packs\MyPack" --pack-id my-pack --dry-run
 
 ## What it does
 
-### Desktop admin (Forge tray)
+### Desktop admin (Dev Tool tray)
 
 - **ONE TRUTH** connectivity + fleet probes on Home  
 - **Assets** with Agent search and production Asset Viewer  
