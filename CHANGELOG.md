@@ -4,13 +4,15 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.0.10] — 2026-08-16
+
 ### Fixed
-- **Open folder** — folder picker uses the window that clicked it and drops always-on-top so the dialog is not hidden behind Loader/Elite.
 - **Elite black viewport** — official `ViewHelper.render()` was auto-clearing the whole canvas (only the corner cube survived). `SceneEngine` now matches ThreeFlow: `autoClear=false` + explicit `clear()`. 3D stays in local Elite (not a remote ThreeFlow pop-out). Host is absolute-fill. Studio ground + sand `#EFD1B5`.
+- **Open folder** — folder picker uses the window that clicked it and drops always-on-top so the dialog is not hidden behind Loader/Elite.
 
 ### Added
-- **Copy as path** on Local Files, Assets browser, and Elite header (disk path or R2 key).
 - **Elite ThreeFlow chrome** — 32px header, left scene tree, center viewport, right inspector. Same `SceneEngine` (no fourth editor, no iframe). Open in ThreeFlow remains an explicit action.
+- **Copy as path** on Local Files, Assets browser, and Elite header (disk path or R2 key).
 
 ## [1.0.9] — 2026-08-16
 
@@ -234,3 +236,5 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 [1.0.5]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.5
 [1.0.8]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.8
+[1.0.9]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.9
+[1.0.10]:     https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.10

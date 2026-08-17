@@ -66,7 +66,8 @@ Prevents N WebGL contexts (black frames, context loss, yellow sludge when many p
 | Wrong / random textures on GLB | `onlyMissingMaps` (never overwrite embeds with sibling PNGs) |
 | Kenney pink/missing maps | mediaProtocol texture fallback + `Textures/` dir search |
 | FBX yellow / no atlas | `diskPath` + `grudge-media` relative TGA/PNG + sanitize yellow |
-| Black silhouette | ambient boost in Elite Viewer + metalness cap in sanitize |
+| Black silhouette | ambient boost in Elite + metalness cap in sanitize |
+| Entire viewport black (cube only) | **v1.0.10** — ViewHelper was wiping the canvas; update Dev Tool |
 | Scrambled sRGB / muddy normals | baseColor → sRGB; data maps → NoColorSpace |
 | Draco/Meshopt empty mesh | GLTFLoader setDRACOLoader + setMeshoptDecoder |
 | Tiny / giant mesh after open | keep author root scale (do not force `scale=1`) |

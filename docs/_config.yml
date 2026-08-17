@@ -1,5 +1,5 @@
 title: Grudge Dev Tool
-description: Grudge Studio admin shell v0.9.7 — ONE TRUTH, Forge DNS parity, Preview, Coder, Systems & APIs docs.
+description: Grudge Studio admin shell v1.0.10 — Elite Three.js studio, ONE TRUTH, Forge, Preview, Coder.
 url: "https://grudge-warlords.github.io"
 baseurl: "/grudge-dev-tool"
 remote_theme: just-the-docs/just-the-docs
@@ -20,6 +20,7 @@ heading_anchors: true
 aux_links:
   "Source": "https://github.com/Grudge-Warlords/grudge-dev-tool"
   "Releases": "https://github.com/Grudge-Warlords/grudge-dev-tool/releases"
+  "ThreeFlow": "https://threeflow.vercel.app"
   "Forge": "https://forge.grudge-studio.com"
   "Coder": "https://coder.grudge-studio.com"
   "Open": "https://open.grudge-studio.com"
@@ -30,6 +31,8 @@ nav_external_links:
     url:   "https://github.com/Grudge-Warlords/grudge-dev-tool"
   - title: "Releases"
     url:   "https://github.com/Grudge-Warlords/grudge-dev-tool/releases"
+  - title: "ThreeFlow"
+    url:   "https://threeflow.vercel.app"
   - title: "Forge editor"
     url:   "https://forge.grudge-studio.com"
   - title: "Coder IDE"
