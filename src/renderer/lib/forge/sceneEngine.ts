@@ -44,6 +44,10 @@ export interface SceneEngineOptions {
   showGrid?: boolean;
   showAxes?: boolean;
   hdri?: boolean;
+  /** Studio ground plane so the viewport is never an empty void. */
+  showGround?: boolean;
+  gridCellColor?: number;
+  gridSectionColor?: number;
 }
 
 /**
@@ -79,6 +83,8 @@ export class SceneEngine {
   private readonly pointer = new THREE.Vector2();
 
   private grid: THREE.Object3D | null = null;
+  private ground: THREE.Mesh | null = null;
+  private sizeRetry = 0;
   private skeletonHelpers = new Map<THREE.Object3D, THREE.SkeletonHelper>();
   private boneLabelGroups = new Map<THREE.Object3D, THREE.Group>();
   private boundsHelpers = new Map<THREE.Object3D, THREE.Box3Helper>();
@@ -117,6 +123,11 @@ export class SceneEngine {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
+    // ViewHelper.render() calls renderer.render() with autoClear=true and
+    // only a corner viewport — that wipes the whole color buffer to black
+    // unless we clear manually and keep autoClear off (ThreeFlow pattern).
+    this.renderer.autoClear = false;
+    this.renderer.setClearColor(bg, 1);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.domElement.style.cssText = "width:100%;height:100%;display:block;outline:none";
@@ -159,8 +170,16 @@ export class SceneEngine {
       this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     }
 
+    if (opts.showGround !== false) {
+      this.mountStudioGround();
+    }
     if (opts.showGrid !== false) {
-      this.grid = createInfiniteGrid();
+      this.grid = createInfiniteGrid({
+        cellColor: opts.gridCellColor,
+        sectionColor: opts.gridSectionColor,
+      });
+      // Sit just above the studio floor so the grid is not z-fought / occluded.
+      this.grid.position.y = 0.01;
       this.scene.add(this.grid);
     }
     if (opts.showAxes !== false) {
@@ -209,6 +228,34 @@ export class SceneEngine {
     }
 
     this.tick();
+    // Layout often settles after first paint (flex/absolute). Retry so we
+    // never leave a 2×2 black canvas in the Elite / Forge host.
+    requestAnimationFrame(() => this.resize());
+    window.setTimeout(() => this.resize(), 50);
+    window.setTimeout(() => this.resize(), 250);
+  }
+
+  /** Public resize — call after the host flex/absolute box gets a real size. */
+  resize(): void {
+    this.onResize();
+  }
+
+  /** Warm sand studio floor (ThreeFlow-style) so empty scenes are readable. */
+  private mountStudioGround(): void {
+    if (this.ground) return;
+    const geo = new THREE.PlaneGeometry(80, 80);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xc9b089,
+      roughness: 0.96,
+      metalness: 0.0,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.receiveShadow = true;
+    mesh.name = "GrudgeStudioGround";
+    mesh.userData.forgeInternal = true;
+    this.scene.add(mesh);
+    this.ground = mesh;
   }
 
   /** Toggle helpers (grid + axes). */
@@ -352,6 +399,7 @@ export class SceneEngine {
 
   setBackgroundColor(hex: number): void {
     this.scene.background = new THREE.Color(hex);
+    this.renderer.setClearColor(hex, 1);
   }
 
   getStudioLightState(): StudioLightState {
@@ -546,8 +594,16 @@ export class SceneEngine {
 
   private onResize = (): void => {
     if (this.disposed) return;
-    const w = Math.max(2, this.container.clientWidth || 2);
-    const h = Math.max(2, this.container.clientHeight || 2);
+    const rawW = this.container.clientWidth;
+    const rawH = this.container.clientHeight;
+    if ((rawW < 2 || rawH < 2) && this.sizeRetry < 40) {
+      this.sizeRetry += 1;
+      requestAnimationFrame(() => this.onResize());
+      return;
+    }
+    this.sizeRetry = 0;
+    const w = Math.max(2, rawW || 2);
+    const h = Math.max(2, rawH || 2);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     if (this.orthoCam) {
@@ -570,10 +626,15 @@ export class SceneEngine {
         this.viewHelper.center.copy(this.controls.target);
         if (this.viewHelper.animating) this.viewHelper.update(dt);
       }
-      // Skip zero-size paints (host hidden / tab background)
+      // Skip zero-size paints (host hidden / tab background) — but keep
+      // retrying resize so a later flex layout does not stay black forever.
       const w = this.container.clientWidth;
       const h = this.container.clientHeight;
-      if (w < 2 || h < 2) return;
+      if (w < 2 || h < 2) {
+        this.onResize();
+        return;
+      }
+      this.renderer.clear();
       this.renderer.render(this.scene, this.activeCamera);
       this.viewHelper?.render(this.renderer);
     } catch (e) {
@@ -686,7 +747,9 @@ export class SceneEngine {
 
   /** Take a PNG screenshot of the current frame (data URL). */
   screenshot(): string {
-    this.renderer.render(this.scene, this.camera);
+    this.renderer.clear();
+    this.renderer.render(this.scene, this.activeCamera);
+    this.viewHelper?.render(this.renderer);
     return this.renderer.domElement.toDataURL("image/png");
   }
 
