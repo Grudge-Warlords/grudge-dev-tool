@@ -32,14 +32,14 @@ npm run publish:manual # bump patch → package → git tag → gh release creat
 
 | Surface | Role | Loader / convert |
 |---------|------|------------------|
-| **Elite Viewer** (this app, pop-out) | Local 3D + media preview (Three.js editor chrome) | `SceneEngine` + `gltfProdLoader` |
-| **ThreeFlow** (`threeflow.vercel.app`) | Warlords **scene** editor — explicit Open in ThreeFlow | `?asset=` CDN URL (do not iframe) |
+| **Elite Viewer** (this app, pop-out) | Images / audio / video / text / PDF | media viewers |
+| **ThreeFlow** (`threeflow.vercel.app`) | Local Files 3D + scene edit (save, multi-mesh) | `?asset=` CDN or loopback `/v1/local-file` |
 | **Forge live** (`forge.grudge-studio.com`) | R3F + Rapier + `.gfscene` deploy | CDN URL only |
 | Local Forge3D / workbench | Pop-out mesh tools, script pad | same `loadModel` / `convertToGlb` |
 
 Production bake: main `convertFile` (FBX2glTF → Blender fallback) then `optimizeWebFile`. Browser `exportToGlb` is convenience only.
 
-Handoff SSOT: `src/shared/editorHandoff.ts`.
+Handoff SSOT: `src/shared/editorHandoff.ts`. Local 3D double-click opens ThreeFlow (not Elite chrome).
 
 ## Architecture
 

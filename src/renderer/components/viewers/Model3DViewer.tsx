@@ -24,7 +24,14 @@ interface Stats {
  * Pattern: three.js multi-canvas (webgpu_multiple_canvas / webgl_multiple_elements).
  * Avoids one WebGLRenderer per thumbnail (context loss / yellow sludge / black frames).
  */
-export default function Model3DViewer({ asset }: { asset: AssetRef }) {
+export default function Model3DViewer({
+  asset,
+  onLocateInList,
+}: {
+  asset: AssetRef;
+  /** Scroll the Local Files list to this viewport asset. */
+  onLocateInList?: () => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const viewRef = useRef<MultiCanvasView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -172,12 +179,41 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
           {error}
         </div>
       )}
-      {stats && (
+      {(onLocateInList || stats) && (
         <div
           style={{
             position: "absolute",
             bottom: 8,
             left: 8,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            gap: 6,
+            zIndex: 2,
+          }}
+        >
+      {onLocateInList && (
+        <button
+          type="button"
+          onClick={onLocateInList}
+          title="Scroll the left list to this viewport asset"
+          style={{
+            background: "rgba(15,21,48,0.92)",
+            border: "1px solid var(--gold)",
+            borderRadius: 6,
+            padding: "4px 10px",
+            fontSize: 11,
+            color: "var(--gold)",
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          Show in list
+        </button>
+      )}
+      {stats && (
+        <div
+          style={{
             background: "rgba(15,21,48,0.88)",
             border: "1px solid var(--line)",
             borderRadius: 6,
@@ -215,6 +251,8 @@ export default function Model3DViewer({ asset }: { asset: AssetRef }) {
           <span title="Shared multi-canvas WebGL hub" style={{ opacity: 0.55, fontSize: 10 }}>
             multi-canvas
           </span>
+        </div>
+      )}
         </div>
       )}
     </div>

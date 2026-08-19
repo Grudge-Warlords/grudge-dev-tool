@@ -4,7 +4,8 @@
  *
  * Actions:
  *   • Click / Enter → inline preview (View Mode viewers)
- *   • Pop-out → always-on-top Asset Viewer
+ *   • Pop-out 3D → ThreeFlow (save / multi-mesh)
+ *   • Pop-out media → Elite viewer
  *   • Explicit "Send to Forge" only when user chooses it
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -107,6 +108,17 @@ function pathParts(abs: string): string[] {
   return norm.split(/[/\\]/).filter(Boolean);
 }
 
+function parentDir(abs: string): string {
+  const n = abs.replace(/\//g, "\\");
+  const i = n.lastIndexOf("\\");
+  if (i <= 2) return n.slice(0, 3);
+  return n.slice(0, i);
+}
+
+function samePath(a: string, b: string): boolean {
+  return a.replace(/\//g, "\\").toLowerCase() === b.replace(/\//g, "\\").toLowerCase();
+}
+
 function joinFromParts(parts: string[], idx: number): string {
   if (!parts.length) return "";
   if (/^[A-Za-z]:\\?$/.test(parts[0]) || parts[0].endsWith(":\\") || parts[0].endsWith(":")) {
@@ -156,12 +168,14 @@ function PreviewPane({
   onPopOut,
   onViewMode,
   onForge,
+  onLocateInList,
   busy,
 }: {
   asset: AssetRef | null;
   onPopOut: () => void;
   onViewMode: () => void;
   onForge: () => void;
+  onLocateInList: () => void;
   busy: boolean;
 }) {
   const kind: AssetKind = asset ? classify(asset) : "unknown";
@@ -171,8 +185,8 @@ function PreviewPane({
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted p-8 text-center">
         <HardDrive size={40} className="opacity-40" />
         <p className="text-sm max-w-xs">
-          Select a file to preview it here. Opens into wired 3D / image / audio viewers —{" "}
-          <strong className="text-ink">not Forge</strong> unless you choose Send to Forge.
+          Click to preview. Double-click 3D opens{" "}
+          <strong className="text-ink">ThreeFlow</strong> (save, multi-mesh). Images / audio / video stay in Elite.
         </p>
       </div>
     );
@@ -196,10 +210,10 @@ function PreviewPane({
           className="btn ghost text-[11px] px-2 py-1"
           disabled={busy}
           onClick={onPopOut}
-          title="Always-on-top Asset Viewer"
+          title={kind === "model3d" || kind === "scene3d" ? "ThreeFlow scene editor" : "Elite media viewer"}
         >
           <Maximize2 size={12} className="inline mr-1" />
-          Pop-out
+          {kind === "model3d" || kind === "scene3d" ? "ThreeFlow" : "Pop-out"}
         </button>
         <button
           type="button"
@@ -233,7 +247,9 @@ function PreviewPane({
           {kind === "image" && <ImageViewer asset={asset} />}
           {kind === "video" && <VideoViewer asset={asset} />}
           {kind === "audio" && <AudioViewer asset={asset} />}
-          {(kind === "model3d" || kind === "scene3d") && <Model3DViewer asset={asset} />}
+          {(kind === "model3d" || kind === "scene3d") && (
+            <Model3DViewer asset={asset} onLocateInList={onLocateInList} />
+          )}
           {kind === "text" && <TextViewer asset={asset} />}
           {kind === "pdf" && <PdfViewer asset={asset} />}
           {kind === "font" && <FontViewer asset={asset} />}
@@ -272,6 +288,7 @@ export default function LocalFiles() {
   const [busy, setBusy] = useState(false);
   const [recent, setRecent] = useState<string[]>(() => loadRecent());
   const blobRevoke = useRef<string | null>(null);
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
 
   const revokePreview = useCallback(() => {
     if (blobRevoke.current) {
@@ -280,8 +297,8 @@ export default function LocalFiles() {
     }
   }, []);
 
-  const loadDir = useCallback(async (dir: string) => {
-    if (!dir) return;
+  const loadDir = useCallback(async (dir: string): Promise<ListDirResult | null> => {
+    if (!dir) return null;
     setLoading(true);
     setError(null);
     try {
@@ -295,9 +312,11 @@ export default function LocalFiles() {
       } catch {
         /* offline store */
       }
+      return res;
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
       setListing(null);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -317,6 +336,7 @@ export default function LocalFiles() {
       kind: string;
       contentType: string;
       size: number;
+      token?: string;
     }) => {
       try {
         if (info.dir) {
@@ -344,7 +364,11 @@ export default function LocalFiles() {
         } catch {
           /* pop-out is enough */
         }
-        toast.success("Opened in elite viewer", {
+        const isTf =
+          info.token === "threeflow" ||
+          info.kind === "model3d" ||
+          info.kind === "scene3d";
+        toast.success(isTf ? "ThreeFlow editor" : "Elite viewer", {
           description: `${info.kind} · ${info.name}`,
         });
       } catch (e: unknown) {
@@ -414,19 +438,19 @@ export default function LocalFiles() {
       setBusy(true);
       try {
         if (mode === "popout") {
-          // Elite open system (same path as Explorer double-click)
+          // Same path as Explorer double-click: 3D → ThreeFlow, media → Elite.
           const r = await window.grudge.openFile?.openPath?.(entry.path);
-          if (r && "ok" in r && !r.ok) {
+          if (r && "ok" in r && r.ok) return;
+          const is3d = entry.kind === "model3d" || entry.kind === "scene3d";
+          if (!is3d) {
             await window.grudge.viewer.openLocal({
               path: entry.path,
               contentType: entry.contentType,
               size: entry.size,
             });
           }
-          toast.success(
-            entry.kind === "model3d" || entry.kind === "scene3d"
-              ? "ThreeFlow editor"
-              : "Elite viewer",
+          toast.error(
+            (r && "error" in r && r.error) || "Open failed",
             { description: entry.name },
           );
           return;
@@ -457,21 +481,58 @@ export default function LocalFiles() {
   const crumbs = useMemo(() => (cwd ? pathParts(cwd) : []), [cwd]);
 
   const onPopOut = useCallback(async () => {
-    if (!selected) return;
-    setBusy(true);
-    try {
-      await window.grudge.viewer.openLocal({
-        path: selected.path,
-        contentType: selected.contentType,
-        size: selected.size,
-      });
-      toast.success("Pop-out viewer");
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Pop-out failed");
-    } finally {
-      setBusy(false);
+    const path = preview?.localPath || selected?.path;
+    if (!path) return;
+    const entry = selected && samePath(selected.path, path)
+      ? selected
+      : listing?.entries.find((e) => samePath(e.path, path));
+    if (entry) {
+      await openEntry(entry, "popout");
+      return;
     }
-  }, [selected]);
+    const stub: LocalEntry = {
+      name: path.split(/[/\\]/).pop() || path,
+      path,
+      isDirectory: false,
+      size: preview?.size || 0,
+      mtimeMs: 0,
+      ext: (path.split(".").pop() || "").toLowerCase(),
+      kind: selected?.kind || "file",
+      contentType: preview?.contentType || selected?.contentType || "",
+    };
+    await openEntry(stub, "popout");
+  }, [selected, preview, listing, openEntry]);
+
+  const locateViewportAsset = useCallback(async () => {
+    const path = preview?.localPath;
+    if (!path) {
+      toast.message("Nothing in the viewport");
+      return;
+    }
+    const dir = parentDir(path);
+    setKindFilter("all");
+    setFilter("");
+    let list = listing;
+    if (!cwd || !samePath(dir, cwd)) {
+      list = await loadDir(dir);
+    }
+    const entry = list?.entries.find((e) => samePath(e.path, path));
+    if (entry) setSelected(entry);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const rows = listScrollRef.current?.querySelectorAll<HTMLElement>("[data-local-path]");
+        if (!rows) return;
+        for (const row of rows) {
+          if (samePath(row.dataset.localPath || "", path)) {
+            row.scrollIntoView({ block: "center", behavior: "smooth" });
+            row.focus();
+            return;
+          }
+        }
+        toast.message("Not in this list", { description: "Cleared filters — check the folder." });
+      });
+    });
+  }, [preview, listing, cwd, loadDir]);
 
   const onViewMode = useCallback(() => {
     if (!preview) return;
@@ -521,8 +582,8 @@ export default function LocalFiles() {
           <div className="flex-1 min-w-0">
             <h1 className="text-sm font-bold text-gold tracking-wide">Local Files · Elite open</h1>
             <p className="text-[11px] text-muted">
-              Double-click file → Elite Viewer (3D · image · <strong className="text-ink">audio</strong> ·{" "}
-              <strong className="text-ink">video</strong>). Stream via grudge-media://. Not Forge by default.
+              Click = preview. Double-click 3D = <strong className="text-ink">ThreeFlow</strong>. Images / audio / video = Elite.
+              System open = OS app. AI card = clipboard for agents.
             </p>
           </div>
           <button type="button" className="btn text-xs px-3 py-1.5" onClick={pickFolder}>
@@ -634,7 +695,7 @@ export default function LocalFiles() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto" ref={listScrollRef}>
             {!cwd && (
               <div className="p-8 text-center text-muted text-sm space-y-3">
                 <FolderOpen size={36} className="mx-auto opacity-40" />
@@ -658,6 +719,7 @@ export default function LocalFiles() {
                     <li key={entry.path}>
                       <button
                         type="button"
+                        data-local-path={entry.path}
                         className={
                           "w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-bg-2 " +
                           (active ? "bg-gold/10 text-gold" : "text-ink")
@@ -696,7 +758,7 @@ export default function LocalFiles() {
               <button
                 type="button"
                 className="btn ghost text-[11px] px-2 py-1"
-                onClick={() => void openEntry(selected, "popout")}
+                onClick={() => void onPopOut()}
               >
                 <Maximize2 size={12} className="inline mr-1" />
                 {selected.kind === "model3d" || selected.kind === "scene3d"
@@ -738,8 +800,11 @@ export default function LocalFiles() {
               <button
                 type="button"
                 className="btn ghost text-[11px] px-2 py-1"
+                title="Open in the OS default app (Blender, Photoshop, Photos, …)"
                 onClick={() =>
-                  void window.grudge.files.openSystem(selected.path).catch((e: Error) =>
+                  void window.grudge.files.openSystem(selected.path).then(() => {
+                    toast.success("Opened in system app", { description: selected.name });
+                  }).catch((e: Error) =>
                     toast.error(e?.message || "System open failed"),
                   )
                 }
@@ -749,23 +814,25 @@ export default function LocalFiles() {
               <button
                 type="button"
                 className="btn ghost text-[11px] px-2 py-1"
-                title="Copy AI asset card (kind, open hints, model/vision notes)"
+                title="Copy markdown card for AI (kind, open path, GLB inspect). Vision caption only for images."
                 onClick={() => {
                   void (async () => {
                     try {
-                      const r = await (window as any).grudge?.asset?.understand?.({
+                      const r = await window.grudge.asset?.understand?.({
                         path: selected.path,
                         name: selected.name,
                         contentType: selected.contentType,
                         size: selected.size,
-                        withAi: selected.kind === "image" || selected.kind === "model3d",
+                        withAi: selected.kind === "image",
                       });
                       if (!r?.ok) {
                         toast.error(r?.error || "Understand failed");
                         return;
                       }
                       await navigator.clipboard.writeText(r.markdown);
-                      toast.success("AI asset card copied", { description: r.summary?.slice(0, 100) });
+                      toast.success("AI card copied", {
+                        description: r.aiNote?.slice(0, 120) || r.summary?.slice(0, 100),
+                      });
                     } catch (e: unknown) {
                       toast.error(e instanceof Error ? e.message : "Understand failed");
                     }
@@ -784,6 +851,7 @@ export default function LocalFiles() {
           onPopOut={onPopOut}
           onViewMode={onViewMode}
           onForge={onForge}
+          onLocateInList={() => void locateViewportAsset()}
           busy={busy}
         />
       </div>

@@ -141,9 +141,9 @@ function normalizeAsset(raw: unknown): ViewerAssetRef {
 }
 
 /**
- * Pop-out ThreeFlow scene editor (rotate / scale / add / remove meshes).
- * CDN URL or local mesh via loopback plugin host.
- * Elite remains the local preview — call this only from an explicit Open action.
+ * Pop-out ThreeFlow scene editor (save / multi-mesh / small edits).
+ * CDN URL or local mesh via loopback plugin host (`/v1/local-file/<name>?path=`).
+ * Local Files 3D opens here — Elite is images / audio / video / text / PDF.
  */
 export function openThreeFlowEditor(opts: {
   name: string;

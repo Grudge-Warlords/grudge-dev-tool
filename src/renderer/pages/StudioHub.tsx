@@ -38,7 +38,7 @@ const PRIMARY: Array<{
   {
     id: "local",
     label: "Local Files",
-    desc: "Elite open · Explorer double-click · all types",
+    desc: "Disk · 3D → ThreeFlow · media → Elite",
     route: "/local",
     Icon: FolderSearch,
   },

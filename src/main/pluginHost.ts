@@ -112,6 +112,7 @@ function send(res: http.ServerResponse, req: http.IncomingMessage, statusCode: n
     "Access-Control-Allow-Origin": allowOrigin(req),
     "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Grudge-Plugin-Token",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Private-Network": "true",
     "Cache-Control": "no-store",
   });
   res.end(payload);
@@ -250,7 +251,7 @@ export async function startPluginHost(opts: { showMain: () => void }): Promise<P
           });
           return;
         }
-        if (req.method === "GET" && url.pathname === "/v1/local-file") {
+        if (req.method === "GET" && url.pathname.startsWith("/v1/local-file")) {
           const raw = url.searchParams.get("path") || "";
           if (!raw.trim()) {
             send(res, req, 400, { ok: false, error: "path_required" });
@@ -270,7 +271,9 @@ export async function startPluginHost(opts: { showMain: () => void }): Promise<P
           res.writeHead(200, {
             "Content-Type": inferContentType(name) || "application/octet-stream",
             "Access-Control-Allow-Origin": allowOrigin(req),
+            "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Grudge-Plugin-Token",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Private-Network": "true",
             "Content-Disposition": `inline; filename="${name.replace(/"/g, "")}"`,
             "Cache-Control": "no-store",
           });

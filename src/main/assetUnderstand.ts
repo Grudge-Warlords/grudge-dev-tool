@@ -84,19 +84,23 @@ function classifyKind(name: string): AssetKindCard {
 }
 
 function openHintsFor(kind: AssetKindCard, stream: boolean): string[] {
+  const is3d = kind === "model3d" || kind === "scene3d";
   const hints = [
-    "Local Files: double-click → elite viewer (not Forge)",
+    is3d
+      ? "Local Files: click = inline preview · double-click / Pop-out = ThreeFlow (save, multi-mesh)"
+      : "Local Files: double-click / Pop-out = Elite media viewer (not Forge)",
+    "System open = OS default app (Blender / Photoshop / Photos / …)",
     "Explorer: Open with Grudge Dev Tool after Settings → Set as default",
   ];
   if (kind === "video" || kind === "audio") {
     hints.push(stream ? "Playback streams via grudge-media:// (no full RAM load)" : "Use stream URL for large media");
   }
-  if (kind === "model3d" || kind === "scene3d") {
-    hints.push("Send to Forge only via explicit toolbar action");
-    hints.push("model:inspect for GLB/GLTF scene graph");
+  if (is3d) {
+    hints.push("Forge live only via explicit Forge action (needs CDN URL)");
+    hints.push("GLB/GLTF: model inspect (meshes / mats / clips / tris) is on this card");
   }
   if (kind === "image") {
-    hints.push("ai:caption / Understand for vision description");
+    hints.push("AI card + withAi = vision caption (CF / Legion)");
   }
   return hints;
 }
@@ -240,8 +244,11 @@ export async function understandAsset(opts: {
       aiNote ? `### AI / inspect\n${aiNote}` : "### AI / inspect\n_(none yet — use withAi for image vision)_",
       "",
       "### Agent instructions",
-      `- Treat kind=\`${kind}\` when routing tools (viewer / convert / Forge / caption).`,
-      `- Do not force Forge for audio/video/image; Forge is 3D-only explicit action.`,
+      `- Treat kind=\`${kind}\` when routing tools (ThreeFlow for 3D edit · Elite for media · convert / caption).`,
+      `- Do not force Forge for audio/video/image; Forge is 3D deploy only, explicit.`,
+      kind === "model3d" || kind === "scene3d"
+        ? `- 3D edit is ThreeFlow, not Elite chrome.`
+        : null,
       stream ? `- Use stream URL for playback, never full-file blob for large media.` : null,
     ].filter(Boolean) as string[];
 

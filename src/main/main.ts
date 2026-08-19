@@ -729,6 +729,22 @@ function registerIpc() {
     if (!filePath || typeof filePath !== "string") throw new Error("path required");
     return mediaStreamUrl(filePath);
   });
+  ipcMain.handle(
+    "viewer:openThreeFlow",
+    async (_e, args: { name: string; cdnUrl?: string; localPath?: string }) => {
+      if (args?.localPath) {
+        await startPluginHost({
+          showMain: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.show();
+              mainWindow.focus();
+            }
+          },
+        }).catch((err) => log.warn("[viewer] plugin host", err));
+      }
+      return viewer.openThreeFlowEditor(args);
+    },
+  );
   ipcMain.handle("viewer:openLocal", (_e, args: { path: string; contentType?: string; size?: number }) => {
     const parent = BrowserWindow.fromWebContents(_e.sender) ?? mainWindow;
     return viewer.openLocalPath(

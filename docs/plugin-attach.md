@@ -27,7 +27,8 @@ Reviewed live systems (practices migrated into the dest-tool kernel):
 | **Dev Tool** | Starts the host on app ready. Agent AI tab shows origin + token. |
 | **Standalone** | Open `http://127.0.0.1:17380/` while dest-tool is running. |
 | **VS Code** | Install `packages/vscode-extension` VSIX. Commands attach dest-tool first, then Legion / Coder. |
-| **Viewer** | `POST /v1/viewer/open` `{ localPath }` or `{ url }` → elite pop-out. |
+| **Viewer** | `POST /v1/viewer/open` `{ localPath }` or `{ url }` → 3D/scene **ThreeFlow**; media **Elite**. |
+| **Local file** | `GET /v1/local-file/<name>?path=` — loopback mesh for live ThreeFlow (CORS + private-network). |
 | **Agentic** | `POST /v1/agent/run` `{ task }` — same cascade as in-app Agent AI. |
 | **CLI** | `grudge-dev plugin status\|practices\|chat\|viewer` |
 

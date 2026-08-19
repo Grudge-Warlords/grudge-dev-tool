@@ -102,6 +102,9 @@ const api = {
     /** Pop-out viewer for a disk path (Local Files / OS open — not Forge). */
     openLocal: (args: { path: string; contentType?: string; size?: number }) =>
       ipcRenderer.invoke("viewer:openLocal", args) as Promise<{ ok: true; token: string }>,
+    /** Open ThreeFlow with a CDN mesh or local loopback file. */
+    openThreeFlow: (args: { name: string; cdnUrl?: string; localPath?: string }) =>
+      ipcRenderer.invoke("viewer:openThreeFlow", args) as Promise<{ ok: true; url: string }>,
     getAsset: (token: string) =>
       ipcRenderer.invoke("viewer:getAsset", token) as Promise<{
         name: string;
@@ -191,7 +194,7 @@ const api = {
     focusAll: () => ipcRenderer.invoke("viewer:focusAll"),
   },
   /**
-   * Elite desktop open system — Explorer double-click / Open with / in-app open.
+   * Explorer / Local Files open — 3D → ThreeFlow; media → Elite.
    * Always routes to the Asset Viewer (never Forge).
    */
   openFile: {
@@ -207,7 +210,7 @@ const api = {
       }>,
     supportedExts: () =>
       ipcRenderer.invoke("openFile:supportedExts") as Promise<string[]>,
-    /** Fired when OS or openFile bridge opened a local file into the elite viewer. */
+    /** Fired when OS / Local Files opened a path (ThreeFlow for 3D, Elite for media). */
     onOpened: (
       cb: (info: {
         path: string;

@@ -15,7 +15,11 @@ A running list of every error we've seen and the exact fix. Cross-referenced fro
 ### Viewport is black (only the XYZ cube shows)
 **Symptom.** Pop-out Elite 3D window is a black hole; the corner view cube still draws.
 **Cause.** Three.js `ViewHelper.render()` calls `renderer.render()` with `autoClear=true` and only a corner viewport. That **clears the whole color buffer**, then paints the cube. Fixed in **v1.0.10** (`SceneEngine`: `autoClear=false` + explicit `clear()`, same as ThreeFlow).
-**Fix.** Update to [v1.0.10+](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest). Do not iframe ThreeFlow into Elite — 3D double-click stays in the local studio; Open in ThreeFlow is a button.
+**Fix.** Update to [v1.0.11+](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest). Do not iframe ThreeFlow into Elite. **Local Files 3D double-click opens ThreeFlow**; Elite is media. If a local GLB fails to load in ThreeFlow, confirm Dev Tool is running (plugin host `:17380`) so `?asset=http://127.0.0.1:17380/v1/local-file/<name>?path=` can fetch the file.
+
+### Local GLB opens Elite instead of ThreeFlow
+**Cause.** Old build (≤1.0.10) or renderer-only reload without restarting Electron main.
+**Fix.** Restart Grudge Dev Tool after install/update so `openFileBridge` + preload pick up ThreeFlow routing.
 ---
 ## App / installer
 ### "Tray icon doesn't appear"

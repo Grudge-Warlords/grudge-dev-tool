@@ -1,8 +1,8 @@
 /**
- * Elite local file open system for Grudge Dev Tool (desktop app).
+ * Local file open system for Grudge Dev Tool.
  *
- * OS double-click / "Open with" / drag-drop argv → always-on-top Asset Viewer
- * with the correct viewer for that type (3D, image, audio, video, text, PDF…).
+ * 3D meshes / scenes → ThreeFlow (save, multi-mesh, small edits).
+ * Images / audio / video / text / PDF → Elite media viewer.
  *
  * NOT Forge. Forge is an explicit in-app action only.
  */
@@ -22,6 +22,8 @@ import {
 import log from "./logger";
 import * as viewer from "./viewer";
 import { resolveSceneOpenPath } from "./forge";
+import { startPluginHost } from "./pluginHost";
+import { needsAutoPrepare, prepareForEliteViewer } from "./ingestion/designPreview";
 
 /**
  * Every extension the elite viewer can open from disk / Explorer.
@@ -72,6 +74,14 @@ export function classifyPath(filePath: string): EliteKind {
     return "text";
   }
   return "file";
+}
+
+/** Meshes ThreeFlow can edit (not CSS3D html stubs). */
+export function isThreeFlowMeshPath(filePath: string): boolean {
+  const ext = extname(filePath).toLowerCase();
+  if (ext === ".html" || ext === ".htm") return false;
+  const kind = classifyPath(filePath);
+  return kind === "model3d" || kind === "scene3d";
 }
 
 export function isViewerPath(filePath: string): boolean {
@@ -165,6 +175,46 @@ export async function openPathInEliteViewer(
     }
     const contentType = inferContentType(basename(p));
     const size = statSync(p).size;
+
+    if (isThreeFlowMeshPath(p) || kind === "model3d" || kind === "scene3d") {
+      const ext = extname(p).toLowerCase();
+      if (ext !== ".html" && ext !== ".htm") {
+        let meshPath = p;
+        if (needsAutoPrepare(p)) {
+          const prep = await prepareForEliteViewer(p);
+          if (prep.ok && prep.path) meshPath = prep.path;
+        }
+        await startPluginHost({
+          showMain: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.show();
+              mainWindow.focus();
+            }
+          },
+        }).catch((err) => log.warn("[openFile] plugin host", err));
+        const tf = viewer.openThreeFlowEditor({
+          name: basename(sourcePath),
+          localPath: meshPath,
+        });
+        log.info(`[openFile] ThreeFlow ← ${kind} ${meshPath}`);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          if (!mainWindow.isVisible()) mainWindow.show();
+          mainWindow.webContents.send("nav", "/local");
+          mainWindow.webContents.send("openFile:opened", {
+            path: p,
+            sourcePath,
+            name: basename(p),
+            dir: dirname(p),
+            kind,
+            contentType,
+            size,
+            token: "threeflow",
+            note: openNote || tf.url,
+          });
+        }
+        return { ok: true, token: "threeflow", kind };
+      }
+    }
 
     log.info(`[openFile] elite viewer ← ${kind} ${p}${openNote ? ` (${openNote})` : ""}`);
     const { token } = await viewer.openLocalPath(

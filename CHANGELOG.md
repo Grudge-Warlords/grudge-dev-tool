@@ -4,8 +4,20 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.0.11] — 2026-08-19
+
 ### Changed
-- **Docs / GitHub Pages / README** — product name is Grudge Dev Tool (not Forge Setup). Sign-in is **Grudge ID**, not Puter. Account cloud is `https://ai.grudge-studio.com/puter-space` (never bag). CLI Pages fence uses `text` so commands stay on separate lines. `doctor` probes puter-space + Toon `human.glb`. Repo About text matches the live tray.
+- **Local Files 3D → ThreeFlow** — click = inline preview; double-click / Pop-out / Explorer Open with on GLB/glTF/OBJ/STL = live ThreeFlow (`?asset=` + plugin loopback `/v1/local-file/<name>?path=`). Images / audio / video / text / PDF stay Elite.
+- **Docs / README / Pages / Settings / About** — editor trio is Elite (media) · ThreeFlow (scene edit) · Forge (R3F deploy). Removed “3D double-click stays in Elite”.
+- **AI card** — hints name ThreeFlow for 3D; vision (`withAi`) is images only. System open toasts OS default app.
+
+### Added
+- **Show in list** — Local Files 3D viewport button above tris/verts scrolls the left folder list to the mesh in view.
+- Loopback CORS `Access-Control-Allow-Private-Network` so HTTPS ThreeFlow can fetch localhost meshes.
+
+### Fixed
+- Preview **Pop-out** on 3D no longer opened Elite chrome.
+- ThreeFlow loader type from loopback filename (was `local-file` → no GLB loader).
 
 ## [1.0.10] — 2026-08-16
 
@@ -241,3 +253,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [1.0.8]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.8
 [1.0.9]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.9
 [1.0.10]:     https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.10
+[1.0.11]:     https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.11

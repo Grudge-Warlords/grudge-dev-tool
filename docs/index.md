@@ -18,14 +18,15 @@ Desktop **admin** shell for Grudge Studio — **Elite** Three.js studio, Assets,
 
 ## Production tray (current package)
 
-Windows x64 NSIS · **v1.0.10** · electron-updater · Elite Three.js studio · Forge embed · Preview · Agent AI · GRUDACHAIN Ollama.
+Windows x64 NSIS · **v1.0.11** · electron-updater · Local Files 3D → ThreeFlow · Elite media · Forge embed · Preview · Agent AI.
 
 | Surface | Role |
 |---------|------|
 | **Home** | Fleet health + admin systems (client, info.*, ENGINE, open, GRUDOX, Forge, Coder, puter-space) |
-| **Elite** | Local Three.js preview — header / scene tree / sand + SI grid / inspector. Double-click 3D stays here. |
-| **Assets** | R2/ObjectStore · `>query` · Elite pop-out · explicit Open in ThreeFlow / Forge |
-| **ThreeFlow** | Warlords scene editor (`threeflow.vercel.app?asset=`) — button, not iframe |
+| **Local Files** | Disk browser. Click = preview. Double-click 3D → **ThreeFlow**. Media → Elite. |
+| **Elite** | Images / audio / video / text / PDF pop-out. Not the 3D editor. |
+| **Assets** | R2/ObjectStore · `>query` · Elite pop-out for media · explicit Open in ThreeFlow / Forge |
+| **ThreeFlow** | Warlords scene editor (`threeflow.vercel.app?asset=` or local loopback) |
 | **Forge** | **Same source as https://forge.grudge-studio.com** — R3F + Rapier + AI Worker |
 | **Preview** | Play-mode clients (open · client · water · GRUDOX · Multiverse) after Forge |
 | **Coder** | Embed coder.grudge-studio.com + optional local PTY |
@@ -45,7 +46,7 @@ Windows x64 NSIS · **v1.0.10** · electron-updater · Elite Three.js studio · 
 2. **Settings → ONE TRUTH** → API base `https://client.grudge-studio.com` (rewrites → Railway + ObjectStore + id).
 3. **Sign in with Grudge ID** (`https://id.grudge-studio.com`) — not Puter as product login. Admin allowlist (`grudachain` / `molochdadev`) starts GRUDACHAIN Ollama when configured.
 4. Player account files → [Puter Space](https://ai.grudge-studio.com/puter-space) (User-Pays FS + `*.puter.site`). **Never** bag / roster / wallet.
-5. **Assets** / Local Files → Elite studio → **Open in ThreeFlow** or **Forge** → **Preview** playtest.
+5. **Local Files** → 3D opens **ThreeFlow**; media opens Elite. **Forge live** is explicit (CDN URL). Then **Preview** playtest.
 6. Optional: `npm run secret:import` for R2 / AI / Legion keys.
 
 **Do not** point Settings at `api.grudge-studio.com` (deprecated). Login is **id.*** only.

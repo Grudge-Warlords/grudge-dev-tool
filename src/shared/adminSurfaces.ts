@@ -64,7 +64,7 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     kind: "local-tool",
     apis: [FLEET_URLS.assets, FLEET_URLS.forge],
     description:
-      "Elite open system: Explorer double-click / Open with → Asset Viewer for 3D, image, audio, video, text, PDF. Folder browser + pop-out. Forge is explicit only.",
+      "Local Files: click preview; double-click 3D → ThreeFlow; media → Elite. System open = OS app. AI card = clipboard. Forge is explicit only.",
   },
   {
     id: "forge",

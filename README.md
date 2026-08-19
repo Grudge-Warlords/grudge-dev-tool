@@ -5,7 +5,7 @@
 | Surface | Role |
 |---------|------|
 | **Home** | Fleet health · admin systems · primary actions |
-| **Local Files** | Disk browser · kind chips · double-click → **Elite** (3D studio / image / **audio** / **video** / PSD / BLEND) |
+| **Local Files** | Disk browser · kind chips · 3D double-click → **ThreeFlow** · media → Elite |
 | **Assets** | R2 / ObjectStore · `>query` · pop-out Elite · explicit Open in ThreeFlow / Forge |
 | **Skeleton** | Mixamo-25 → T-pose → retarget → convert → CDN |
 | **Forge** | Production `forge.grudge-studio.com` embed (R3F + Rapier deploy) |
@@ -23,27 +23,27 @@
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **Desktop app** | **v1.0.10** | Windows tray · Elite Three.js studio · r185 loaders · ThreeFlow/Forge `?asset=` · auto-update |
+| **Desktop app** | **v1.0.11** | Windows tray · Local Files 3D → ThreeFlow · Elite media · Forge live · auto-update |
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
-· [Systems & APIs](docs/systems-api.md) · [ONE TRUTH](docs/one-truth.md) · [Databases · backups](docs/database-backups-sharing.md) · [AI · Workers](docs/ai-workers-d1-r2-stream.md) · [Admin architecture](docs/admin-architecture.md)  
+· [Systems & APIs](docs/systems-api.md) · [ONE TRUTH](docs/one-truth.md) · [Databases · backups](docs/database-backups-sharing.md) (`npm run backup:postgres` · `npm run restore:postgres -- --docker`) · [AI · Workers](docs/ai-workers-d1-r2-stream.md) · [Admin architecture](docs/admin-architecture.md)  
 · **Account cloud:** <https://ai.grudge-studio.com/puter-space> (never bag/roster)
 
 ⬇ **Installer (latest):** [GitHub Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) · Windows x64 · NSIS · **electron-updater**
 
 ---
 
-## What's new in 1.0.10
+## What's new in 1.0.11
 
-- **Elite viewport is not black** — `ViewHelper` was wiping the scene every frame; `SceneEngine` now matches ThreeFlow (`autoClear=false` + explicit clear).  
-- **Elite is a clean Three.js studio** — header, left scene tree, sand floor + SI grid, right inspector. Same `SceneEngine` (no fourth editor, no iframe).  
-- **3D double-click stays in Elite.** Open in ThreeFlow / Forge live remains an explicit `?asset=` button.  
-- **Copy as path** on Local Files, Assets, and Elite header.  
+- **Local Files 3D opens ThreeFlow** — click previews in-pane; double-click / Pop-out loads `threeflow.vercel.app` with the disk mesh (plugin loopback). Media stays Elite.  
+- **Show in list** — viewport button above tris/verts scrolls the left file list to the asset on screen.  
+- **AI card / System open / Pop-out** — AI card = clipboard markdown for agents (vision on images only). System open = OS default app. Pop-out 3D = ThreeFlow.  
+- **F in ThreeFlow** frames the selected mesh in the current camera (FOV/aspect fit). Studio dark background + gold chrome.
 
 Docs: <https://grudge-warlords.github.io/grudge-dev-tool/>
 
-Earlier: **1.0.9** editor trio name · **1.0.8** r185 loaders · **1.0.7** video + AI cards.
+Earlier: **1.0.10** Elite viewport clear · **1.0.9** editor trio name · **1.0.8** r185 loaders.
 
 ---
 
@@ -69,7 +69,7 @@ https://client.grudge-studio.com
 4. Account files / `*.puter.site` → [puter-space](https://ai.grudge-studio.com/puter-space). Railway still owns bag / characters / wallet.  
 5. Admin allowlist (`grudachain` / `molochdadev`) → GRUDACHAIN Ollama agentic stack.  
 6. Optional: `npm run secret:import path\to\secrets.txt` for R2 / CF AI / Legion keys.  
-7. **Settings → Set as default for all asset types** — Explorer opens elite viewer (not Forge).
+7. **Settings → Set as default for all asset types** — Explorer: 3D → ThreeFlow; media → Elite. Never Forge by default.
 
 ### CLI
 
@@ -86,12 +86,14 @@ grudge-dev plugin status   # dest-tool must be running (127.0.0.1:17380)
 
 | Action | Result |
 |--------|--------|
-| **Local Files → double-click** file | Always-on-top **Elite** studio (3D) or media viewer — not Forge / not ThreeFlow |
-| Audio / video | Streamed via `grudge-media://` (no full-file RAM blob); simple VideoViewer chrome |
+| **Local Files → click** | Inline preview (verts/tris for 3D). **Show in list** jumps the left pane to that file |
+| **Local Files → double-click / Pop-out** | **3D / scene → ThreeFlow** (save, multi-mesh). Images / audio / video / text / PDF → Elite |
+| Audio / video | Streamed via `grudge-media://` (no full-file RAM blob) |
 | Kind chips | Filter Audio · Video · 3D · Image while browsing packs |
-| Explorer **Open with** / double-click | Same elite path after **Settings → Set as default for all asset types** |
-| **AI card** | Clipboard markdown: kind, open hints, model stats / vision — for Legion/Ollama agents |
-| ObjectStore / Assets tab | Preview CDN assets; send **3D** to Forge only when you choose |
+| Explorer **Open with** / double-click | Same split after **Settings → Set as default for all asset types** |
+| **System open** | OS default app (Blender / Photoshop / Photos / …) |
+| **AI card** | Clipboard markdown: kind, path, ThreeFlow/Elite hints, GLB inspect. Vision caption = images only |
+| ObjectStore / Assets tab | Preview CDN assets; **Open in ThreeFlow** / **Forge live** are explicit |
 
 SSOT: `src/shared/mediaTypes.ts` · open: `openFileBridge` · stream: `mediaProtocol` · AI: `assetUnderstand` (`asset:understand`).
 
@@ -135,7 +137,7 @@ npm run package:ci
 | Surface | What it does |
 |---------|----------------|
 | **Tray** | Left-click loader · double-click main · right-click menu |
-| **Elite studio** | Always-on-top Three.js editor chrome: 3D grid + gizmos / image / video / audio (stream) / PDF / **PSD** / **BLEND** |
+| **Elite** | Media pop-out: image / video / audio (stream) / PDF / **PSD**. 3D edit is ThreeFlow |
 | **Forge embed** | Live `forge.grudge-studio.com` + desktop session handoff |
 | **Preview** | open · client · water · GRUDOX · Multiverse |
 | **Agent AI** | Make & deploy · Ollama · Legion · CF Workers AI |

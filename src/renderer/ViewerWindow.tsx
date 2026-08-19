@@ -203,9 +203,9 @@ function ViewerHeader({
                 >
                     {aiBusy ? "…" : "AI card"}
                 </HBtn>
-                {(kind === "image" || kind === "model3d") && (
+                {kind === "image" && (
                     <HBtn
-                        title="Understand with vision / model inspect + copy card"
+                        title="Vision caption + copy AI card (images only)"
                         onClick={() => void understandAsset(true)}
                     >
                         AI+
@@ -1016,11 +1016,21 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
 
     function openThreeFlow() {
         const cdn = cdnAssetUrl();
-        if (!cdn) {
-            toast.error("ThreeFlow needs a CDN/http URL — upload or copy a public asset first");
+        const localPath = asset?.localPath || asset?.sourcePath;
+        if (!cdn && !localPath) {
+            toast.error("Need a local mesh or CDN URL");
             return;
         }
-        G()?.os?.openExternal?.(threeflowAssetUrl(cdn));
+        void G()?.viewer?.openThreeFlow?.({
+            name: asset?.name || "mesh",
+            cdnUrl: cdn || undefined,
+            localPath: localPath || undefined,
+        }).then((r: { ok?: boolean; url?: string; error?: string }) => {
+            if (r?.ok) toast.success("ThreeFlow");
+            else toast.error(r?.error || "ThreeFlow failed");
+        }).catch((e: unknown) => {
+            toast.error(e instanceof Error ? e.message : "ThreeFlow failed");
+        });
     }
 
     async function convertAndSave(targetFormat: "glb" | "gltf") {
@@ -1524,11 +1534,10 @@ style = {{
     )}
 </Section>
 
-{/* Actions */ }
+{/* Actions — working only */}
 <Section title="Actions" >
-    <ActionBtn onClick={ sendToForge } icon = "⚔" label = "Add to local Forge tools" color = "var(--gold)" />
-    <ActionBtn onClick={ openForgeLive } icon = "⚔" label = "Open in Forge (live)" color = "var(--gold)" />
-    <ActionBtn onClick={ openThreeFlow } icon = "✦" label = "Open in ThreeFlow" color = "#7c6bff" />
+    <ActionBtn onClick={ openThreeFlow } icon = "" label = "Edit in ThreeFlow" color = "#d4af37" />
+    <ActionBtn onClick={ openForgeLive } icon = "" label = "Open in Forge (live)" color = "var(--gold)" />
         <ActionBtn
             onClick={ () => convertAndSave("glb") }
 disabled = { converting || optimizing }

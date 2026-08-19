@@ -53,7 +53,9 @@ export function localLoopbackAssetUrl(
   port = DEFAULT_PLUGIN_PORT,
 ): string {
   const p = absPath.replace(/\\/g, "/");
-  return `http://127.0.0.1:${port}/v1/local-file?path=${encodeURIComponent(p)}`;
+  const name = p.split("/").pop() || "mesh.glb";
+  // Filename in the path so live ThreeFlow getFileType() sees .glb/.gltf (not "local-file").
+  return `http://127.0.0.1:${port}/v1/local-file/${encodeURIComponent(name)}?path=${encodeURIComponent(p)}`;
 }
 
 /** Default live editor for a production mesh is ThreeFlow. */
