@@ -1,9 +1,8 @@
 /**
  * Local file open system for Grudge Dev Tool.
  *
- * 3D meshes / scenes → Elite SceneEngine (hierarchy, delete, save-as).
+ * 3D meshes / scenes → ThreeFlow ThreePipe viewer / scene editor (loopback).
  * Images / audio / video / text / PDF → Elite media viewer.
- * ThreeFlow / Forge are explicit actions from Elite + Admin View tab.
  */
 
 import { app, BrowserWindow } from "electron";
@@ -174,11 +173,36 @@ export async function openPathInEliteViewer(
     const contentType = inferContentType(basename(p));
     const size = statSync(p).size;
 
-    // 3D opens Elite SceneEngine (hierarchy / delete / save-as). ThreeFlow is
-    // an explicit action from the viewer + Admin View tab — not the opener.
     if ((kind === "model3d" || kind === "scene3d") && needsAutoPrepare(p)) {
       const prep = await prepareForEliteViewer(p);
       if (prep.ok && prep.path) p = prep.path;
+    }
+
+    // 3D: ThreePipe viewer (default) with editor query — not Elite SceneEngine.
+    if (kind === "model3d" || kind === "scene3d") {
+      log.info(`[openFile] ThreeFlow pipeline ← ${kind} ${p}${openNote ? ` (${openNote})` : ""}`);
+      const { url } = viewer.openThreeFlowPipeline({
+        name: basename(p),
+        localPath: p,
+        mode: "view",
+        extra: { note: openNote || "" },
+      });
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (!mainWindow.isVisible()) mainWindow.show();
+        mainWindow.webContents.send("nav", "/threeflow");
+        mainWindow.webContents.send("openFile:opened", {
+          path: p,
+          sourcePath,
+          name: basename(p),
+          dir: dirname(p),
+          kind,
+          contentType,
+          size,
+          url,
+          note: openNote,
+        });
+      }
+      return { ok: true, token: url, kind };
     }
 
     log.info(`[openFile] elite viewer ← ${kind} ${p}${openNote ? ` (${openNote})` : ""}`);

@@ -42,6 +42,20 @@ Elite pop-out viewer can **apply** a local library pack (`rest.glb` clips → on
 7. **Export** → Documents / R2 `models/anims/libraries/`  
 8. **Ship** — CDN → open in Forge
 
+## Generic preview body (anim with no mesh)
+
+**Decision:** clip-only / bones-only files bind to **Toon RTS GOLDEN `human.glb` unarmed** (Bip001, SI 1.8 m).
+
+| | |
+|--|--|
+| Kit | `assets.grudge-studio.com/asset-packs/toon-rts-characters/glb/characters/human.glb` |
+| Visible | `WK_Units_head_A` · `Body_B` · `Arms_A` · `Legs_A` |
+| Not | `30characters.glb`, Meshy, capsule, Mixamo Y-Bot as play |
+| Clips | Mixamo names rematch via `normalizeBoneKey`; **strip `.position`** |
+
+Code: `src/shared/genericPreviewHost.ts` · `src/renderer/lib/forge/genericPreview.ts` (wired in `loadModel`).
+
+---
 ## Mixamo-25 core bones
 
 Hips, Spine, Spine1, Spine2, Neck, Head, L/R Shoulder–Arm–ForeArm–Hand, L/R UpLeg–Leg–Foot–ToeBase.

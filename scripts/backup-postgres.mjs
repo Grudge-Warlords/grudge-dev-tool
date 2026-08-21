@@ -375,7 +375,7 @@ async function main() {
       missing,
       r2Hint: `backups/postgres/grudge-api/${path.basename(dir)}/`,
       restoreDrill:
-        "Weekly: load into Docker Postgres; SELECT count(*) on critical tables. See docs/database-backups-sharing.md",
+        "npm run restore:postgres -- --docker   # prove counts vs this meta.json",
       inspiration:
         "https://planetscale.com/blog/massively-parallel-postgres-backups",
     };

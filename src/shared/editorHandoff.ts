@@ -43,8 +43,18 @@ export function threeflowViewUrl(cdnUrl: string, extra?: Record<string, string>)
   u.searchParams.set("intent", "view");
   u.searchParams.set("asset", cdnUrl);
   u.searchParams.set("from", "grudge-dev-tool");
+  u.searchParams.set("autoScale", extra?.autoScale ?? "0");
   withExtra(u, extra);
   return u.toString();
+}
+
+/** Double-click / Open with → ThreePipe view (default) or Vue editor. */
+export function threeflowPipelineUrl(
+  cdnUrl: string,
+  mode: "view" | "editor" = "view",
+  extra?: Record<string, string>,
+): string {
+  return mode === "editor" ? threeflowAssetUrl(cdnUrl, extra) : threeflowViewUrl(cdnUrl, extra);
 }
 
 /** Production Forge — R3F + Rapier + .gfscene deploy. */

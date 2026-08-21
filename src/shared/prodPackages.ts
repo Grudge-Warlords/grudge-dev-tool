@@ -5,6 +5,16 @@
 
 export const CDN_BASE = "https://assets.grudge-studio.com";
 
+/** Play roots — Toon RTS GLB (not prod/gltf bake). Height SI meters. */
+export const TOON_PLAY_KITS: Record<string, { r2Key: string; heightM: number }> = {
+  human: { r2Key: "asset-packs/toon-rts-characters/glb/characters/human.glb", heightM: 1.8 },
+  barbarian: { r2Key: "asset-packs/toon-rts-characters/glb/characters/barbarian.glb", heightM: 1.8 },
+  elf: { r2Key: "asset-packs/toon-rts-characters/glb/characters/elf.glb", heightM: 1.8 },
+  dwarf: { r2Key: "asset-packs/toon-rts-characters/glb/characters/dwarf.glb", heightM: 1.55 },
+  orc: { r2Key: "asset-packs/toon-rts-characters/glb/characters/orc.glb", heightM: 2.0 },
+  undead: { r2Key: "asset-packs/toon-rts-characters/glb/characters/undead.glb", heightM: 1.8 },
+};
+
 export const PROD_CATALOG = {
   assetsIndex: `${CDN_BASE}/manifests/assets-gltf-index.json`,
   packages: `${CDN_BASE}/manifests/grudge-prod-packages.json`,

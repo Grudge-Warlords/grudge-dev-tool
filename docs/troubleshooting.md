@@ -11,6 +11,21 @@ A running list of every error we've seen and the exact fix. Cross-referenced fro
 1. TOC
 {:toc}
 ---
+## FBX FileVersion 6100 / THREE.FBXLoader
+
+**Symptom.** Console: `THREE.FBXLoader: FBX version not supported, FileVersion: 6100` when opening an asset.
+
+**Cause.** THREE only parses **ASCII FBX ≥ 7.0** (`FileVersion` ≥ 7000) and **binary ≥ 6400**. 6100 is **FBX 6.1** (old Unity / Maya ASCII). There is no in-browser 6.1 parser.
+
+**Fix.** Dev Tool now detects 6100 and converts with **Blender headless → GLB**, then loads `GLTFLoader`. Open from **Local Files** (disk path) so `ingest:convert` can run. FBX2glTF is skipped for `<7000` (it also rejects 6.1).
+
+1. Toolchain: portable Blender `C:\Users\nugye\tools\Blender\blender.exe` (Accounts → Toolchain) or `BLENDER_PATH`.
+2. Restart Dev Tool after this change.
+3. Re-open the `.fbx`. Converted GLB lands under the OS temp `grudge-dev-tool-convert` folder.
+
+**Do not** ship raw 6100 FBX to the browser. Production bake remains `grudge-convert` (same Blender backend).
+
+---
 ## Elite viewer
 ### Viewport is black (only the XYZ cube shows)
 **Symptom.** Pop-out Elite 3D window is a black hole; the corner view cube still draws.

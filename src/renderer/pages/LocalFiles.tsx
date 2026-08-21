@@ -435,7 +435,7 @@ export default function LocalFiles() {
       setBusy(true);
       try {
         if (mode === "popout") {
-          // Double-click / Pop-out: Elite SceneEngine for 3D + media.
+          // Double-click / Pop-out: 3D → ThreeFlow ThreePipe; media → Elite.
           const r = await window.grudge.openFile?.openPath?.(entry.path);
           if (r && "ok" in r && r.ok) return;
           await window.grudge.viewer.openLocal({

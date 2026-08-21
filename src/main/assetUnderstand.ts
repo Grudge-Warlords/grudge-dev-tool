@@ -87,7 +87,7 @@ function openHintsFor(kind: AssetKindCard, stream: boolean): string[] {
   const is3d = kind === "model3d" || kind === "scene3d";
   const hints = [
     is3d
-      ? "Local Files: click = inline preview · double-click / Pop-out = Grudge Three Pipeline (multi-asset SceneEngine)"
+      ? "Local Files: click = inline preview · double-click 3D = ThreeFlow ThreePipe viewer/editor"
       : "Local Files: double-click / Pop-out = Elite media viewer (not Forge)",
     "System open = OS default app (Blender / Photoshop / Photos / …)",
     "Explorer: Open with Grudge Dev Tool after Settings → Set as default",

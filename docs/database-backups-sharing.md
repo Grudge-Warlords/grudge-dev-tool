@@ -141,7 +141,7 @@ PlanetScale rebuilds from the previous backup each run so restore is continuousl
 | Cadence | Action |
 |---------|--------|
 | Every dump | Write `meta.json`; verify non-zero critical tables |
-| Weekly | Restore dump into local Docker Postgres; run `SELECT count(*)` on critical tables |
+| Weekly | `npm run restore:postgres -- --docker` — load latest dump into local `postgres:16`, compare counts to `meta.json` |
 | After schema migration | Immediate dump + restore smoke |
 | Disaster drill (quarterly) | Full restore to a **new** Railway Postgres → point a staging API at it |
 
@@ -201,11 +201,24 @@ npx wrangler d1 export grudge-assets-db --remote --output=backups/d1-assets-$(Ge
 npx wrangler d1 export grudge-objectstore --remote --output=backups/d1-objectstore-$(Get-Date -Format yyyyMMdd).sql
 ```
 
-### 4.4 Recovery sketch (player data)
+### 4.4 Prove restore (JSONL drill)
 
-1. Provision empty Postgres (Railway or Docker).  
+```powershell
+# After a dump — never uses production DATABASE_URL
+npm run restore:postgres -- --docker
+# or explicit folder
+npm run restore:postgres -- --dir backups\<stamp> --docker --keep
+# custom-format dump
+npm run restore:postgres -- --dir backups\<stamp> --docker --pg-restore
+```
+
+Script: `scripts/restore-postgres.mjs`. Loads `tables/*.jsonl.gz` into `restore_<table>` jsonb rows and checks counts against `meta.json`. `--docker` starts ephemeral `postgres:16` on `localhost:55432`. Staging URL only via `RESTORE_DATABASE_URL` (Railway hostnames refused unless `--i-know-staging`).
+
+### 4.5 Recovery sketch (player data)
+
+1. Provision empty Postgres (Railway staging or Docker).  
 2. Apply schema migrations (`drizzle` / SQL migrations from GrudgeBuilder).  
-3. Restore dump (`pg_restore` or JSONL loaders).  
+3. Restore dump (`pg_restore` for `full.dump`, or JSONL prove-restore above).  
 4. Point **staging** `DATABASE_URL` only; smoke `/api/health` + one test account.  
 5. Promote only after validation — never “restore over prod” without a pre-restore dump.
 
@@ -243,6 +256,7 @@ When touching databases or multi-game state:
 [ ] Sharing bag/XP? → account vs character scope correct
 [ ] Never DATABASE_URL in frontend
 [ ] Never commit backups/
+[ ] After dump: npm run restore:postgres -- --docker (prove restore)
 ```
 
 ---

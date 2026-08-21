@@ -13,6 +13,7 @@ import { createProductionGltfLoader } from "./gltfProdLoader";
 import {
   assertMeshBytes,
   assertMeshResponseHeaders,
+  parseFbxVersion,
   probeMagic,
 } from "../../../shared/magicBytes";
 import {
@@ -378,6 +379,8 @@ export interface LoadModelOptions {
   skipMagicBytes?: boolean;
   /** Extra material sanitize options. */
   sanitize?: MaterialSanitizeOptions;
+  /** Skip Toon human unarmed host for clip-only files. */
+  skipGenericPreview?: boolean;
 }
 
 function dirnamePath(p: string): string {
@@ -591,14 +594,63 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
         });
       }
       case "fbx": {
-        const fbx = await new FBXLoader(manager).loadAsync(urlToUse);
-        return finishModel(
-          fbx,
-          (fbx as any).animations ?? [],
-          null,
-          format,
-          { toonStyle: true, fixDefaultYellow: true, ...opts.sanitize },
-        );
+        const buf = await (await fetch(urlToUse)).arrayBuffer();
+        const ver = parseFbxVersion(buf);
+        const grudge = typeof window !== "undefined" ? (window as any).grudge : null;
+        const needConvert =
+          !ver.threeSupported ||
+          (ver.version != null && ver.version < 7000);
+        const loadConvertedGlb = async (glbPath: string) => {
+          const gltfLoader = await createGltfLoader(manager);
+          const gltf = await gltfLoader.loadAsync(localFileUrl(glbPath));
+          let scene = gltf.scene;
+          let hasSkin = false;
+          gltf.scene.traverse((n) => {
+            if ((n as THREE.SkinnedMesh).isSkinnedMesh) hasSkin = true;
+          });
+          if (hasSkin) scene = SkeletonUtils.clone(gltf.scene) as THREE.Group;
+          scene.userData.fbxConverted = {
+            sourceVersion: ver.version,
+            via: "ingest:convert",
+          };
+          return finishModel(scene, gltf.animations ?? [], gltf, "glb", {
+            toonStyle: true,
+            fixDefaultYellow: true,
+            ...opts.sanitize,
+          });
+        };
+        if (needConvert) {
+          if (!opts.diskPath || !grudge?.ingest?.convert) {
+            throw new Error(
+              `${ver.detail}. Open the file from Local Files so Dev Tool can convert FBX 6.1 (6100) with Blender → GLB. THREE.FBXLoader cannot parse FileVersion 6100.`,
+            );
+          }
+          const conv = await grudge.ingest.convert(opts.diskPath);
+          if (!conv?.ok || !conv.converted || !conv.outputPath) {
+            const err = (conv?.errors || []).join("; ") || conv?.warnings?.join("; ") || "unknown";
+            throw new Error(`FBX ${ver.version ?? "legacy"} convert failed: ${err}`);
+          }
+          return loadConvertedGlb(conv.outputPath);
+        }
+        try {
+          const fbx = new FBXLoader(manager).parse(buf, resourceDir ? resourceDir.replace(/\\/g, "/") + "/" : "");
+          return finishModel(
+            fbx,
+            (fbx as any).animations ?? [],
+            null,
+            format,
+            { toonStyle: true, fixDefaultYellow: true, ...opts.sanitize },
+          );
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (/version not supported|FileVersion/i.test(msg) && opts.diskPath && grudge?.ingest?.convert) {
+            const conv = await grudge.ingest.convert(opts.diskPath);
+            if (conv?.ok && conv.converted && conv.outputPath) {
+              return loadConvertedGlb(conv.outputPath);
+            }
+          }
+          throw e;
+        }
       }
       case "stl": {
         const geom = await new STLLoader(manager).loadAsync(urlToUse);
@@ -771,6 +823,18 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
     } catch {
       /* sibling maps optional */
     }
+  }
+  try {
+    const { bindGenericPreviewHost, isAnimWithoutMesh } = await import("./genericPreview");
+    if (isAnimWithoutMesh(loaded) && !opts.skipGenericPreview) {
+      loaded = await bindGenericPreviewHost(loaded);
+      const stats = tallyStats(loaded.object);
+      loaded.triangles = stats.triangles;
+      loaded.vertices = stats.vertices;
+      loaded.bones = stats.bones;
+    }
+  } catch (e) {
+    console.warn("[loadModel] generic preview host failed", e);
   }
   return loaded;
 }
