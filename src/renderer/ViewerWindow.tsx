@@ -42,6 +42,11 @@ import {
     type AssetRef, type AssetKind,
 } from "./components/viewers/types";
 import { isPublicCdnUrl, forgeStudioAssetUrl, threeflowAssetUrl, threeflowViewUrl, localLoopbackAssetUrl } from "../shared/editorHandoff";
+import {
+    collectPipelineReviewStats,
+    executePipelineReviewPlan,
+} from "./lib/forge/pipelineReviewExec";
+import type { PipelineReviewMode, PipelineReviewPlan } from "../shared/pipelineReview";
 import ImageViewer from "./components/viewers/ImageViewer";
 import VideoViewer from "./components/viewers/VideoViewer";
 import AudioViewer from "./components/viewers/AudioViewer";
@@ -394,6 +399,11 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
         warnings: string[];
         profile: string;
     } | null>(null);
+    const [reviewBusy, setReviewBusy] = useState(false);
+    const [reviewPlan, setReviewPlan] = useState<PipelineReviewPlan | null>(null);
+    const [reviewLog, setReviewLog] = useState("");
+    const lastPrepRef = useRef<{ path: string; name: string; contentType: string } | null>(null);
+    const lastCdnRef = useRef<string | null>(null);
 
     // ── Create SceneEngine once ──────────────────────────────────────────────
     useEffect(() => {
@@ -1098,59 +1108,237 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
         G()?.os?.openExternal?.(href);
     }
 
-    async function sendToR2D1() {
-        const path = asset?.localPath || asset?.sourcePath;
-        if (!path) {
-            toast.error("Need a local file to upload");
-            return;
-        }
-        const name = basename(path);
+    function diskPathForUpload(): string | null {
+        const it = itemsRef.current.find((x) => x.id === selectedId) || itemsRef.current[0];
+        return it?.diskPath || asset?.localPath || asset?.sourcePath || null;
+    }
+
+    async function sendPreparedToR2D1(prep: {
+        path: string;
+        name: string;
+        contentType: string;
+    }): Promise<{ ok: boolean; cdn?: string; key?: string; error?: string }> {
+        const name = prep.name;
         const key = `models/pipeline/${name.replace(/\s+/g, "_")}`;
         const jobId = `pipe-${Date.now()}`;
-        toast.message("Uploading to R2…", { description: key });
-        const offProgress = G()?.upload?.onProgress?.((p: { jobId?: string; status?: string; error?: string }) => {
-            if (p.jobId !== jobId) return;
-            if (p.status === "failed") {
-                toast.error("R2 upload failed", { description: p.error || key });
-                offProgress?.();
-            }
-            if (p.status === "completed" || p.status === "skipped") {
-                offProgress?.();
-                const uuid = `ITEM-${Date.now()}-PIPE`;
-                const cdn = `https://assets.grudge-studio.com/${key}`;
-                void G()?.os?.registerAsset?.({
-                    grudge_uuid: uuid,
-                    r2_key: key,
-                    category: "models",
-                    content_type: asset?.contentType || "model/gltf-binary",
-                    size_bytes: asset?.size,
-                    name,
-                    cdn_url: cdn,
-                    metadata: { source: "grudge-three-pipeline" },
-                }).then(() => {
-                    toast.success("R2 + D1 indexed", { description: cdn });
-                }).catch((e: unknown) => {
-                    toast.error("R2 ok, D1 index failed", {
-                        description: e instanceof Error ? e.message : String(e),
+        const cdn = `https://assets.grudge-studio.com/${key}`;
+        return new Promise((resolve) => {
+            const offProgress = G()?.upload?.onProgress?.((p: { jobId?: string; status?: string; error?: string }) => {
+                if (p.jobId !== jobId) return;
+                if (p.status === "failed") {
+                    offProgress?.();
+                    resolve({ ok: false, error: p.error || key });
+                }
+                if (p.status === "completed" || p.status === "skipped") {
+                    offProgress?.();
+                    const uuid = `ITEM-${Date.now()}-PIPE`;
+                    void G()?.os?.registerAsset?.({
+                        grudge_uuid: uuid,
+                        r2_key: key,
+                        category: "models",
+                        content_type: prep.contentType || "model/gltf-binary",
+                        name,
+                        cdn_url: cdn,
+                        metadata: { source: "grudge-three-pipeline" },
+                    }).then(() => {
+                        lastCdnRef.current = cdn;
+                        resolve({ ok: true, cdn, key });
+                    }).catch((e: unknown) => {
+                        lastCdnRef.current = cdn;
+                        resolve({
+                            ok: false,
+                            cdn,
+                            key,
+                            error: e instanceof Error ? e.message : String(e),
+                        });
                     });
-                });
-            }
-        });
-        try {
-            await G()?.upload?.enqueue?.({
+                }
+            });
+            void G()?.upload?.enqueue?.({
                 id: jobId,
                 files: [{
-                    localPath: path,
+                    localPath: prep.path,
                     targetPath: key,
-                    contentType: asset?.contentType || "model/gltf-binary",
+                    contentType: prep.contentType || "model/gltf-binary",
                 }],
                 packId: "prod-gltf-pipeline",
                 packVersion: new Date().toISOString().slice(0, 10),
                 buildManifest: true,
+            }).catch((e: unknown) => {
+                offProgress?.();
+                resolve({ ok: false, error: e instanceof Error ? e.message : String(e) });
+            });
+        });
+    }
+
+    async function sendToR2D1() {
+        const path = diskPathForUpload();
+        if (!path) {
+            toast.error("Need a local file to upload");
+            return;
+        }
+        toast.message("Convert + magic-byte…");
+        const prep = await G()?.fleet?.pipelinePrepareUpload?.({
+            localPath: path,
+            name: basename(path),
+        });
+        if (!prep?.ok) {
+            toast.error("Convert/magic failed", { description: prep?.error || path });
+            return;
+        }
+        lastPrepRef.current = { path: prep.path, name: prep.name, contentType: prep.contentType };
+        toast.message(prep.converted ? `Converted (${prep.conversionKind})` : "Magic-byte OK", {
+            description: prep.magic,
+        });
+        const up = await sendPreparedToR2D1(lastPrepRef.current);
+        if (!up.ok && !up.cdn) {
+            toast.error("R2 upload failed", { description: up.error });
+            return;
+        }
+        if (!up.ok && up.cdn) {
+            toast.error("R2 ok, D1 index failed", { description: up.error });
+        }
+        const head = await G()?.fleet?.pipelineHeadCdn?.(up.cdn || "");
+        if (head?.ok) {
+            toast.success("R2 + D1 + CDN HEAD", {
+                description: `${head.url} · ${head.magic || "ok"}`,
+            });
+        } else {
+            toast.error("CDN HEAD failed", { description: head?.error || up.cdn });
+        }
+    }
+
+    async function runPipelineReview(mode: PipelineReviewMode = "auto") {
+        const it = itemsRef.current.find((x) => x.id === selectedId) || itemsRef.current[0];
+        if (!it) {
+            toast.error("Load a mesh first");
+            return;
+        }
+        if (reviewBusy) return;
+        setReviewBusy(true);
+        const logs: string[] = [];
+        const log = (msg: string) => {
+            logs.push(msg);
+            setReviewLog(logs.join("\n"));
+        };
+        const toastId = toast.loading("Pipeline Review…", { description: mode });
+        try {
+            const pipeStats = collectPipelineReviewStats({
+                root: it.object,
+                name: it.name,
+                format: it.format,
+                localPath: it.diskPath || asset?.localPath || asset?.sourcePath,
+                clips: it.animations,
+                missingMaps: stats?.missingMaps,
+                sizeBytes: asset?.size,
+            });
+            log(`stats: ${pipeStats.meshCount} mesh · SI ${pipeStats.siHeightM.toFixed(2)} m · ${pipeStats.clips} clips`);
+            const plan = (await G()?.fleet?.pipelineReviewPlan?.({
+                name: it.name,
+                stats: pipeStats,
+                mode,
+            })) as PipelineReviewPlan | undefined;
+            if (!plan) throw new Error("No plan");
+            setReviewPlan(plan);
+            log(`plan: ${plan.summary} (${plan.source}${plan.provider ? ` · ${plan.provider}` : ""})`);
+            plan.risks?.forEach((r) => log(`risk: ${r}`));
+
+            const results = await executePipelineReviewPlan(plan, {
+                root: it.object,
+                clips: it.animations,
+                name: it.name,
+                stats: pipeStats,
+                log,
+                ensureMixer: () => {
+                    if (!it.mixer && engineRef.current) {
+                        const mixer = engineRef.current.buildMixer(it.object, it.animations, { force: true });
+                        if (mixer) {
+                            it.mixer = mixer;
+                            mixerRef.current = mixer;
+                        }
+                    }
+                },
+                convert: async () => {
+                    const path = diskPathForUpload();
+                    if (!path) return { ok: false, error: "no local path" };
+                    const prep = await G()?.fleet?.pipelinePrepareUpload?.({
+                        localPath: path,
+                        name: basename(path),
+                    });
+                    if (!prep?.ok) return { ok: false, error: prep?.error || "convert failed" };
+                    lastPrepRef.current = {
+                        path: prep.path,
+                        name: prep.name,
+                        contentType: prep.contentType,
+                    };
+                    return {
+                        ok: true,
+                        detail: `${prep.converted ? prep.conversionKind : "already GLB"} · ${prep.magic}`,
+                    };
+                },
+                optimizeWeb: async () => {
+                    const path = lastPrepRef.current?.path || diskPathForUpload();
+                    if (!path) return { ok: false, error: "no local path" };
+                    const r = await G()?.viewer?.optimizeForWeb({
+                        url: asset?.url || "",
+                        name: it.name,
+                        localPath: path,
+                    });
+                    if (!r?.ok || !r.path) return { ok: false, error: r?.error || "optimize failed" };
+                    lastPrepRef.current = {
+                        path: r.path,
+                        name: r.name || basename(r.path),
+                        contentType: "model/gltf-binary",
+                    };
+                    return { ok: true, detail: `${r.reductionPct}% · ${r.profile}` };
+                },
+                uploadR2: async () => {
+                    const prep = lastPrepRef.current;
+                    const path = prep?.path || diskPathForUpload();
+                    if (!path) return { ok: false, error: "no local path" };
+                    const up = await sendPreparedToR2D1(
+                        prep || { path, name: basename(path), contentType: "model/gltf-binary" },
+                    );
+                    if (!up.ok && !up.cdn) return { ok: false, error: up.error };
+                    return { ok: true, detail: up.cdn };
+                },
+                seedD1: async () => {
+                    if (lastCdnRef.current) return { ok: true, detail: lastCdnRef.current };
+                    return { ok: true, detail: "index ran with upload-r2" };
+                },
+                headCdn: async () => {
+                    const url = lastCdnRef.current;
+                    if (!url) return { ok: false, error: "no CDN URL yet — upload first" };
+                    const head = await G()?.fleet?.pipelineHeadCdn?.(url);
+                    if (!head?.ok) return { ok: false, error: head?.error || "HEAD failed" };
+                    return { ok: true, detail: `${head.status} · ${head.magic || head.contentType}` };
+                },
+                sendThreeFlow: async () => {
+                    const cdn = lastCdnRef.current || cdnAssetUrl();
+                    const localPath = diskPathForUpload();
+                    const r = await G()?.viewer?.openThreeFlow?.({
+                        name: it.name,
+                        cdnUrl: cdn || undefined,
+                        localPath: localPath || undefined,
+                    });
+                    if (!r?.ok) return { ok: false, error: r?.error || "ThreeFlow failed" };
+                    return { ok: true, detail: r.url };
+                },
+            });
+
+            const okN = results.filter((r) => r.ok).length;
+            const failN = results.length - okN;
+            toast.success(`Pipeline Review · ${okN}/${results.length}`, {
+                id: toastId,
+                description: [plan.summary, failN ? `${failN} failed` : null].filter(Boolean).join(" · "),
             });
         } catch (e: unknown) {
-            offProgress?.();
-            toast.error(e instanceof Error ? e.message : "R2/D1 send failed");
+            toast.error("Pipeline Review failed", {
+                id: toastId,
+                description: e instanceof Error ? e.message : String(e),
+            });
+        } finally {
+            setReviewBusy(false);
         }
     }
 
@@ -1671,6 +1859,33 @@ style = {{
                 label={reuploading ? "Re-uploading…" : "Re-upload same CDN key"}
                 color="var(--gold)"
             />
+        </div>
+    )}
+</Section>
+
+{/* Pipeline Review AI Worker */}
+<Section title="Pipeline AI review">
+    <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8, lineHeight: 1.35 }}>
+        Convert · magic-byte · SI · laterality · CDN HEAD. Same worker stack as Scene Completion — not a new system.
+    </div>
+    <ActionBtn
+        onClick={() => void runPipelineReview("auto")}
+        disabled={reviewBusy}
+        icon=""
+        label={reviewBusy ? "Reviewing…" : "Pipeline AI review"}
+        color="var(--gold)"
+    />
+    <ActionBtn
+        onClick={() => void runPipelineReview("convert-upload")}
+        disabled={reviewBusy}
+        icon=""
+        label="Review + send R2/D1"
+        color="var(--ok)"
+    />
+    {reviewPlan && (
+        <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 8, whiteSpace: "pre-wrap", maxHeight: 140, overflow: "auto" }}>
+            {reviewPlan.summary}
+            {reviewLog ? `\n${reviewLog}` : ""}
         </div>
     )}
 </Section>

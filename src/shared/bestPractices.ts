@@ -146,7 +146,7 @@ export const AI_BEST_PRACTICES = {
   agentTools: {
     id: "ai-agent-tools",
     title: "AI Worker tool contract",
-    rule: "Agents must only resolve assets via ObjectStore search (> query) / D1 registry / assets CDN. Tools: list R2, search D1, magic-byte verify, convert CLI, signed upload, seed registry, send-to-Forge. Ban inventing mesh paths.",
+    rule: "Agents must only resolve assets via ObjectStore search (> query) / D1 registry / assets CDN. Tools: list R2, search D1, magic-byte verify, convert CLI, signed upload, seed registry, CDN HEAD, send-to-Forge. Pipeline Review worker (fleet:pipelineReviewPlan) plans convert-before-upload — do not invent a second worker stack. Ban inventing mesh paths.",
     category: "ai" as const,
     surfaces: ["ai", "assets", "forge", "devtools"] as const,
   },
@@ -390,7 +390,7 @@ export const SURFACE_BEST_PRACTICES = {
   preview: {
     id: "surface-preview",
     title: "Preview play mode",
-    rule: "Preview tab loads production clients for admin playtests after Forge. Deep-link sceneId/glb. Targets: open.grudge-studio.com, client, water, grudox, multiverse (grudge-multiverse.vercel.app), warlords — never orphaned Vercel hosts. Multiverse multiplayer is its own Railway /api/mv — not Carrier.",
+    rule: "Preview tab loads production clients for admin playtests after Forge. Deep-link sceneId/glb. Native Three Play is /play (SceneEngine + gltfProdLoader + one mixer + WASD). Targets: open.grudge-studio.com, client, water, grudox, multiverse, warlords — never orphaned Vercel hosts. Multiverse multiplayer is its own Railway /api/mv — not Carrier.",
     category: "surfaces" as const,
     surfaces: ["preview", "forge", "devtools"] as const,
   },

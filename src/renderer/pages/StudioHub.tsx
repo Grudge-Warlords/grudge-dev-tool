@@ -15,6 +15,7 @@ import {
   RefreshCw,
   ExternalLink,
   Play,
+  MonitorPlay,
   ChevronDown,
   ChevronRight,
   Bone,
@@ -72,6 +73,13 @@ const PRIMARY: Array<{
     route: "/preview",
     Icon: Play,
     adminOnly: true,
+  },
+  {
+    id: "play",
+    label: "Play",
+    desc: "Native Three · Toon kit · WASD · one mixer",
+    route: "/play",
+    Icon: MonitorPlay,
   },
   {
     id: "upload",

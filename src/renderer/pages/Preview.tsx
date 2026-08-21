@@ -252,6 +252,11 @@ export default function Preview() {
     void window.grudge?.app?.openRoute?.("/forge");
   }, []);
 
+  const openNativePlay = useCallback(() => {
+    const qs = glb.trim() ? `?glb=${encodeURIComponent(glb.trim())}` : "";
+    void window.grudge?.app?.openRoute?.(`/play${qs}`);
+  }, [glb]);
+
   return (
     <div className="flex flex-col h-full min-h-0 bg-[#0a0c12]">
       <header className="flex items-center gap-2 px-3 py-2 border-b border-white/10 bg-black/40 shrink-0">
@@ -261,7 +266,7 @@ export default function Preview() {
             Preview · Play mode
           </span>
           <span className="text-[10px] text-muted truncate">
-            Load fleet clients for Forge playtests · open · client · water · GRUDOX
+            Fleet webview playtests · Native Three Play is the Play tab (WASD · one mixer)
           </span>
         </div>
 
@@ -317,6 +322,14 @@ export default function Preview() {
           title="Open local HTML"
         >
           <FolderOpen size={12} /> HTML
+        </button>
+        <button
+          type="button"
+          className="btn ghost text-[11px] flex items-center gap-1 text-emerald-200/90"
+          onClick={openNativePlay}
+          title="Native Three.js play (WASD, one mixer, Toon kit)"
+        >
+          <Gamepad2 size={12} /> Native Play
         </button>
         <button
           type="button"

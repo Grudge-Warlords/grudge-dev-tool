@@ -66,6 +66,12 @@ import {
   sceneCompletionWorkerInfo,
 } from "./fleet/sceneCompletionWorker";
 import {
+  planPipelineReview,
+  pipelineReviewWorkerInfo,
+  preparePipelineUpload,
+  headCdnVerify,
+} from "./fleet/pipelineReviewWorker";
+import {
   runLocalAgent,
   runLocalOrchestrator,
   localAgentStatus,
@@ -323,6 +329,10 @@ if (!gotLock) {
         mainWindow.focus();
       },
     }).catch((err) => log.warn("[pluginHost] start failed", err));
+
+    void fileDefaults.ensureFileDefaultsOnLaunch().catch((err) =>
+      log.warn("[fileDefaults] launch ensure failed", err),
+    );
 
     // Auto-plug GRUDACHAIN Ollama + agentic local AI on open.
     // If session is already grudachain/admin, run full agentic ensure (prefer ollama + model pull).
@@ -606,7 +616,7 @@ function registerIpc() {
   ipcMain.handle("viewer:getAsset", (_e, token: string) => viewer.getViewerAsset(token));
   ipcMain.handle("viewer:sendToForge", (_e, args: { url: string; name?: string }) =>
     viewer.sendToForge(args, mainWindow && !mainWindow.isDestroyed() ? mainWindow : null));
-  ipcMain.handle("viewer:convertModel", (_e, args: { url: string; name: string; targetFormat: "glb" | "gltf" }) =>
+  ipcMain.handle("viewer:convertModel", (_e, args: { url: string; name: string; targetFormat: "glb" | "gltf"; localPath?: string }) =>
     viewer.convertModel(args));
   ipcMain.handle(
     "viewer:convertImage",
@@ -1020,6 +1030,12 @@ function registerIpc() {
   // Scene Completion AI Worker — weld / patch / skeleton plans
   ipcMain.handle("fleet:sceneCompletionInfo", () => sceneCompletionWorkerInfo());
   ipcMain.handle("fleet:sceneCompletionPlan", (_e, req) => planSceneCompletion(req));
+  // Pipeline Review AI Worker — convert-before-upload / SI / laterality / CDN HEAD
+  ipcMain.handle("fleet:pipelineReviewInfo", () => pipelineReviewWorkerInfo());
+  ipcMain.handle("fleet:pipelineReviewPlan", (_e, req) => planPipelineReview(req));
+  ipcMain.handle("fleet:pipelinePrepareUpload", (_e, args: { localPath: string; name?: string }) =>
+    preparePipelineUpload(args));
+  ipcMain.handle("fleet:pipelineHeadCdn", (_e, url: string) => headCdnVerify(url));
 
   // In-app Agent AI (no browser) — Ollama → Workers AI → Legion
   ipcMain.handle("agent:status", () => localAgentStatus());

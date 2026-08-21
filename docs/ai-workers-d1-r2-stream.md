@@ -65,8 +65,9 @@ Agents **must**:
 
 - Resolve files via ObjectStore search / D1 registry / verified CDN keys  
 - Magic-byte verify before declaring a mesh production-ready  
-- Prefer `grudge-convert` bake → signed R2 PUT → D1 seed  
+- Prefer `grudge-convert` bake → signed R2 PUT → D1 seed → **HEAD CDN**  
 - Send 3D to Forge with **CDN URL**, not untracked local blobs for production  
+- Use **Pipeline Review** (`pipeline-review`) for convert-before-upload; **Scene Completion** for Forge weld/patch — same `aiWorkerManager`, not a parallel agent runtime  
 
 Agents **must not**:
 
@@ -110,7 +111,7 @@ node scripts/publish-static-json.mjs ummorpg-skills-for-forge ummorpg-placeables
 
 | Database | Purpose |
 |----------|---------|
-| `grudge-assets-db` | `asset_registry` (+ versions) — fleet file index |
+| `grudge-assets-db` | `asset_registry` (+ versions) — fleet file index. **Play grudge6 textures:** `textures/grudge6/*/*.webp` (defaults retargeted 2026-08-16). Do not use 44 KB `models/grudge6/atlases/*` stubs. |
 | `grudge-objectstore` | ObjectStore search index |
 | `grudge-ai-hub` | AI job / event tracking |
 | `grudge-assets` (D1 name) | Backend catalog (HERO-/EQIP-…) — **name collides with R2 bucket** |

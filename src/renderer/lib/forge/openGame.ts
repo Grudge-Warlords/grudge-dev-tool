@@ -61,7 +61,15 @@ export async function openGamePlay(
   if (opts?.external) {
     await window.grudge.os.openExternal(game.playUrl);
   } else {
-    await window.grudge.app.openRoute("/play");
+    try {
+      sessionStorage.setItem(
+        "grudge-route-query",
+        `url=${encodeURIComponent(game.playUrl)}`,
+      );
+    } catch {
+      /* ignore */
+    }
+    await window.grudge.app.openRoute("/preview");
   }
   return game;
 }

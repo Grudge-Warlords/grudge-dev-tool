@@ -158,9 +158,17 @@ export default function FleetLauncher({ admin = false }: { admin?: boolean }) {
               Fleet catalog
               {liveCount > 0 ? ` · ${liveCount} live releases` : ""}
               {" · "}
-              open in browser or play in Studio
+              Native Three Play is the Play tab
             </p>
           </div>
+          <button
+            type="button"
+            className="btn ghost text-xs flex items-center gap-1"
+            onClick={() => void window.grudge?.app?.openRoute?.("/play")}
+            title="WASD Toon kit on SceneEngine"
+          >
+            <MonitorPlay size={12} /> Native Play
+          </button>
           {tab === "catalog" && (
             <button
               type="button"

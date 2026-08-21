@@ -502,6 +502,31 @@ const api = {
     aiChat: (req: unknown) => ipcRenderer.invoke("fleet:aiChat", req),
     sceneCompletionInfo: () => ipcRenderer.invoke("fleet:sceneCompletionInfo"),
     sceneCompletionPlan: (req: unknown) => ipcRenderer.invoke("fleet:sceneCompletionPlan", req),
+    pipelineReviewInfo: () => ipcRenderer.invoke("fleet:pipelineReviewInfo"),
+    pipelineReviewPlan: (req: unknown) => ipcRenderer.invoke("fleet:pipelineReviewPlan", req),
+    pipelinePrepareUpload: (args: { localPath: string; name?: string }) =>
+      ipcRenderer.invoke("fleet:pipelinePrepareUpload", args) as Promise<{
+        ok: boolean;
+        path: string;
+        name: string;
+        contentType: string;
+        converted: boolean;
+        conversionKind?: string;
+        magic: string;
+        sizeBytes: number;
+        error?: string;
+        warnings?: string[];
+      }>,
+    pipelineHeadCdn: (url: string) =>
+      ipcRenderer.invoke("fleet:pipelineHeadCdn", url) as Promise<{
+        ok: boolean;
+        url: string;
+        status: number | null;
+        contentType: string | null;
+        size: number | null;
+        magic?: string;
+        error?: string;
+      }>,
   },
   // In-app Agent AI (desktop only — never opens a browser)
   agent: {

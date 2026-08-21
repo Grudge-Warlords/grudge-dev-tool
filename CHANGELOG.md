@@ -4,6 +4,16 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Added
+- **Native Three Play** (`/play`) — SceneEngine + `gltfProdLoader`, Toon `{race}.glb`, WASD TPS (Orbit off), one mixer idle/walk/run, video plane, Forge scripts + AI script. Preview stays fleet webview. Not Rapier (live games own physics).
+- **Pipeline Review AI Worker** (`pipeline-review`) on the existing Scene Completion / `aiChat` stack — diagnose, convert, laterality, strip-position, optimize, R2+D1, CDN HEAD. Pipeline window: **Pipeline AI review** / **Review + send R2/D1**.
+- **Convert-before-upload** on **Send to R2 + D1**: FBX/OBJ/… → GLB, magic-byte, then PUT, then **HEAD** `assets.grudge-studio.com` (reject HTML 200).
+- Packaged first launch **auto-registers HKCU file-defaults** (one-shot) so Explorer double-click hits the pipeline without a Settings click.
+- Doctor / fleet health: scored **CDN Toon human.glb** HEAD. Author WK FBX probe is optional.
+
+### Changed
+- `viewer:convertModel` IPC forwards `localPath` (disk convert, not http-only).
+
 ## [1.1.0] — 2026-08-20
 
 ### Added

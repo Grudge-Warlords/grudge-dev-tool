@@ -157,6 +157,14 @@ export const DOCS_CATALOG: DocEntry[] = [
     group: "ai",
   },
   {
+    id: "pipeline-review",
+    title: "Pipeline Review AI worker",
+    file: "pipeline-review-ai-worker.md",
+    pagesPath: "/pipeline-review-ai-worker.html",
+    description: "Convert-before-upload, SI, laterality, CDN HEAD.",
+    group: "ai",
+  },
+  {
     id: "skeleton",
     title: "Skeleton Studio",
     file: "skeleton-studio.md",

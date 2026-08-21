@@ -64,7 +64,17 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     kind: "local-tool",
     apis: [FLEET_URLS.assets, FLEET_URLS.forge],
     description:
-      "Local Files: click preview; double-click 3D → Elite SceneEngine (hierarchy / delete / save-as). ThreeFlow from Elite + Admin View. Media → Elite.",
+      "Local Files: click preview; double-click 3D → ThreeFlow ThreePipe viewer/editor (loopback). Media → Elite.",
+  },
+  {
+    id: "threeflow",
+    route: "/threeflow",
+    label: "ThreeFlow",
+    kind: "embed-prod",
+    prodUrl: FLEET_URLS.threeflow,
+    apis: [FLEET_URLS.threeflow, FLEET_URLS.assets, FLEET_URLS.ai],
+    description:
+      "ThreeFlow in-app: ThreePipe /view + Vue /editor. Explorer double-click 3D opens the viewer with loopback + classify.",
   },
   {
     id: "forge",
@@ -98,8 +108,17 @@ export const ADMIN_SURFACES: AdminSurface[] = [
       FLEET_URLS.warlords,
     ],
     description:
-      "Play-mode webview: load fleet clients/games for testing. Deep-link from Forge publish / sceneId / glb.",
+      "Play-mode webview: load fleet clients/games for testing. Deep-link from Forge publish / sceneId / glb. Native Three Play is /play.",
     adminOnly: true,
+  },
+  {
+    id: "play",
+    route: "/play",
+    label: "Play",
+    kind: "local-tool",
+    apis: [FLEET_URLS.assets, FLEET_URLS.objectStore],
+    description:
+      "Native Three.js player: gltfProdLoader, one mixer, WASD TPS, video plane, Forge scripts. Toon {race}.glb. Not a second editor.",
   },
   {
     id: "coder",

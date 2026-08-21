@@ -36,6 +36,8 @@ npm run publish:manual # bump patch → package → git tag → gh release creat
 | **ThreeFlow** (`threeflow.vercel.app`) | Scene edit — **explicit** from Elite / Admin View | `?asset=` CDN or loopback `/v1/local-file` |
 | **Forge live** (`forge.grudge-studio.com`) | R3F + Rapier + `.gfscene` deploy | CDN URL only |
 | Local Forge3D / workbench | Pop-out mesh tools, script pad | same `loadModel` / `convertToGlb` |
+| **Pipeline Review worker** | Convert-before-upload · SI · laterality · CDN HEAD | `src/main/fleet/pipelineReviewWorker.ts` — sibling of Scene Completion |
+| **Native Play** (`/play`) | WASD TPS · one mixer · gltfProdLoader · video plane · Forge scripts | `PlayMode.tsx` + `playRuntime.ts` — not a fourth editor |
 
 Production bake: main `convertFile` (FBX2glTF → Blender fallback) then `optimizeWebFile`. Browser `exportToGlb` is convenience only.
 

@@ -26,6 +26,8 @@ import {
   ChevronRight,
   Eye,
   FolderSearch,
+  Box,
+  MonitorPlay,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -49,7 +51,9 @@ const GrokBuilder = React.lazy(() => import("./pages/GrokBuilder"));
 const SkeletonStudio = React.lazy(() => import("./pages/SkeletonStudio"));
 const Coder = React.lazy(() => import("./pages/Coder"));
 const Preview = React.lazy(() => import("./pages/Preview"));
+const PlayMode = React.lazy(() => import("./pages/PlayMode"));
 const ViewMode = React.lazy(() => import("./pages/ViewMode"));
+const ThreeFlowStudio = React.lazy(() => import("./pages/ThreeFlowStudio"));
 const LocalFiles = React.lazy(() => import("./pages/LocalFiles"));
 const AssetLibrary = React.lazy(() => import("./pages/AssetLibrary"));
 const StudioHub = React.lazy(() => import("./pages/StudioHub"));
@@ -77,11 +81,13 @@ type Route =
   | "/coder"
   | "/games"
   | "/view"
+  | "/threeflow"
   | "/local"
   | "/legion"
   | "/ai"
   | "/accounts"
   | "/preview"
+  | "/play"
   | "/docs"
   | "/settings";
 
@@ -104,10 +110,12 @@ const NAV: NavEntry[] = [
   // Primary
   { route: "/studio", label: "Home", Icon: HomeIcon, primary: true },
   { route: "/local", label: "Local Files", Icon: FolderSearch, primary: true },
+  { route: "/threeflow", label: "ThreeFlow", Icon: Box, primary: true },
   { route: "/browser", label: "Assets", Icon: FolderTree, primary: true },
   { route: "/skeleton", label: "Skeleton", Icon: Bone, primary: true, adminOnly: true },
   { route: "/forge", label: "Forge", Icon: Hammer, primary: true, adminOnly: true },
   { route: "/preview", label: "Preview", Icon: Globe, primary: true, adminOnly: true },
+  { route: "/play", label: "Play", Icon: MonitorPlay, primary: true },
   { route: "/games", label: "Games", Icon: Gamepad2, primary: true },
   { route: "/ai", label: "Agent AI", Icon: Bot, primary: true },
   { route: "/settings", label: "Settings", Icon: SettingsIcon, primary: true, adminOnly: true },
@@ -143,8 +151,7 @@ interface Session {
 const VALID_ROUTES = new Set<string>(NAV.map((n) => n.route));
 /** Legacy routes remapped after shell simplification */
 const ROUTE_ALIASES: Record<string, Route> = {
-  "/play": "/games",
-  "/playcanvas": "/games",
+  "/playcanvas": "/play",
   "/home": "/studio",
   "/local-assets": "/local",
   "/viewer": "/view",
@@ -157,6 +164,7 @@ const FULL_HEIGHT_ROUTES = new Set<string>([
   "/games",
   "/view",
   "/local",
+  "/threeflow",
   "/forge",
   "/forge-local",
   "/skeleton",
@@ -475,11 +483,13 @@ export default function App() {
               {route === "/coder" && <Coder />}
               {route === "/games" && <FleetLauncher admin={admin} />}
               {route === "/view" && <ViewMode />}
+              {route === "/threeflow" && <ThreeFlowStudio />}
               {route === "/local" && <LocalFiles />}
               {route === "/ai" && <AIWorkspace />}
               {route === "/accounts" && <Accounts />}
               {route === "/legion" && <Legion />}
               {route === "/preview" && <Preview />}
+              {route === "/play" && <PlayMode />}
               {route === "/docs" && <Docs />}
               {route === "/settings" && <Settings />}
             </React.Suspense>

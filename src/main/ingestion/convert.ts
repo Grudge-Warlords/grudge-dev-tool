@@ -12,6 +12,7 @@ import {
   makeWebpCompanion,
   IMAGE_INPUT_EXTS,
 } from "./imageConvert";
+import { parseFbxVersion } from "../../shared/magicBytes";
 
 export interface ConvertResult {
   ok: boolean;
@@ -200,9 +201,22 @@ export async function convertFile(
   await fs.mkdir(outDir, { recursive: true });
   const webImages = opts.webImages !== false;
 
-  // FBX → GLB via embedded FBX2glTF (preferred for Mixamo / grudge6 race rigs)
+  // FBX → GLB. FBX 6.1 / FileVersion 6100 is not THREE.FBXLoader (ASCII ≥7000)
+  // and FBX2glTF usually rejects it — Blender first for legacy.
   if (ext === ".fbx") {
-    const fbx2gltf = await detectFbx2gltf();
+    let fbxVer: number | null = null;
+    try {
+      const head = await fs.readFile(absPath);
+      const probe = parseFbxVersion(head);
+      fbxVer = probe.version;
+      if (!probe.threeSupported) {
+        result.warnings.push(probe.detail);
+      }
+    } catch {
+      /* still try convert */
+    }
+    const skipFbx2gltf = fbxVer != null && fbxVer < 7000;
+    const fbx2gltf = skipFbx2gltf ? { available: false, path: null as string | null, reason: `FBX ${fbxVer} needs Blender` } : await detectFbx2gltf();
     const outBase = join(outDir, basename(absPath, ext));
     const outPath = `${outBase}.glb`;
     if (fbx2gltf.available && fbx2gltf.path) {

@@ -63,3 +63,5 @@ Forge UI / hotkey
 - `src/main/fleet/sceneCompletionWorker.ts` — AI planner  
 - `src/renderer/lib/forge/sceneCompletionExec.ts` — executor  
 - Forge tools: `weldVertices`, `sealOpenBacks`, `prepareIslandAsset`, `inspectSceneRig`, Mixamo-25  
+
+Sibling on the same worker stack: [Pipeline Review](pipeline-review-ai-worker.md) (convert-before-upload, SI, CDN HEAD).  

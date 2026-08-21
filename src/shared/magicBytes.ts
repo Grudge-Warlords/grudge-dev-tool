@@ -27,6 +27,61 @@ export interface MagicProbe {
   bytes: number;
 }
 
+/** THREE.FBXLoader: ASCII ≥ 7000, binary ≥ 6400. FileVersion 6100 is FBX 6.1 (unsupported). */
+export const THREE_FBX_MIN_ASCII = 7000;
+export const THREE_FBX_MIN_BINARY = 6400;
+
+export interface FbxVersionProbe {
+  format: "binary" | "ascii" | "unknown";
+  version: number | null;
+  threeSupported: boolean;
+  detail: string;
+}
+
+/**
+ * Read FBX FileVersion from binary header or ASCII `FBXVersion: 6100`.
+ * Binary: "Kaydara FBX Binary  \\0" + 0x1A 0x00 + uint32 LE at offset 23.
+ */
+export function parseFbxVersion(input: ArrayBuffer | Uint8Array): FbxVersionProbe {
+  const b = u8(input);
+  const n = b.length;
+  if (n < 27) {
+    return { format: "unknown", version: null, threeSupported: false, detail: "FBX too small to read version" };
+  }
+  const head = ascii(b, 0, Math.min(n, 96));
+  if (head.startsWith("Kaydara FBX Binary")) {
+    const version = b[23] | (b[24] << 8) | (b[25] << 16) | (b[26] << 24);
+    const threeSupported = version >= THREE_FBX_MIN_BINARY;
+    return {
+      format: "binary",
+      version,
+      threeSupported,
+      detail: `FBX binary FileVersion ${version}${threeSupported ? "" : " — THREE needs ≥6400; convert via Blender"}`,
+    };
+  }
+  const sample = ascii(b, 0, Math.min(n, 64 * 1024));
+  const m = sample.match(/FBXVersion:\s*(\d+)/i) || sample.match(/FileVersion:\s*(\d+)/i);
+  if (m) {
+    const version = Number(m[1]);
+    const threeSupported = version >= THREE_FBX_MIN_ASCII;
+    return {
+      format: "ascii",
+      version,
+      threeSupported,
+      detail: `FBX ascii FileVersion ${version}${threeSupported ? "" : " — THREE needs ≥7000; convert via Blender (6.1/6100)"}`,
+    };
+  }
+  if (/^; FBX/i.test(sample.trimStart().slice(0, 32))) {
+    return {
+      format: "ascii",
+      version: null,
+      threeSupported: false,
+      detail: "FBX ascii, version not found — convert via Blender",
+    };
+  }
+  return { format: "unknown", version: null, threeSupported: false, detail: "not an FBX header" };
+}
+
 function u8(input: ArrayBuffer | Uint8Array): Uint8Array {
   if (input instanceof Uint8Array) return input;
   return new Uint8Array(input);
@@ -135,11 +190,25 @@ export function probeMagic(input: ArrayBuffer | Uint8Array): MagicProbe {
 
   // FBX binary starts with "Kaydara FBX Binary"
   if (head.startsWith("Kaydara FBX Binary") || trimmed.startsWith("Kaydara FBX Binary")) {
-    return { kind: "fbx", okForMesh: true, okForTexture: false, detail: "FBX binary", bytes: n };
+    const fv = parseFbxVersion(b);
+    return {
+      kind: "fbx",
+      okForMesh: true,
+      okForTexture: false,
+      detail: fv.detail,
+      bytes: n,
+    };
   }
   // ASCII FBX
   if (/^; FBX/i.test(trimmed.slice(0, 32)) || /^FBX/i.test(trimmed.slice(0, 8))) {
-    return { kind: "fbx", okForMesh: true, okForTexture: false, detail: "FBX ascii", bytes: n };
+    const fv = parseFbxVersion(b);
+    return {
+      kind: "fbx",
+      okForMesh: true,
+      okForTexture: false,
+      detail: fv.detail,
+      bytes: n,
+    };
   }
 
   // JSON-like (includes glTF, API errors, empty stubs)

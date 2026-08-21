@@ -197,10 +197,17 @@ export function buildTruthProbes(apiBase: string): TruthProbe[] {
       role: "objectstore",
     },
     {
+      id: "cdn-toon-human",
+      label: "CDN Toon human.glb",
+      url: `${FLEET_URLS.assets}/asset-packs/toon-rts-characters/glb/characters/human.glb`,
+      role: "assets",
+    },
+    {
       id: "cdn-grudge6",
-      label: "CDN grudge6 WK FBX",
+      label: "CDN grudge6 WK FBX (author, not play)",
       url: `${FLEET_URLS.assets}/models/grudge6/races/WK_Characters.fbx`,
       role: "assets",
+      optional: true,
     },
     {
       id: "cdn-warlords-entity",

@@ -98,6 +98,9 @@ export class SceneEngine {
   private resizeObserver?: ResizeObserver;
   private disposed = false;
   private measureUnbind: (() => void) | null = null;
+  /** When true, OrbitControls do not write the camera (play TPS owns it). */
+  private playDrive = false;
+  private readonly tickListeners = new Set<(dt: number) => void>();
 
   constructor(private container: HTMLElement, opts: SceneEngineOptions = {}) {
     const bg = opts.background ?? 0x0a0e1a;
@@ -629,7 +632,8 @@ export class SceneEngine {
     try {
       const dt = Math.min(0.05, this.clock.getDelta());
       for (const m of this.mixers) m.update(dt * this.timeScale);
-      this.controls.update();
+      for (const cb of this.tickListeners) cb(dt);
+      if (!this.playDrive) this.controls.update();
       if (this.viewHelper) {
         this.viewHelper.center.copy(this.controls.target);
         if (this.viewHelper.animating) this.viewHelper.update(dt);
@@ -751,6 +755,26 @@ export class SceneEngine {
       (bounds.material as THREE.Material)?.dispose?.();
       this.boundsHelpers.delete(root);
     }
+  }
+
+  /**
+   * Play vs edit camera law: play TPS is the sole writer; Orbit is edit-only.
+   * Does not invent a second renderer or mixer list.
+   */
+  setPlayDrive(on: boolean): void {
+    this.playDrive = on;
+    this.controls.enabled = !on;
+    (this.transform as unknown as { enabled?: boolean }).enabled = !on;
+    if (this.transformHelper) this.transformHelper.visible = !on;
+  }
+
+  isPlayDrive(): boolean {
+    return this.playDrive;
+  }
+
+  onTick(fn: (dt: number) => void): () => void {
+    this.tickListeners.add(fn);
+    return () => this.tickListeners.delete(fn);
   }
 
   /** Take a PNG screenshot of the current frame (data URL). */

@@ -9,7 +9,8 @@
 | **Assets** | R2 / ObjectStore · `>query` · pop-out Elite · explicit Open in ThreeFlow / Forge |
 | **Skeleton** | Mixamo-25 → T-pose → retarget → convert → CDN |
 | **Forge** | Production `forge.grudge-studio.com` embed (R3F + Rapier deploy) |
-| **Preview** | Open · client · water · GRUDOX · **Multiverse** playtests |
+| **Preview** | Open · client · water · GRUDOX · **Multiverse** playtests (webview) |
+| **Play** | Native Three.js — Toon kit, WASD, one mixer, video, scripts |
 | **Games** | Fleet catalog launcher |
 | **Agent AI** | Make & deploy · Ollama / Legion / Workers AI |
 | **Settings** | ONE TRUTH · Grudge ID matrix · R2/CF · toolchain · defaults |
@@ -27,7 +28,7 @@
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
-· [Systems & APIs](docs/systems-api.md) · [ONE TRUTH](docs/one-truth.md) · [Databases · backups](docs/database-backups-sharing.md) (`npm run backup:postgres` · `npm run restore:postgres -- --docker`) · [AI · Workers](docs/ai-workers-d1-r2-stream.md) · [Admin architecture](docs/admin-architecture.md)  
+· [Systems & APIs](docs/systems-api.md) · [ONE TRUTH](docs/one-truth.md) · [Databases · backups](docs/database-backups-sharing.md) (`npm run backup:postgres` · `npm run restore:postgres -- --docker`) · [AI · Workers](docs/ai-workers-d1-r2-stream.md) · [Pipeline Review](docs/pipeline-review-ai-worker.md) · [Admin architecture](docs/admin-architecture.md)  
 · **Account cloud:** <https://ai.grudge-studio.com/puter-space> (never bag/roster)
 
 ⬇ **Installer (latest):** [GitHub Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) · Windows x64 · NSIS · **electron-updater**
@@ -42,6 +43,16 @@
 ThreeFlow remains **Edit in ThreeFlow** (explicit). Media stays Elite. Never Forge by default.
 
 Docs: <https://grudge-warlords.github.io/grudge-dev-tool/>
+
+### After 1.1.0 (unreleased)
+
+v1.1.0 still left three things manual. They now sit on the **existing** AI worker stack (not a new editor):
+
+| Gap | What we automated |
+|-----|-------------------|
+| Convert + magic + CDN HEAD | **Send to R2 + D1** converts DCC → GLB, magic-bytes, PUTs, then HEADs `assets.grudge-studio.com` |
+| File-defaults / play-kit doctor | Packaged first launch registers HKCU types. Doctor HEADs Toon `human.glb` |
+| No pipeline AI worker | **Pipeline Review** — same pattern as Scene Completion. Button in the pipeline window |
 
 Earlier: **1.0.11** ThreeFlow pop-out · **1.0.10** Elite viewport · **1.0.9** editor trio · **1.0.8** r185 loaders.
 
@@ -139,7 +150,8 @@ npm run package:ci
 | **Tray** | Left-click loader · double-click main · right-click menu |
 | **Elite / Pipeline** | Media pop-out + **Grudge Three Pipeline** 3D opener (hierarchy, clips, textures, R2/D1, Edit in ThreeFlow) |
 | **Forge embed** | Live `forge.grudge-studio.com` + desktop session handoff |
-| **Preview** | open · client · water · GRUDOX · Multiverse |
+| **Preview** | open · client · water · GRUDOX · Multiverse (webview) |
+| **Play** | Native Three · Toon human.glb · WASD · one mixer |
 | **Agent AI** | Make & deploy · Ollama · Legion · CF Workers AI |
 | **Upload** | Convert → verify → R2 → D1/ObjectStore seed |
 | **Connectivity** | ONE TRUTH probes on Home / Settings |

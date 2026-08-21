@@ -29,7 +29,7 @@ import { requestUploadUrl } from "./api";
 import { r2PublicUrl } from "./cf/r2Direct";
 import { mediaStreamUrl, isStreamableMediaPath } from "./mediaProtocol";
 import { inferContentType, isModelPath, isThreeScenePath } from "../shared/mediaTypes";
-import { localLoopbackAssetUrl, threeflowAssetUrl } from "../shared/editorHandoff";
+import { localLoopbackAssetUrl, threeflowAssetUrl, threeflowPipelineUrl } from "../shared/editorHandoff";
 
 export interface ViewerAssetRef {
   name: string;
@@ -166,7 +166,7 @@ export function openThreeFlowEditor(opts: {
   }
   if (!assetUrl) throw new Error("ThreeFlow needs a CDN URL or local mesh path");
 
-  const href = threeflowAssetUrl(assetUrl, { name: opts.name });
+  const href = threeflowAssetUrl(assetUrl, { name: opts.name, embed: "1" });
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -204,6 +204,81 @@ export function openThreeFlowEditor(opts: {
   });
   void win.loadURL(href);
   log.info("ThreeFlow pop-out", opts.name, href.slice(0, 120));
+  return { ok: true, url: href };
+}
+
+/**
+ * OS / Local Files double-click: ThreePipe viewer (default) or scene editor.
+ * Same pipeline window is reused; extra files navigate to the new asset.
+ */
+export function openThreeFlowPipeline(opts: {
+  name: string;
+  cdnUrl?: string;
+  localPath?: string;
+  mode?: "view" | "editor";
+  extra?: Record<string, string>;
+}): { ok: true; url: string } {
+  let assetUrl = "";
+  if (opts.cdnUrl && /^https?:\/\//i.test(opts.cdnUrl) && !opts.cdnUrl.startsWith("blob:")) {
+    assetUrl = opts.cdnUrl;
+  } else if (opts.localPath) {
+    assetUrl = localLoopbackAssetUrl(opts.localPath);
+  }
+  if (!assetUrl) throw new Error("ThreeFlow pipeline needs a CDN URL or local mesh path");
+
+  const mode = opts.mode || "view";
+  const href = threeflowPipelineUrl(assetUrl, mode, {
+    name: opts.name,
+    embed: "1",
+    autoScale: "0",
+    ...(opts.extra || {}),
+  });
+
+  if (pipelineWin && !pipelineWin.isDestroyed()) {
+    void pipelineWin.loadURL(href);
+    pipelineWin.setTitle(`${basename(opts.name)} — ThreeFlow ${mode}`);
+    if (!pipelineWin.isVisible()) pipelineWin.show();
+    pipelineWin.focus();
+    pipelineWin.moveTop();
+    log.info("ThreeFlow pipeline reuse", opts.name, href.slice(0, 140));
+    return { ok: true, url: href };
+  }
+
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 800,
+    minHeight: 520,
+    show: false,
+    frame: true,
+    autoHideMenuBar: true,
+    backgroundColor: "#0a0e1a",
+    title: `${basename(opts.name)} — ThreeFlow ${mode}`,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    icon: nativeImage.createFromPath(viewerIconPath()),
+    webPreferences: {
+      preload: join(__dirname, "..", "preload", "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      webSecurity: true,
+      allowRunningInsecureContent: true,
+    },
+  });
+  win.setAlwaysOnTop(true, "screen-saver");
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  pipelineWin = win;
+  win.once("ready-to-show", () => {
+    win.show();
+    win.focus();
+    win.moveTop();
+  });
+  win.on("closed", () => {
+    if (pipelineWin === win) pipelineWin = null;
+  });
+  void win.loadURL(href);
+  log.info("ThreeFlow pipeline", opts.name, href.slice(0, 140));
   return { ok: true, url: href };
 }
 

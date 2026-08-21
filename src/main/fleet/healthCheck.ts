@@ -30,13 +30,19 @@ export interface FleetHealthReport {
 
 async function httpProbe(
   url: string,
-  opts?: { timeout?: number; headers?: Record<string, string>; acceptStatuses?: number[] },
+  opts?: {
+    timeout?: number;
+    method?: string;
+    headers?: Record<string, string>;
+    acceptStatuses?: number[];
+  },
 ): Promise<{ ok: boolean; latencyMs: number; status: number | null; error: string | null }> {
   const start = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts?.timeout ?? 8000);
   try {
     const res = await fetch(url, {
+      method: opts?.method ?? "GET",
       signal: controller.signal,
       headers: opts?.headers,
     });
@@ -88,6 +94,22 @@ function buildProbes(): Array<{ name: string; region: string; probe: () => Promi
     probe("fleet-client", "vercel", FLEET_URLS.client),
     probe("objectstore", "cloudflare", `${FLEET_URLS.objectStore}/master-items.json`),
     probe("asset-cdn", "cloudflare", FLEET_URLS.assets),
+    {
+      name: "cdn-toon-human",
+      region: "cloudflare",
+      probe: async (): Promise<ServiceHealth> => {
+        const url = `${FLEET_URLS.assets}/asset-packs/toon-rts-characters/glb/characters/human.glb`;
+        const r = await httpProbe(url, { method: "HEAD" });
+        return {
+          name: "cdn-toon-human",
+          region: "cloudflare",
+          status: toStatus(r.ok, r.latencyMs),
+          latencyMs: r.latencyMs,
+          error: r.error,
+          checkedAt: ts(),
+        };
+      },
+    },
     probe("legion-ai-hub", "cloudflare", `${FLEET_URLS.ai}/health`),
     probe("forge-editor", "vercel", FLEET_URLS.forge),
     probe("threeflow-editor", "vercel", FLEET_URLS.threeflow),

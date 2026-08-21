@@ -13,7 +13,7 @@
 import { app, shell } from "electron";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { VIEWER_EXTS } from "./openFileBridge";
 import log from "./logger";
@@ -237,4 +237,34 @@ export async function clearOurProgIds(): Promise<{ ok: true; cleared: number }> 
     }
   }
   return { ok: true, cleared };
+}
+
+/**
+ * Packaged first launch: register HKCU file types so Explorer double-click
+ * opens the Grudge Three Pipeline. One-shot (marker in userData) so Clear
+ * is not immediately undone.
+ */
+export async function ensureFileDefaultsOnLaunch(): Promise<void> {
+  if (process.platform !== "win32") return;
+  if (!app.isPackaged) return;
+  const marker = join(app.getPath("userData"), "file-defaults-auto.json");
+  if (existsSync(marker)) return;
+  try {
+    const st = await getDefaultsStatus();
+    if (st.defaults === 0) {
+      const r = await setAllAsDefault();
+      log.info(
+        `[fileDefaults] auto-register on launch ok=${r.ok} registered=${r.ok ? r.registered : 0}`,
+      );
+    }
+    writeFileSync(
+      marker,
+      JSON.stringify({ at: Date.now(), defaultsBefore: st.defaults }),
+    );
+  } catch (e: unknown) {
+    log.warn(
+      "[fileDefaults] auto-register skipped",
+      e instanceof Error ? e.message : String(e),
+    );
+  }
 }

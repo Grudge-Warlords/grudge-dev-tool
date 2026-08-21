@@ -1,7 +1,7 @@
 export type ForgeRoute =
   | "/browser" | "/search" | "/upload" | "/request"
   | "/uuid" | "/library" | "/forge" | "/coder" | "/games" | "/legion"
-  | "/preview" | "/local-assets" | "/playcanvas" | "/docs" | "/settings";
+  | "/preview" | "/play" | "/local-assets" | "/playcanvas" | "/docs" | "/settings";
 
 export interface AssetGrouping {
   id: string;
