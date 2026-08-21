@@ -364,12 +364,9 @@ export default function LocalFiles() {
         } catch {
           /* pop-out is enough */
         }
-        const isTf =
-          info.token === "threeflow" ||
-          info.kind === "model3d" ||
-          info.kind === "scene3d";
-        toast.success(isTf ? "ThreeFlow editor" : "Elite viewer", {
-          description: `${info.kind} · ${info.name}`,
+        const is3d = info.kind === "model3d" || info.kind === "scene3d";
+        toast.success(is3d ? "Elite 3D pipeline" : "Elite viewer", {
+          description: `${info.kind} · ${info.name}${is3d ? " · ThreeFlow from viewer/Admin" : ""}`,
         });
       } catch (e: unknown) {
         console.warn("[LocalFiles] openFile:opened", e);
@@ -438,17 +435,14 @@ export default function LocalFiles() {
       setBusy(true);
       try {
         if (mode === "popout") {
-          // Same path as Explorer double-click: 3D → ThreeFlow, media → Elite.
+          // Double-click / Pop-out: Elite SceneEngine for 3D + media.
           const r = await window.grudge.openFile?.openPath?.(entry.path);
           if (r && "ok" in r && r.ok) return;
-          const is3d = entry.kind === "model3d" || entry.kind === "scene3d";
-          if (!is3d) {
-            await window.grudge.viewer.openLocal({
-              path: entry.path,
-              contentType: entry.contentType,
-              size: entry.size,
-            });
-          }
+          await window.grudge.viewer.openLocal({
+            path: entry.path,
+            contentType: entry.contentType,
+            size: entry.size,
+          });
           toast.error(
             (r && "error" in r && r.error) || "Open failed",
             { description: entry.name },

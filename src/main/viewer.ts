@@ -28,7 +28,7 @@ import { optimizeWebFile, type OptimizeWebOptions, type OptimizeWebResult } from
 import { requestUploadUrl } from "./api";
 import { r2PublicUrl } from "./cf/r2Direct";
 import { mediaStreamUrl, isStreamableMediaPath } from "./mediaProtocol";
-import { inferContentType } from "../shared/mediaTypes";
+import { inferContentType, isModelPath, isThreeScenePath } from "../shared/mediaTypes";
 import { localLoopbackAssetUrl, threeflowAssetUrl } from "../shared/editorHandoff";
 
 export interface ViewerAssetRef {
@@ -54,6 +54,14 @@ export interface ViewerAssetRef {
 
 const assetStore = new Map<string, ViewerAssetRef>();
 const openWindows = new Map<string, BrowserWindow>();
+/** One reusable 3D pipeline window — extra double-clicks append into this scene. */
+let pipelineWin: BrowserWindow | null = null;
+
+function isPipelineAsset(asset: ViewerAssetRef): boolean {
+  const n = basename(asset.localPath || asset.name || "");
+  if (/\.html?$/i.test(n)) return false;
+  return isModelPath(n) || isThreeScenePath(n) || /\.(gfscene|scene\.json|three\.json)$/i.test(n);
+}
 
 const VIEWER_WIDTH = 1100;
 const VIEWER_HEIGHT = 720;
@@ -141,9 +149,9 @@ function normalizeAsset(raw: unknown): ViewerAssetRef {
 }
 
 /**
- * Pop-out ThreeFlow scene editor (save / multi-mesh / small edits).
+ * Pop-out ThreeFlow scene editor (explicit from pipeline Actions).
  * CDN URL or local mesh via loopback plugin host (`/v1/local-file/<name>?path=`).
- * Local Files 3D opens here — Elite is images / audio / video / text / PDF.
+ * Explorer / Local Files 3D opens the Grudge Three Pipeline (Elite SceneEngine).
  */
 export function openThreeFlowEditor(opts: {
   name: string;
@@ -272,6 +280,26 @@ export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: 
   const token = newToken();
   assetStore.set(token, asset);
 
+  if (
+    isPipelineAsset(asset) &&
+    pipelineWin &&
+    !pipelineWin.isDestroyed()
+  ) {
+    try {
+      pipelineWin.webContents.send("pipeline:append", { token });
+      pipelineWin.setTitle(`Grudge Three Pipeline · ${basename(asset.name)}`);
+      if (!pipelineWin.isVisible()) pipelineWin.show();
+      pipelineWin.focus();
+      pipelineWin.moveTop();
+      log.info("Pipeline: append", asset.name, "token=", token.slice(0, 8));
+      return { ok: true, token };
+    } catch (err) {
+      log.warn("[viewer] pipeline append failed, opening new window", err);
+      pipelineWin = null;
+    }
+  }
+
+  const pipeline = isPipelineAsset(asset);
   const win = new BrowserWindow({
     width: VIEWER_WIDTH,
     height: VIEWER_HEIGHT,
@@ -281,7 +309,9 @@ export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: 
     frame: true,
     autoHideMenuBar: true,
     backgroundColor: "#0a0e1a",
-    title: `${basename(asset.name)} — Grudge Elite Viewer`,
+    title: pipeline
+      ? `Grudge Three Pipeline · ${basename(asset.name)}`
+      : `${basename(asset.name)} — Grudge Elite Viewer`,
     alwaysOnTop: true,
     skipTaskbar: false,
     icon: nativeImage.createFromPath(viewerIconPath()),
@@ -299,6 +329,7 @@ export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: 
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
   openWindows.set(token, win);
+  if (pipeline) pipelineWin = win;
 
   win.once("ready-to-show", () => {
     win.show();
@@ -308,6 +339,7 @@ export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: 
 
   win.on("closed", () => {
     openWindows.delete(token);
+    if (pipelineWin === win) pipelineWin = null;
     // Keep asset a short while in case of reload; drop after 60s.
     setTimeout(() => assetStore.delete(token), 60_000);
   });

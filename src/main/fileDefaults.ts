@@ -120,7 +120,7 @@ export async function setAllAsDefault(): Promise<{
     await regAdd(
       `HKCU\\${CAP_PATH}`,
       "ApplicationDescription",
-      "Grudge elite viewer — 3D, images, audio, video, text, PDF",
+      "Grudge Three Pipeline — 3D, images, audio, video, text, PDF",
     );
     await regAdd(
       `HKCU\\Software\\RegisteredApplications`,

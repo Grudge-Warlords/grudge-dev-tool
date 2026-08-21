@@ -43,6 +43,11 @@ import TextViewer from "../components/viewers/TextViewer";
 import PdfViewer from "../components/viewers/PdfViewer";
 import FontViewer from "../components/viewers/FontViewer";
 import { writeMirror, readMirror } from "../lib/workspace";
+import {
+  isPublicCdnUrl,
+  localLoopbackAssetUrl,
+  threeflowAssetUrl,
+} from "../../shared/editorHandoff";
 
 const AudioViewer = React.lazy(() => import("../components/viewers/AudioViewer"));
 const Model3DViewer = React.lazy(() => import("../components/viewers/Model3DViewer"));
@@ -248,6 +253,35 @@ export default function ViewMode() {
         else toast.error(r?.error ?? "Forge send failed");
       })
       .catch(() => toast.error("Could not send to Forge"));
+  };
+
+  const sendThreeFlow = () => {
+    if (!asset) return;
+    const cdn = isPublicCdnUrl(asset.url) ? asset.url : null;
+    const localPath = asset.localPath || asset.sourcePath;
+    void window.grudge?.viewer
+      ?.openThreeFlow?.({
+        name: asset.name || "mesh",
+        cdnUrl: cdn || undefined,
+        localPath: localPath || undefined,
+      })
+      .then((r: { ok?: boolean; error?: string }) => {
+        if (r?.ok) toast.success("ThreeFlow");
+        else {
+          const href = cdn
+            ? threeflowAssetUrl(cdn)
+            : localPath
+              ? threeflowAssetUrl(localLoopbackAssetUrl(localPath))
+              : "";
+          if (href) {
+            void window.grudge?.os?.openExternal?.(href);
+            toast.success("ThreeFlow (browser)");
+            return;
+          }
+          toast.error(r?.error ?? "Need a local mesh or CDN URL");
+        }
+      })
+      .catch(() => toast.error("Could not open ThreeFlow"));
   };
 
   const sendSkeleton = async () => {
@@ -528,6 +562,14 @@ export default function ViewMode() {
                     onClick={sendForge}
                     tone="ok"
                   />
+                  {is3d && (
+                    <ActionBtn
+                      icon={Box}
+                      label="Open in ThreeFlow"
+                      onClick={sendThreeFlow}
+                      tone="gold"
+                    />
+                  )}
                   {is3d && (
                     <ActionBtn
                       icon={Bone}

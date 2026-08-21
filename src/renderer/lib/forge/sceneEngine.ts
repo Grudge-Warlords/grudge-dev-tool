@@ -21,6 +21,7 @@ const ViewHelper = ViewHelperImpl as unknown as new (
 import { createInfiniteGrid } from "./infiniteGrid";
 import { attachBoneNameLabels, disposeBoneLabelGroup } from "./skeletonOverlay";
 import { measureObjectSi, type SiBounds } from "./siMeasure";
+import { bindSceneMeasure } from "./measureScale";
 
 export type GizmoMode = "translate" | "rotate" | "scale";
 export type StudioView = "persp" | "front" | "right" | "top";
@@ -96,6 +97,7 @@ export class SceneEngine {
   private rafHandle = 0;
   private resizeObserver?: ResizeObserver;
   private disposed = false;
+  private measureUnbind: (() => void) | null = null;
 
   constructor(private container: HTMLElement, opts: SceneEngineOptions = {}) {
     const bg = opts.background ?? 0x0a0e1a;
@@ -343,6 +345,12 @@ export class SceneEngine {
 
   attach(object: THREE.Object3D): void {
     this.transform.attach(object);
+  }
+
+  /** Shift+Ctrl+LMB drag a span that should be 2 m. */
+  enableMeasure(toast?: (msg: string) => void): void {
+    this.measureUnbind?.();
+    this.measureUnbind = bindSceneMeasure(this, toast);
   }
 
   detach(): void {
@@ -770,6 +778,8 @@ export class SceneEngine {
       }
       removeHelper.dispose?.();
     } catch { /* ignore */ }
+    this.measureUnbind?.();
+    this.measureUnbind = null;
     this.unbindShiftPan();
     this.renderer.domElement.removeEventListener("pointerdown", this.onViewHelperPointer);
     this.viewHelper?.dispose();

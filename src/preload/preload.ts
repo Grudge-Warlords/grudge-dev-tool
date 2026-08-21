@@ -192,10 +192,16 @@ const api = {
         { ok: true; name: string; bytes: Uint8Array; mime: string } | { ok: false; error: string }
       >,
     focusAll: () => ipcRenderer.invoke("viewer:focusAll"),
+    /** Extra Explorer double-clicks land in the same 3D pipeline window. */
+    onPipelineAppend: (cb: (payload: { token: string }) => void) => {
+      const listener = (_e: unknown, payload: { token: string }) => cb(payload);
+      ipcRenderer.on("pipeline:append", listener);
+      return () => ipcRenderer.removeListener("pipeline:append", listener);
+    },
   },
   /**
-   * Explorer / Local Files open — 3D → ThreeFlow; media → Elite.
-   * Always routes to the Asset Viewer (never Forge).
+   * Explorer / Local Files open — 3D → Grudge Three Pipeline; media → Elite.
+   * ThreeFlow is an explicit action. Never Forge by default.
    */
   openFile: {
     openPath: (filePath: string) =>

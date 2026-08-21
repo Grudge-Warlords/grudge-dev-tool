@@ -64,7 +64,7 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     kind: "local-tool",
     apis: [FLEET_URLS.assets, FLEET_URLS.forge],
     description:
-      "Local Files: click preview; double-click 3D → ThreeFlow; media → Elite. System open = OS app. AI card = clipboard. Forge is explicit only.",
+      "Local Files: click preview; double-click 3D → Elite SceneEngine (hierarchy / delete / save-as). ThreeFlow from Elite + Admin View. Media → Elite.",
   },
   {
     id: "forge",

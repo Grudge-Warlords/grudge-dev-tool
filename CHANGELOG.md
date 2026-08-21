@@ -4,6 +4,18 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-08-20
+
+### Added
+- **Grudge Three Pipeline** — one reusable SceneEngine window for Explorer / Local Files 3D. Extra meshes **append** (parent/child, clips, textures). Delete node · save selected as GLB.
+- **Send to R2 + D1** waits for PUT complete, then `os:registerAsset`. Key `models/pipeline/<file>`.
+- **SI 2 m measure** — Shift+Ctrl+LMB drag a span that should be 2 metres; uniform scale on the selected mesh.
+
+### Changed
+- 3D opener is the pipeline, not a ThreeFlow hijack. **Edit in ThreeFlow** stays explicit (no iframe).
+- Settings / AI card / file-defaults copy match pipeline-first open.
+- Admin View tab: Open in ThreeFlow for 3D assets.
+
 ## [1.0.11] — 2026-08-19
 
 ### Changed

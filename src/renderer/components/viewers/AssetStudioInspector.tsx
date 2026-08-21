@@ -73,13 +73,14 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
   const [libs, setLibs] = useState<Array<{ packDir: string; name: string; clipCount: number }>>([]);
   const [libBusy, setLibBusy] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
+  const [graphTick, setGraphTick] = useState(0);
 
   const selected = useMemo(() => {
     if (!root || !selectedUuid) return root;
     return findObjectByUuid(root, selectedUuid) ?? root;
   }, [root, selectedUuid]);
 
-  const nodes = useMemo(() => (root ? buildSceneGraph(root, 12) : []), [root]);
+  const nodes = useMemo(() => (root ? buildSceneGraph(root, 12) : []), [root, graphTick]);
   const rig: RigInspectResult | null = useMemo(() => (root ? inspectSceneRig(root) : null), [root]);
 
   const material = useMemo(() => firstStandard(selected), [selected]);
@@ -161,6 +162,42 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
       setLibBusy(false);
     }
   }, [root, engine, mixer, onClipsChange]);
+
+  const deleteSelected = useCallback(() => {
+    if (!root || !selected) return;
+    if (selected === root) {
+      toast.error("Cannot delete the scene root — pick a child mesh or group");
+      return;
+    }
+    const parent = selected.parent;
+    parent?.remove(selected);
+    engine?.detach();
+    setSelectedUuid(parent && parent !== root ? parent.uuid : root.uuid);
+    setGraphTick((n) => n + 1);
+    onTransformTick();
+    toast.success("Removed node", { description: selected.name || selected.type });
+  }, [root, selected, engine, onTransformTick]);
+
+  const saveSelectedAs = useCallback(async () => {
+    const target = selected ?? root;
+    if (!target) return;
+    const suggested = (target.name || asset.name || "mesh").replace(/[^\w.-]+/g, "_");
+    const name = window.prompt("Save this node (and children) as", suggested);
+    if (!name) return;
+    setSaveBusy(true);
+    try {
+      const base = name.replace(/\.[^.]+$/, "");
+      const result = await exportToGlb(target, target === root ? clips : [], base);
+      downloadBlob(result.blob, result.filename);
+      toast.success(`Saved ${result.filename}`, {
+        description: `${result.triangles} tris · pulled ${target.name || target.type}`,
+      });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaveBusy(false);
+    }
+  }, [selected, root, clips, asset.name]);
 
   const saveGlb = useCallback(async () => {
     if (!root) return;
@@ -268,7 +305,14 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
             </div>
           )}
           <Action onClick={() => onAddFiles?.()} label="Add model (Shift+A)" />
-          <div style={{ ...muted, marginTop: 10 }}>Nodes of selected object</div>
+          <Action onClick={deleteSelected} label="Delete selected node" />
+          <Action
+            onClick={() => void saveSelectedAs()}
+            label={saveBusy ? "Saving…" : "Save selected as…"}
+          />
+          <div style={{ ...muted, marginTop: 10 }}>
+            Hierarchy (parent → child) · click to select · Delete / Save as pulls that mesh
+          </div>
           <div style={{ maxHeight: 140, overflow: "auto", marginTop: 6 }}>
             {nodes.map((n) => (
               <button
@@ -322,7 +366,12 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
           <Action onClick={doGround} label="Ground Y = 0" />
           <Action onClick={doFit18} label="Fit height 1.8 m" disabled={si?.source !== "bones"} />
           <Action onClick={doFixMesh} label="Fix mesh (normals / NaN)" />
-          <Action onClick={() => void saveGlb()} label={saveBusy ? "Saving…" : "Save GLB (+ mapping)"} />
+          <Action onClick={deleteSelected} label="Delete this node" />
+          <Action
+            onClick={() => void saveSelectedAs()}
+            label={saveBusy ? "Saving…" : "Save this node as new GLB"}
+          />
+          <Action onClick={() => void saveGlb()} label={saveBusy ? "Saving…" : "Save whole root GLB"} />
         </div>
       )}
 
@@ -373,7 +422,30 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
       {tab === "anim" && (
         <div>
           <div style={muted}>
-            {clips.length} clip(s) on this mixer. Apply a local library pack (rest.glb tracks).
+            {clips.length} clip(s) on this mixer. Click a clip to play. Apply a local library pack (rest.glb tracks).
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3, margin: "8px 0" }}>
+            {clips.map((c, i) => (
+              <button
+                key={`${c.name}-${i}`}
+                type="button"
+                onClick={() => {
+                  if (mixer) setPrimaryAction(mixer, c, "repeat");
+                }}
+                style={{
+                  textAlign: "left",
+                  fontSize: 11,
+                  padding: "3px 8px",
+                  background: "var(--bg-2)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 4,
+                  color: "var(--text)",
+                  cursor: "pointer",
+                }}
+              >
+                {c.name || `clip ${i}`} · {c.duration.toFixed(2)}s
+              </button>
+            ))}
           </div>
           {libs.length === 0 && <div style={{ ...muted, marginTop: 8 }}>No local libraries — export one from Skeleton Studio.</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>

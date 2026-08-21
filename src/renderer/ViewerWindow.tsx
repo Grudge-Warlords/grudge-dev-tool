@@ -41,7 +41,7 @@ import {
     classify, basename, formatBytes,
     type AssetRef, type AssetKind,
 } from "./components/viewers/types";
-import { isPublicCdnUrl, forgeStudioAssetUrl, threeflowAssetUrl } from "../shared/editorHandoff";
+import { isPublicCdnUrl, forgeStudioAssetUrl, threeflowAssetUrl, threeflowViewUrl, localLoopbackAssetUrl } from "../shared/editorHandoff";
 import ImageViewer from "./components/viewers/ImageViewer";
 import VideoViewer from "./components/viewers/VideoViewer";
 import AudioViewer from "./components/viewers/AudioViewer";
@@ -169,7 +169,7 @@ function ViewerHeader({
         <div className="elite-header">
             <div className="elite-header-meta">
                 <span className="elite-header-title" title={asset.localPath || asset.name}>
-                    Elite · {fname}
+                    {kind === "model3d" || kind === "scene3d" ? "Grudge Three Pipeline" : "Elite"} · {fname}
                 </span>
                 <KindBadge kind={kind} />
                 {isLocal && (
@@ -414,6 +414,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
         engine.renderer.toneMappingExposure = 1.0;
         engine.resize();
         engineRef.current = engine;
+        engine.enableMeasure((msg) => toast.message(msg));
         // Save env map reference so we can toggle it later.
         envMapRef.current = engine.scene.environment;
         const unsub = engine.onTransformChange(() => {
@@ -607,7 +608,8 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
 
                 commitLoaded(loaded, fname, {
                     diskPath: asset.localPath,
-                    replace: true,
+                    replace: itemsRef.current.length === 0,
+                    placeBeside: itemsRef.current.length > 0,
                 });
                 setBoundsOn(false);
 
@@ -697,6 +699,73 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
             setAdding(false);
         }
     }, [commitLoaded]);
+
+    const appendPipelineAsset = useCallback(async (token: string) => {
+        const waitEngine = async () => {
+            for (let i = 0; i < 40; i++) {
+                if (engineRef.current) return true;
+                await new Promise((r) => setTimeout(r, 50));
+            }
+            return false;
+        };
+        if (!(await waitEngine())) {
+            toast.error("Pipeline not ready");
+            return;
+        }
+        const next = await G()?.viewer?.getAsset?.(token);
+        if (!next) {
+            toast.error("Could not load appended asset");
+            return;
+        }
+        setAdding(true);
+        try {
+            const fname = basename(next.name || next.localPath || "mesh");
+            const sanitize = {
+                toonStyle: true as const,
+                fixDefaultYellow: true as const,
+                whiteWhenMapped: true as const,
+            };
+            let loaded;
+            if (next.localPath) {
+                const diskUrl =
+                    next.url?.startsWith("grudge-media:")
+                        ? next.url
+                        : localFileUrl(next.localPath);
+                loaded = await loadModelFromUrl(diskUrl, fname, {
+                    diskPath: next.localPath,
+                    sanitize,
+                });
+            } else if (next.url) {
+                const res = await fetch(next.url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const blob = await res.blob();
+                const file = new File([blob], fname, { type: blob.type || "application/octet-stream" });
+                loaded = await loadModel(file, { sanitize });
+            } else {
+                throw new Error("No path or URL");
+            }
+            commitLoaded(loaded, fname, {
+                diskPath: next.localPath,
+                placeBeside: true,
+            });
+            toast.success(`Added ${fname}`, {
+                description: `${loaded.animations.length} clip(s) · ${loaded.bones} bones`,
+            });
+        } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : "Append failed");
+        } finally {
+            setAdding(false);
+        }
+    }, [commitLoaded]);
+
+    useEffect(() => {
+        const off = G()?.viewer?.onPipelineAppend?.((p: { token: string }) => {
+            if (p?.token) void appendPipelineAsset(p.token);
+        });
+        return () => {
+            if (typeof off === "function") off();
+        };
+    }, [appendPipelineAsset]);
 
     const removeItem = useCallback((id: string) => {
         const engine = engineRef.current;
@@ -1014,6 +1083,77 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
         G()?.os?.openExternal?.(forgeStudioAssetUrl(cdn));
     }
 
+    function openThreePipeView() {
+        const cdn = cdnAssetUrl();
+        const localPath = asset?.localPath || asset?.sourcePath;
+        const href = cdn
+            ? threeflowViewUrl(cdn, { name: asset?.name || "mesh" })
+            : localPath
+                ? threeflowViewUrl(localLoopbackAssetUrl(localPath), { name: asset?.name || "mesh" })
+                : "";
+        if (!href) {
+            toast.error("Need a local mesh or CDN URL");
+            return;
+        }
+        G()?.os?.openExternal?.(href);
+    }
+
+    async function sendToR2D1() {
+        const path = asset?.localPath || asset?.sourcePath;
+        if (!path) {
+            toast.error("Need a local file to upload");
+            return;
+        }
+        const name = basename(path);
+        const key = `models/pipeline/${name.replace(/\s+/g, "_")}`;
+        const jobId = `pipe-${Date.now()}`;
+        toast.message("Uploading to R2…", { description: key });
+        const offProgress = G()?.upload?.onProgress?.((p: { jobId?: string; status?: string; error?: string }) => {
+            if (p.jobId !== jobId) return;
+            if (p.status === "failed") {
+                toast.error("R2 upload failed", { description: p.error || key });
+                offProgress?.();
+            }
+            if (p.status === "completed" || p.status === "skipped") {
+                offProgress?.();
+                const uuid = `ITEM-${Date.now()}-PIPE`;
+                const cdn = `https://assets.grudge-studio.com/${key}`;
+                void G()?.os?.registerAsset?.({
+                    grudge_uuid: uuid,
+                    r2_key: key,
+                    category: "models",
+                    content_type: asset?.contentType || "model/gltf-binary",
+                    size_bytes: asset?.size,
+                    name,
+                    cdn_url: cdn,
+                    metadata: { source: "grudge-three-pipeline" },
+                }).then(() => {
+                    toast.success("R2 + D1 indexed", { description: cdn });
+                }).catch((e: unknown) => {
+                    toast.error("R2 ok, D1 index failed", {
+                        description: e instanceof Error ? e.message : String(e),
+                    });
+                });
+            }
+        });
+        try {
+            await G()?.upload?.enqueue?.({
+                id: jobId,
+                files: [{
+                    localPath: path,
+                    targetPath: key,
+                    contentType: asset?.contentType || "model/gltf-binary",
+                }],
+                packId: "prod-gltf-pipeline",
+                packVersion: new Date().toISOString().slice(0, 10),
+                buildManifest: true,
+            });
+        } catch (e: unknown) {
+            offProgress?.();
+            toast.error(e instanceof Error ? e.message : "R2/D1 send failed");
+        }
+    }
+
     function openThreeFlow() {
         const cdn = cdnAssetUrl();
         const localPath = asset?.localPath || asset?.sourcePath;
@@ -1238,6 +1378,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
             <div className="elite-hud elite-hud-bl">
                 {adding ? "Adding…" : `${items.length} object(s)`}
                 {" · "}G/R/S · drop files · Shift+A add · Shift+D copy · X delete · A frame
+                {" · "}Shift+Ctrl+LMB drag = 2 m span
             </div>
         </>
         )}
@@ -1536,6 +1677,8 @@ style = {{
 
 {/* Actions — working only */}
 <Section title="Actions" >
+    <ActionBtn onClick={ sendToR2D1 } icon="" label="Send to R2 + D1" color="var(--ok)" />
+    <ActionBtn onClick={ openThreePipeView } icon = "" label = "View (ThreePipe)" color = "#d4af37" />
     <ActionBtn onClick={ openThreeFlow } icon = "" label = "Edit in ThreeFlow" color = "#d4af37" />
     <ActionBtn onClick={ openForgeLive } icon = "" label = "Open in Forge (live)" color = "var(--gold)" />
         <ActionBtn

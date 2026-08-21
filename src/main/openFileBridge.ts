@@ -1,10 +1,9 @@
 /**
  * Local file open system for Grudge Dev Tool.
  *
- * 3D meshes / scenes → ThreeFlow (save, multi-mesh, small edits).
+ * 3D meshes / scenes → Elite SceneEngine (hierarchy, delete, save-as).
  * Images / audio / video / text / PDF → Elite media viewer.
- *
- * NOT Forge. Forge is an explicit in-app action only.
+ * ThreeFlow / Forge are explicit actions from Elite + Admin View tab.
  */
 
 import { app, BrowserWindow } from "electron";
@@ -22,7 +21,6 @@ import {
 import log from "./logger";
 import * as viewer from "./viewer";
 import { resolveSceneOpenPath } from "./forge";
-import { startPluginHost } from "./pluginHost";
 import { needsAutoPrepare, prepareForEliteViewer } from "./ingestion/designPreview";
 
 /**
@@ -176,44 +174,11 @@ export async function openPathInEliteViewer(
     const contentType = inferContentType(basename(p));
     const size = statSync(p).size;
 
-    if (isThreeFlowMeshPath(p) || kind === "model3d" || kind === "scene3d") {
-      const ext = extname(p).toLowerCase();
-      if (ext !== ".html" && ext !== ".htm") {
-        let meshPath = p;
-        if (needsAutoPrepare(p)) {
-          const prep = await prepareForEliteViewer(p);
-          if (prep.ok && prep.path) meshPath = prep.path;
-        }
-        await startPluginHost({
-          showMain: () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.show();
-              mainWindow.focus();
-            }
-          },
-        }).catch((err) => log.warn("[openFile] plugin host", err));
-        const tf = viewer.openThreeFlowEditor({
-          name: basename(sourcePath),
-          localPath: meshPath,
-        });
-        log.info(`[openFile] ThreeFlow ← ${kind} ${meshPath}`);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          if (!mainWindow.isVisible()) mainWindow.show();
-          mainWindow.webContents.send("nav", "/local");
-          mainWindow.webContents.send("openFile:opened", {
-            path: p,
-            sourcePath,
-            name: basename(p),
-            dir: dirname(p),
-            kind,
-            contentType,
-            size,
-            token: "threeflow",
-            note: openNote || tf.url,
-          });
-        }
-        return { ok: true, token: "threeflow", kind };
-      }
+    // 3D opens Elite SceneEngine (hierarchy / delete / save-as). ThreeFlow is
+    // an explicit action from the viewer + Admin View tab — not the opener.
+    if ((kind === "model3d" || kind === "scene3d") && needsAutoPrepare(p)) {
+      const prep = await prepareForEliteViewer(p);
+      if (prep.ok && prep.path) p = prep.path;
     }
 
     log.info(`[openFile] elite viewer ← ${kind} ${p}${openNote ? ` (${openNote})` : ""}`);

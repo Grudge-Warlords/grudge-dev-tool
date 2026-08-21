@@ -28,7 +28,19 @@ function withExtra(u: URL, extra?: Record<string, string>): void {
 /** ThreeFlow — best Warlords scene editor (Vue + r185 production loader). */
 export function threeflowAssetUrl(cdnUrl: string, extra?: Record<string, string>): string {
   const u = new URL(FLEET_URLS.threeflow);
+  u.pathname = "/editor";
   u.searchParams.set("intent", "asset");
+  u.searchParams.set("asset", cdnUrl);
+  u.searchParams.set("from", "grudge-dev-tool");
+  withExtra(u, extra);
+  return u.toString();
+}
+
+/** ThreePipe inspect on ThreeFlow — not a fourth editor, not the Vue r185 bundle. */
+export function threeflowViewUrl(cdnUrl: string, extra?: Record<string, string>): string {
+  const u = new URL(FLEET_URLS.threeflow);
+  u.pathname = "/view";
+  u.searchParams.set("intent", "view");
   u.searchParams.set("asset", cdnUrl);
   u.searchParams.set("from", "grudge-dev-tool");
   withExtra(u, extra);

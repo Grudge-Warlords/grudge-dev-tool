@@ -5,7 +5,7 @@
 | Surface | Role |
 |---------|------|
 | **Home** | Fleet health · admin systems · primary actions |
-| **Local Files** | Disk browser · kind chips · 3D double-click → **ThreeFlow** · media → Elite |
+| **Local Files** | Disk browser · kind chips · 3D double-click → **Grudge Three Pipeline** · media → Elite |
 | **Assets** | R2 / ObjectStore · `>query` · pop-out Elite · explicit Open in ThreeFlow / Forge |
 | **Skeleton** | Mixamo-25 → T-pose → retarget → convert → CDN |
 | **Forge** | Production `forge.grudge-studio.com` embed (R3F + Rapier deploy) |
@@ -23,7 +23,7 @@
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **Desktop app** | **v1.0.11** | Windows tray · Local Files 3D → ThreeFlow · Elite media · Forge live · auto-update |
+| **Desktop app** | **v1.1.0** | Windows tray · 3D double-click → Grudge Three Pipeline · Elite media · Forge live · auto-update |
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
@@ -34,16 +34,16 @@
 
 ---
 
-## What's new in 1.0.11
+## What's new in 1.1.0
 
-- **Local Files 3D opens ThreeFlow** — click previews in-pane; double-click / Pop-out loads `threeflow.vercel.app` with the disk mesh (plugin loopback). Media stays Elite.  
-- **Show in list** — viewport button above tris/verts scrolls the left file list to the asset on screen.  
-- **AI card / System open / Pop-out** — AI card = clipboard markdown for agents (vision on images only). System open = OS default app. Pop-out 3D = ThreeFlow.  
-- **F in ThreeFlow** frames the selected mesh in the current camera (FOV/aspect fit). Studio dark background + gold chrome.
+1. **Grudge Three Pipeline** — Explorer / Local Files double-click opens **one** SceneEngine window. Extra GLB/FBX/OBJ **append** into the same scene with parent/child hierarchy, clips, and textures. Drop files or Shift+A to add more.  
+2. **Send to R2 + D1** — pipeline Actions waits for R2 PUT, then seeds the ObjectStore/D1 index. CDN key `models/pipeline/<file>`.  
+3. **SI 2 m measure** — select a mesh, **Shift+Ctrl+LMB drag** a span that should be 2 metres, release. Uniform scale. 1 unit = 1 m.  
+ThreeFlow remains **Edit in ThreeFlow** (explicit). Media stays Elite. Never Forge by default.
 
 Docs: <https://grudge-warlords.github.io/grudge-dev-tool/>
 
-Earlier: **1.0.10** Elite viewport clear · **1.0.9** editor trio name · **1.0.8** r185 loaders.
+Earlier: **1.0.11** ThreeFlow pop-out · **1.0.10** Elite viewport · **1.0.9** editor trio · **1.0.8** r185 loaders.
 
 ---
 
@@ -69,7 +69,7 @@ https://client.grudge-studio.com
 4. Account files / `*.puter.site` → [puter-space](https://ai.grudge-studio.com/puter-space). Railway still owns bag / characters / wallet.  
 5. Admin allowlist (`grudachain` / `molochdadev`) → GRUDACHAIN Ollama agentic stack.  
 6. Optional: `npm run secret:import path\to\secrets.txt` for R2 / CF AI / Legion keys.  
-7. **Settings → Set as default for all asset types** — Explorer: 3D → ThreeFlow; media → Elite. Never Forge by default.
+7. **Settings → Set as default for all asset types** — Explorer: 3D → Grudge Three Pipeline; media → Elite. ThreeFlow is an explicit action. Never Forge by default.
 
 ### CLI
 
@@ -87,12 +87,12 @@ grudge-dev plugin status   # dest-tool must be running (127.0.0.1:17380)
 | Action | Result |
 |--------|--------|
 | **Local Files → click** | Inline preview (verts/tris for 3D). **Show in list** jumps the left pane to that file |
-| **Local Files → double-click / Pop-out** | **3D / scene → ThreeFlow** (save, multi-mesh). Images / audio / video / text / PDF → Elite |
+| **Local Files → double-click / Pop-out** | **3D / scene → Grudge Three Pipeline** (multi-asset SceneEngine). Images / audio / video / text / PDF → Elite |
 | Audio / video | Streamed via `grudge-media://` (no full-file RAM blob) |
 | Kind chips | Filter Audio · Video · 3D · Image while browsing packs |
 | Explorer **Open with** / double-click | Same split after **Settings → Set as default for all asset types** |
 | **System open** | OS default app (Blender / Photoshop / Photos / …) |
-| **AI card** | Clipboard markdown: kind, path, ThreeFlow/Elite hints, GLB inspect. Vision caption = images only |
+| **AI card** | Clipboard markdown: kind, path, Pipeline/ThreeFlow hints, GLB inspect. Vision caption = images only |
 | ObjectStore / Assets tab | Preview CDN assets; **Open in ThreeFlow** / **Forge live** are explicit |
 
 SSOT: `src/shared/mediaTypes.ts` · open: `openFileBridge` · stream: `mediaProtocol` · AI: `assetUnderstand` (`asset:understand`).
@@ -137,7 +137,7 @@ npm run package:ci
 | Surface | What it does |
 |---------|----------------|
 | **Tray** | Left-click loader · double-click main · right-click menu |
-| **Elite** | Media pop-out: image / video / audio (stream) / PDF / **PSD**. 3D edit is ThreeFlow |
+| **Elite / Pipeline** | Media pop-out + **Grudge Three Pipeline** 3D opener (hierarchy, clips, textures, R2/D1, Edit in ThreeFlow) |
 | **Forge embed** | Live `forge.grudge-studio.com` + desktop session handoff |
 | **Preview** | open · client · water · GRUDOX · Multiverse |
 | **Agent AI** | Make & deploy · Ollama · Legion · CF Workers AI |

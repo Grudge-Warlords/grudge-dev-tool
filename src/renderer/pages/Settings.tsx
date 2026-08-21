@@ -83,7 +83,7 @@ export default function Settings() {
         return;
       }
       toast.success(`Registered ${r.registered} file types`, {
-        description: "3D opens ThreeFlow; images/audio/video open Elite. Never Forge by default. Confirm residual types in Windows Settings.",
+        description: "3D opens Grudge Three Pipeline; images/audio/video open Elite. ThreeFlow is an explicit action. Never Forge by default.",
       });
       await window.grudge.fileDefaults?.openSystemSettings?.();
       await reload();
@@ -387,8 +387,9 @@ export default function Settings() {
         </h3>
         <p className="muted text-sm mb-3">
           One click registers <strong className="text-ink">Grudge Dev Tool</strong> as the handler for all
-          asset types (3D, images, audio, video, text, PDF). 3D / scenes open{" "}
-          <strong className="text-gold">ThreeFlow</strong>; media opens Elite — never Forge by default.
+          asset types (3D, images, audio, video, text, PDF). 3D / scenes open the{" "}
+          <strong className="text-gold">Grudge Three Pipeline</strong>; media opens Elite.
+          ThreeFlow is an explicit action — never Forge by default.
         </p>
         <div className="flex flex-wrap gap-2 items-center mb-2">
           {[
