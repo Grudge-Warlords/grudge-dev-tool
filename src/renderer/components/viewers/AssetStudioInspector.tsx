@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { toast } from "sonner";
 import type { SceneEngine, GizmoMode } from "../../lib/forge/sceneEngine";
-import { buildSceneGraph, findObjectByUuid, nodeIcon } from "../../lib/forge/sceneGraph";
+import { buildSceneGraph, findObjectByUuid, nodeIcon, reparentObject, type GraphNode } from "../../lib/forge/sceneGraph";
 import { inspectSceneRig, type RigInspectResult } from "../../lib/forge/rigInspect";
 import { groundSnap, fixMesh } from "../../lib/forge/editorTools";
 import { fitHeightSi, formatSiMeters, type SiBounds } from "../../lib/forge/siMeasure";
@@ -80,7 +80,8 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
     return findObjectByUuid(root, selectedUuid) ?? root;
   }, [root, selectedUuid]);
 
-  const nodes = useMemo(() => (root ? buildSceneGraph(root, 12) : []), [root, graphTick]);
+  const nodes = useMemo(() => (root ? buildSceneGraph(root, 14) : []), [root, graphTick]);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const rig: RigInspectResult | null = useMemo(() => (root ? inspectSceneRig(root) : null), [root]);
 
   const material = useMemo(() => firstStandard(selected), [selected]);
@@ -162,6 +163,23 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
       setLibBusy(false);
     }
   }, [root, engine, mixer, onClipsChange]);
+
+  const parentSelectedTo = useCallback((parentUuid: string) => {
+    if (!root || !selected) return;
+    if (selected === root) {
+      toast.error("Cannot reparent the scene root");
+      return;
+    }
+    const parent = findObjectByUuid(root, parentUuid);
+    if (!parent) return;
+    if (!reparentObject(selected, parent)) {
+      toast.error("Would create a cycle");
+      return;
+    }
+    setGraphTick((n) => n + 1);
+    onTransformTick();
+    toast.success(`Parented ${selected.name || selected.type} → ${parent.name || parent.type}`);
+  }, [root, selected, onTransformTick]);
 
   const deleteSelected = useCallback(() => {
     if (!root || !selected) return;
@@ -311,30 +329,19 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
             label={saveBusy ? "Saving…" : "Save selected as…"}
           />
           <div style={{ ...muted, marginTop: 10 }}>
-            Hierarchy (parent → child) · click to select · Delete / Save as pulls that mesh
+            Hierarchy (parent → child) · click select · Alt+click parent selected here · Delete / Save as pulls that mesh
           </div>
-          <div style={{ maxHeight: 140, overflow: "auto", marginTop: 6 }}>
+          <div style={{ maxHeight: 280, overflow: "auto", marginTop: 6 }}>
             {nodes.map((n) => (
-              <button
+              <GraphRow
                 key={n.uuid}
-                type="button"
-                onClick={() => selectNode(n.uuid, n.object)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "2px 4px",
-                  paddingLeft: 4 + n.depth * 10,
-                  background: selectedUuid === n.uuid ? "rgba(255,198,42,0.14)" : "transparent",
-                  color: selectedUuid === n.uuid ? "var(--gold)" : "var(--text)",
-                  border: "none",
-                  fontSize: 10,
-                  fontFamily: "ui-monospace, monospace",
-                  cursor: "pointer",
-                }}
-              >
-                {nodeIcon(n)} {n.name}
-              </button>
+                node={n}
+                selectedUuid={selectedUuid}
+                collapsed={collapsed}
+                onToggle={(id) => setCollapsed((m) => ({ ...m, [id]: !m[id] }))}
+                onSelect={selectNode}
+                onParentHere={parentSelectedTo}
+              />
             ))}
           </div>
         </div>
@@ -472,6 +479,80 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function GraphRow({
+  node,
+  selectedUuid,
+  collapsed,
+  onToggle,
+  onSelect,
+  onParentHere,
+}: {
+  node: GraphNode;
+  selectedUuid: string | null;
+  collapsed: Record<string, boolean>;
+  onToggle: (id: string) => void;
+  onSelect: (uuid: string, obj: THREE.Object3D) => void;
+  onParentHere: (uuid: string) => void;
+}) {
+  const open = !collapsed[node.uuid];
+  const hasKids = node.children.length > 0;
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <button
+          type="button"
+          onClick={() => hasKids && onToggle(node.uuid)}
+          style={{
+            width: 16,
+            border: "none",
+            background: "transparent",
+            color: "var(--muted)",
+            fontSize: 9,
+            cursor: hasKids ? "pointer" : "default",
+          }}
+        >
+          {hasKids ? (open ? "▾" : "▸") : "·"}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            if (e.altKey) onParentHere(node.uuid);
+            else onSelect(node.uuid, node.object);
+          }}
+          title="Click select · Alt+click parent selected node here"
+          style={{
+            flex: 1,
+            textAlign: "left",
+            padding: "2px 4px",
+            paddingLeft: 4 + node.depth * 8,
+            background: selectedUuid === node.uuid ? "rgba(255,198,42,0.14)" : "transparent",
+            color: selectedUuid === node.uuid ? "var(--gold)" : "var(--text)",
+            border: "none",
+            fontSize: 10,
+            fontFamily: "ui-monospace, monospace",
+            cursor: "pointer",
+          }}
+        >
+          {nodeIcon(node)} {node.name}
+          {hasKids ? ` (${node.children.length})` : ""}
+        </button>
+      </div>
+      {open &&
+        node.children.map((c) => (
+          <GraphRow
+            key={c.uuid}
+            node={c}
+            selectedUuid={selectedUuid}
+            collapsed={collapsed}
+            onToggle={onToggle}
+            onSelect={onSelect}
+            onParentHere={onParentHere}
+          />
+        ))}
     </div>
   );
 }
