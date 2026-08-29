@@ -19,7 +19,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const SERVICE = "grudge-dev-tool";
 
-const CANONICAL_USERNAMES = new Set(["grudachain", "molochdadev"]);
+const CANONICAL_USERNAMES = new Set(["grudachain", "molochdadev", "straynger"]);
 const CANONICAL_EMAILS = new Set(["grudgedev@gmail.com", "jonbemmons@gmail.com"]);
 
 function loadEnvAdminExtras() {

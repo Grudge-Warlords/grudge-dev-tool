@@ -428,6 +428,9 @@ export default function Accounts() {
           <div className={`font-semibold flex items-center gap-2 ${isAdmin ? "text-gold" : ""}`}>
             {isAdmin ? <ShieldCheck size={16} /> : <User size={16} />}
             {isAdmin ? "Admin / Dev Operator" : "Customer"}
+            <span className="text-[10px] text-muted font-normal">
+              operators: grudachain · molochdadev · straynger
+            </span>
           </div>
         </div>
         {session?.signedIn && (

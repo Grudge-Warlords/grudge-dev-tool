@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { openAssetInViewMode } from "./ViewMode";
+import { inferContentType, isImagePath } from "../../shared/mediaTypes";
 
 export default function Search() {
   const [q, setQ] = useState("");
@@ -45,7 +46,7 @@ export default function Search() {
     openAssetInViewMode({
       name: path,
       url: `${cdnBase}/${path.replace(/^\//, "")}`,
-      contentType: it.contentType ?? "",
+      contentType: inferContentType(path, it.contentType ?? ""),
       size: it.sizeBytes ?? it.size ?? 0,
     });
   }
@@ -78,23 +79,33 @@ export default function Search() {
           {total ? `${total.toLocaleString()} matches · showing ${items.length}` : "No results yet."}
         </div>
         <table>
-          <thead><tr><th>Pack</th><th>Path</th><th>Category</th><th>UUID</th><th>Size</th></tr></thead>
+          <thead><tr><th></th><th>Pack</th><th>Path</th><th>Kind</th><th>Category</th><th>UUID</th><th>Size</th></tr></thead>
           <tbody>
-            {items.map((it: any, i: number) => (
+            {items.map((it: any, i: number) => {
+              const path = it.path ?? it.name ?? "";
+              const kind = inferContentType(path, it.contentType ?? "");
+              const thumb = isImagePath(path);
+              return (
               <tr
                 key={i}
                 className="cursor-pointer hover:bg-bg-2"
                 title="Open in View Mode"
                 onClick={() => openInViewMode(it)}
               >
+                <td>
+                  {thumb ? (
+                    <img src={`${cdnBase}/${path.replace(/^\//, "")}`} alt="" className="w-8 h-8 object-cover rounded bg-black" loading="lazy" />
+                  ) : null}
+                </td>
                 <td>{it.packId}</td>
-                <td>{it.path}</td>
+                <td>{path}</td>
+                <td className="muted text-[10px]">{kind.split("/")[0]}</td>
                 <td>{it.category ?? "—"}</td>
                 <td className="muted">{it.grudgeUUID ?? "—"}</td>
                 <td className="muted">{it.sizeBytes ? (it.sizeBytes / 1024).toFixed(1) + " KB" : "—"}</td>
               </tr>
-            ))}
-            {items.length === 0 && <tr><td colSpan={5} className="muted">No results yet.</td></tr>}
+            );})}
+            {items.length === 0 && <tr><td colSpan={7} className="muted">No results yet.</td></tr>}
           </tbody>
         </table>
       </div>

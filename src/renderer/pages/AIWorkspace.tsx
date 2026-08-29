@@ -64,6 +64,21 @@ const DEPLOY_PRESETS: Array<{ label: string; task: string }> = [
     label: "Make anything",
     task: "",
   },
+  {
+    label: "Avernus Arena smoke",
+    task:
+      "Hard-refresh https://grudge-studio.com/avernus-arena. Confirm idle Bip001, WASD camera-relative, Tab cycles hostiles, GameCamera FOLLOW (RMB orbit). Report bundle hash and any empty meshes.",
+  },
+  {
+    label: "Velocity Grudge City",
+    task:
+      "Smoke https://drive.grudge-studio.com/ (Grudge City, not Houston Cruise). Confirm x-velocity-entry grudge-city, lots filled, cars from catalog. Pages.dev must 301 to drive.",
+  },
+  {
+    label: "Studio world gold",
+    task:
+      "Probe https://grudox.grudge-studio.com/studio/ as voxel world SSOT. Do not invent a second terraform. Report BlockRegistry + generator health.",
+  },
 ];
 
 const POD_STATUS_COLOR: Record<string, string> = {
@@ -324,7 +339,11 @@ export default function AIWorkspace() {
             Free agentic cascade <strong className="text-gold">inside this app</strong>:
             Ollama → Puter (User-Pays) → env OpenAI/Anthropic/Gemini → Workers AI → Legion.
             Sign in with Puter for free AI. Secrets load from your environment automatically.
+            Admins: grudachain, molochdadev, straynger (auto-plugs Ollama).
           </p>
+          {aiStatus && (
+            <p className="text-[11px] text-muted mt-1 font-mono">Local AI: {aiStatus}</p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn ghost text-xs" disabled={busy} onClick={() => void onEnsureAi()}>

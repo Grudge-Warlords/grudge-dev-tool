@@ -8,6 +8,7 @@ import {
 import type { AssetRef } from "../components/viewers/types";
 import { readMirror } from "../lib/workspace";
 import { openAssetInViewMode } from "./ViewMode";
+import { inferContentType, isImagePath, isModelPath } from "../../shared/mediaTypes";
 
 interface ListResp {
   items: Array<{ name: string; size: number; contentType: string; updated: string | null }>;
@@ -21,9 +22,24 @@ const ROOT_PREFIX = ""; // start at the bucket root by default
 function fileIcon(contentType: string) {
   if (contentType.startsWith("image/")) return <ImageIcon size={14} className="text-gold" />;
   if (contentType.startsWith("audio/")) return <Music size={14} className="text-gold" />;
-  if (contentType.includes("gltf") || contentType.includes("blender") || contentType.includes("octet-stream"))
+  if (
+    contentType.includes("gltf") ||
+    contentType.includes("model") ||
+    contentType.includes("blender") ||
+    contentType.includes("fbx")
+  )
     return <Box size={14} className="text-gold" />;
   return <FileText size={14} className="text-muted" />;
+}
+
+type KindFilter = "all" | "image" | "model" | "audio" | "other";
+
+function assetKind(name: string, contentType?: string): KindFilter {
+  const inf = inferContentType(name, contentType || "application/octet-stream");
+  if (inf.startsWith("image/") || isImagePath(name)) return "image";
+  if (isModelPath(name) || inf.includes("gltf") || inf.includes("model")) return "model";
+  if (inf.startsWith("audio/")) return "audio";
+  return "other";
 }
 
 function basename(path: string): string {
@@ -107,6 +123,7 @@ function Breadcrumb({ prefix, onSelect }: { prefix: string; onSelect: (p: string
 export default function Browser() {
   const [selected, setSelected] = useState<string>(() => readMirror().browserPrefix ?? ROOT_PREFIX);
   const [filter, setFilter] = useState<string>("");
+  const [kind, setKind] = useState<KindFilter>("all");
   /** Debounced query for full-catalog search (all Grudge Studio Assets). */
   const [debouncedQ, setDebouncedQ] = useState("");
 
@@ -146,10 +163,10 @@ export default function Browser() {
   const files = listing.data?.items ?? [];
 
   const filtered = useMemo(() => {
-    // Folder browse only when not in global search mode
     if (isGlobalSearch) return [];
-    return files;
-  }, [files, isGlobalSearch]);
+    if (kind === "all") return files;
+    return files.filter((it) => assetKind(it.name, it.contentType) === kind);
+  }, [files, isGlobalSearch, kind]);
 
   // CDN base resolved at runtime via cf.r2PublicUrl("") so a private deploy
   // pointing at a different domain Just Works. Defaults to the canonical
@@ -225,6 +242,18 @@ export default function Browser() {
                   Clear
                 </button>
               )}
+              {(["all", "image", "model", "audio", "other"] as KindFilter[]).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                    kind === k ? "border-gold text-gold" : "border-line text-muted"
+                  }`}
+                  onClick={() => setKind(k)}
+                >
+                  {k}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -248,9 +277,17 @@ export default function Browser() {
                     : "…"}
                   {" "}across all Grudge Studio Assets
                 </div>
-                <div className="grid grid-cols-1 gap-1">
-                  {(search.data?.items ?? []).map((it: any, i: number) => {
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {(search.data?.items ?? [])
+                    .filter((it: any) => {
+                      const path = it.path || it.name || "";
+                      if (kind === "all") return true;
+                      return assetKind(path, it.contentType) === kind;
+                    })
+                    .map((it: any, i: number) => {
                     const path = it.path || it.name;
+                    const k = assetKind(path, it.contentType);
+                    const showThumb = k === "image";
                     return (
                       <div
                         key={`${path}-${i}`}
@@ -261,7 +298,7 @@ export default function Browser() {
                         onClick={() => openInViewMode({
                           name: path,
                           size: it.sizeBytes ?? it.size ?? 0,
-                          contentType: it.contentType ?? "",
+                          contentType: inferContentType(path, it.contentType ?? ""),
                         })}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
@@ -274,11 +311,21 @@ export default function Browser() {
                           }
                         }}
                       >
-                        {fileIcon(it.contentType ?? "")}
+                        {showThumb ? (
+                          <img
+                            src={cdnUrl(path)}
+                            alt=""
+                            loading="lazy"
+                            className="w-12 h-12 object-cover rounded bg-black shrink-0"
+                          />
+                        ) : (
+                          fileIcon(inferContentType(path, it.contentType ?? ""))
+                        )}
                         <div className="flex-1 min-w-0">
                           <div className="text-xs truncate text-ink">{basename(path)}</div>
                           <div className="text-[10px] text-muted truncate" title={path}>{path}</div>
                         </div>
+                        <span className="text-[10px] text-gold/80 shrink-0">{k}</span>
                         {it.category && (
                           <span className="text-[10px] text-gold/80 shrink-0">{it.category}</span>
                         )}
@@ -349,7 +396,8 @@ export default function Browser() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                   {filtered.map((it) => {
-                    const isImg = it.contentType.startsWith("image/");
+                    const k = assetKind(it.name, it.contentType);
+                    const isImg = k === "image";
                     return (
                       <div
                         key={it.name}
@@ -369,7 +417,10 @@ export default function Browser() {
                           {isImg ? (
                             <img src={cdnUrl(it.name)} alt="" loading="lazy" className="w-full h-full object-cover" />
                           ) : (
-                            fileIcon(it.contentType)
+                            <div className="flex flex-col items-center gap-1">
+                              {fileIcon(inferContentType(it.name, it.contentType))}
+                              <span className="text-[9px] uppercase text-muted">{k}</span>
+                            </div>
                           )}
                         </div>
                         <div className="text-[11px] truncate" title={it.name}>{basename(it.name)}</div>
