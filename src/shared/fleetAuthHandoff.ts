@@ -53,7 +53,10 @@ export function buildEmbedUrl(opts: EmbedAuthOptions): string {
   }
   u.searchParams.set("from", "grudge-dev-tool");
   u.searchParams.set("embed", "1");
-  if (opts.grudgeId) u.searchParams.set("grudgeId", opts.grudgeId);
+  if (opts.grudgeId) {
+    u.searchParams.set("grudgeId", opts.grudgeId);
+    u.searchParams.set("grudge_id", opts.grudgeId);
+  }
   if (opts.username) u.searchParams.set("username", opts.username);
   if (opts.extraParams) {
     for (const [k, v] of Object.entries(opts.extraParams)) {

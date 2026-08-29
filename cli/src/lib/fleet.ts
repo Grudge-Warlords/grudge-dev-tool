@@ -20,6 +20,11 @@ export const FLEET_URLS = {
   multiverse: "https://grudge-multiverse.vercel.app",
   multiverseRoom: "https://grudge-multiverse-room-production.up.railway.app",
   observatory: "https://obs.grudge-studio.com",
+  threeflow: "https://threeflow.vercel.app",
+  coder: "https://coder.grudge-studio.com",
+  velocity: "https://drive.grudge-studio.com",
+  avernus: "https://grudge-studio.com/avernus-arena",
+  voxelStudio: "https://grudox.grudge-studio.com/studio/",
   /** @deprecated legacy asset index — still may 200; not for new player APIs */
   deprecatedApi: "https://api.grudge-studio.com",
 } as const;
@@ -31,6 +36,7 @@ export type TruthProbeRole =
   | "objectstore"
   | "ai"
   | "forge"
+  | "play"
   | "multiplayer"
   | "legacy"
   | "optional";
@@ -103,12 +109,14 @@ export function buildTruthProbes(apiBase: string): TruthProbe[] {
       label: "uMMORPG placeables catalog",
       url: `${FLEET_URLS.objectStore}/ummorpg-placeables-for-forge.json`,
       role: "objectstore",
+      optional: true,
     },
     {
       id: "os-ummorpg-skills",
       label: "uMMORPG skills catalog",
       url: `${FLEET_URLS.objectStore}/ummorpg-skills-for-forge.json`,
       role: "objectstore",
+      optional: true,
     },
     {
       id: "info-weapons",
@@ -153,6 +161,36 @@ export function buildTruthProbes(apiBase: string): TruthProbe[] {
       role: "forge",
     },
     {
+      id: "threeflow",
+      label: "ThreeFlow editor",
+      url: FLEET_URLS.threeflow,
+      role: "forge",
+    },
+    {
+      id: "coder",
+      label: "Coder IDE",
+      url: FLEET_URLS.coder,
+      role: "forge",
+    },
+    {
+      id: "velocity",
+      label: "Velocity Grudge City",
+      url: FLEET_URLS.velocity,
+      role: "play",
+    },
+    {
+      id: "avernus",
+      label: "Avernus Arena",
+      url: FLEET_URLS.avernus,
+      role: "play",
+    },
+    {
+      id: "voxel-studio",
+      label: "GRUDOX Studio (world gold)",
+      url: FLEET_URLS.voxelStudio,
+      role: "play",
+    },
+    {
       id: "multiverse-room",
       label: "Multiverse room health",
       url: `${FLEET_URLS.multiverseRoom}/api/health`,
@@ -189,6 +227,7 @@ export async function probeEndpoint(probe: TruthProbe): Promise<TruthProbe> {
       probe.role !== "assets" &&
       probe.role !== "ai" &&
       probe.role !== "forge" &&
+      probe.role !== "play" &&
       probe.role !== "optional" &&
       ct.includes("text/html") &&
       !res.ok;
@@ -196,7 +235,7 @@ export async function probeEndpoint(probe: TruthProbe): Promise<TruthProbe> {
       (probe.id === "auth-me" || probe.id === "characters") &&
       (res.status === 401 || res.status === 200);
     const spaOk =
-      (probe.role === "ai" || probe.role === "forge") &&
+      (probe.role === "ai" || probe.role === "forge" || probe.role === "play") &&
       res.ok &&
       (ct.includes("text/html") || ct.includes("json"));
     const ok = spaOk || ((res.ok || authRouteOk) && !htmlLeak);

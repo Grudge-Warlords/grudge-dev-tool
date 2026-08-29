@@ -13,6 +13,21 @@ import { DEFAULT_PLUGIN_PORT } from "./plugin/contract";
 
 export type EditorSurface = "threeflow" | "forge" | "elite";
 
+/**
+ * The only three editor surfaces. Do not add Grok Builder / Pipeline / Studio
+ * as a fourth play editor — they are ingest or labs.
+ */
+export const EDITOR_TRIO: ReadonlyArray<{
+  id: EditorSurface;
+  label: string;
+  role: string;
+  host: string;
+}> = [
+  { id: "elite", label: "Elite (Dev Tool)", role: "preview / hierarchy / save", host: "local" },
+  { id: "threeflow", label: "ThreeFlow", role: "Warlords scene edit", host: FLEET_URLS.threeflow },
+  { id: "forge", label: "Forge", role: "R3F + Rapier deploy", host: FLEET_URLS.forge },
+];
+
 export function isPublicCdnUrl(url: string | null | undefined): url is string {
   if (!url) return false;
   return /^https?:\/\//i.test(url) && !/^https?:\/\/(localhost|127\.0\.0\.1)(:|$)/i.test(url);

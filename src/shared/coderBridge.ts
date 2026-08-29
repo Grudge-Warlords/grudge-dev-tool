@@ -27,6 +27,8 @@ export function buildCoderUrl(
     projectId?: string;
     bootstrap?: boolean;
     from?: string;
+    grudgeId?: string;
+    username?: string;
   },
 ): string {
   const u = new URL(base.endsWith("/") ? base : `${base}/`);
@@ -34,5 +36,10 @@ export function buildCoderUrl(
   if (opts.projectId) u.searchParams.set("project", opts.projectId);
   if (opts.bootstrap) u.searchParams.set("bootstrap", "1");
   if (opts.from) u.searchParams.set("from", opts.from);
+  if (opts.grudgeId) {
+    u.searchParams.set("grudgeId", opts.grudgeId);
+    u.searchParams.set("grudge_id", opts.grudgeId);
+  }
+  if (opts.username) u.searchParams.set("username", opts.username);
   return u.toString();
 }

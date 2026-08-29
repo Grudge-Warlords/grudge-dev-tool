@@ -94,9 +94,27 @@ export const FLEET_URLS = {
   puterSdk: "https://js.puter.com/v2/",
   /** Local Ollama default (desktop autonomous AI) */
   ollama: "http://localhost:11434",
+  /** Velocity / Grudge City (arcade racer SPA) */
+  velocity: "https://drive.grudge-studio.com",
+  /** Avernus Arena — Rec0deD portal route (The-ENGINE) */
+  avernus: "https://grudge-studio.com/avernus-arena",
+  /** Voxel world gold — GRUDOX Studio (voxel-engine), not Mine-Loader terraform */
+  voxelStudio: "https://grudox.grudge-studio.com/studio/",
   /** Deprecated — do not use for new auth or game-data */
   deprecatedApi: "https://api.grudge-studio.com",
 } as const;
+
+/**
+ * Hosts that look live but are leftovers / split-brain.
+ * Doctor lists them; never use as canonical play or admin embed.
+ */
+export const DEPRECATED_HOSTS: ReadonlyArray<{ host: string; useInstead: string; why: string }> = [
+  { host: "https://grudge-velocity.pages.dev/", useInstead: "https://drive.grudge-studio.com/", why: "Houston Cruise leftover; 301 to Grudge City" },
+  { host: "https://arena.grudge-studio.com/", useInstead: "https://grudge-arena.grudge-studio.com/", why: "Wrong arena host" },
+  { host: "https://tactical-infinity.vercel.app/", useInstead: "https://water.grudge-studio.com/", why: "Orphan water SPA" },
+  { host: "https://api.grudge-studio.com/", useInstead: "https://client.grudge-studio.com/api/", why: "Legacy index, not player SSOT" },
+  { host: "https://auth.grudge-studio.com/", useInstead: "https://id.grudge-studio.com/", why: "Use Grudge ID" },
+];
 
 export type TruthProbeRole =
   | "game-data"
@@ -105,6 +123,7 @@ export type TruthProbeRole =
   | "objectstore"
   | "ai"
   | "forge"
+  | "play"
   | "multiplayer"
   | "legacy"
   | "optional";
@@ -183,12 +202,14 @@ export function buildTruthProbes(apiBase: string): TruthProbe[] {
       label: "uMMORPG placeables catalog",
       url: `${FLEET_URLS.objectStore}/ummorpg-placeables-for-forge.json`,
       role: "objectstore",
+      optional: true,
     },
     {
       id: "os-ummorpg-skills",
       label: "uMMORPG skills catalog",
       url: `${FLEET_URLS.objectStore}/ummorpg-skills-for-forge.json`,
       role: "objectstore",
+      optional: true,
     },
     {
       id: "info-weapons",
@@ -234,6 +255,36 @@ export function buildTruthProbes(apiBase: string): TruthProbe[] {
       role: "forge",
     },
     {
+      id: "threeflow",
+      label: "ThreeFlow editor",
+      url: FLEET_URLS.threeflow,
+      role: "forge",
+    },
+    {
+      id: "coder",
+      label: "Coder IDE",
+      url: FLEET_URLS.coder,
+      role: "forge",
+    },
+    {
+      id: "velocity",
+      label: "Velocity Grudge City",
+      url: FLEET_URLS.velocity,
+      role: "play",
+    },
+    {
+      id: "avernus",
+      label: "Avernus Arena",
+      url: FLEET_URLS.avernus,
+      role: "play",
+    },
+    {
+      id: "voxel-studio",
+      label: "GRUDOX Studio (world gold)",
+      url: FLEET_URLS.voxelStudio,
+      role: "play",
+    },
+    {
       id: "multiverse-room",
       label: "Multiverse room health",
       url: `${FLEET_URLS.multiverseRoom}/api/health`,
@@ -270,6 +321,7 @@ export async function probeEndpoint(probe: TruthProbe): Promise<TruthProbe> {
       probe.role !== "assets" &&
       probe.role !== "ai" &&
       probe.role !== "forge" &&
+      probe.role !== "play" &&
       probe.role !== "optional" &&
       ct.includes("text/html") &&
       !res.ok;
@@ -279,9 +331,9 @@ export async function probeEndpoint(probe: TruthProbe): Promise<TruthProbe> {
       (res.status === 401 || res.status === 200);
     // SPA shells (Forge, Legion UI) return HTML 200
     const spaOk =
-      (probe.role === "ai" || probe.role === "forge") &&
+      (probe.role === "ai" || probe.role === "forge" || probe.role === "play") &&
       res.ok &&
-      (ct.includes("text/html") || ct.includes("json"));
+      (ct.includes("text/html") || ct.includes("json") || ct.length === 0);
     const ok =
       spaOk ||
       ((res.ok || authRouteOk) && !htmlLeak);

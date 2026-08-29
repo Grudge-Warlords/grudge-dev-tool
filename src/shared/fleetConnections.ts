@@ -48,6 +48,10 @@ export const FLEET_ENDPOINTS: FleetEndpoint[] = [
   { id: "water", label: "Water home island", url: FLEET_URLS.water, role: "frontend", adminCritical: true },
   { id: "warlords", label: "Warlords frontend", url: FLEET_URLS.warlords, role: "frontend", adminCritical: true },
   { id: "foundry", label: "Character Foundry", url: FLEET_URLS.characterFoundry, role: "frontend" },
+  { id: "velocity", label: "Velocity City", url: FLEET_URLS.velocity, role: "frontend", adminCritical: true },
+  { id: "avernus", label: "Avernus Arena", url: FLEET_URLS.avernus, role: "frontend", adminCritical: true },
+  { id: "voxel-studio", label: "Studio world gold", url: FLEET_URLS.voxelStudio, role: "frontend" },
+  { id: "threeflow", label: "ThreeFlow", url: FLEET_URLS.threeflow, role: "frontend", adminCritical: true },
   { id: "warlord-genesis", label: "Warlord Genesis", url: FLEET_URLS.warlordGenesis, role: "frontend" },
   { id: "observatory", label: "Observatory", url: FLEET_URLS.observatory, role: "ops" },
 ];

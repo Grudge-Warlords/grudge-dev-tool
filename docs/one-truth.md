@@ -33,6 +33,23 @@ Full link table: [Systems & APIs](systems-api.md).
 | Multiverse rooms | `grudge-multiverse-room-production.up.railway.app` | WS **`/api/mv`** only (own Railway) |
 | Water | `water.grudge-studio.com` | Home island |
 | Docs | [grudge-warlords.github.io/grudge-dev-tool](https://grudge-warlords.github.io/grudge-dev-tool/) | This site |
+| Velocity | `drive.grudge-studio.com` | Grudge City racer — not Pages Cruise |
+| Avernus | `grudge-studio.com/avernus-arena` | Portal pit — The-ENGINE |
+| Voxel world | `grudox.grudge-studio.com/studio/` | voxel-engine gold |
+
+## Editors (three only)
+
+| Surface | Host | Role |
+|---------|------|------|
+| Elite | Dev Tool local | Preview / hierarchy / save |
+| ThreeFlow | `threeflow.vercel.app` | Warlords scene edit `?asset=` |
+| Forge | `forge.grudge-studio.com` | R3F + Rapier deploy |
+
+Grok Builder / Pipeline / `studio.grudge-studio.com` are ingest or labs — not a fourth play editor.
+
+## Account → editors
+
+Dev Tool session (Puter + Grudge ID) is the authority. Embeds get `from=grudge-dev-tool&embed=1&grudgeId=` plus localStorage token injection. Operators (`grudachain` / `molochdadev` / `straynger`) also get `admin=1`. Do not mint a second login per editor.
 
 **Always use `https://client.grudge-studio.com` as API base** in CLI and Settings — not raw Railway in browser apps, not deprecated hosts.  
 **Sign in** at `https://id.grudge-studio.com` (Grudge ID). Puter Space is account files only.
@@ -51,6 +68,9 @@ Play binaries: `assets.grudge-studio.com` — GLB `model/gltf-binary`, PNG `imag
 - `auth.grudgestudio.com` / `auth.grudge-studio.com` (use **`id.grudge-studio.com`**)
 - `tactical-infinity.vercel.app` (orphaned — water is `water.grudge-studio.com`)
 - Multiverse via Carrier / gameopen Railway (wrong service — use Multiverse room)
+- `grudge-velocity.pages.dev` (Houston Cruise leftover — use `drive.grudge-studio.com`)
+- `arena.grudge-studio.com` (use `grudge-arena.grudge-studio.com`)
+- Grok Builder as production deploy editor (use Forge)
 
 `grudge-dev doctor` fails if probes return `text/html` for JSON routes.
 

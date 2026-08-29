@@ -252,7 +252,10 @@ export const ADMIN_FLEET_HOSTS = [
   { id: "water", label: "Water island", url: FLEET_URLS.water, group: "games" as const },
   { id: "warlords", label: "Warlords", url: FLEET_URLS.warlords, group: "games" as const },
   { id: "foundry", label: "Character Foundry", url: FLEET_URLS.characterFoundry, group: "games" as const },
-  { id: "builder", label: "Grok Builder", url: FLEET_URLS.grokBuilder, group: "tools" as const },
+  { id: "velocity", label: "Velocity City", url: FLEET_URLS.velocity, group: "games" as const },
+  { id: "avernus", label: "Avernus Arena", url: FLEET_URLS.avernus, group: "games" as const },
+  { id: "voxelStudio", label: "Studio world gold", url: FLEET_URLS.voxelStudio, group: "games" as const },
+  { id: "threeflow", label: "ThreeFlow", url: FLEET_URLS.threeflow, group: "tools" as const },
   { id: "observatory", label: "Observatory", url: FLEET_URLS.observatory, group: "ops" as const },
 ] as const;
 
