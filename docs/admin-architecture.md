@@ -9,6 +9,7 @@ permalink: /admin-architecture.html
 # Admin architecture (Dev Tool SSOT)
 
 **Product:** **Grudge Dev Tool** (`com.grudgestudio.devtool`) — desktop **admin** shell for the fleet.  
+**Operators:** `grudachain` · `molochdadev` · **`straynger`** (`src/shared/adminAllowlist.ts`).  
 **Rule:** Tabs embed or call the **same production hosts** used on DNS. No parallel editors, no orphaned Vercel play URLs. **Forge** is one tab (live `forge.grudge-studio.com`), not the product name.
 
 Code SSOT: `src/shared/adminSurfaces.ts` · `src/shared/fleet.ts` · `src/shared/docsCatalog.ts` · `src/shared/bestPractices.ts`.

@@ -5,6 +5,7 @@
 export const CANONICAL_ADMIN_USERNAMES = [
   "grudachain",
   "molochdadev",
+  "straynger",
 ] as const;
 
 export const CANONICAL_ADMIN_EMAILS = [

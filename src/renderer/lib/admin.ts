@@ -27,13 +27,16 @@ const ENV_USERNAMES = parseList(import.meta.env.VITE_ADMIN_USERNAMES as string |
 const ENV_EMAILS = parseList(import.meta.env.VITE_ADMIN_EMAILS as string | undefined);
 const ENV_GRUDGE_IDS = parseList(import.meta.env.VITE_ADMIN_GRUDGE_IDS as string | undefined);
 
-const ADMIN_USERNAMES = ENV_USERNAMES.size > 0
-  ? ENV_USERNAMES
-  : new Set(CANONICAL_ADMIN_USERNAMES.map(normalizeAdminToken));
+/** Env can add operators; canonical operators (grudachain / molochdadev / straynger) always stay. */
+const ADMIN_USERNAMES = new Set([
+  ...CANONICAL_ADMIN_USERNAMES.map(normalizeAdminToken),
+  ...ENV_USERNAMES,
+]);
 
-const ADMIN_EMAILS = ENV_EMAILS.size > 0
-  ? ENV_EMAILS
-  : new Set(CANONICAL_ADMIN_EMAILS.map(normalizeAdminToken));
+const ADMIN_EMAILS = new Set([
+  ...CANONICAL_ADMIN_EMAILS.map(normalizeAdminToken),
+  ...ENV_EMAILS,
+]);
 
 const ADMIN_GRUDGE_IDS = ENV_GRUDGE_IDS;
 
