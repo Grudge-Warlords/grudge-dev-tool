@@ -46,7 +46,7 @@ export default function Search() {
     openAssetInViewMode({
       name: path,
       url: `${cdnBase}/${path.replace(/^\//, "")}`,
-      contentType: inferContentType(path, it.contentType ?? ""),
+      contentType: inferContentType(path, it.contentType || undefined),
       size: it.sizeBytes ?? it.size ?? 0,
     });
   }
@@ -83,7 +83,7 @@ export default function Search() {
           <tbody>
             {items.map((it: any, i: number) => {
               const path = it.path ?? it.name ?? "";
-              const kind = inferContentType(path, it.contentType ?? "");
+              const kind = inferContentType(path, it.contentType || undefined);
               const thumb = isImagePath(path);
               return (
               <tr
