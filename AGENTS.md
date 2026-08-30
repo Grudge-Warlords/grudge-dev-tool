@@ -136,6 +136,15 @@ These are the tracked upgrade and connection-improvement opportunities. When wor
 | VS Code | `F:\\GitHub\\GrudachainCode\\packages\\vscode-extension` attaches dest-tool first |
 | CLI | `grudge-dev plugin status\|practices\|chat\|viewer` |
 
+### 0.5 Prompt-to-3D local providers (current)
+
+| Provider | Pinned source | Status / next review |
+|---|---|---|
+| Hunyuan3D 2.1 | `82920d643c0dc2f7bfd7255f45f62d386edfe60c` | Normal-user WSL Windows path; pinned shape/paint, DINOv2 and HunyuanDiT concept-image route. Keep model revisions and restricted license visible in `src/main/prompt3d/providers.ts`; review upstream quarterly. |
+| Microsoft TRELLIS | `442aa1e1afb9014e80681d3bf604e8d728a86ee7` | Linux-tested normal-user WSL path. Direct text is enabled; image conditioning awaits typed reference intake. Never invoke its moving-head/broken `setup.sh`; dependency pins are in `providers.ts`. Do not use `docker-desktop`; review quarterly. |
+
+Both providers use the typed loopback job/installer service documented in [docs/prompt-to-3d.md](docs/prompt-to-3d.md). Do not add automatic cloud fallback, Ollama mesh weights, global Python installs, or unpinned model downloads.
+
 ### 1. npm Dependencies — Pinned Versions to Bump
 
 | Package | Current | Notes |
@@ -259,5 +268,6 @@ Defined in `src/main/fleet/healthCheck.ts`:
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Known errors and exact fixes |
 | [docs/dev-tool-quickstart.md](docs/dev-tool-quickstart.md) | First-run setup guide |
 | [docs/api-reference.md](docs/api-reference.md) | IPC channel reference |
+| [docs/prompt-to-3d.md](docs/prompt-to-3d.md) | Local provider capabilities, installer, readiness states, validation and offline-test mode |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 | [REVIEW.md](REVIEW.md) | Audit findings log |

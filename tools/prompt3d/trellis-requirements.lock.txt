@@ -1,0 +1,26 @@
+# Top-level inference dependencies for the pinned Microsoft TRELLIS runtime.
+# CUDA/PyTorch, xformers, spconv, kaolin and source-built extensions are
+# installed separately by the typed installer at exact versions/revisions.
+Pillow==10.4.0
+easydict==1.13
+huggingface-hub==0.30.2
+imageio==2.35.1
+imageio-ffmpeg==0.5.1
+igraph==0.11.6
+ninja==1.11.1.1
+numpy==1.26.4
+moderngl==5.12.0
+glcontext==3.0.0
+plyfile==1.0.3
+onnxruntime==1.19.2
+open3d==0.18.0
+opencv-python-headless==4.10.0.84
+pymeshfix==0.17.0
+pyvista==0.44.2
+rembg==2.0.65
+safetensors==0.4.5
+scipy==1.14.1
+tqdm==4.66.5
+transformers==4.46.0
+trimesh==4.4.9
+xatlas==0.0.9

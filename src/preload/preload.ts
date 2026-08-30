@@ -1,6 +1,23 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+import { PROMPT3D_CHANNELS, type AssetSpecV1, type LocalPrompt3DProviderId, type Prompt3DInstallRequest, type Prompt3DPlanRequest, type Prompt3DStartRequest } from "../shared/prompt3d";
 
 const api = {
+  appRuntime: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.runtime),
+  prompt3d: {
+    overview: (spec?: AssetSpecV1) => ipcRenderer.invoke(PROMPT3D_CHANNELS.overview, spec),
+    grant: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.grant) as Promise<{ enabled: true }>,
+    plan: (request: Prompt3DPlanRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.plan, request),
+    chooseRoot: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.chooseRoot),
+    install: (request: Prompt3DInstallRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.install, request),
+    cancelInstall: (providerId: LocalPrompt3DProviderId) => ipcRenderer.invoke(PROMPT3D_CHANNELS.cancelInstall, providerId),
+    start: (request: Prompt3DStartRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.start, request),
+    status: (id: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.status, id),
+    cancel: (id: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.cancel, id),
+    retry: (id: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.retry, id),
+    reveal: (path: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.reveal, path),
+    onInstallProgress: (cb: (status: unknown) => void) => { const listener = (_e: unknown, status: unknown) => cb(status); ipcRenderer.on(PROMPT3D_CHANNELS.installProgress, listener); return () => ipcRenderer.removeListener(PROMPT3D_CHANNELS.installProgress, listener); },
+    onJobProgress: (cb: (status: unknown) => void) => { const listener = (_e: unknown, status: unknown) => cb(status); ipcRenderer.on(PROMPT3D_CHANNELS.jobProgress, listener); return () => ipcRenderer.removeListener(PROMPT3D_CHANNELS.jobProgress, listener); },
+  },
   // Settings
   settings: {
     get: () => ipcRenderer.invoke("settings:get"),

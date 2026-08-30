@@ -1,5 +1,7 @@
 /** Shared IPC contracts between Electron main and the React renderer. */
 
+export * from "./prompt3d";
+
 export interface ListRequest {
   prefix: string;
   cursor?: string;

@@ -29,6 +29,12 @@ extraResources:
     to: tools
     filter:
       - "FBX2glTF.exe"
+  - from: tools/prompt3d
+    to: tools/prompt3d
+    filter:
+      - "**/*"
+      - "!**/__pycache__/**"
+      - "!**/*.pyc"
 extraMetadata:
   main: dist/main/main.js
 # ---------------------------------------------------------------------------
