@@ -43,6 +43,8 @@ async function main() {
     assert.ok(serviceSource.includes("installer.verify(provider.id as LocalPrompt3DProviderId, false)"), "Generate must use bounded shallow signed-manifest verification");
     assert.ok(serviceSource.includes('beginTiming(job, "hardware-readiness"') && serviceSource.includes('beginTiming(job, "sidecar-health"'), "Generate must publish acceptance, hardware and sidecar timing");
     assert.ok(!serviceSource.includes("void this.runJob(job, specPath).catch"), "Generate must pass the measured WSL result instead of probing twice");
+    assert.ok(serviceSource.includes('state: "awaiting-concept-approval"') && serviceSource.includes("async approveConcept") && serviceSource.includes("async regenerateConcept"), "Hunyuan concepts must stop durably before explicit approval or one deliberate retained retry");
+    assert.ok(serviceSource.includes("assertGeometryApproval") && serviceSource.includes('join(variantDirectory, "concept-approval.json")'), "geometry must use a durable exact approval record");
     const preloadSource = await readFile(join(__dirname, "..", "src", "preload", "preload.ts"), "utf8");
     const sharedSource = await readFile(join(__dirname, "..", "src", "shared", "prompt3d.ts"), "utf8");
     assert.ok(!preloadSource.includes("capabilityToken") && !sharedSource.includes("capabilityToken"), "capability secrets must never enter renderer-facing contracts");
@@ -59,6 +61,7 @@ async function main() {
     assert.ok(sidecarSource.includes('worker_env.pop("GRUDGE_PROMPT3D_SIDECAR_TOKEN", None)'), "sidecar authorization secret must not reach provider workers");
     assert.ok(sidecarSource.includes('jobs[job_id].setdefault("timings", [])'), "sidecar must retain typed provider stage timings");
     assert.ok(providerWorkerSource.includes('completed_timing("concept-image-inference"') && providerWorkerSource.includes('completed_timing("geometry-inference"'), "Hunyuan worker must report measured inference stages");
+    assert.ok(providerWorkerSource.includes("if not approved:") && providerWorkerSource.includes("verify_concept_approval(spec, concept_path)"), "provider must stop after concept review and independently reject stale approval");
     assert.ok(!providerWorkerSource.includes("use_safetensors=True"), "Hunyuan worker must load the pinned official checkpoint format actually present in its signed snapshot");
     assert.equal(evaluatePrompt3DCompliance(hunyuan, hardware, root, "display").state, "setup-required", "uninstalled capable hardware is setup-required");
     assert.equal(evaluatePrompt3DCompliance(trellis, hardware, root, "display").state, "setup-required", "recoverable WSL setup is not unsupported");

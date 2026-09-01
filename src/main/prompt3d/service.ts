@@ -2,13 +2,16 @@ import { EventEmitter } from "node:events";
 import { randomBytes, randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
-import { lstat, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { join, relative, resolve, sep } from "node:path";
+import { lstat, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type {
   AssetSpecV1,
   LocalPrompt3DProviderId,
+  Prompt3DApproveConceptRequest,
+  Prompt3DConceptAttempt,
   Prompt3DInstallRequest,
   Prompt3DJobStatus,
+  Prompt3DHistory,
   Prompt3DOverview,
   Prompt3DPlanRequest,
   Prompt3DPlanResult,
@@ -21,6 +24,18 @@ import { Prompt3DInstaller } from "./installer";
 import { postprocessPrompt3DGlb } from "./postprocess";
 import { planPrompt3DAsset } from "./planner";
 import { validatePrompt3DGlb } from "./validation";
+import { readPrompt3DJobs, savePrompt3DJob } from "./history";
+import { compilePrompt3DPrompt, validateObjectRules, withObjectRules } from "../../shared/prompt3dRules";
+import { sanitizeAssetSpec, stableJson, supportsConceptWorkflow } from "../../shared/conceptWorkflow";
+import {
+  approvalProvenanceFields,
+  assertGeometryApproval,
+  createConceptApproval,
+  createConceptBinding,
+  inheritConceptHistory,
+  nextConceptRetrySpec,
+  sha256Hex,
+} from "./conceptApproval";
 
 const MAX_JOBS = 1;
 const MAX_PROMPT = 2_000;
@@ -43,7 +58,7 @@ function childEnvironment(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
 
 function contained(root: string, target: string): string {
   const a = resolve(root), b = resolve(target), rel = relative(a, b);
-  if (rel === "" || (!rel.startsWith(`..${sep}`) && rel !== "..")) return b;
+  if (rel === "" || (!isAbsolute(rel) && !rel.startsWith(`..${sep}`) && rel !== "..")) return b;
   throw new Error("Path escapes Prompt-to-3D task root.");
 }
 
@@ -72,6 +87,7 @@ function assertSpec(value: AssetSpecV1): AssetSpecV1 {
   if (typeof value.prompt !== "string" || !value.prompt.trim() || value.prompt.length > MAX_PROMPT) throw new Error("Prompt must contain 1–2,000 characters.");
   if (!Number.isInteger(value.variants) || value.variants < 1 || value.variants > MAX_VARIANTS) throw new Error("Variants must be between 1 and 4.");
   if (!Number.isSafeInteger(value.seed) || value.seed < 0 || value.seed > 0x7fffffff) throw new Error("Seed must be an integer from 0 to 2,147,483,647.");
+  if (value.scaleMode !== undefined && !["preserve", "exact"].includes(value.scaleMode)) throw new Error("Unknown scale mode.");
   if (!["prop", "building", "road-furniture", "environment", "character", "vehicle"].includes(value.category)) throw new Error("Unknown asset category.");
   if (!["realistic", "stylized", "low-poly", "hand-painted", "industrial", "custom"].includes(value.style)) throw new Error("Unknown asset style.");
   if (value.style === "custom" && (typeof value.customStyle !== "string" || !value.customStyle.trim() || value.customStyle.length > 200)) throw new Error("Custom style must contain 1–200 characters.");
@@ -80,7 +96,8 @@ function assertSpec(value: AssetSpecV1): AssetSpecV1 {
   if (!Number.isInteger(value.budgets.maxTriangles) || value.budgets.maxTriangles < 100 || value.budgets.maxTriangles > 2_000_000) throw new Error("Triangle budget must be 100–2,000,000.");
   if (![512, 1024, 2048, 4096].includes(value.budgets.maxTextureResolution) || !Number.isSafeInteger(value.budgets.maxTextureBytes) || value.budgets.maxTextureBytes < 1 || value.budgets.maxTextureBytes > 512 * 1024 ** 2) throw new Error("Texture budget is outside the allowed range.");
   if (value.targetFormat !== "glb" || value.coordinateContract.upAxis !== "+Y" || value.coordinateContract.forwardAxis !== "+Z") throw new Error("Only the declared GLB +Y-up/+Z-forward contract is allowed.");
-  if (value.coordinateContract.origin !== "ground-center" || value.coordinateContract.stableRootName !== "GrudgeAssetRoot") throw new Error("The canonical root and grounding contract cannot be overridden.");
+  validateObjectRules(value.objectRules);
+  if (!["ground-center", "attachment-point"].includes(value.coordinateContract.origin) || (value.coordinateContract.origin === "attachment-point" && !value.objectRules) || value.coordinateContract.stableRootName !== "GrudgeAssetRoot") throw new Error("Use the canonical root and a typed ground or attachment origin.");
   if (["character", "vehicle"].includes(value.category)) throw new Error("Character/vehicle generation remains disabled until the owning rig, topology and facing contracts are supplied.");
   const provider = PROMPT3D_PROVIDERS.find((candidate) => candidate.id === value.providerId);
   if (!provider || !provider.enabledRoutes.includes(value.route)) throw new Error("The selected provider route is not enabled by this build.");
@@ -98,8 +115,10 @@ export class Prompt3DService extends EventEmitter {
   private installer: Prompt3DInstaller;
   private grants = new Set<string>();
   private jobs = new Map<string, Prompt3DJobStatus>();
+  private historyLoad: Promise<void> | null = null;
   private activeSidecarJobs = new Map<string, string>();
   private sidecar: { process: ChildProcess; port: number; token: string } | null = null;
+  private starting = false;
 
   constructor(private readonly options: Prompt3DServiceOptions) {
     super();
@@ -123,7 +142,30 @@ export class Prompt3DService extends EventEmitter {
   authorizeResultPath(token: string, path: string) { this.requireGrant(token); return contained(this.root, path); }
   getRoot() { return this.root; }
 
+  private loadHistory(): Promise<void> {
+    if (!this.historyLoad) {
+      this.historyLoad = readPrompt3DJobs(this.root).then((saved) => {
+        for (const job of saved) {
+          try { assertSpec(job.spec); if (!this.jobs.has(job.id)) this.jobs.set(job.id, job); } catch { /* invalid saved spec */ }
+        }
+      }).catch((error) => { this.historyLoad = null; throw error; });
+    }
+    return this.historyLoad;
+  }
+
+  async history(): Promise<Prompt3DHistory> {
+    await this.loadHistory();
+    const jobs = [...this.jobs.values()].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    return {
+      latestJob: jobs[0] ?? null,
+      previousResult: jobs.find(job => job.state === "complete" && job.variants.some(v => v.report.gameReady))
+        ?? jobs.find(job => job.variants.length > 0) ?? null,
+    };
+  }
+
   private publishJob(job: Prompt3DJobStatus) {
+    try { savePrompt3DJob(this.root, job); delete job.autosaveError; }
+    catch (error) { job.autosaveError = error instanceof Error ? error.message : String(error); }
     this.emit("job-progress", job);
   }
 
@@ -140,7 +182,10 @@ export class Prompt3DService extends EventEmitter {
     const completedAt = new Date().toISOString();
     const elapsedMs = Math.max(0, Date.now() - startedMs);
     const timings = [...(job.timings ?? [])];
-    const index = timings.findIndex((timing) => timing.stage === stage && timing.startedAt === startedAt);
+    let index = -1;
+    for (let candidate = timings.length - 1; candidate >= 0; candidate -= 1) {
+      if (timings[candidate].stage === stage && timings[candidate].startedAt === startedAt) { index = candidate; break; }
+    }
     const completed = { stage, status, startedAt, completedAt, elapsedMs, message } as const;
     if (index >= 0) timings[index] = completed;
     else timings.push(completed);
@@ -167,10 +212,92 @@ export class Prompt3DService extends EventEmitter {
     job.timings = timings;
   }
 
+  private async writeJsonAtomic(path: string, value: unknown) {
+    const temporary = `${path}.tmp`;
+    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+    await rename(temporary, path);
+  }
+
+  private recordedSpec(job: Prompt3DJobStatus, seed = job.spec.seed) {
+    return {
+      ...sanitizeAssetSpec({ ...job.spec, seed }),
+      promptPlan: job.promptPlan ?? compilePrompt3DPrompt(job.spec),
+      conceptOnly: job.conceptOnly === true,
+      approvedConcept: job.approvedConcept === true,
+      ...(job.conceptAttempt ? { conceptAttempt: job.conceptAttempt } : {}),
+      ...(job.conceptApproval ? { conceptApproval: job.conceptApproval } : {}),
+    };
+  }
+
+  private async writeRecordedSpecs(job: Prompt3DJobStatus, variantDirectory?: string, seed = job.spec.seed) {
+    const value = this.recordedSpec(job, seed);
+    await this.writeJsonAtomic(join(job.outputDirectory, "asset-spec.json"), value);
+    if (variantDirectory) await this.writeJsonAtomic(join(variantDirectory, "asset-spec.json"), value);
+  }
+
+  private async retainedConceptHash(job: Prompt3DJobStatus): Promise<string> {
+    if (!job.conceptImagePath) throw new Error("No retained concept image is available for approval.");
+    const path = contained(job.outputDirectory, job.conceptImagePath);
+    const link = await lstat(path);
+    const info = await stat(path);
+    if (link.isSymbolicLink() || !info.isFile() || info.size < 1 || info.size > 16 * 1024 ** 2) throw new Error("Unsafe retained concept image.");
+    return sha256Hex(await readFile(path));
+  }
+
+  private async retainConceptAttempt(
+    job: Prompt3DJobStatus,
+    variantDirectory: string,
+    status: "pass" | "needs-regeneration",
+    detail?: string,
+  ): Promise<Prompt3DConceptAttempt> {
+    const conceptImagePath = contained(job.outputDirectory, join(variantDirectory, "concept.png"));
+    job.conceptImagePath = conceptImagePath;
+    const conceptSha256 = await this.retainedConceptHash(job);
+    const reportPath = contained(job.outputDirectory, join(variantDirectory, "concept-review.json"));
+    let method = "deterministic-framing";
+    try {
+      const reportLink = await lstat(reportPath);
+      const reportInfo = await stat(reportPath);
+      if (reportLink.isSymbolicLink() || !reportInfo.isFile() || reportInfo.size > 128 * 1024) throw new Error("Unsafe concept review report.");
+      const report = JSON.parse(await readFile(reportPath, "utf8")) as { method?: unknown };
+      if (typeof report.method === "string" && report.method.length <= 100) method = report.method;
+    } catch {
+      if (status === "pass") throw new Error("The deterministic concept review report is missing or invalid.");
+    }
+    const existing = [...(job.conceptAttempts ?? [])];
+    const attemptNumber = existing.reduce((maximum, item) => Math.max(maximum, item.attemptNumber), 0) + 1;
+    const binding = createConceptBinding(job.id, attemptNumber, job.spec, conceptSha256);
+    const checkedAt = new Date().toISOString();
+    const message = status === "pass"
+      ? "Background isolation, foreground bounds and edge clearance passed. Semantic resemblance, required parts and artistic quality were not checked."
+      : `Deterministic framing checks require regeneration. ${detail ?? "Inspect the retained concept."}`;
+    const attempt: Prompt3DConceptAttempt = {
+      attemptNumber,
+      binding,
+      conceptImagePath,
+      promptPlan: job.promptPlan ?? compilePrompt3DPrompt(job.spec),
+      technicalReview: { status, method, message, reportPath, checkedAt },
+      createdAt: checkedAt,
+    };
+    job.conceptAttempt = attempt;
+    job.conceptAttempts = [...existing, attempt];
+    await this.writeJsonAtomic(join(variantDirectory, "concept-attempt.json"), attempt);
+    await this.writeRecordedSpecs(job, variantDirectory);
+    return attempt;
+  }
+
+  /** Restore a previously user-selected root before renderer IPC becomes available. */
+  async restoreRoot(path: string) {
+    if (resolve(path) !== this.root) { this.jobs.clear(); this.historyLoad = null; }
+    this.root = resolve(path);
+    await mkdir(this.root, { recursive: true });
+    this.installer = this.makeInstaller();
+  }
+
   async setRoot(token: string, path: string) {
     this.requireGrant(token);
     if ([...this.jobs.values()].some((job) => job.state === "queued" || job.state === "running") || [...(["hunyuan3d-2", "trellis"] as const)].some((p) => this.installer.getStatus(p).state === "installing")) throw new Error("Cannot change the installation root while work is active.");
-    this.root = resolve(path); await mkdir(this.root, { recursive: true }); this.installer = this.makeInstaller();
+    await this.restoreRoot(path);
     return this.overview();
   }
 
@@ -258,47 +385,64 @@ export class Prompt3DService extends EventEmitter {
 
   async start(token: string, request: Prompt3DStartRequest): Promise<Prompt3DJobStatus> {
     this.requireGrant(token);
-    const spec = assertSpec(request.spec);
+    if (this.starting) throw new Error("A generation is already passing preflight checks.");
+    this.starting = true;
+    try { return await this.startChecked(token, request); } finally { this.starting = false; }
+  }
+
+  private async startChecked(token: string, request: Prompt3DStartRequest): Promise<Prompt3DJobStatus> {
+    this.requireGrant(token);
+    await this.loadHistory();
+    let spec = withObjectRules(assertSpec({
+      ...sanitizeAssetSpec(request.spec),
+      objectRules: undefined,
+      coordinateContract: { ...request.spec.coordinateContract, origin: "ground-center" },
+    }));
+    const conceptWorkflow = supportsConceptWorkflow(spec);
+    if (conceptWorkflow && spec.variants !== 1) spec = { ...spec, variants: 1 };
+    if (request.approvedConceptJobId) throw new Error("Legacy concept reuse cannot authorize geometry. Use the exact retained approval action.");
+    if (request.conceptOnly && !conceptWorkflow) throw new Error("Concept-only generation is available only for the Hunyuan concept route.");
     if (!request.consent?.confirmed || request.consent.providerId !== spec.providerId) throw new Error("The selected provider boundary must be confirmed for this run.");
     if (PROMPT3D_PROVIDERS.find((p) => p.id === spec.providerId)?.kind === "cloud") throw new Error("Cloud providers are not configured; no prompt or reference data was sent.");
-    if ([...this.jobs.values()].some((j) => j.state === "queued" || j.state === "running") || this.jobs.size >= 100) throw new Error(`Prompt-to-3D concurrency is bounded to ${MAX_JOBS}.`);
-    const provider = localProvider(spec.providerId);
+    if ([...this.jobs.values()].some((j) => j.state === "queued" || j.state === "running")) throw new Error(`Prompt-to-3D concurrency is bounded to ${MAX_JOBS}.`);
+    let parent: Prompt3DJobStatus | undefined;
+    if (request.parentConceptJobId || request.conceptChangeReason) {
+      if (!request.parentConceptJobId || !request.conceptChangeReason) throw new Error("Concept ancestry requires the exact retained parent and explicit change action.");
+      parent = this.jobs.get(request.parentConceptJobId);
+      if (!parent?.conceptAttempt || !supportsConceptWorkflow(parent.spec)) throw new Error("The retained parent concept is unavailable.");
+      if (!(["awaiting-concept-approval", "failed"] as const).includes(parent.state as "awaiting-concept-approval" | "failed")) throw new Error("Only a pending or technically rejected concept can start a successor attempt.");
+      if (request.conceptChangeReason === "regenerated") {
+        const expected = withObjectRules(assertSpec({
+          ...nextConceptRetrySpec(parent.spec),
+          objectRules: undefined,
+          coordinateContract: { ...parent.spec.coordinateContract, origin: "ground-center" },
+        }));
+        if (stableJson(expected) !== stableJson(spec)) throw new Error("Concept regeneration must preserve the brief and increment the seed exactly once.");
+      } else if (stableJson(sanitizeAssetSpec(parent.spec)) === stableJson(sanitizeAssetSpec(spec))) {
+        throw new Error("Edit the saved brief before starting a replacement concept.");
+      }
+    }
     const id = randomUUID(), outputDirectory = contained(this.root, join(this.root, "jobs", id));
     await mkdir(outputDirectory, { recursive: true });
-    const specPath = join(outputDirectory, "asset-spec.json"); await writeFile(specPath, `${JSON.stringify(spec, null, 2)}\n`);
     const now = new Date().toISOString();
     const job: Prompt3DJobStatus = {
       id, state: "running", stage: "compliance", progress: 1, providerId: spec.providerId, spec,
       message: "Job accepted · measuring GPU, WSL and current headroom.", outputDirectory, variants: [], createdAt: now, updatedAt: now,
       timings: [{ stage: "job-acceptance", status: "complete", startedAt: now, completedAt: now, elapsedMs: 0, message: "Job accepted and retained before preflight began." }],
-      conceptOnly: request.conceptOnly === true,
     };
-    this.jobs.set(id, job); this.publishJob(job);
+    job.conceptOnly = conceptWorkflow;
+    job.approvedConcept = conceptWorkflow ? false : undefined;
+    job.promptPlan = compilePrompt3DPrompt(spec);
+    if (parent && request.conceptChangeReason) {
+      const history = inheritConceptHistory(parent, id, request.conceptChangeReason, now);
+      job.conceptAttempts = history.attempts;
+      job.conceptDecisions = history.decisions;
+    }
+    this.jobs.set(id, job);
+    await this.writeRecordedSpecs(job);
+    this.publishJob(job);
     try {
-      const readiness = this.beginTiming(job, "hardware-readiness", "Measuring GPU headroom and starting/probing the configured WSL runtime.");
-      const hardware = await measurePrompt3DHardware(this.root, true);
-      this.finishTiming(job, "hardware-readiness", readiness.startedAt, readiness.startedMs, "GPU, platform and WSL readiness measured.");
-      if (hardware.wsl.runtimeProbe) {
-        const completedAt = hardware.wsl.runtimeProbe.measuredAt;
-        const elapsedMs = hardware.wsl.runtimeProbe.elapsedMs;
-        job.timings = [...(job.timings ?? []), {
-          stage: "wsl-start-runtime", status: "complete",
-          startedAt: new Date(Date.parse(completedAt) - elapsedMs).toISOString(), completedAt, elapsedMs,
-          message: `${hardware.wsl.runtimeProbe.distribution} started/probed as a normal CUDA-capable user.`,
-        }];
-        this.publishJob(job);
-      }
-      const verification = this.beginTiming(job, "signed-provider-verification", "Checking the signed manifest, pinned revisions, model inventory and environment locks.");
-      // Installer/repair performs full model-byte hashing. Per-run shallow
-      // verification retains signed inventory, file set/size, revision and lock
-      // checks without repeating more than a minute of blind disk I/O.
-      const integrity = await this.installer.verify(provider.id as LocalPrompt3DProviderId, false);
-      this.finishTiming(job, "signed-provider-verification", verification.startedAt, verification.startedMs, integrity.reason, integrity.ok ? "complete" : "failed");
-      const compliance = evaluatePrompt3DCompliance(provider, hardware, this.root, "pre-run", spec);
-      if (!integrity.ok) throw new Error(`setup-required: ${integrity.reason}`);
-      if (!compliance.canRun) throw new Error(`${compliance.state}: ${compliance.reasons.join(" ")}`);
-      job.stage = "queued"; job.progress = 5; job.message = "Preflight passed · starting the loopback-only sidecar."; this.publishJob(job);
-      void this.runJob(job, specPath, hardware.wsl.usableLinuxDistribution ?? undefined).catch((error) => this.failJob(job, error));
+      await this.preflightAndDispatch(job);
     } catch (error) {
       this.failJob(job, error);
       throw error;
@@ -306,14 +450,54 @@ export class Prompt3DService extends EventEmitter {
     return job;
   }
 
-  private async runJob(job: Prompt3DJobStatus, _specPath: string, wslDistro?: string) {
+  private async preflightAndDispatch(job: Prompt3DJobStatus) {
+    const provider = localProvider(job.providerId);
+    const readiness = this.beginTiming(job, "hardware-readiness", "Measuring GPU headroom and starting/probing the configured WSL runtime.");
+    const hardware = await measurePrompt3DHardware(this.root, true);
+    this.finishTiming(job, "hardware-readiness", readiness.startedAt, readiness.startedMs, "GPU, platform and WSL readiness measured.");
+    if (this.jobs.get(job.id)?.state === "cancelled") return;
+    if (hardware.wsl.runtimeProbe) {
+      const completedAt = hardware.wsl.runtimeProbe.measuredAt;
+      const elapsedMs = hardware.wsl.runtimeProbe.elapsedMs;
+      job.timings = [...(job.timings ?? []), {
+        stage: "wsl-start-runtime", status: "complete",
+        startedAt: new Date(Date.parse(completedAt) - elapsedMs).toISOString(), completedAt, elapsedMs,
+        message: `${hardware.wsl.runtimeProbe.distribution} started/probed as a normal CUDA-capable user.`,
+      }];
+      this.publishJob(job);
+    }
+    const verification = this.beginTiming(job, "signed-provider-verification", "Checking the signed manifest, pinned revisions, model inventory and environment locks.");
+    // Full model-byte hashing is performed when installing/repairing. Repeating
+    // it on every run added over a minute of blind disk I/O; pre-run still
+    // verifies the signed checksum inventory, exact file set/sizes, source
+    // revisions, origins and environment lock hashes.
+    const integrity = await this.installer.verify(provider.id as LocalPrompt3DProviderId, false);
+    this.finishTiming(job, "signed-provider-verification", verification.startedAt, verification.startedMs, integrity.reason, integrity.ok ? "complete" : "failed");
+    if (this.jobs.get(job.id)?.state === "cancelled") return;
+    const compliance = evaluatePrompt3DCompliance(provider, hardware, this.root, "pre-run", job.spec);
+    if (!integrity.ok) throw new Error(`setup-required: ${integrity.reason}`);
+    if (!compliance.canRun) throw new Error(`${compliance.state}: ${compliance.reasons.join(" ")}`);
+    job.stage = "queued";
+    job.progress = job.conceptApproval ? 36 : 5;
+    job.message = job.conceptApproval
+      ? "Approval verified · starting the loopback-only geometry sidecar."
+      : "Preflight passed · starting the loopback-only sidecar.";
+    this.publishJob(job);
+    void this.runJob(job, hardware.wsl.usableLinuxDistribution ?? undefined).catch((error) => this.failJob(job, error));
+  }
+
+  private async runJob(job: Prompt3DJobStatus, wslDistro?: string) {
     const deadline = Date.now() + JOB_TIMEOUT_MS;
     const variants: Prompt3DJobStatus["variants"] = [];
     for (let index = 0; index < job.spec.variants; index += 1) {
       if (job.state === "cancelled") return;
       const variantDirectory = join(job.outputDirectory, `variant-${index + 1}`); await mkdir(variantDirectory, { recursive: true });
-      const variantSpec = { ...job.spec, seed: job.spec.seed + index, variants: 1, conceptOnly: job.conceptOnly };
-      const variantSpecPath = join(variantDirectory, "asset-spec.json"); await writeFile(variantSpecPath, `${JSON.stringify(variantSpec, null, 2)}\n`);
+      if (supportsConceptWorkflow(job.spec) && job.conceptApproval) {
+        const conceptSha256 = await this.retainedConceptHash(job);
+        assertGeometryApproval(job.id, job.spec, job.conceptAttempt, job.conceptApproval, conceptSha256);
+      }
+      const variantSpec = this.recordedSpec(job, job.spec.seed + index);
+      const variantSpecPath = join(variantDirectory, "asset-spec.json"); await this.writeJsonAtomic(variantSpecPath, variantSpec);
       const raw = join(variantDirectory, "provider-output.glb"), sidecarId = `${job.id}-${index + 1}`;
       this.activeSidecarJobs.set(job.id, sidecarId);
       job.message = `Starting variant ${index + 1} of ${job.spec.variants}.`; this.publishJob(job);
@@ -334,17 +518,35 @@ export class Prompt3DService extends EventEmitter {
         this.mergeProviderTimings(job, state.timings);
         const providerProgress = Math.min(90, state.progress ?? 0);
         const overall = Math.round(((index + providerProgress / 100) / job.spec.variants) * 90);
-        Object.assign(job, { stage: state.stage ?? job.stage, progress: overall, message: `Variant ${index + 1}/${job.spec.variants}: ${state.message ?? job.message}`, updatedAt: new Date().toISOString() }); this.publishJob(job);
         if (existsSync(join(variantDirectory, "concept.png"))) job.conceptImagePath = join(variantDirectory, "concept.png");
-        if (state.state === "failed") throw new Error(state.error || "Provider generation failed.");
+        Object.assign(job, { stage: state.stage ?? job.stage, progress: overall, message: `Variant ${index + 1}/${job.spec.variants}: ${state.message ?? job.message}`, updatedAt: new Date().toISOString() }); this.publishJob(job);
+        if (state.state === "failed") {
+          if (String(state.error ?? "").startsWith("CONCEPT_REVIEW_REQUIRED:") && job.conceptImagePath) {
+            await this.retainConceptAttempt(job, variantDirectory, "needs-regeneration", String(state.reviewMessage ?? state.error));
+          }
+          throw new Error(state.error || "Provider generation failed.");
+        }
         if (state.state === "cancelled") { job.state = "cancelled"; job.stage = "cancelled"; this.publishJob(job); return; }
         if (state.state === "complete") break;
       }
-      if (job.conceptOnly) {
+      if (supportsConceptWorkflow(job.spec) && !job.conceptApproval) {
         if (!job.conceptImagePath) throw new Error("No concept image was produced.");
+        await this.retainConceptAttempt(job, variantDirectory, "pass");
         this.activeSidecarJobs.delete(job.id);
-        Object.assign(job, { state: "complete", stage: "complete", progress: 100, message: "Concept ready for visual review. No geometry model was loaded.", updatedAt: new Date().toISOString() });
+        Object.assign(job, {
+          state: "awaiting-concept-approval",
+          stage: "awaiting-concept-approval",
+          progress: 35,
+          approvedConcept: false,
+          message: "Concept retained · awaiting explicit visual approval. Geometry has not started and semantic resemblance is unverified.",
+          updatedAt: new Date().toISOString(),
+        });
+        await this.writeRecordedSpecs(job, variantDirectory);
         this.publishJob(job); return;
+      }
+      if (supportsConceptWorkflow(job.spec)) {
+        const conceptSha256 = await this.retainedConceptHash(job);
+        assertGeometryApproval(job.id, job.spec, job.conceptAttempt, job.conceptApproval, conceptSha256);
       }
       const rawLinkInfo = await lstat(raw);
       const rawInfo = await stat(raw);
@@ -354,13 +556,29 @@ export class Prompt3DService extends EventEmitter {
       const postprocessTiming = this.beginTiming(job, "post-process", `Applying the canonical contract to variant ${index + 1}.`);
       const finalPath = join(variantDirectory, "asset.glb"); await postprocessPrompt3DGlb(raw, finalPath, variantSpec);
       this.finishTiming(job, "post-process", postprocessTiming.startedAt, postprocessTiming.startedMs, "Canonical post-processing complete.");
-      await rm(raw, { force: true });
+      // Keep the original mesh beside the finished version for visual comparison
+      // and lossless reprocessing. New generations always use new job folders.
       await rm(join(variantDirectory, "trellis-runtime-model"), { recursive: true, force: true });
       job.stage = "validation"; this.publishJob(job);
       const validationTiming = this.beginTiming(job, "validation", "Running deterministic structure, geometry, scale and budget validation.");
       const report = await validatePrompt3DGlb(finalPath, variantSpec, join(this.root, "quarantine"));
       this.finishTiming(job, "validation", validationTiming.startedAt, validationTiming.startedMs, `Validation ${report.gameReady ? "passed" : "quarantined the asset"} · ${report.deterministicId.slice(0, 12)}.`);
-      const provenance = { createdAt: new Date().toISOString(), specVersion: variantSpec.version, provider: localProvider(job.providerId), prompt: variantSpec.prompt, seed: variantSpec.seed, offline: true, validationId: report.deterministicId };
+      const conceptSha256 = supportsConceptWorkflow(job.spec) ? await this.retainedConceptHash(job) : "";
+      const approvalFields = approvalProvenanceFields(job.id, job.spec, job.conceptAttempt, job.conceptApproval, conceptSha256);
+      const provenance = {
+        createdAt: new Date().toISOString(),
+        specVersion: variantSpec.version,
+        provider: localProvider(job.providerId),
+        prompt: variantSpec.prompt,
+        promptPlan: variantSpec.promptPlan,
+        objectRules: variantSpec.objectRules,
+        seed: variantSpec.seed,
+        offline: true,
+        validationId: report.deterministicId,
+        ...approvalFields,
+        conceptAttempts: job.conceptAttempts ?? [],
+        conceptDecisions: job.conceptDecisions ?? [],
+      };
       const provenancePath = join(variantDirectory, "provenance.json"); await writeFile(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);
       variants.push({ index, glbPath: report.quarantinedPath ?? finalPath, report, provenancePath });
       job.variants = [...variants]; this.publishJob(job);
@@ -368,7 +586,7 @@ export class Prompt3DService extends EventEmitter {
     this.activeSidecarJobs.delete(job.id);
     const allReady = variants.length === job.spec.variants && variants.every((variant) => variant.report.gameReady);
     job.state = allReady ? "complete" : "failed"; job.stage = allReady ? "complete" : "quarantine"; job.progress = 100;
-    job.message = allReady ? `${variants.length} validated game-ready variant${variants.length === 1 ? "" : "s"} available.` : "One or more variants failed validation; failed assets were quarantined and nothing was published or uploaded.";
+    job.message = allReady ? `${variants.length} variant${variants.length === 1 ? "" : "s"} passed technical checks. Visual review is required.` : "One or more variants failed validation; failed assets were quarantined and nothing was published or uploaded.";
     if (!allReady) job.error = { code: "VALIDATION_FAILED", message: job.message, retryable: true };
     job.updatedAt = new Date().toISOString(); this.publishJob(job);
   }
@@ -387,12 +605,82 @@ export class Prompt3DService extends EventEmitter {
     if (conceptRejected) {
       const now = new Date().toISOString();
       const timings = [...(job.timings ?? [])];
-      const reviewIndex = timings.findIndex((timing) => timing.stage === "concept-review");
-      if (reviewIndex >= 0) timings[reviewIndex] = { ...timings[reviewIndex], status: "failed", message: job.error.message };
-      else timings.push({ stage: "concept-review", status: "failed", startedAt: now, completedAt: now, elapsedMs: 0, message: job.error.message });
+      let reviewIndex = -1;
+      for (let index = timings.length - 1; index >= 0; index -= 1) {
+        if (timings[index].stage === "concept-review") { reviewIndex = index; break; }
+      }
+      if (reviewIndex >= 0) {
+        timings[reviewIndex] = { ...timings[reviewIndex], status: "failed", message: job.error.message };
+      } else {
+        timings.push({ stage: "concept-review", status: "failed", startedAt: now, completedAt: now, elapsedMs: 0, message: job.error.message });
+      }
       job.timings = timings;
     }
     job.message = job.error.message; job.updatedAt = new Date().toISOString(); this.publishJob(job);
+  }
+
+  async approveConcept(token: string, request: Prompt3DApproveConceptRequest): Promise<Prompt3DJobStatus> {
+    this.requireGrant(token);
+    if (this.starting) throw new Error("Another generation action is already passing preflight checks.");
+    this.starting = true;
+    try {
+      await this.loadHistory();
+      const job = this.jobs.get(request.jobId);
+      if (!job || job.state !== "awaiting-concept-approval" || !job.conceptAttempt || !supportsConceptWorkflow(job.spec)) throw new Error("This job is not awaiting concept approval.");
+      if ([...this.jobs.values()].some((candidate) => candidate.id !== job.id && (candidate.state === "queued" || candidate.state === "running"))) throw new Error(`Prompt-to-3D concurrency is bounded to ${MAX_JOBS}.`);
+      const conceptSha256 = await this.retainedConceptHash(job);
+      const expected = createConceptBinding(job.id, job.conceptAttempt.attemptNumber, job.spec, conceptSha256);
+      if (stableJson(request.binding) !== stableJson(expected) || stableJson(job.conceptAttempt.binding) !== stableJson(expected)) throw new Error("Concept approval is stale or does not match the retained job, image, prompt, seed, provider and spec.");
+      const approval = createConceptApproval(expected);
+      const variantDirectory = contained(job.outputDirectory, join(job.outputDirectory, "variant-1"));
+      const approvalPath = join(variantDirectory, "concept-approval.json");
+      await this.writeJsonAtomic(approvalPath, approval);
+      const retained = JSON.parse(await readFile(approvalPath, "utf8"));
+      if (stableJson(retained) !== stableJson(approval)) throw new Error("The retained concept approval could not be verified.");
+      assertGeometryApproval(job.id, job.spec, job.conceptAttempt, approval, conceptSha256);
+      job.conceptApproval = approval;
+      job.conceptDecisions = [...(job.conceptDecisions ?? []), {
+        kind: "approved",
+        source: "explicit-user-action",
+        at: approval.approvedAt,
+        jobId: job.id,
+        attemptId: approval.attemptId,
+      }];
+      job.approvedConcept = true;
+      job.conceptOnly = false;
+      job.state = "running";
+      job.stage = "compliance";
+      job.progress = 36;
+      job.message = "Explicit concept approval retained · rechecking current hardware and provider integrity before geometry.";
+      job.updatedAt = approval.approvedAt;
+      delete job.error;
+      await this.writeRecordedSpecs(job, variantDirectory);
+      this.publishJob(job);
+      try {
+        await this.preflightAndDispatch(job);
+      } catch (error) {
+        this.failJob(job, error);
+        throw error;
+      }
+      return job;
+    } finally {
+      this.starting = false;
+    }
+  }
+
+  async regenerateConcept(token: string, id: string): Promise<Prompt3DJobStatus> {
+    this.requireGrant(token);
+    const previous = this.status(token, id);
+    const technicallyRejected = previous.state === "failed" && previous.error?.code === "CONCEPT_QUALITY_REJECTED";
+    if (previous.state !== "awaiting-concept-approval" && !technicallyRejected) throw new Error("Only a pending or technically rejected concept can be regenerated.");
+    if (!previous.conceptAttempt) throw new Error("The retained concept attempt is unavailable.");
+    return this.start(token, {
+      spec: nextConceptRetrySpec(previous.spec),
+      parentConceptJobId: previous.id,
+      conceptChangeReason: "regenerated",
+      conceptOnly: true,
+      consent: { providerId: previous.providerId, confirmed: true, externalData: [], estimatedCostUsd: 0 },
+    });
   }
 
   status(token: string, id: string, internal = false) { if (!internal) this.requireGrant(token); const job = this.jobs.get(id); if (!job) throw new Error("Prompt-to-3D job not found."); return job; }
@@ -400,10 +688,9 @@ export class Prompt3DService extends EventEmitter {
   async retry(token: string, id: string) {
     this.requireGrant(token);
     const previous = this.status(token, id);
-    const conceptRetry = previous.error?.code === "CONCEPT_QUALITY_REJECTED";
+    if (previous.error?.code === "CONCEPT_QUALITY_REJECTED" || previous.state === "awaiting-concept-approval") return this.regenerateConcept(token, id);
     return this.start(token, {
-      spec: { ...previous.spec, seed: previous.spec.seed + 1, variants: conceptRetry ? 1 : previous.spec.variants, generateTextures: conceptRetry ? false : previous.spec.generateTextures },
-      conceptOnly: conceptRetry,
+      spec: { ...previous.spec, seed: previous.spec.seed + 1 },
       consent: { providerId: previous.providerId, confirmed: true },
     });
   }

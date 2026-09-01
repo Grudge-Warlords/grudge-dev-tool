@@ -31,10 +31,13 @@ export interface AssetSpecV1 {
   generateTextures: boolean;
   generateCollision: boolean;
   generateLods: boolean;
+  /** Preserve silhouette by scaling uniformly to height unless explicitly overridden. */
+  scaleMode?: "preserve" | "exact";
+  objectRules?: import("./prompt3dRules").Prompt3DObjectRules;
   coordinateContract: {
     upAxis: "+Y";
     forwardAxis: "+Z";
-    origin: "ground-center";
+    origin: "ground-center" | "attachment-point";
     stableRootName: string;
   };
 }
@@ -187,6 +190,7 @@ export type Prompt3DJobStage =
   | "warmup"
   | "concept-image"
   | "concept-review"
+  | "awaiting-concept-approval"
   | "geometry"
   | "texture"
   | "postprocess"
@@ -205,9 +209,57 @@ export interface Prompt3DStageTiming {
   message: string;
 }
 
+export interface Prompt3DConceptBinding {
+  version: 1;
+  workflowVersion: number;
+  jobId: string;
+  attemptId: string;
+  conceptSha256: string;
+  prompt: string;
+  seed: number;
+  providerId: Prompt3DProviderId;
+  specVersion: typeof PROMPT3D_SPEC_VERSION;
+  specCanonical: string;
+  specFingerprint: string;
+  referenceSha256: string | null;
+}
+
+export interface Prompt3DConceptTechnicalReview {
+  status: "pass" | "needs-regeneration";
+  method: string;
+  message: string;
+  reportPath: string;
+  checkedAt: string;
+}
+
+/** Immutable facts for one retained concept generation attempt. */
+export interface Prompt3DConceptAttempt {
+  attemptNumber: number;
+  binding: Prompt3DConceptBinding;
+  conceptImagePath: string;
+  promptPlan: import("./prompt3dRules").Prompt3DPromptPlan;
+  technicalReview: Prompt3DConceptTechnicalReview;
+  createdAt: string;
+}
+
+/** Append-only record of explicit user choices between retained attempts. */
+export interface Prompt3DConceptDecision {
+  kind: "approved" | "regenerated" | "edited";
+  source: "explicit-user-action";
+  at: string;
+  jobId: string;
+  attemptId: string;
+  nextJobId?: string;
+}
+
+export interface Prompt3DConceptApproval extends Prompt3DConceptBinding {
+  approvedAt: string;
+  source: "explicit-user-action";
+}
+
 export interface Prompt3DJobStatus {
   id: string;
-  state: "queued" | "running" | "complete" | "cancelled" | "failed";
+  state: "queued" | "running" | "awaiting-concept-approval" | "complete" | "cancelled" | "failed";
   stage: Prompt3DJobStage;
   progress: number;
   providerId: Prompt3DProviderId;
@@ -222,17 +274,46 @@ export interface Prompt3DJobStatus {
     provenancePath: string;
   }>;
   error?: { code: string; message: string; retryable: boolean };
-  timings?: Prompt3DStageTiming[];
-  conceptImagePath?: string;
-  conceptOnly?: boolean;
   createdAt: string;
   updatedAt: string;
+  autosaveError?: string;
+  conceptOnly?: boolean;
+  approvedConcept?: boolean;
+  approvedConceptJobId?: string;
+  conceptImagePath?: string;
+  conceptAttempt?: Prompt3DConceptAttempt;
+  conceptAttempts?: Prompt3DConceptAttempt[];
+  conceptDecisions?: Prompt3DConceptDecision[];
+  conceptApproval?: Prompt3DConceptApproval;
+  promptPlan?: import("./prompt3dRules").Prompt3DPromptPlan;
+  timings?: Prompt3DStageTiming[];
+}
+
+export interface Prompt3DHistory {
+  latestJob: Prompt3DJobStatus | null;
+  previousResult: Prompt3DJobStatus | null;
+}
+
+export interface Prompt3DAppRuntime {
+  offlineLocalTest: boolean;
+  prompt3dRoot: string;
+  localControlsEnabled: boolean;
+  plannerHost?: string;
 }
 
 export interface Prompt3DStartRequest {
   spec: AssetSpecV1;
   conceptOnly?: boolean;
+  /** Deprecated legacy geometry-start seam. Exact approval uses approveConcept. */
+  approvedConceptJobId?: string;
+  parentConceptJobId?: string;
+  conceptChangeReason?: "edited" | "regenerated";
   consent: { providerId: Prompt3DProviderId; externalData?: string[]; estimatedCostUsd?: number; confirmed: boolean };
+}
+
+export interface Prompt3DApproveConceptRequest {
+  jobId: string;
+  binding: Prompt3DConceptBinding;
 }
 
 export interface Prompt3DPlanRequest {
@@ -263,12 +344,22 @@ export interface Prompt3DOverview {
 
 export const PROMPT3D_CHANNELS = {
   overview: "prompt3d:overview",
+  history: "prompt3d:history",
+  draft: "prompt3d:draft",
+  saveDraft: "prompt3d:save-draft",
   grant: "prompt3d:grant",
+  revoke: "prompt3d:revoke",
   plan: "prompt3d:plan",
+  refine: "prompt3d:refine",
+  saveRevision: "prompt3d:save-revision",
+  plannerHost: "prompt3d:planner-host",
+  startPlanner: "prompt3d:start-planner",
   chooseRoot: "prompt3d:choose-root",
   install: "prompt3d:install",
   cancelInstall: "prompt3d:cancel-install",
   start: "prompt3d:start",
+  approveConcept: "prompt3d:approve-concept",
+  regenerateConcept: "prompt3d:regenerate-concept",
   status: "prompt3d:status",
   cancel: "prompt3d:cancel",
   retry: "prompt3d:retry",

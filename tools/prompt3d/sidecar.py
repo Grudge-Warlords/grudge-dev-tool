@@ -52,10 +52,11 @@ def run_job(job_id: str, provider: str, spec_path: Path, output: Path, python: s
             if not re.fullmatch(r"[A-Za-z0-9._ -]{1,80}", wsl_distro) or not provider_root_name or not provider_root_name.startswith(expected_prefix):
                 raise ValueError("Invalid typed WSL provider configuration")
             linux_base = f"$HOME/.local/share/grudge-prompt3d/{provider_root_name}"
+            provider_source = wsl_path(ROOT / provider / "source")
             command = " ".join([
                 "exec", f'"{linux_base}/environment/bin/python"', f'"{wsl_path(WORKER)}"', "--provider", provider,
                 "--spec", f'"{wsl_path(spec_path)}"', "--root", f'"{wsl_path(ROOT)}"',
-                "--output", f'"{wsl_path(output)}"', "--provider-source", f'"{linux_base}/source"',
+                "--output", f'"{wsl_path(output)}"', "--provider-source", f'"{provider_source}"',
                 "--pid-file", f'"{wsl_path(pid_file)}"',
             ])
             launcher_path = contained(str(output.parent / ".provider-worker.sh"))
@@ -99,8 +100,9 @@ def run_job(job_id: str, provider: str, spec_path: Path, output: Path, python: s
             if code != 0 and not was_cancelled and jobs[job_id].get("errorCode") == "CONCEPT_REVIEW_REQUIRED":
                 error = "CONCEPT_REVIEW_REQUIRED: " + jobs[job_id].get("reviewMessage", "Inspect the saved concept before generating geometry.")
             state = "cancelled" if was_cancelled else "complete" if code == 0 else "failed"
-            message = "Cancellation completed for the task-owned provider worker." if was_cancelled else "Provider output complete." if code == 0 else error
-            jobs[job_id].update({"state": state, "stage": "cancelled" if was_cancelled else jobs[job_id].get("stage", "failed"), "progress": 90 if code == 0 else jobs[job_id].get("progress", 0), "output": str(output) if code == 0 else None, "error": error, "message": message})
+            pending_approval = jobs[job_id].get("stage") == "awaiting-concept-approval"
+            message = "Cancellation completed for the task-owned provider worker." if was_cancelled else "Concept retained; explicit approval is required before geometry." if code == 0 and pending_approval else "Provider output complete." if code == 0 else error
+            jobs[job_id].update({"state": state, "stage": "cancelled" if was_cancelled else jobs[job_id].get("stage", "failed"), "progress": 35 if code == 0 and pending_approval else 90 if code == 0 else jobs[job_id].get("progress", 0), "output": str(output) if code == 0 and not pending_approval else None, "error": error, "message": message})
             for internal in ("process", "pid_file", "wsl_distro", "_diagnostics"):
                 jobs[job_id].pop(internal, None)
     except Exception as error:

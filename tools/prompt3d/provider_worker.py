@@ -1,6 +1,8 @@
 """Typed Prompt-to-3D provider worker. Accepts one AssetSpec JSON file only."""
 import argparse
 import atexit
+import gc
+import hashlib
 import json
 import os
 import signal
@@ -29,7 +31,39 @@ def completed_timing(stage: str, started: tuple[float, str], message: str) -> di
     }
 
 
-def hunyuan(spec: dict, root: Path, output: Path) -> None:
+def verify_concept_approval(spec: dict, concept_path: Path) -> None:
+    approval = spec.get("conceptApproval")
+    if spec.get("approvedConcept") is not True or not isinstance(approval, dict):
+        raise RuntimeError("Explicit hash-bound concept approval is required before geometry can start.")
+    required = ("version", "workflowVersion", "jobId", "attemptId", "conceptSha256", "prompt", "seed", "providerId", "specVersion", "specCanonical", "specFingerprint", "referenceSha256", "approvedAt", "source")
+    if any(key not in approval for key in required):
+        raise RuntimeError("Concept approval binding is incomplete.")
+    if approval.get("source") != "explicit-user-action" or approval.get("providerId") != "hunyuan3d-2":
+        raise RuntimeError("Concept approval source or provider is invalid.")
+    if approval.get("prompt") != spec.get("prompt") or approval.get("seed") != spec.get("seed") or approval.get("specVersion") != spec.get("version"):
+        raise RuntimeError("Concept approval is stale for the current prompt, seed or spec version.")
+    attempt = spec.get("conceptAttempt")
+    binding = attempt.get("binding") if isinstance(attempt, dict) else None
+    approval_binding = {key: value for key, value in approval.items() if key not in ("approvedAt", "source")}
+    if not isinstance(binding, dict) or approval_binding != binding:
+        raise RuntimeError("Concept approval does not match the exact retained attempt binding.")
+    try:
+        approved_at = datetime.fromisoformat(str(approval.get("approvedAt", "")).replace("Z", "+00:00"))
+    except ValueError as error:
+        raise RuntimeError("Concept approval time is invalid.") from error
+    if approved_at.tzinfo is None:
+        raise RuntimeError("Concept approval time must include a timezone.")
+    if not str(approval.get("attemptId", "")).startswith(f'{approval.get("jobId")}:concept:'):
+        raise RuntimeError("Concept approval attempt identity is invalid.")
+    canonical = str(approval.get("specCanonical", ""))
+    if hashlib.sha256(canonical.encode("utf-8")).hexdigest() != approval.get("specFingerprint"):
+        raise RuntimeError("Concept approval spec fingerprint is invalid.")
+    actual = hashlib.sha256(concept_path.read_bytes()).hexdigest()
+    if actual != approval.get("conceptSha256"):
+        raise RuntimeError("Concept approval does not match the retained image hash.")
+
+
+def hunyuan(spec: dict, root: Path, output: Path) -> bool:
     source = Path(os.environ.get("GRUDGE_PROMPT3D_PROVIDER_SOURCE", str(root / "hunyuan3d-2" / "source")))
     models = root / "hunyuan3d-2" / "models"
     sys.path.insert(0, str(source / "hy3dshape"))
@@ -39,23 +73,60 @@ def hunyuan(spec: dict, root: Path, output: Path) -> None:
     warmup_started = begin_timing()
     emit("warmup", 10, "Provider/model warm-up: importing the isolated runtime and loading pinned HunyuanDiT weights.")
     import torch
-    from diffusers import HunyuanDiTPipeline
+    from PIL import Image
     concept_path = output.parent / "concept.png"
     concept_model = models / "Tencent-Hunyuan--HunyuanDiT-v1.1-Diffusers-Distilled"
-    pipe = HunyuanDiTPipeline.from_pretrained(str(concept_model), torch_dtype=torch.float16, local_files_only=True)
-    pipe.enable_model_cpu_offload()
-    warmup_message = "Pinned HunyuanDiT concept model is loaded."
-    emit("warmup", 14, warmup_message, timing=completed_timing("provider-model-warmup", warmup_started, warmup_message))
-    inference_started = begin_timing()
-    emit("concept-image", 15, "Concept image inference: running 30 local diffusion steps.")
-    image = pipe(prompt=spec["prompt"], height=1024, width=1024, num_inference_steps=30, generator=torch.Generator("cpu").manual_seed(spec["seed"])).images[0]
-    image.save(concept_path)
-    inference_message = "Concept image inference and save completed."
-    emit("concept-image", 29, inference_message, timing=completed_timing("concept-image-inference", inference_started, inference_message))
-    del pipe
+    plan = spec.get("promptPlan")
+    if not isinstance(plan, dict) or plan.get("version") != 1 or not plan.get("generationPrompt"):
+        raise RuntimeError("Object-specific prompt rules are missing. Start a new job in the updated app.")
+    prompt, negative = plan["generationPrompt"], plan["negativePrompt"]
+    (output.parent / "concept-prompt.json").write_text(json.dumps({
+        **plan,
+        "prompt": spec["prompt"],
+        "seed": spec["seed"],
+        "providerId": spec["providerId"],
+        "specVersion": spec["version"],
+    }, indent=2), encoding="utf-8")
+    approved = spec.get("approvedConcept") is True
+    if approved:
+        verify_concept_approval(spec, concept_path)
+        image = Image.open(concept_path).convert("RGB")
+        warmup_message = "Approved concept reused; the concept-image model was not loaded."
+        emit("warmup", 14, warmup_message, timing=completed_timing("provider-model-warmup", warmup_started, warmup_message))
+    else:
+        from diffusers import HunyuanDiTPipeline
+        pipe = HunyuanDiTPipeline.from_pretrained(str(concept_model), torch_dtype=torch.float16, local_files_only=True)
+        pipe.enable_model_cpu_offload()
+        warmup_message = "Pinned HunyuanDiT concept model is loaded."
+        emit("warmup", 14, warmup_message, timing=completed_timing("provider-model-warmup", warmup_started, warmup_message))
+        inference_started = begin_timing()
+        emit("concept-image", 15, "Concept image inference: running 30 local diffusion steps.")
+        image = pipe(prompt=prompt, negative_prompt=negative, height=1024, width=1024, num_inference_steps=30, generator=torch.Generator("cpu").manual_seed(spec["seed"])).images[0]
+        image.save(concept_path)
+        inference_message = "Concept image inference and save completed."
+        emit("concept-image", 29, inference_message, timing=completed_timing("concept-image-inference", inference_started, inference_message))
+        del pipe
+    gc.collect()
     torch.cuda.empty_cache()
+    from concept_preparation import prepare_concept, ConceptReviewRequired
+    review_started = begin_timing()
+    emit("concept-review", 30, "Concept review: checking background isolation, full-object framing and edge clearance.")
+    try:
+        image = prepare_concept(image, output.parent)
+    except ConceptReviewRequired as error:
+        review_message = str(error)
+        emit("concept-review", 32, review_message, timing=completed_timing("concept-review", review_started, review_message), errorCode="CONCEPT_REVIEW_REQUIRED", reviewMessage=review_message)
+        sys.exit(2)
+    review_message = "Technical framing checks passed. Semantic resemblance, required parts and artistic quality remain unverified."
+    emit("concept-review", 34, review_message, timing=completed_timing("concept-review", review_started, review_message))
+    if not approved:
+        emit("awaiting-concept-approval", 35, "Concept retained for explicit user review. No geometry model was loaded and no semantic approval was inferred.")
+        return False
+    if spec.get("conceptOnly"):
+        raise RuntimeError("Approved geometry work cannot retain the concept-only flag.")
+    verify_concept_approval(spec, concept_path)
     geometry_start = begin_timing()
-    emit("geometry", 36, "Geometry start: concept accepted; loading pinned Hunyuan3D 2.1 shape weights.", timing=completed_timing("geometry-start", geometry_start, "Concept accepted and geometry start authorised."), conceptImage=str(concept_path))
+    emit("geometry", 36, "Geometry start: explicit hash-bound user approval verified; loading pinned Hunyuan3D 2.1 shape weights.", timing=completed_timing("geometry-start", geometry_start, "Exact retained concept approval verified and geometry start authorised."), conceptImage=str(concept_path))
     geometry_warmup_started = begin_timing()
     from hy3dshape.pipelines import Hunyuan3DDiTFlowMatchingPipeline
     shape_model = models / "tencent--Hunyuan3D-2.1"
@@ -63,13 +134,15 @@ def hunyuan(spec: dict, root: Path, output: Path) -> None:
     geometry_warmup_message = "Pinned Hunyuan3D shape model is loaded."
     emit("geometry", 42, geometry_warmup_message, timing=completed_timing("geometry-model-warmup", geometry_warmup_started, geometry_warmup_message))
     geometry_inference_started = begin_timing()
-    emit("geometry", 43, "Geometry inference started.")
-    mesh = shape(image=str(concept_path))[0]
+    emit("geometry", 43, "Geometry inference: running 50 local shape steps.")
+    mesh = shape(image=image, num_inference_steps=50, octree_resolution=512,
+                 generator=torch.Generator("cpu").manual_seed(spec["seed"]))[0]
     intermediate = output.parent / "geometry.glb"
     mesh.export(str(intermediate))
     geometry_inference_message = "Geometry inference and GLB export completed."
     emit("geometry", 62, geometry_inference_message, timing=completed_timing("geometry-inference", geometry_inference_started, geometry_inference_message))
     del shape
+    gc.collect()
     torch.cuda.empty_cache()
     if spec.get("generateTextures"):
         emit("texture", 65, "Applying official Hunyuan3D-Paint textures.")
@@ -106,6 +179,7 @@ def hunyuan(spec: dict, root: Path, output: Path) -> None:
         textured_glb.replace(output)
     else:
         intermediate.replace(output)
+    return True
 
 
 def trellis(spec: dict, root: Path, output: Path) -> None:
@@ -136,7 +210,10 @@ def trellis(spec: dict, root: Path, output: Path) -> None:
         (runtime_model / "pipeline.json").write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
         pipeline = TrellisTextTo3DPipeline.from_pretrained(str(runtime_model))
         pipeline.cuda()
-        result = pipeline.run(spec["prompt"], seed=spec["seed"], formats=["mesh", "gaussian"])
+        plan = spec.get("promptPlan")
+        if not isinstance(plan, dict) or plan.get("version") != 1 or not plan.get("generationPrompt"):
+            raise RuntimeError("Object-specific prompt rules are missing. Start a new job in the updated app.")
+        result = pipeline.run(plan["generationPrompt"], seed=spec["seed"], formats=["mesh", "gaussian"])
     else:
         raise RuntimeError("TRELLIS image conditioning is a declared backend capability but is disabled until typed reference-image intake is implemented.")
     emit("postprocess", 75, "Converting TRELLIS structured output to GLB.")
@@ -173,10 +250,14 @@ def main() -> None:
         os.environ["GRUDGE_PROMPT3D_PROVIDER_SOURCE"] = args.provider_source
     is_hunyuan = args.provider == "hunyuan3d-2"
     if is_hunyuan:
-        hunyuan(spec, root, output)
+        produced_geometry = hunyuan(spec, root, output)
     else:
         trellis(spec, root, output)
-    emit("postprocess", 88, "Provider output complete.", output=str(output))
+        produced_geometry = True
+    if produced_geometry:
+        emit("postprocess", 88, "Provider output complete.", output=str(output))
+    else:
+        emit("awaiting-concept-approval", 35, "Concept retained. Waiting for a separate explicit approval action; geometry was not loaded.")
     if is_hunyuan:
         # Hunyuan's Blender/Open3D native modules segfault during interpreter
         # teardown when imported together. The work and output are complete at

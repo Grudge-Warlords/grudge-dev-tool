@@ -1,16 +1,23 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { PROMPT3D_CHANNELS, type AssetSpecV1, type LocalPrompt3DProviderId, type Prompt3DInstallRequest, type Prompt3DPlanRequest, type Prompt3DStartRequest } from "../shared/prompt3d";
+import { PROMPT3D_CHANNELS, type AssetSpecV1, type LocalPrompt3DProviderId, type Prompt3DApproveConceptRequest, type Prompt3DInstallRequest, type Prompt3DPlanRequest, type Prompt3DStartRequest } from "../shared/prompt3d";
+import type { Prompt3DAppRuntime, Prompt3DHistory } from "../shared/prompt3d";
 
 const api = {
-  appRuntime: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.runtime),
+  appRuntime: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.runtime) as Promise<Prompt3DAppRuntime>,
   prompt3d: {
     overview: (spec?: AssetSpecV1) => ipcRenderer.invoke(PROMPT3D_CHANNELS.overview, spec),
+    history: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.history) as Promise<Prompt3DHistory>,
+    draft: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.draft) as Promise<AssetSpecV1 | null>,
+    saveDraft: (spec: AssetSpecV1) => ipcRenderer.invoke(PROMPT3D_CHANNELS.saveDraft, spec) as Promise<{ saved: true }>,
     grant: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.grant) as Promise<{ enabled: true }>,
+    revoke: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.revoke) as Promise<{ enabled: false }>,
     plan: (request: Prompt3DPlanRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.plan, request),
     chooseRoot: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.chooseRoot),
     install: (request: Prompt3DInstallRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.install, request),
     cancelInstall: (providerId: LocalPrompt3DProviderId) => ipcRenderer.invoke(PROMPT3D_CHANNELS.cancelInstall, providerId),
     start: (request: Prompt3DStartRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.start, request),
+    approveConcept: (request: Prompt3DApproveConceptRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.approveConcept, request),
+    regenerateConcept: (id: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.regenerateConcept, id),
     status: (id: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.status, id),
     cancel: (id: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.cancel, id),
     retry: (id: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.retry, id),

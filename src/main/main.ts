@@ -84,7 +84,8 @@ import {
   getPluginToken,
 } from "./pluginHost";
 import { Prompt3DService } from "./prompt3d/service";
-import { PROMPT3D_CHANNELS, type LocalPrompt3DProviderId, type Prompt3DInstallRequest, type Prompt3DPlanRequest, type Prompt3DStartRequest } from "../shared/prompt3d";
+import { PROMPT3D_CHANNELS, type LocalPrompt3DProviderId, type Prompt3DApproveConceptRequest, type Prompt3DInstallRequest, type Prompt3DPlanRequest, type Prompt3DStartRequest } from "../shared/prompt3d";
+import { localControlsEnabled, saveLocalControlsEnabled, loadPrompt3DDraft, savePrompt3DDraft } from "./prompt3d/controlsPreference";
 
 const OFFLINE_LOCAL_TEST = process.env.GRUDGE_OFFLINE_LOCAL_TEST === "1";
 if (OFFLINE_LOCAL_TEST) {
@@ -404,6 +405,12 @@ app.on("before-quit", () => {
 // ---------------------------------------------------------------------------
 function registerIpc() {
   const prompt3dCapabilities = new Map<number, string>();
+  let controlsQueue: Promise<unknown> = Promise.resolve();
+  const serializeControls = <T,>(operation: () => Promise<T>): Promise<T> => {
+    const result = controlsQueue.then(operation);
+    controlsQueue = result.catch(() => undefined);
+    return result;
+  };
   const assertPrompt3DSender = (event: Electron.IpcMainInvokeEvent) => {
     if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error("Prompt-to-3D IPC sender is not the main application window.");
     if (event.senderFrame !== event.sender.mainFrame) throw new Error("Prompt-to-3D IPC is restricted to the top-level application frame.");
@@ -422,18 +429,47 @@ function registerIpc() {
   };
   prompt3d.on("install-progress", (payload) => mainWindow?.webContents.send(PROMPT3D_CHANNELS.installProgress, payload));
   prompt3d.on("job-progress", (payload) => mainWindow?.webContents.send(PROMPT3D_CHANNELS.jobProgress, payload));
-  ipcMain.handle(PROMPT3D_CHANNELS.runtime, (event) => { assertPrompt3DSender(event); return { offlineLocalTest: OFFLINE_LOCAL_TEST, prompt3dRoot: prompt3d.getRoot() }; });
-  ipcMain.handle(PROMPT3D_CHANNELS.overview, (event, spec) => { assertPrompt3DSender(event); return prompt3d.overview(spec); });
-  ipcMain.handle(PROMPT3D_CHANNELS.grant, (event) => {
+  const enablePrompt3DForWindow = (event: Electron.IpcMainInvokeEvent) => {
     assertPrompt3DSender(event);
-    const existing = prompt3dCapabilities.get(event.sender.id);
-    if (existing) prompt3d.revoke(existing);
+    if (prompt3dCapabilities.has(event.sender.id)) return;
     const token = prompt3d.grant();
     const senderId = event.sender.id;
     prompt3dCapabilities.set(senderId, token);
-    event.sender.once("destroyed", () => { prompt3d.revoke(token); prompt3dCapabilities.delete(senderId); });
-    return { enabled: true as const };
+    event.sender.once("destroyed", () => {
+      prompt3d.revoke(token);
+      if (prompt3dCapabilities.get(senderId) === token) prompt3dCapabilities.delete(senderId);
+    });
+  };
+  ipcMain.handle(PROMPT3D_CHANNELS.runtime, (event) => serializeControls(async () => {
+    assertPrompt3DSender(event);
+    const enabled = await localControlsEnabled();
+    if (enabled) enablePrompt3DForWindow(event);
+    return { offlineLocalTest: OFFLINE_LOCAL_TEST, prompt3dRoot: prompt3d.getRoot(), localControlsEnabled: enabled };
+  }));
+  ipcMain.handle(PROMPT3D_CHANNELS.overview, (event, spec) => { assertPrompt3DSender(event); return prompt3d.overview(spec); });
+  ipcMain.handle(PROMPT3D_CHANNELS.history, (event) => { assertPrompt3DSender(event); return prompt3d.history(); });
+  ipcMain.handle(PROMPT3D_CHANNELS.draft, async (event) => {
+    assertPrompt3DSender(event);
+    return await loadPrompt3DDraft() ?? (await prompt3d.history()).latestJob?.spec ?? null;
   });
+  ipcMain.handle(PROMPT3D_CHANNELS.saveDraft, async (event, spec) => {
+    assertPrompt3DSender(event);
+    await savePrompt3DDraft(spec);
+    return { saved: true };
+  });
+  ipcMain.handle(PROMPT3D_CHANNELS.grant, (event) => serializeControls(async () => {
+    assertPrompt3DSender(event);
+    await saveLocalControlsEnabled(true);
+    enablePrompt3DForWindow(event);
+    return { enabled: true as const };
+  }));
+  ipcMain.handle(PROMPT3D_CHANNELS.revoke, (event) => serializeControls(async () => {
+    assertPrompt3DSender(event);
+    await saveLocalControlsEnabled(false);
+    prompt3d.revokeAll();
+    prompt3dCapabilities.clear();
+    return { enabled: false as const };
+  }));
   ipcMain.handle(PROMPT3D_CHANNELS.plan, (event, request: Prompt3DPlanRequest) => prompt3d.plan(prompt3dCapabilityFor(event), request));
   ipcMain.handle(PROMPT3D_CHANNELS.chooseRoot, async (event) => {
     const token = prompt3dCapabilityFor(event);
@@ -444,6 +480,8 @@ function registerIpc() {
   ipcMain.handle(PROMPT3D_CHANNELS.install, (event, request: Prompt3DInstallRequest) => prompt3d.install(prompt3dCapabilityFor(event), request));
   ipcMain.handle(PROMPT3D_CHANNELS.cancelInstall, (event, providerId: LocalPrompt3DProviderId) => prompt3d.cancelInstall(prompt3dCapabilityFor(event), providerId));
   ipcMain.handle(PROMPT3D_CHANNELS.start, (event, request: Prompt3DStartRequest) => prompt3d.start(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_CHANNELS.approveConcept, (event, request: Prompt3DApproveConceptRequest) => prompt3d.approveConcept(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_CHANNELS.regenerateConcept, (event, id: string) => prompt3d.regenerateConcept(prompt3dCapabilityFor(event), id));
   ipcMain.handle(PROMPT3D_CHANNELS.status, (event, id: string) => prompt3d.status(prompt3dCapabilityFor(event), id));
   ipcMain.handle(PROMPT3D_CHANNELS.cancel, (event, id: string) => prompt3d.cancel(prompt3dCapabilityFor(event), id));
   ipcMain.handle(PROMPT3D_CHANNELS.retry, (event, id: string) => prompt3d.retry(prompt3dCapabilityFor(event), id));

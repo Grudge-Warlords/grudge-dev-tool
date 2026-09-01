@@ -14,6 +14,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - Doctor / fleet health: scored **CDN Toon human.glb** HEAD. Author WK FBX probe is optional.
 
 ### Fixed
+- Hunyuan Prompt-to-3D now stops durably after one retained concept and requires the separate **Approve for 3D** action before loading geometry. Approval is bound to the exact job/attempt, concept SHA-256, current prompt/plan, seed, provider and canonical AssetSpec; regeneration advances the seed once with textures off and retains immutable ancestry. Root/variant specs, concept prompt, saved approval and final provenance agree on the current brief, and stale or tampered state fails closed.
 - Prompt-to-3D Generate now publishes the accepted job before preflight, reports measured readiness/WSL/integrity/sidecar/model/inference/post-process/validation timings, avoids a redundant deep model re-hash and second WSL probe per run, and turns concept framing rejection into a preserved, explicit concept-only retry boundary.
 
 ### Changed
