@@ -106,6 +106,7 @@ export interface Prompt3DHardwareSnapshot {
       python?: string;
       cudaVisible: boolean;
       measuredAt: string;
+      elapsedMs: number;
     };
   };
 }
@@ -183,7 +184,9 @@ export type Prompt3DJobStage =
   | "queued"
   | "compliance"
   | "planning"
+  | "warmup"
   | "concept-image"
+  | "concept-review"
   | "geometry"
   | "texture"
   | "postprocess"
@@ -192,6 +195,15 @@ export type Prompt3DJobStage =
   | "complete"
   | "cancelled"
   | "failed";
+
+export interface Prompt3DStageTiming {
+  stage: string;
+  status: "running" | "complete" | "failed";
+  startedAt: string;
+  completedAt?: string;
+  elapsedMs?: number;
+  message: string;
+}
 
 export interface Prompt3DJobStatus {
   id: string;
@@ -210,12 +222,16 @@ export interface Prompt3DJobStatus {
     provenancePath: string;
   }>;
   error?: { code: string; message: string; retryable: boolean };
+  timings?: Prompt3DStageTiming[];
+  conceptImagePath?: string;
+  conceptOnly?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface Prompt3DStartRequest {
   spec: AssetSpecV1;
+  conceptOnly?: boolean;
   consent: { providerId: Prompt3DProviderId; externalData?: string[]; estimatedCostUsd?: number; confirmed: boolean };
 }
 

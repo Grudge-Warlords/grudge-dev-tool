@@ -77,7 +77,13 @@ def run_job(job_id: str, provider: str, spec_path: Path, output: Path, python: s
             try:
                 event = json.loads(line)
                 with lock:
-                    jobs[job_id].update({key: value for key, value in event.items() if key != "message" or value})
+                    timing = event.get("timing")
+                    if isinstance(timing, dict) and isinstance(timing.get("stage"), str):
+                        timings = jobs[job_id].setdefault("timings", [])
+                        identity = (timing.get("stage"), timing.get("startedAt"))
+                        if not any((item.get("stage"), item.get("startedAt")) == identity for item in timings if isinstance(item, dict)):
+                            timings.append(timing)
+                    jobs[job_id].update({key: value for key, value in event.items() if key != "timing" and (key != "message" or value)})
             except Exception:
                 with lock:
                     diagnostic = redact(line.strip())
@@ -90,6 +96,8 @@ def run_job(job_id: str, provider: str, spec_path: Path, output: Path, python: s
             diagnostics = jobs[job_id].get("_diagnostics", [])
             diagnostic_summary = " | ".join(diagnostics)[-4_000:] if diagnostics else "no diagnostic was emitted"
             error = None if code == 0 or was_cancelled else f"Provider worker exited {code}: {diagnostic_summary}"
+            if code != 0 and not was_cancelled and jobs[job_id].get("errorCode") == "CONCEPT_REVIEW_REQUIRED":
+                error = "CONCEPT_REVIEW_REQUIRED: " + jobs[job_id].get("reviewMessage", "Inspect the saved concept before generating geometry.")
             state = "cancelled" if was_cancelled else "complete" if code == 0 else "failed"
             message = "Cancellation completed for the task-owned provider worker." if was_cancelled else "Provider output complete." if code == 0 else error
             jobs[job_id].update({"state": state, "stage": "cancelled" if was_cancelled else jobs[job_id].get("stage", "failed"), "progress": 90 if code == 0 else jobs[job_id].get("progress", 0), "output": str(output) if code == 0 else None, "error": error, "message": message})
@@ -171,7 +179,7 @@ class Handler(BaseHTTPRequestHandler):
             provider_root_name = str(body.get("providerRootName") or "") or None
             with lock:
                 if any(j.get("state") == "running" for j in jobs.values()): return self.reply(429, {"error": "bounded concurrency reached"})
-                jobs[job_id] = {"id": job_id, "state": "running", "stage": "queued", "progress": 0, "message": "Provider worker starting."}
+                jobs[job_id] = {"id": job_id, "state": "running", "stage": "queued", "progress": 0, "message": "Provider worker starting.", "timings": []}
             threading.Thread(target=run_job, args=(job_id, provider, spec_path, output, str(python) if python else None, wsl_distro, provider_root_name), daemon=True).start()
             return self.reply(202, {"id": job_id, "state": "running"})
         if self.path.endswith("/cancel"):

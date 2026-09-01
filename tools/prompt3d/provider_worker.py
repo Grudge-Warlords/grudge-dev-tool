@@ -5,11 +5,28 @@ import json
 import os
 import signal
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 
 def emit(stage: str, progress: int, message: str, **extra) -> None:
     print(json.dumps({"stage": stage, "progress": progress, "message": message, **extra}), flush=True)
+
+
+def begin_timing() -> tuple[float, str]:
+    return time.perf_counter(), datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def completed_timing(stage: str, started: tuple[float, str], message: str) -> dict:
+    completed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return {
+        "stage": stage,
+        "startedAt": started[1],
+        "completedAt": completed_at,
+        "elapsedMs": max(0, round((time.perf_counter() - started[0]) * 1000)),
+        "message": message,
+    }
 
 
 def hunyuan(spec: dict, root: Path, output: Path) -> None:
@@ -19,24 +36,39 @@ def hunyuan(spec: dict, root: Path, output: Path) -> None:
     sys.path.insert(0, str(source / "hy3dpaint"))
     if spec["route"] != "concept-image-to-3d":
         raise RuntimeError("This Hunyuan MVP enables only the explicit prompt-to-concept-image-to-3D route.")
-    emit("concept-image", 15, "Generating the local concept image with pinned HunyuanDiT weights.")
+    warmup_started = begin_timing()
+    emit("warmup", 10, "Provider/model warm-up: importing the isolated runtime and loading pinned HunyuanDiT weights.")
     import torch
     from diffusers import HunyuanDiTPipeline
     concept_path = output.parent / "concept.png"
     concept_model = models / "Tencent-Hunyuan--HunyuanDiT-v1.1-Diffusers-Distilled"
     pipe = HunyuanDiTPipeline.from_pretrained(str(concept_model), torch_dtype=torch.float16, local_files_only=True)
     pipe.enable_model_cpu_offload()
+    warmup_message = "Pinned HunyuanDiT concept model is loaded."
+    emit("warmup", 14, warmup_message, timing=completed_timing("provider-model-warmup", warmup_started, warmup_message))
+    inference_started = begin_timing()
+    emit("concept-image", 15, "Concept image inference: running 30 local diffusion steps.")
     image = pipe(prompt=spec["prompt"], height=1024, width=1024, num_inference_steps=30, generator=torch.Generator("cpu").manual_seed(spec["seed"])).images[0]
     image.save(concept_path)
+    inference_message = "Concept image inference and save completed."
+    emit("concept-image", 29, inference_message, timing=completed_timing("concept-image-inference", inference_started, inference_message))
     del pipe
     torch.cuda.empty_cache()
-    emit("geometry", 42, "Generating Hunyuan3D 2.1 geometry from the concept image.", conceptImage=str(concept_path))
+    geometry_start = begin_timing()
+    emit("geometry", 36, "Geometry start: concept accepted; loading pinned Hunyuan3D 2.1 shape weights.", timing=completed_timing("geometry-start", geometry_start, "Concept accepted and geometry start authorised."), conceptImage=str(concept_path))
+    geometry_warmup_started = begin_timing()
     from hy3dshape.pipelines import Hunyuan3DDiTFlowMatchingPipeline
     shape_model = models / "tencent--Hunyuan3D-2.1"
     shape = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(str(shape_model), subfolder="hunyuan3d-dit-v2-1")
+    geometry_warmup_message = "Pinned Hunyuan3D shape model is loaded."
+    emit("geometry", 42, geometry_warmup_message, timing=completed_timing("geometry-model-warmup", geometry_warmup_started, geometry_warmup_message))
+    geometry_inference_started = begin_timing()
+    emit("geometry", 43, "Geometry inference started.")
     mesh = shape(image=str(concept_path))[0]
     intermediate = output.parent / "geometry.glb"
     mesh.export(str(intermediate))
+    geometry_inference_message = "Geometry inference and GLB export completed."
+    emit("geometry", 62, geometry_inference_message, timing=completed_timing("geometry-inference", geometry_inference_started, geometry_inference_message))
     del shape
     torch.cuda.empty_cache()
     if spec.get("generateTextures"):

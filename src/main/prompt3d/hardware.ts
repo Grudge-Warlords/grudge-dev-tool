@@ -71,6 +71,7 @@ export async function measurePrompt3DHardware(root: string, probeLinuxRuntime = 
     : distributions.find((d) => !/^docker-desktop(?:-data)?$/i.test(d)) ?? null;
   let runtimeProbe: Prompt3DHardwareSnapshot["wsl"]["runtimeProbe"];
   if (probeLinuxRuntime && usableLinuxDistribution) {
+    const runtimeProbeStarted = Date.now();
     const script = [
       "set -u",
       "uid=$(id -u)",
@@ -92,6 +93,7 @@ export async function measurePrompt3DHardware(root: string, probeLinuxRuntime = 
         python: values.get("python") || undefined,
         cudaVisible: values.get("cuda_visible") === "yes",
         measuredAt: new Date().toISOString(),
+        elapsedMs: Math.max(0, Date.now() - runtimeProbeStarted),
       };
     }
   }

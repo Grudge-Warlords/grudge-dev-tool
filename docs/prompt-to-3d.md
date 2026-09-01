@@ -37,9 +37,17 @@ On Windows, setup may pause after `wsl --install -d Ubuntu-24.04 --no-launch`. L
 
 New privileged IPC calls require the exact main-window sender, the exact app origin and a window-scoped capability grant issued only after **Enable local controls**. The random grant secret stays in the main process; neither the renderer nor a webview can read it. Jobs use one bounded loopback sidecar on `127.0.0.1`, concurrency 1, a 90-minute timeout and task-owned directories. Provider workers receive typed fields only. Cancellation signals the exact task-owned Linux worker PID and never terminates the shared WSL distribution. No renderer-supplied command or code is executed.
 
+Generate records the job before preflight and surfaces elapsed time for acceptance, GPU/headroom and WSL readiness, signed provider verification, sidecar health, provider/model warm-up, concept inference/review, geometry start/inference, post-processing and validation. The healthy loopback sidecar is reused; provider model workers still exit after a job so GPU memory is released. Install/repair performs full model-byte hashing, while each run performs the bounded signed manifest, exact file inventory/size, pinned source revision and environment-lock checks. A concept crop/edge rejection retains the concept, does not load geometry, and offers only a deliberate new-seed concept retry.
+
 Outputs are scaled and grounded to the declared metre contract, use a stable `GrudgeAssetRoot`, declare +Y up and +Z forward, and receive provenance. Validation checks GLB structure, finite geometry, requested dimensions, root/ground/axes, normals, UV/material/texture references, triangle/texture budgets and requested collision/LOD gates. A failed check moves the GLB to quarantine. It is never uploaded or published.
 
 Character and vehicle generation is disabled until their owning workflows define rig, topology and facing gates. Prompt to 3D does not invent or duplicate those unresolved contracts.
+
+## Future roadmap: hybrid guided generation
+
+This is planned work, not a validated current capability. A future typed workflow may accept a CPU-procedural blockout, a user-supplied model, or user-owned, permissively licensed, or otherwise authorized reference images; render canonical turntable views plus masks, depth and part IDs where available; let the user conversationally approve or adjust that reference set; and use only the approved views to constrain the local Hunyuan image-to-3D route with optional local enhancement. It must compare the result against every approved view, retain provenance/licensing and immutable revisions, and allow refinement without silent cloud fallback. The same allowlisted typed command contract should be exposed through text first, with optional local speech-to-speech later.
+
+Arbitrary Google scraping is explicitly out of scope. Web search may discover candidate references, but the tool may ingest only user-owned, permissively licensed, or otherwise authorized inputs.
 
 ## Offline local test
 

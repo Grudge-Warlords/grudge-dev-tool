@@ -13,6 +13,9 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - Packaged first launch **auto-registers HKCU file-defaults** (one-shot) so Explorer double-click hits the pipeline without a Settings click.
 - Doctor / fleet health: scored **CDN Toon human.glb** HEAD. Author WK FBX probe is optional.
 
+### Fixed
+- Prompt-to-3D Generate now publishes the accepted job before preflight, reports measured readiness/WSL/integrity/sidecar/model/inference/post-process/validation timings, avoids a redundant deep model re-hash and second WSL probe per run, and turns concept framing rejection into a preserved, explicit concept-only retry boundary.
+
 ### Changed
 - `viewer:convertModel` IPC forwards `localPath` (disk convert, not http-only).
 

@@ -123,6 +123,50 @@ export class Prompt3DService extends EventEmitter {
   authorizeResultPath(token: string, path: string) { this.requireGrant(token); return contained(this.root, path); }
   getRoot() { return this.root; }
 
+  private publishJob(job: Prompt3DJobStatus) {
+    this.emit("job-progress", job);
+  }
+
+  private beginTiming(job: Prompt3DJobStatus, stage: string, message: string) {
+    const startedAt = new Date().toISOString();
+    job.timings = [...(job.timings ?? []), { stage, status: "running", startedAt, message }];
+    job.message = message;
+    job.updatedAt = startedAt;
+    this.publishJob(job);
+    return { startedAt, startedMs: Date.now() };
+  }
+
+  private finishTiming(job: Prompt3DJobStatus, stage: string, startedAt: string, startedMs: number, message: string, status: "complete" | "failed" = "complete") {
+    const completedAt = new Date().toISOString();
+    const elapsedMs = Math.max(0, Date.now() - startedMs);
+    const timings = [...(job.timings ?? [])];
+    const index = timings.findIndex((timing) => timing.stage === stage && timing.startedAt === startedAt);
+    const completed = { stage, status, startedAt, completedAt, elapsedMs, message } as const;
+    if (index >= 0) timings[index] = completed;
+    else timings.push(completed);
+    job.timings = timings;
+    job.message = message;
+    job.updatedAt = completedAt;
+    this.publishJob(job);
+  }
+
+  private mergeProviderTimings(job: Prompt3DJobStatus, values: unknown) {
+    if (!Array.isArray(values)) return;
+    const timings = [...(job.timings ?? [])];
+    for (const value of values) {
+      if (!value || typeof value !== "object") continue;
+      const item = value as Record<string, unknown>;
+      if (typeof item.stage !== "string" || typeof item.message !== "string" || !Number.isFinite(item.elapsedMs)) continue;
+      const elapsedMs = Math.max(0, Number(item.elapsedMs));
+      const completedAt = typeof item.completedAt === "string" ? item.completedAt : new Date().toISOString();
+      const startedAt = typeof item.startedAt === "string" ? item.startedAt : new Date(Date.parse(completedAt) - elapsedMs).toISOString();
+      if (!timings.some((timing) => timing.stage === item.stage && timing.startedAt === startedAt)) {
+        timings.push({ stage: item.stage, status: "complete", startedAt, completedAt, elapsedMs, message: item.message });
+      }
+    }
+    job.timings = timings;
+  }
+
   async setRoot(token: string, path: string) {
     this.requireGrant(token);
     if ([...this.jobs.values()].some((job) => job.state === "queued" || job.state === "running") || [...(["hunyuan3d-2", "trellis"] as const)].some((p) => this.installer.getStatus(p).state === "installing")) throw new Error("Cannot change the installation root while work is active.");
@@ -219,81 +263,149 @@ export class Prompt3DService extends EventEmitter {
     if (PROMPT3D_PROVIDERS.find((p) => p.id === spec.providerId)?.kind === "cloud") throw new Error("Cloud providers are not configured; no prompt or reference data was sent.");
     if ([...this.jobs.values()].some((j) => j.state === "queued" || j.state === "running") || this.jobs.size >= 100) throw new Error(`Prompt-to-3D concurrency is bounded to ${MAX_JOBS}.`);
     const provider = localProvider(spec.providerId);
-    const hardware = await measurePrompt3DHardware(this.root, true);
-    const compliance = evaluatePrompt3DCompliance(provider, hardware, this.root, "pre-run", spec);
-    const integrity = await this.installer.verify(provider.id as LocalPrompt3DProviderId, true);
-    if (!integrity.ok) throw new Error(`setup-required: ${integrity.reason}`);
-    if (!compliance.canRun) throw new Error(`${compliance.state}: ${compliance.reasons.join(" ")}`);
     const id = randomUUID(), outputDirectory = contained(this.root, join(this.root, "jobs", id));
     await mkdir(outputDirectory, { recursive: true });
     const specPath = join(outputDirectory, "asset-spec.json"); await writeFile(specPath, `${JSON.stringify(spec, null, 2)}\n`);
     const now = new Date().toISOString();
-    const job: Prompt3DJobStatus = { id, state: "running", stage: "queued", progress: 0, providerId: spec.providerId, spec, message: "Queued for the loopback-only provider sidecar.", outputDirectory, variants: [], createdAt: now, updatedAt: now };
-    this.jobs.set(id, job); this.emit("job-progress", job);
-    void this.runJob(job, specPath).catch((error) => this.failJob(job, error));
+    const job: Prompt3DJobStatus = {
+      id, state: "running", stage: "compliance", progress: 1, providerId: spec.providerId, spec,
+      message: "Job accepted · measuring GPU, WSL and current headroom.", outputDirectory, variants: [], createdAt: now, updatedAt: now,
+      timings: [{ stage: "job-acceptance", status: "complete", startedAt: now, completedAt: now, elapsedMs: 0, message: "Job accepted and retained before preflight began." }],
+      conceptOnly: request.conceptOnly === true,
+    };
+    this.jobs.set(id, job); this.publishJob(job);
+    try {
+      const readiness = this.beginTiming(job, "hardware-readiness", "Measuring GPU headroom and starting/probing the configured WSL runtime.");
+      const hardware = await measurePrompt3DHardware(this.root, true);
+      this.finishTiming(job, "hardware-readiness", readiness.startedAt, readiness.startedMs, "GPU, platform and WSL readiness measured.");
+      if (hardware.wsl.runtimeProbe) {
+        const completedAt = hardware.wsl.runtimeProbe.measuredAt;
+        const elapsedMs = hardware.wsl.runtimeProbe.elapsedMs;
+        job.timings = [...(job.timings ?? []), {
+          stage: "wsl-start-runtime", status: "complete",
+          startedAt: new Date(Date.parse(completedAt) - elapsedMs).toISOString(), completedAt, elapsedMs,
+          message: `${hardware.wsl.runtimeProbe.distribution} started/probed as a normal CUDA-capable user.`,
+        }];
+        this.publishJob(job);
+      }
+      const verification = this.beginTiming(job, "signed-provider-verification", "Checking the signed manifest, pinned revisions, model inventory and environment locks.");
+      // Installer/repair performs full model-byte hashing. Per-run shallow
+      // verification retains signed inventory, file set/size, revision and lock
+      // checks without repeating more than a minute of blind disk I/O.
+      const integrity = await this.installer.verify(provider.id as LocalPrompt3DProviderId, false);
+      this.finishTiming(job, "signed-provider-verification", verification.startedAt, verification.startedMs, integrity.reason, integrity.ok ? "complete" : "failed");
+      const compliance = evaluatePrompt3DCompliance(provider, hardware, this.root, "pre-run", spec);
+      if (!integrity.ok) throw new Error(`setup-required: ${integrity.reason}`);
+      if (!compliance.canRun) throw new Error(`${compliance.state}: ${compliance.reasons.join(" ")}`);
+      job.stage = "queued"; job.progress = 5; job.message = "Preflight passed · starting the loopback-only sidecar."; this.publishJob(job);
+      void this.runJob(job, specPath, hardware.wsl.usableLinuxDistribution ?? undefined).catch((error) => this.failJob(job, error));
+    } catch (error) {
+      this.failJob(job, error);
+      throw error;
+    }
     return job;
   }
 
-  private async runJob(job: Prompt3DJobStatus, _specPath: string) {
+  private async runJob(job: Prompt3DJobStatus, _specPath: string, wslDistro?: string) {
     const deadline = Date.now() + JOB_TIMEOUT_MS;
     const variants: Prompt3DJobStatus["variants"] = [];
     for (let index = 0; index < job.spec.variants; index += 1) {
       if (job.state === "cancelled") return;
       const variantDirectory = join(job.outputDirectory, `variant-${index + 1}`); await mkdir(variantDirectory, { recursive: true });
-      const variantSpec = { ...job.spec, seed: job.spec.seed + index, variants: 1 };
+      const variantSpec = { ...job.spec, seed: job.spec.seed + index, variants: 1, conceptOnly: job.conceptOnly };
       const variantSpecPath = join(variantDirectory, "asset-spec.json"); await writeFile(variantSpecPath, `${JSON.stringify(variantSpec, null, 2)}\n`);
       const raw = join(variantDirectory, "provider-output.glb"), sidecarId = `${job.id}-${index + 1}`;
       this.activeSidecarJobs.set(job.id, sidecarId);
-      job.message = `Starting variant ${index + 1} of ${job.spec.variants}.`; this.emit("job-progress", job);
+      job.message = `Starting variant ${index + 1} of ${job.spec.variants}.`; this.publishJob(job);
       let runtime: Record<string, string>;
       if (job.providerId === "trellis" || job.providerId === "hunyuan3d-2") {
-        const hardware = await measurePrompt3DHardware(this.root, true);
-        if (!hardware.wsl.usableLinuxDistribution) throw new Error(`${localProvider(job.providerId).name} requires its configured normal WSL Linux distribution.`);
-        runtime = { wslDistro: hardware.wsl.usableLinuxDistribution, providerRootName: `${job.providerId}-${localProvider(job.providerId).sourceRevision.slice(0, 12)}` };
+        if (!wslDistro) throw new Error(`${localProvider(job.providerId).name} requires its configured normal WSL Linux distribution.`);
+        runtime = { wslDistro, providerRootName: `${job.providerId}-${localProvider(job.providerId).sourceRevision.slice(0, 12)}` };
       } else runtime = { python: this.pythonFor("hunyuan3d-2") };
+      const sidecarTiming = this.beginTiming(job, "sidecar-health", "Starting or reusing the loopback sidecar and checking its health.");
+      const sidecarHealth = await this.sidecarRequest("/health") as { ok?: boolean; binding?: string };
+      if (!sidecarHealth.ok || sidecarHealth.binding !== "127.0.0.1") throw new Error("Prompt-to-3D sidecar health contract failed.");
+      this.finishTiming(job, "sidecar-health", sidecarTiming.startedAt, sidecarTiming.startedMs, "Loopback sidecar is healthy and ready.");
       await this.sidecarRequest("/jobs", { method: "POST", body: JSON.stringify({ jobId: sidecarId, providerId: job.providerId, specPath: variantSpecPath, output: raw, ...runtime }) });
       for (;;) {
         if (Date.now() > deadline) { await this.cancel("internal", job.id, true); throw new Error("Generation exceeded the 90-minute timeout."); }
         await new Promise((r) => setTimeout(r, 1_000));
         const state: any = await this.sidecarRequest(`/jobs/${sidecarId}`);
+        this.mergeProviderTimings(job, state.timings);
         const providerProgress = Math.min(90, state.progress ?? 0);
         const overall = Math.round(((index + providerProgress / 100) / job.spec.variants) * 90);
-        Object.assign(job, { stage: state.stage ?? job.stage, progress: overall, message: `Variant ${index + 1}/${job.spec.variants}: ${state.message ?? job.message}`, updatedAt: new Date().toISOString() }); this.emit("job-progress", job);
+        Object.assign(job, { stage: state.stage ?? job.stage, progress: overall, message: `Variant ${index + 1}/${job.spec.variants}: ${state.message ?? job.message}`, updatedAt: new Date().toISOString() }); this.publishJob(job);
+        if (existsSync(join(variantDirectory, "concept.png"))) job.conceptImagePath = join(variantDirectory, "concept.png");
         if (state.state === "failed") throw new Error(state.error || "Provider generation failed.");
-        if (state.state === "cancelled") { job.state = "cancelled"; job.stage = "cancelled"; this.emit("job-progress", job); return; }
+        if (state.state === "cancelled") { job.state = "cancelled"; job.stage = "cancelled"; this.publishJob(job); return; }
         if (state.state === "complete") break;
+      }
+      if (job.conceptOnly) {
+        if (!job.conceptImagePath) throw new Error("No concept image was produced.");
+        this.activeSidecarJobs.delete(job.id);
+        Object.assign(job, { state: "complete", stage: "complete", progress: 100, message: "Concept ready for visual review. No geometry model was loaded.", updatedAt: new Date().toISOString() });
+        this.publishJob(job); return;
       }
       const rawLinkInfo = await lstat(raw);
       const rawInfo = await stat(raw);
       if (rawLinkInfo.isSymbolicLink() || !rawInfo.isFile() || rawInfo.size <= 0 || rawInfo.size > MAX_PROVIDER_OUTPUT_BYTES) throw new Error("Provider GLB is a link, empty or exceeds the 1 GiB output limit.");
       await measureTaskTree(variantDirectory);
-      job.stage = "postprocess"; job.message = `Applying the canonical contract to variant ${index + 1}.`; this.emit("job-progress", job);
+      job.stage = "postprocess"; job.message = `Applying the canonical contract to variant ${index + 1}.`; this.publishJob(job);
+      const postprocessTiming = this.beginTiming(job, "post-process", `Applying the canonical contract to variant ${index + 1}.`);
       const finalPath = join(variantDirectory, "asset.glb"); await postprocessPrompt3DGlb(raw, finalPath, variantSpec);
+      this.finishTiming(job, "post-process", postprocessTiming.startedAt, postprocessTiming.startedMs, "Canonical post-processing complete.");
       await rm(raw, { force: true });
       await rm(join(variantDirectory, "trellis-runtime-model"), { recursive: true, force: true });
-      job.stage = "validation"; this.emit("job-progress", job);
+      job.stage = "validation"; this.publishJob(job);
+      const validationTiming = this.beginTiming(job, "validation", "Running deterministic structure, geometry, scale and budget validation.");
       const report = await validatePrompt3DGlb(finalPath, variantSpec, join(this.root, "quarantine"));
+      this.finishTiming(job, "validation", validationTiming.startedAt, validationTiming.startedMs, `Validation ${report.gameReady ? "passed" : "quarantined the asset"} · ${report.deterministicId.slice(0, 12)}.`);
       const provenance = { createdAt: new Date().toISOString(), specVersion: variantSpec.version, provider: localProvider(job.providerId), prompt: variantSpec.prompt, seed: variantSpec.seed, offline: true, validationId: report.deterministicId };
       const provenancePath = join(variantDirectory, "provenance.json"); await writeFile(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);
       variants.push({ index, glbPath: report.quarantinedPath ?? finalPath, report, provenancePath });
-      job.variants = [...variants]; this.emit("job-progress", job);
+      job.variants = [...variants]; this.publishJob(job);
     }
     this.activeSidecarJobs.delete(job.id);
     const allReady = variants.length === job.spec.variants && variants.every((variant) => variant.report.gameReady);
     job.state = allReady ? "complete" : "failed"; job.stage = allReady ? "complete" : "quarantine"; job.progress = 100;
     job.message = allReady ? `${variants.length} validated game-ready variant${variants.length === 1 ? "" : "s"} available.` : "One or more variants failed validation; failed assets were quarantined and nothing was published or uploaded.";
     if (!allReady) job.error = { code: "VALIDATION_FAILED", message: job.message, retryable: true };
-    job.updatedAt = new Date().toISOString(); this.emit("job-progress", job);
+    job.updatedAt = new Date().toISOString(); this.publishJob(job);
   }
 
   private failJob(job: Prompt3DJobStatus, error: unknown) {
     if (job.state === "cancelled") return;
     this.activeSidecarJobs.delete(job.id);
-    job.state = "failed"; job.stage = "failed"; job.error = { code: "PROVIDER_FAILED", message: error instanceof Error ? error.message : String(error), retryable: true }; job.message = job.error.message; job.updatedAt = new Date().toISOString(); this.emit("job-progress", job);
+    const message = error instanceof Error ? error.message : String(error);
+    const conceptRejected = message.startsWith("CONCEPT_REVIEW_REQUIRED:");
+    job.state = "failed"; job.stage = conceptRejected ? "concept-review" : "failed";
+    job.error = {
+      code: conceptRejected ? "CONCEPT_QUALITY_REJECTED" : "PROVIDER_FAILED",
+      message: conceptRejected ? `Concept-quality failure: ${message.replace(/^CONCEPT_REVIEW_REQUIRED:\s*/, "")} The concept was preserved; geometry was not loaded.` : message,
+      retryable: true,
+    };
+    if (conceptRejected) {
+      const now = new Date().toISOString();
+      const timings = [...(job.timings ?? [])];
+      const reviewIndex = timings.findIndex((timing) => timing.stage === "concept-review");
+      if (reviewIndex >= 0) timings[reviewIndex] = { ...timings[reviewIndex], status: "failed", message: job.error.message };
+      else timings.push({ stage: "concept-review", status: "failed", startedAt: now, completedAt: now, elapsedMs: 0, message: job.error.message });
+      job.timings = timings;
+    }
+    job.message = job.error.message; job.updatedAt = new Date().toISOString(); this.publishJob(job);
   }
 
   status(token: string, id: string, internal = false) { if (!internal) this.requireGrant(token); const job = this.jobs.get(id); if (!job) throw new Error("Prompt-to-3D job not found."); return job; }
-  async cancel(token: string, id: string, internal = false) { if (!internal) this.requireGrant(token); const job = this.status(token, id, internal); const sidecarId = this.activeSidecarJobs.get(id); if (job.state === "running" && sidecarId) await this.sidecarRequest(`/jobs/${sidecarId}/cancel`, { method: "POST", body: "{}" }).catch(() => undefined); this.activeSidecarJobs.delete(id); job.state = "cancelled"; job.stage = "cancelled"; job.message = "Cancelled by user; partial output remains task-contained."; job.updatedAt = new Date().toISOString(); this.emit("job-progress", job); return job; }
-  async retry(token: string, id: string) { this.requireGrant(token); const previous = this.status(token, id); return this.start(token, { spec: { ...previous.spec, seed: previous.spec.seed + 1 }, consent: { providerId: previous.providerId, confirmed: true } }); }
+  async cancel(token: string, id: string, internal = false) { if (!internal) this.requireGrant(token); const job = this.status(token, id, internal); const sidecarId = this.activeSidecarJobs.get(id); if (job.state === "running" && sidecarId) await this.sidecarRequest(`/jobs/${sidecarId}/cancel`, { method: "POST", body: "{}" }).catch(() => undefined); this.activeSidecarJobs.delete(id); job.state = "cancelled"; job.stage = "cancelled"; job.message = "Cancelled by user; partial output remains task-contained."; job.updatedAt = new Date().toISOString(); this.publishJob(job); return job; }
+  async retry(token: string, id: string) {
+    this.requireGrant(token);
+    const previous = this.status(token, id);
+    const conceptRetry = previous.error?.code === "CONCEPT_QUALITY_REJECTED";
+    return this.start(token, {
+      spec: { ...previous.spec, seed: previous.spec.seed + 1, variants: conceptRetry ? 1 : previous.spec.variants, generateTextures: conceptRetry ? false : previous.spec.generateTextures },
+      conceptOnly: conceptRetry,
+      consent: { providerId: previous.providerId, confirmed: true },
+    });
+  }
   shutdown() { this.sidecar?.process.kill(); this.sidecar = null; this.revokeAll(); }
 }

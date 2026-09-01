@@ -143,7 +143,7 @@ These are the tracked upgrade and connection-improvement opportunities. When wor
 | Hunyuan3D 2.1 | `82920d643c0dc2f7bfd7255f45f62d386edfe60c` | Normal-user WSL Windows path; pinned shape/paint, DINOv2 and HunyuanDiT concept-image route. Keep model revisions and restricted license visible in `src/main/prompt3d/providers.ts`; review upstream quarterly. |
 | Microsoft TRELLIS | `442aa1e1afb9014e80681d3bf604e8d728a86ee7` | Linux-tested normal-user WSL path. Direct text is enabled; image conditioning awaits typed reference intake. Never invoke its moving-head/broken `setup.sh`; dependency pins are in `providers.ts`. Do not use `docker-desktop`; review quarterly. |
 
-Both providers use the typed loopback job/installer service documented in [docs/prompt-to-3d.md](docs/prompt-to-3d.md). Do not add automatic cloud fallback, Ollama mesh weights, global Python installs, or unpinned model downloads.
+Both providers use the typed loopback job/installer service documented in [docs/prompt-to-3d.md](docs/prompt-to-3d.md). Generate must create and publish a retained job before preflight, show measured stage timings, and use bounded signed-manifest verification; full model-byte hashing stays in install/repair. A concept-quality rejection preserves the image and must not load geometry or auto-retry. Do not add automatic cloud fallback, Ollama mesh weights, global Python installs, or unpinned model downloads.
 
 ### 1. npm Dependencies — Pinned Versions to Bump
 
