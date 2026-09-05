@@ -13,6 +13,8 @@ export interface WorkspaceSnapshot {
   requestObjectPath: string;
   /** Last selected Play Modes fleet game id. */
   playModeId: string;
+  /** User-selected Prompt-to-3D provider/model/job root. */
+  prompt3dRoot: string;
   updatedAt: number;
 }
 
@@ -25,6 +27,7 @@ const DEFAULT: WorkspaceSnapshot = {
   localAssetsRoot: "",
   requestObjectPath: "",
   playModeId: "",
+  prompt3dRoot: "",
   updatedAt: 0,
 };
 

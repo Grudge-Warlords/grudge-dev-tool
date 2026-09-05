@@ -47,25 +47,38 @@ def run_job(job_id: str, provider: str, spec_path: Path, output: Path, python: s
     launcher_path = None
     try:
         pid_file = contained(str(output.parent / ".provider-worker.pid"))
+        selected_worker = WORKER.parent / "hy_motion_worker.py" if provider == "hy-motion-1" else WORKER
+        if not selected_worker.is_file():
+            raise ValueError("typed provider worker is missing")
         if wsl_distro:
-            expected_prefix = "trellis-" if provider == "trellis" else "hunyuan3d-2-"
+            expected_prefix = "trellis-" if provider == "trellis" else "hy-motion-1-" if provider == "hy-motion-1" else "hunyuan3d-2-"
             if not re.fullmatch(r"[A-Za-z0-9._ -]{1,80}", wsl_distro) or not provider_root_name or not provider_root_name.startswith(expected_prefix):
                 raise ValueError("Invalid typed WSL provider configuration")
-            linux_base = f"$HOME/.local/share/grudge-prompt3d/{provider_root_name}"
             provider_source = wsl_path(ROOT / provider / "source")
-            command = " ".join([
-                "exec", f'"{linux_base}/environment/bin/python"', f'"{wsl_path(WORKER)}"', "--provider", provider,
-                "--spec", f'"{wsl_path(spec_path)}"', "--root", f'"{wsl_path(ROOT)}"',
-                "--output", f'"{wsl_path(output)}"', "--provider-source", f'"{provider_source}"',
-                "--pid-file", f'"{wsl_path(pid_file)}"',
-            ])
+            launcher_arguments = [
+                provider_root_name, wsl_path(selected_worker), "--provider", provider,
+                "--spec", wsl_path(spec_path), "--root", wsl_path(ROOT),
+                "--output", wsl_path(output), "--provider-source", provider_source,
+                "--pid-file", wsl_path(pid_file),
+            ]
             launcher_path = contained(str(output.parent / ".provider-worker.sh"))
-            launcher_path.write_text("#!/usr/bin/env bash\nset -e\nexport PYTHONDONTWRITEBYTECODE=1\n" + command + "\n", encoding="utf-8", newline="\n")
-            cmd = ["wsl.exe", "-d", wsl_distro, "--exec", "bash", wsl_path(launcher_path)]
+            launcher_path.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -e\n"
+                "export PYTHONDONTWRITEBYTECODE=1\n"
+                'provider_root_name="$1"\n'
+                "shift\n"
+                'provider_environment="$HOME/.local/share/grudge-prompt3d/$provider_root_name/environment"\n'
+                'export PATH="$provider_environment/bin:$PATH"\n'
+                'export LD_LIBRARY_PATH="$provider_environment/lib:$provider_environment/lib64:${LD_LIBRARY_PATH:-}"\n'
+                'exec "$provider_environment/bin/python" "$@"\n',
+                encoding="utf-8", newline="\n",
+            )
+            cmd = ["wsl.exe", "-d", wsl_distro, "--exec", "bash", wsl_path(launcher_path), *launcher_arguments]
         else:
             if not python:
                 raise ValueError("Local Python path required")
-            cmd = [python, str(WORKER), "--provider", provider, "--spec", str(spec_path), "--root", str(ROOT), "--output", str(output), "--pid-file", str(pid_file)]
+            cmd = [python, str(selected_worker), "--provider", provider, "--spec", str(spec_path), "--root", str(ROOT), "--output", str(output), "--pid-file", str(pid_file)]
         worker_env = {**os.environ, "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1", "PYTHONDONTWRITEBYTECODE": "1"}
         worker_env.pop("GRUDGE_PROMPT3D_SIDECAR_TOKEN", None)
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", env=worker_env)
@@ -155,7 +168,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.authorized(): return self.reply(403, {"error": "forbidden"})
         if self.path == "/health": return self.reply(200, {"ok": True, "binding": "127.0.0.1", "concurrency": 1})
-        if self.path == "/capabilities": return self.reply(200, {"providers": ["hunyuan3d-2", "trellis"], "operations": ["health", "capabilities", "start", "progress", "cancel", "result", "error"]})
+        if self.path == "/capabilities": return self.reply(200, {"providers": ["hunyuan3d-2", "trellis", "hy-motion-1"], "operations": ["health", "capabilities", "start", "progress", "cancel", "result", "error"]})
         if self.path.startswith("/jobs/"):
             job_id = self.path.rsplit("/", 1)[-1]
             with lock:
@@ -174,7 +187,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/jobs":
             job_id, provider = str(body["jobId"]), str(body["providerId"])
             if not re.fullmatch(r"[0-9a-f-]{36}-[1-4]", job_id): return self.reply(400, {"error": "invalid typed job id"})
-            if provider not in ("hunyuan3d-2", "trellis"): return self.reply(400, {"error": "provider not allowlisted"})
+            if provider not in ("hunyuan3d-2", "trellis", "hy-motion-1"): return self.reply(400, {"error": "provider not allowlisted"})
             spec_path, output = contained(body["specPath"]), contained(body["output"])
             wsl_distro = str(body.get("wslDistro") or "") or None
             python = contained(body["python"]) if provider == "hunyuan3d-2" and not wsl_distro else None

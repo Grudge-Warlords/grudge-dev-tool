@@ -1,0 +1,77 @@
+{
+  "$schema": "./maintenance.policy.schema.json",
+  "schemaVersion": 1,
+  "mode": "discovery-only",
+  "schedule": {
+    "enabled": false,
+    "rrule": null,
+    "notificationPolicy": null
+  },
+  "approval": {
+    "approved": false,
+    "approvedBy": null,
+    "approvedAt": null,
+    "policyDigest": null
+  },
+  "stateDirectory": null,
+  "protectedPaths": [
+    "E:\\GrudgePrompt3D"
+  ],
+  "authority": {
+    "networkDiscovery": false,
+    "runLocalValidation": false,
+    "writeRepository": false,
+    "createIsolatedStaging": false,
+    "installDependencies": false,
+    "promoteChanges": false,
+    "commitChanges": false,
+    "pushChanges": false,
+    "deployOrRelease": false,
+    "changeSecretsOrPermissions": false,
+    "downloadModels": false,
+    "stopUnownedProcesses": false
+  },
+  "budgets": {
+    "wallClockMinutes": null,
+    "inputTokens": null,
+    "outputTokens": null,
+    "gpuMinutes": null,
+    "gpuVramMiB": null,
+    "diskReadMiB": null,
+    "diskWriteMiB": null,
+    "networkMiB": null,
+    "changedFiles": null,
+    "changedLines": null,
+    "retries": null,
+    "reservePercent": null
+  },
+  "discovery": {
+    "registryMetadata": false,
+    "osvAudit": false,
+    "maxCandidates": null,
+    "requestTimeoutSeconds": null,
+    "allowedHosts": [
+      "registry.npmjs.org",
+      "api.osv.dev"
+    ]
+  },
+  "validation": {
+    "npmScripts": [
+      "typecheck",
+      "build:preload",
+      "maintenance:test"
+    ],
+    "holdMinutes": null
+  },
+  "scoring": {
+    "minimumForStaging": null,
+    "weights": {
+      "value": 3,
+      "evidence": 3,
+      "reversibility": 2,
+      "testability": 2,
+      "risk": 3,
+      "resourceCost": 2
+    }
+  }
+}

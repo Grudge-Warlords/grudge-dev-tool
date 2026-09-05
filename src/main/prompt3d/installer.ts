@@ -7,6 +7,7 @@ import { unzipSync } from "fflate";
 import type { LocalPrompt3DProviderId, Prompt3DInstallStatus } from "../../shared/prompt3d";
 import { localProvider } from "./providers";
 import { measurePrompt3DHardware, evaluatePrompt3DCompliance } from "./hardware";
+import { sha256InstalledModelFile } from "./providerDigestCache";
 
 const UV_VERSION = "0.12.7";
 const UV_URL = `https://releases.astral.sh/github/uv/releases/download/${UV_VERSION}/uv-x86_64-pc-windows-msvc.zip`;
@@ -174,9 +175,20 @@ export class Prompt3DInstaller {
     if (existsSync(statusPath)) {
       try {
         const persisted = JSON.parse(readFileSync(statusPath, "utf8")) as Prompt3DInstallStatus;
+        const manifestExists = existsSync(join(destination, "install-manifest.json"));
+        const persistedState = persisted.state === "installing"
+          ? "repair-needed"
+          : persisted.state === "installed" && !manifestExists
+            ? "repair-needed"
+            : manifestExists && ["not-installed", "cancelled", "failed"].includes(persisted.state)
+              ? "installed"
+              : persisted.state;
         return {
           ...persisted,
           providerId,
+          state: persistedState,
+          stage: persistedState === "installed" ? "detected" : persistedState === "repair-needed" ? "verification required" : persisted.stage,
+          progress: persistedState === "installed" ? 100 : persisted.progress,
           destination,
           sourceRevision: provider.sourceRevision,
           modelRevisions: provider.modelSources.map((model) => model.revision),
@@ -243,19 +255,19 @@ export class Prompt3DInstaller {
         const actualPaths = await snapshotPayloadPaths(modelRoot);
         const declaredPaths = metadata.files.map((entry) => entry.path).sort();
         if (actualPaths.length !== declaredPaths.length || actualPaths.some((path, index) => path !== declaredPaths[index])) return { ok: false, reason: `Installed ${model.id} snapshot file set differs from its signed inventory.` };
-        let measuredBytes = 0;
+        let measuredBytes = 0n;
         const tree = createHash("sha256");
         for (const entry of metadata.files) {
           if (!entry || typeof entry.path !== "string" || !Number.isSafeInteger(entry.bytes) || !/^[a-f0-9]{64}$/.test(entry.sha256)) return { ok: false, reason: `Installed ${model.id} snapshot file inventory is invalid.` };
           const path = contained(modelRoot, join(modelRoot, entry.path));
-          const info = await lstat(path);
-          if (!info.isFile() || info.isSymbolicLink() || info.size !== entry.bytes) return { ok: false, reason: `Installed ${model.id} file ${entry.path} differs from its signed size.` };
+          const info = await lstat(path, { bigint: true });
+          if (!info.isFile() || info.isSymbolicLink() || info.size !== BigInt(entry.bytes)) return { ok: false, reason: `Installed ${model.id} file ${entry.path} differs from its signed size.` };
           measuredBytes += info.size;
-          const digest = deep ? await sha256(path) : entry.sha256;
+          const digest = deep ? await sha256InstalledModelFile(path, info, entry.sha256) : entry.sha256;
           if (deep && digest !== entry.sha256) return { ok: false, reason: `Installed ${model.id} file ${entry.path} failed SHA-256 verification.` };
           tree.update(`${entry.path}\0${entry.bytes}\0${digest}\n`);
         }
-        if (measuredBytes !== metadata.installedBytes || tree.digest("hex") !== metadata.treeSha256) return { ok: false, reason: `Installed ${model.id} snapshot tree hash is invalid.` };
+        if (measuredBytes !== BigInt(metadata.installedBytes) || tree.digest("hex") !== metadata.treeSha256) return { ok: false, reason: `Installed ${model.id} snapshot tree hash is invalid.` };
       }
       const dependencyRevisions = new Set((payload.sourceDependencies ?? []).map((d: { revision: string }) => d.revision));
       if (provider.sourceDependencies.some((dependency) => !dependencyRevisions.has(dependency.revision))) return { ok: false, reason: "One or more pinned source dependency revisions are absent from the signed manifest." };
@@ -266,14 +278,25 @@ export class Prompt3DInstaller {
         if (await gitOutput(dependencyRoot, ["status", "--porcelain=v1", "--untracked-files=all"], `Could not verify ${dependency.id} worktree.`)) return { ok: false, reason: `Installed ${dependency.id} source has local changes.` };
       }
       const runtimeLocks = payload.runtimeLocks ?? {};
-      const runtimeFreezePath = join(providerRoot, "runtime-freeze.txt"), runtimeCondaPath = join(providerRoot, "runtime-conda-explicit.txt");
-      if (runtimeLocks.pipFreezeSha256 !== await sha256(runtimeFreezePath) || runtimeLocks.condaExplicitSha256 !== await sha256(runtimeCondaPath)) return { ok: false, reason: "Isolated runtime lock evidence does not match the signed manifest." };
+      const runtimeFreezePath = join(providerRoot, "runtime-freeze.txt"), runtimeCondaPath = join(providerRoot, "runtime-conda-explicit.txt"), runtimeNativePath = join(providerRoot, "runtime-native-artifacts.json");
+      if (runtimeLocks.pipFreezeSha256 !== await sha256(runtimeFreezePath) || runtimeLocks.condaExplicitSha256 !== await sha256(runtimeCondaPath) || runtimeLocks.nativeArtifactsSha256 !== await sha256(runtimeNativePath)) return { ok: false, reason: "Isolated runtime lock evidence does not match the signed manifest." };
+      const nativeInventory = JSON.parse(await readFile(runtimeNativePath, "utf8")) as { version?: number; artifacts?: Array<{ id?: string; path?: string; bytes?: number; sha256?: string }> };
+      const nativeArtifacts = nativeInventory.artifacts ?? [];
+      const expectedNativeArtifacts = provider.nativeArtifacts ?? [];
+      if (nativeInventory.version !== 1 || nativeArtifacts.length !== expectedNativeArtifacts.length || nativeArtifacts.length < 1) return { ok: false, reason: "Isolated native runtime inventory is invalid." };
+      for (const expected of expectedNativeArtifacts) {
+        const artifact = nativeArtifacts.find((entry) => entry.id === expected.id);
+        if (!artifact || !(new RegExp(expected.pathPattern)).test(String(artifact.path ?? "")) || !Number.isSafeInteger(artifact.bytes) || Number(artifact.bytes) < 1 || !/^[a-f0-9]{64}$/.test(String(artifact.sha256 ?? ""))) {
+          return { ok: false, reason: `Isolated native runtime artifact ${expected.id} is invalid.` };
+        }
+      }
+      const nativeArtifact = nativeArtifacts[0];
       if (deep) {
         const hardware = await measurePrompt3DHardware(this.options.root);
         const distro = hardware.wsl.usableLinuxDistribution;
         if (!distro) return { ok: false, reason: "Configured normal-user WSL runtime is unavailable for deep package verification." };
         const rootName = `${providerId}-${provider.sourceRevision.slice(0, 12)}`;
-        const script = `set -e; BASE="$HOME/.local/share/grudge-prompt3d/${rootName}"; source "$BASE/miniforge/etc/profile.d/conda.sh"; conda activate "$BASE/environment"; python -m pip freeze | LC_ALL=C sort; printf '\\n--CONDA-EXPLICIT--\\n'; conda list -p "$BASE/environment" --explicit; printf '\\n--SOURCE-REVISION--\\n'; git -C "$BASE/source" rev-parse HEAD; printf '\\n--SOURCE-DIRTY--\\n'; git -C "$BASE/source" status --porcelain=v1 --untracked-files=all; printf '\\n--SOURCE-ORIGIN--\\n'; git -C "$BASE/source" remote get-url origin`;
+        const script = `set -e; BASE="$HOME/.local/share/grudge-prompt3d/${rootName}"; NATIVE="$BASE/${nativeArtifact.path}"; test -f "$NATIVE"; test "$(stat -c %s "$NATIVE")" = "${nativeArtifact.bytes}"; echo '${nativeArtifact.sha256}  '$NATIVE | sha256sum -c - >/dev/null; source "$BASE/miniforge/etc/profile.d/conda.sh"; conda activate "$BASE/environment"; python -m pip freeze | LC_ALL=C sort; printf '\\n--CONDA-EXPLICIT--\\n'; conda list -p "$BASE/environment" --explicit; printf '\\n--SOURCE-REVISION--\\n'; git -C "$BASE/source" rev-parse HEAD; printf '\\n--SOURCE-DIRTY--\\n'; git -C "$BASE/source" status --porcelain=v1 --untracked-files=all; printf '\\n--SOURCE-ORIGIN--\\n'; git -C "$BASE/source" remote get-url origin`;
         const verificationScript = contained(providerRoot, join(providerRoot, ".deep-verify.sh"));
         await writeFile(verificationScript, `#!/usr/bin/env bash\n${script}\n`, "utf8");
         let current: string;
@@ -593,7 +616,8 @@ export class Prompt3DInstaller {
     const bytes = await directoryBytes(providerRoot);
     const runtimeFreeze = join(providerRoot, "runtime-freeze.txt");
     const runtimeConda = join(providerRoot, "runtime-conda-explicit.txt");
-    if (!existsSync(runtimeFreeze) || !existsSync(runtimeConda)) throw new Error("The isolated runtime lock evidence is incomplete.");
+    const runtimeNative = join(providerRoot, "runtime-native-artifacts.json");
+    if (!existsSync(runtimeFreeze) || !existsSync(runtimeConda) || !existsSync(runtimeNative)) throw new Error("The isolated runtime lock evidence is incomplete.");
     const models = await Promise.all(provider.modelSources.map(async (model) => {
       const metadataPath = join(providerRoot, "models", model.id.replace(/[\\/]/g, "--"), ".grudge-snapshot.json");
       const metadataRaw = await readFile(metadataPath, "utf8");
@@ -604,7 +628,7 @@ export class Prompt3DInstaller {
     const payload = {
       version: 1, providerId, createdAt: new Date().toISOString(), sourceUrl: provider.sourceUrl,
       sourceRevision: provider.sourceRevision, models, sourceDependencies: provider.sourceDependencies,
-      runtimeLocks: { pipFreezeSha256: await sha256(runtimeFreeze), condaExplicitSha256: await sha256(runtimeConda) }, installedBytes: bytes,
+      runtimeLocks: { pipFreezeSha256: await sha256(runtimeFreeze), condaExplicitSha256: await sha256(runtimeConda), nativeArtifactsSha256: await sha256(runtimeNative) }, installedBytes: bytes,
       installationRoot: providerRoot, license: { name: provider.licenseName, url: provider.licenseUrl },
     };
     const canonical = JSON.stringify(payload);
@@ -630,6 +654,11 @@ export class Prompt3DInstaller {
       const source = join(providerRoot, "source");
       this.update(providerId, { stage: "source", progress: 14, message: `Fetching official source at ${provider.sourceRevision.slice(0, 12)}…` });
       await this.checkout(providerId, provider.sourceUrl, provider.sourceRevision, source);
+      if (providerId === "hy-motion-1") {
+        this.update(providerId, { stage: "source", progress: 16, message: "Fetching and verifying the official HY-Motion LFS rest-rig data." });
+        await this.run(providerId, "git", ["lfs", "pull"], source);
+        await this.run(providerId, "git", ["lfs", "fsck"], source);
+      }
       await this.downloadModels(providerId, uvExe, python, providerRoot);
       await this.checkoutDependencies(providerId, providerRoot);
       this.assertNotCancelled(providerId);
@@ -678,18 +707,63 @@ export class Prompt3DInstaller {
           "python -c 'import torch; assert torch.cuda._is_compiled() and torch.version.cuda == \"12.4\"'",
           "ln -sfn libcudart.so.12 \"$CUDA_HOME/lib/libcudart.so\"; test -e \"$CUDA_HOME/lib/libcudart.so\"",
           `python -m pip install --index-url https://pypi.org/simple -r ${quotedRequirements}`,
-          "python -m pip install --index-url https://pypi.org/simple sentencepiece==0.2.1",
+          "python -m pip install --index-url https://pypi.org/simple setuptools==80.9.0 sentencepiece==0.2.1",
           "python -m pip install --index-url https://pypi.org/simple bpy==4.2.0",
           "cd \"$BASE/source/hy3dpaint/custom_rasterizer\"",
           "python -m pip install --no-build-isolation -e .",
           "cd \"$BASE/source/hy3dpaint/DifferentiableRenderer\"",
           "bash ./compile_mesh_painter.sh",
+          "PAINTER_EXTENSION=\"$(find \"$BASE/source/hy3dpaint/DifferentiableRenderer\" -maxdepth 1 -type f -name 'mesh_inpaint_processor*.so' -print -quit)\"; test -n \"$PAINTER_EXTENSION\"",
+          `PAINTER_EXTENSION="$PAINTER_EXTENSION" BASE="$BASE" PROVIDER_ROOT=${quotedProviderRoot} python -c 'import hashlib,json,os,pathlib; p=pathlib.Path(os.environ["PAINTER_EXTENSION"]); b=pathlib.Path(os.environ["BASE"]); o=pathlib.Path(os.environ["PROVIDER_ROOT"])/"runtime-native-artifacts.json"; o.write_text(json.dumps({"version":1,"artifacts":[{"id":"hunyuan-mesh-inpaint-processor","path":p.relative_to(b).as_posix(),"bytes":p.stat().st_size,"sha256":hashlib.sha256(p.read_bytes()).hexdigest()}]},indent=2)+"\\n",encoding="utf-8")'`,
           "mkdir -p \"$BASE/source/hy3dpaint/ckpt\"",
           `curl -fL --retry 5 --continue-at - '${REAL_ESRGAN_URL}' -o \"$BASE/source/hy3dpaint/ckpt/RealESRGAN_x4plus.pth\"`,
           `echo '${REAL_ESRGAN_SHA256}  '$BASE/source/hy3dpaint/ckpt/RealESRGAN_x4plus.pth | sha256sum -c -`,
-          "PYTHONPATH=\"$BASE/source/hy3dshape:$BASE/source/hy3dpaint\" python -c 'import os, torch; assert torch.cuda.is_available(); from hy3dshape.pipelines import Hunyuan3DDiTFlowMatchingPipeline; from textureGenPipeline import Hunyuan3DPaintPipeline; print(torch.__version__, flush=True); os._exit(0)'",
+          "PYTHONPATH=\"$BASE/source/hy3dshape:$BASE/source/hy3dpaint:$BASE/source/hy3dpaint/DifferentiableRenderer\" python -c 'import os, torch; assert torch.cuda.is_available(); from utils.torchvision_fix import apply_fix; assert apply_fix() is True; import realesrgan, mesh_inpaint_processor; assert callable(mesh_inpaint_processor.meshVerticeInpaint); from hy3dshape.pipelines import Hunyuan3DDiTFlowMatchingPipeline; from textureGenPipeline import Hunyuan3DPaintPipeline; print(torch.__version__, flush=True); os._exit(0)'",
           `python -m pip freeze | LC_ALL=C sort > ${quotedProviderRoot}/runtime-freeze.txt`,
           `conda list -p \"$BASE/environment\" --explicit > ${quotedProviderRoot}/runtime-conda-explicit.txt`,
+        ].join("; ");
+        await this.run(providerId, "wsl.exe", ["-d", usableDistro, "--", "bash", "-lc", bootstrap], providerRoot);
+      } else if (providerId === "hy-motion-1") {
+        const usableDistro = hardware.wsl.usableLinuxDistribution;
+        if (!usableDistro) throw new Error("HY-Motion 1.0 setup requires the configured normal-user WSL Ubuntu distribution.");
+        this.update(providerId, { stage: "dependencies", progress: 72, message: `Building the official HY-Motion 1.0 Lite CUDA/CPU runtime in isolated WSL distribution ${usableDistro}.` });
+        const officialRequirements = await readFile(join(source, "requirements.txt"), "utf8");
+        const inferenceRequirements = officialRequirements.split(/\r?\n/).filter((line) => {
+          const normalized = line.trim().toLowerCase();
+          return normalized && !normalized.startsWith("--extra-index-url") && !normalized.startsWith("torch==")
+            && !normalized.startsWith("torchvision==") && !normalized.startsWith("fbxsdkpy==");
+        }).join("\n");
+        const inferenceRequirementsPath = contained(this.options.root, join(providerRoot, "requirements.inference.txt"));
+        await writeFile(inferenceRequirementsPath, `${inferenceRequirements}\n`);
+        const linuxRootName = `hy-motion-1-${provider.sourceRevision.slice(0, 12)}`;
+        const quotedSource = shellQuote(toWslPath(source));
+        const quotedRevision = shellQuote(provider.sourceRevision);
+        const quotedRequirements = shellQuote(toWslPath(inferenceRequirementsPath));
+        const quotedProviderRoot = shellQuote(toWslPath(providerRoot));
+        const bootstrap = [
+          "set -eo pipefail",
+          "test \"$UID\" -ne 0",
+          "test -w \"$HOME\"",
+          `BASE="$HOME/.local/share/grudge-prompt3d/${linuxRootName}"`,
+          "mkdir -p \"$BASE\"",
+          "export CONDA_PKGS_DIRS=\"$BASE/package-cache\"; mkdir -p \"$CONDA_PKGS_DIRS\"",
+          `if [ ! -x "$BASE/miniforge/bin/conda" ]; then curl -fL --retry 5 --continue-at - '${MINIFORGE_URL}' -o "$BASE/miniforge-installer.sh"; echo '${MINIFORGE_SHA256}  '$BASE/miniforge-installer.sh | sha256sum -c -; bash "$BASE/miniforge-installer.sh" -b -p "$BASE/miniforge"; fi`,
+          "source \"$BASE/miniforge/etc/profile.d/conda.sh\"",
+          "if [ ! -x \"$BASE/environment/bin/python\" ]; then conda create -y -p \"$BASE/environment\" python=3.10; fi",
+          "rm -rf \"$BASE/source.next\"; mkdir -p \"$BASE/source.next\"",
+          `cp -a ${quotedSource}/. "$BASE/source.next/"`,
+          `test "$(git -C "$BASE/source.next" rev-parse HEAD)" = ${quotedRevision}`,
+          "test -z \"$(git -C \"$BASE/source.next\" status --porcelain=v1 --untracked-files=all)\"",
+          "rm -rf \"$BASE/source\"; mv \"$BASE/source.next\" \"$BASE/source\"",
+          "conda activate \"$BASE/environment\"",
+          "python -c 'import torch; assert torch.__version__.startswith(\"2.5.1\") and torch.cuda._is_compiled() and torch.version.cuda == \"12.4\"' || python -m pip install --force-reinstall --index-url https://download.pytorch.org/whl/cu124 torch==2.5.1 torchvision==0.20.1",
+          `python -m pip install --index-url https://pypi.org/simple -r ${quotedRequirements}`,
+          "cd \"$BASE/source\"",
+          "PYTHONDONTWRITEBYTECODE=1 python -c 'import torch; assert torch.version.cuda == \"12.4\"; from hymotion.utils.t2m_runtime import T2MRuntime; from hymotion.pipeline.body_model import WoodenMesh; m=WoodenMesh(); assert m.j_template.shape[0] >= 22; print(torch.__version__, \"cuda-visible=\" + str(torch.cuda.is_available()))'",
+          "TORCH_NATIVE=\"$(find \"$BASE/environment/lib/python3.10/site-packages/torch\" -maxdepth 1 -type f -name '_C*.so' -print -quit)\"; test -n \"$TORCH_NATIVE\"",
+          `TORCH_NATIVE="$TORCH_NATIVE" BASE="$BASE" PROVIDER_ROOT=${quotedProviderRoot} python -c 'import hashlib,json,os,pathlib; p=pathlib.Path(os.environ["TORCH_NATIVE"]); b=pathlib.Path(os.environ["BASE"]); o=pathlib.Path(os.environ["PROVIDER_ROOT"])/"runtime-native-artifacts.json"; o.write_text(json.dumps({"version":1,"artifacts":[{"id":"hy-motion-torch-runtime","path":p.relative_to(b).as_posix(),"bytes":p.stat().st_size,"sha256":hashlib.sha256(p.read_bytes()).hexdigest()}]},indent=2)+"\\n",encoding="utf-8")'`,
+          `python -m pip freeze | LC_ALL=C sort > ${quotedProviderRoot}/runtime-freeze.txt`,
+          `conda list -p "$BASE/environment" --explicit > ${quotedProviderRoot}/runtime-conda-explicit.txt`,
         ].join("; ");
         await this.run(providerId, "wsl.exe", ["-d", usableDistro, "--", "bash", "-lc", bootstrap], providerRoot);
       } else {

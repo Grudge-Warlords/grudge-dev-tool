@@ -22,6 +22,16 @@ import {
   Search,
   Eye,
   FolderSearch,
+  File,
+  Image as ImageIcon,
+  Box,
+  Music,
+  Video,
+  FileText,
+  Type,
+  FileArchive,
+  Palette,
+  type LucideIcon,
 } from "lucide-react";
 import {
   classify,
@@ -29,13 +39,15 @@ import {
   type AssetRef,
   type AssetKind,
 } from "../components/viewers/types";
-import { infoIconForKind, INFO_ICONS, INFO_NAV } from "../../shared/infoIcons";
+import { infoIconForKind, INFO_NAV } from "../../shared/infoIcons";
+import InfoIcon from "../components/InfoIcon";
 import ImageViewer from "../components/viewers/ImageViewer";
 import VideoViewer from "../components/viewers/VideoViewer";
 import TextViewer from "../components/viewers/TextViewer";
 import PdfViewer from "../components/viewers/PdfViewer";
 import FontViewer from "../components/viewers/FontViewer";
 import { writeMirror, readMirror } from "../lib/workspace";
+import { useAssetAsCreationBase } from "../lib/creationHandoff";
 import { openAssetInViewMode } from "./ViewMode";
 
 const AudioViewer = React.lazy(() => import("../components/viewers/AudioViewer"));
@@ -61,19 +73,27 @@ interface ListDirResult {
   entries: LocalEntry[];
 }
 
+const KIND_FALLBACKS: Record<string, LucideIcon> = {
+  dir: FolderOpen,
+  folder: FolderOpen,
+  model3d: Box,
+  scene3d: Box,
+  image: ImageIcon,
+  audio: Music,
+  video: Video,
+  text: FileText,
+  pdf: FileText,
+  font: Type,
+  archive: FileArchive,
+  design: Palette,
+};
+
 function KindImg({ kind, size = 16 }: { kind: string; size?: number }) {
   return (
-    <img
+    <InfoIcon
       src={infoIconForKind(kind)}
-      alt=""
-      width={size}
-      height={size}
-      className="shrink-0 rounded-sm"
-      style={{ objectFit: "contain", background: "rgba(0,0,0,0.25)" }}
-      loading="lazy"
-      onError={(e) => {
-        (e.target as HTMLImageElement).src = INFO_ICONS.effect;
-      }}
+      fallback={KIND_FALLBACKS[kind.toLowerCase()] || File}
+      size={size}
     />
   );
 }
@@ -562,16 +582,10 @@ export default function LocalFiles() {
       {/* Header */}
       <div className="shrink-0 px-4 py-3 border-b border-line bg-bg-1 flex flex-col gap-2">
         <div className="flex items-center gap-3 flex-wrap">
-          <img
+          <InfoIcon
             src={INFO_NAV.localFiles}
-            alt=""
-            width={22}
-            height={22}
-            className="rounded"
-            style={{ objectFit: "contain" }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
+            fallback={FolderOpen}
+            size={22}
           />
           <div className="flex-1 min-w-0">
             <h1 className="text-sm font-bold text-gold tracking-wide">Local Files · Elite open</h1>
@@ -779,6 +793,7 @@ export default function LocalFiles() {
                 <Eye size={12} className="inline mr-1" />
                 View Mode
               </button>
+              {selected.ext?.toLowerCase().replace(/^\./,"")==="glb"&&<button className="btn ghost text-[11px] px-2 py-1" onClick={()=>void useAssetAsCreationBase({kind:"local-file",path:selected.path})}>Use as base</button>}
               <button
                 type="button"
                 className="btn ghost text-[11px] px-2 py-1"

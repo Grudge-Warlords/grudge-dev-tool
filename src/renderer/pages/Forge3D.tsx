@@ -13,7 +13,7 @@ import {
 import { SceneEngine, type GizmoMode, DEFAULT_STUDIO_LIGHTS, type StudioLightState } from "../lib/forge/sceneEngine";
 import { loadModel, type LoadedModel, isSupported } from "../lib/forge/loaders";
 import { finishImportedAsset } from "../lib/forge/localMaterials";
-import { exportToGlb, downloadBlob, ACCEPT_ATTR } from "../lib/forge/converters";
+import { exportToGlb, ACCEPT_ATTR } from "../lib/forge/converters";
 import { inspectGlb, formatBytes, type GlbInspection } from "../lib/forge/glbInspect";
 import {
   captureRestPose,
@@ -33,6 +33,7 @@ import { buildProceduralClip } from "../lib/forge/animApply";
 import { FORGE_HOTKEYS, hotkeysByGroup } from "../lib/forge/forgeHotkeys";
 import type { ForgeScriptHost } from "../lib/forge/forgeScript";
 import ForgeWorkbench from "../components/ForgeWorkbench";
+import AssetRefinementPanel from "../components/AssetRefinementPanel";
 import { findObjectByUuid } from "../lib/forge/sceneGraph";
 import { serializeScene, downloadSceneJson, parseSceneJson, applyMatrix } from "../lib/forge/sceneSerializer";
 import { TransformHistory, type EditorToolId, type HistoryEntry } from "../lib/forge/history";
@@ -110,8 +111,10 @@ const ICON_BY_FORMAT: Record<string, string> = {
 };
 
 export default function Forge3D() {
+  const emptyCreationSource = useMemo(() => new THREE.Group(), []);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<SceneEngine | null>(null);
+  const [engineReady, setEngineReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const sceneInputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef(new TransformHistory());
@@ -270,6 +273,7 @@ export default function Forge3D() {
     });
     engine.applyStudioLightState(DEFAULT_STUDIO_LIGHTS);
     engineRef.current = engine;
+    setEngineReady(true);
     // History: capture pre-state on drag start, commit on drag end (true undo)
     const offDrag = engine.onDragChanged((dragging) => {
       const obj = (engine.transform as unknown as { object?: THREE.Object3D }).object;
@@ -1434,9 +1438,10 @@ export default function Forge3D() {
     if (!selected) return;
     try {
       const r = await exportToGlb(selected.object, selected.animations, selected.name.replace(/\.[^.]+$/, ""));
-      downloadBlob(r.blob, r.filename);
+      const saved = await window.grudge.forge.saveExport({ name: r.filename, bytes: r.bytes });
+      if ("canceled" in saved) return;
       toast.success(`Exported ${r.filename}`, {
-        description: `${formatBytes(r.bytes.byteLength)} · ${r.triangles.toLocaleString()} triangles · ${r.durationMs}ms`,
+        description: `${saved.savedPath} · ${formatBytes(r.bytes.byteLength)} · ${r.triangles.toLocaleString()} triangles · ${r.durationMs}ms`,
       });
     } catch (err: any) {
       toast.error("Export failed", { description: err?.message ?? String(err) });
@@ -1450,9 +1455,10 @@ export default function Forge3D() {
     items.forEach((i) => root.add(i.object.clone(true)));
     try {
       const r = await exportToGlb(root, [], "forge-scene");
-      downloadBlob(r.blob, r.filename);
+      const saved = await window.grudge.forge.saveExport({ name: r.filename, bytes: r.bytes });
+      if ("canceled" in saved) return;
       toast.success(`Exported full scene`, {
-        description: `${items.length} entit${items.length === 1 ? "y" : "ies"} · ${formatBytes(r.bytes.byteLength)}`,
+        description: `${saved.savedPath} · ${items.length} entit${items.length === 1 ? "y" : "ies"} · ${formatBytes(r.bytes.byteLength)}`,
       });
     } catch (err: any) {
       toast.error("Scene export failed", { description: err?.message ?? String(err) });
@@ -1820,6 +1826,11 @@ export default function Forge3D() {
 
         {/* GRUDGE WORKBENCH — rig / retarget / morph / export */}
         <Panel title="Grudge Workbench">
+          {engineReady && engineRef.current && <AssetRefinementPanel key={selected?.id??"create"} object={selected?.object??emptyCreationSource} name={selected?.name??"New precision sword"} animations={selected?.animations??[]} engine={engineRef.current} creating={!selected} onSaved={async (path) => {
+            const file = await window.grudge.forge.readFile(path);
+            if(selected)selected.object.visible = false;
+            await addFile(new File([file.bytes], selected?`refined-${selected.name}`:"precision-sword.glb", {type:file.mime}),path);
+          }} />}
           {!selected ? (
             <div style={{ padding: 12, color: "var(--muted)", fontSize: 12 }}>
               Select a model to inspect rig, retarget animations, apply body morph, or upload to fleet storage.
@@ -2118,6 +2129,8 @@ function Toolbar(props: {
         <Sparkles size={14} />Complete
       </Btn>
       <Btn onClick={() => props.onAddPrimitive("box")} title="Add box primitive"><Plus size={14} />Box</Btn>
+      <Btn onClick={() => props.onAddPrimitive("sphere")} title="Add sphere primitive"><Plus size={14} />Sphere</Btn>
+      <Btn onClick={() => props.onAddPrimitive("plane")} title="Add plane primitive"><Plus size={14} />Plane</Btn>
       <span style={{ width: 1, height: 22, background: "var(--line)" }} />
       <Btn active={props.editorTool === "select"} onClick={() => props.setTool("select")} title={`${EDITOR_TOOL_META.select.label} (${EDITOR_TOOL_META.select.hotkey})`}><MousePointer2 size={14} /></Btn>
       <Btn active={props.editorTool === "translate" || props.gizmoMode === "translate"} onClick={() => props.setTool("translate")} title="Translate (W)"><Move size={14} />T</Btn>

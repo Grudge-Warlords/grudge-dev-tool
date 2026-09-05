@@ -147,6 +147,7 @@ export default function SkeletonStudio() {
     blender?: { available?: boolean; path?: string; version?: string };
     fbx2gltf?: { available?: boolean; path?: string };
   } | null>(null);
+  const [prompt3dContext, setPrompt3dContext] = useState<{ sourcePath: string; sourceSha256?: string; finishJobId: string; instruction: string } | null>(null);
 
   // Scene host
   useEffect(() => {
@@ -255,7 +256,7 @@ export default function SkeletonStudio() {
     void refreshFleetAnims();
   }, []);
 
-  async function loadFromPath(path: string) {
+  async function loadFromPath(path: string, suggestedPlacements?: BonePlacement[]) {
     if (!window.grudge?.forge?.readFile) {
       toast.error("Forge IPC missing — restart Dev Tool");
       return;
@@ -301,10 +302,10 @@ export default function SkeletonStudio() {
         const jointNames = collectBoneNames(loaded.object);
         if (jointNames.length) {
           setMapping((m) =>
-            applyAutoMapToDoc({ ...emptyMapping(path), placements: m.placements }, jointNames),
+            applyAutoMapToDoc({ ...emptyMapping(path), placements: suggestedPlacements?.length ? suggestedPlacements : m.placements }, jointNames),
           );
         } else {
-          setMapping(emptyMapping(path));
+          setMapping({ ...emptyMapping(path), placements: suggestedPlacements?.length ? suggestedPlacements : [] });
         }
       }
       setModel(loaded);
@@ -313,9 +314,11 @@ export default function SkeletonStudio() {
       setPackDir(null);
       setTposePath(null);
       setSlotOverrides({});
-      setStep("extract");
+      setStep(suggestedPlacements?.length ? "place" : "extract");
       setStatusLine(
-        `Loaded · ${loaded.bones} bones · ${loaded.animations.length} clips · ready to extract`,
+        suggestedPlacements?.length
+          ? `Loaded · ${suggestedPlacements.length}/22 fitted markers · review and correct the overlay`
+          : `Loaded · ${loaded.bones} bones · ${loaded.animations.length} clips · ready to extract`,
       );
       toast.success("Character loaded", {
         description: `${loaded.bones} bones · ${loaded.animations.length} clips`,
@@ -333,15 +336,42 @@ export default function SkeletonStudio() {
   useEffect(() => {
     try {
       const pending = sessionStorage.getItem("grudge.skeleton.pendingPath");
+      const contextRaw = sessionStorage.getItem("grudge.skeleton.prompt3dContext");
+      const context = contextRaw ? JSON.parse(contextRaw) as { sourcePath?: string; sourceSha256?: string; finishJobId?: string; instruction?: string; suggestedPlacements?: BonePlacement[] } : null;
       if (pending) {
         sessionStorage.removeItem("grudge.skeleton.pendingPath");
-        void loadFromPath(pending);
+        if (context?.sourcePath === pending && context.finishJobId && context.instruction) {
+          setPrompt3dContext({ sourcePath: pending, sourceSha256: context.sourceSha256, finishJobId: context.finishJobId, instruction: context.instruction });
+        }
+        sessionStorage.removeItem("grudge.skeleton.prompt3dContext");
+        void loadFromPath(pending, context?.suggestedPlacements);
       }
     } catch {
       /* ignore */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only handoff
   }, []);
+
+  async function returnCorrectionToPrompt3D() {
+    if (!prompt3dContext || mapping.placements.length !== MIXAMO_25_CORE.length) {
+      toast.error(`Place all ${MIXAMO_25_CORE.length} Mixamo-25 core markers before returning.`);
+      return;
+    }
+    const unique = new Set(mapping.placements.map((placement) => placement.bone));
+    if (unique.size !== MIXAMO_25_CORE.length) {
+      toast.error("Each Mixamo-25 core bone needs exactly one placement.");
+      return;
+    }
+    sessionStorage.setItem("grudge.prompt3d.pendingRigCorrection", JSON.stringify({
+      sourcePath: prompt3dContext.sourcePath,
+      sourceSha256: prompt3dContext.sourceSha256,
+      finishJobId: prompt3dContext.finishJobId,
+      instruction: prompt3dContext.instruction,
+      placements: mapping.placements,
+    }));
+    toast.success("Corrected placements returned to Prompt-to-3D", { description: "The next animation retry will create a new immutable rigged sibling from the exact painted parent." });
+    await window.grudge.app.openRoute("/prompt3d");
+  }
 
   async function pickFile() {
     if (!window.grudge?.files?.pickForUpload) {
@@ -1131,6 +1161,11 @@ export default function SkeletonStudio() {
                     );
                   })}
                 </div>
+                {prompt3dContext && <div className="rounded border border-amber-500/40 bg-amber-950/20 p-2 text-[11px] text-amber-100">
+                  <b>Prompt-to-3D correction</b>
+                  <p className="mt-1 text-slate-400">Adjust the fitted overlay, then return all 22 placements. The painted source remains unchanged.</p>
+                  <button type="button" disabled={busy || mapping.placements.length !== MIXAMO_25_CORE.length} onClick={() => void returnCorrectionToPrompt3D()} className="mt-2 w-full rounded border border-amber-400/50 px-2 py-2 font-semibold disabled:opacity-40">Use corrected placements in Prompt-to-3D</button>
+                </div>}
               </section>
             )}
 

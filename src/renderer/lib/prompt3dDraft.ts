@@ -1,4 +1,4 @@
-import type { AssetSpecV1 } from "../../shared/prompt3d";
+import { normalizePrompt3DTextureResolution, type AssetSpecV1 } from "../../shared/prompt3d";
 
 const DRAFT_KEY = "grudge:prompt3d-draft:v1";
 
@@ -8,10 +8,17 @@ export function loadPrompt3DDraft(fallback: AssetSpecV1): AssetSpecV1 {
     if (!value || value.version !== fallback.version || typeof value.prompt !== "string"
       || !value.dimensions || !value.budgets || !value.coordinateContract) return fallback;
     // Drafts may contain unfinished inputs; the main process validates before a run.
-    return { ...fallback, ...value, prompt: value.prompt.slice(0, 2000),
+    const merged = { ...fallback, ...value, prompt: value.prompt.slice(0, 2000),
       dimensions: { ...fallback.dimensions, ...value.dimensions },
       budgets: { ...fallback.budgets, ...value.budgets },
       coordinateContract: { ...fallback.coordinateContract, ...value.coordinateContract } };
+    return {
+      ...merged,
+      budgets: {
+        ...merged.budgets,
+        maxTextureResolution: normalizePrompt3DTextureResolution(merged.providerId, merged.budgets.maxTextureResolution),
+      },
+    };
   } catch { return fallback; }
 }
 

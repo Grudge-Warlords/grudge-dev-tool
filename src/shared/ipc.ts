@@ -1,6 +1,23 @@
 /** Shared IPC contracts between Electron main and the React renderer. */
 
 export * from "./prompt3d";
+export * from "./assetRefinement";
+export * from "./creationFlow";
+
+export const UPDATER_CHANNELS = {
+  getStatus: "updater:getStatus",
+  check: "updater:check",
+  download: "updater:download",
+  install: "updater:install",
+  status: "updater:status",
+} as const;
+
+export type UpdaterStatus =
+  | { phase: "available"; version?: string }
+  | { phase: "downloading"; percent: number; bytesPerSecond: number }
+  | { phase: "ready"; version?: string }
+  | { phase: "error"; error?: string }
+  | { phase: "none" };
 
 export interface ListRequest {
   prefix: string;

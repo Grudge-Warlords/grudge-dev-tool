@@ -39,3 +39,4 @@ backups/
 # Local Python bytecode from the Prompt-to-3D sidecar/provider checks
 __pycache__/
 *.py[cod]
+/.local-test-profile

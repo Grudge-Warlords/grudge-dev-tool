@@ -14,6 +14,15 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { applyViewportNavigation } from "./viewportNavigation";
+import {
+  createPromptMotionTrail,
+  disposePromptMotionTrail,
+  expandBoundsForPromptMotion,
+  readPromptMotionTrailConfig,
+  updatePromptMotionTrail,
+  type PromptMotionTrailState,
+} from "./promptMotionTrail";
 
 export type MultiCanvasQuality = "low" | "medium" | "high";
 
@@ -37,6 +46,7 @@ export interface MultiCanvasView {
   timeScale: number;
   visible: boolean;
   disposed: boolean;
+  promptMotionTrail: PromptMotionTrailState | null;
 }
 
 const QUALITY: Record<
@@ -164,6 +174,7 @@ export class MultiCanvasHub {
     controls.enableDamping = true;
     controls.dampingFactor = 0.1;
     controls.target.set(0, 0.4, 0);
+    applyViewportNavigation(controls);
 
     const view: MultiCanvasView = {
       id,
@@ -176,6 +187,7 @@ export class MultiCanvasHub {
       timeScale: 1,
       visible: true,
       disposed: false,
+      promptMotionTrail: null,
     };
     this.views.set(id, view);
     this.io?.observe(displayCanvas);
@@ -185,6 +197,8 @@ export class MultiCanvasHub {
 
   setRoot(view: MultiCanvasView, root: THREE.Object3D | null): void {
     if (view.disposed) return;
+    disposePromptMotionTrail(view.scene, view.promptMotionTrail);
+    view.promptMotionTrail = null;
     if (view.root) {
       view.scene.remove(view.root);
     }
@@ -204,8 +218,26 @@ export class MultiCanvasHub {
     }
   }
 
+  /** Select the persisted prompt effect for the clip currently being played. */
+  setPromptMotionClip(view: MultiCanvasView, clip: THREE.AnimationClip | null): void {
+    if (view.disposed) return;
+    disposePromptMotionTrail(view.scene, view.promptMotionTrail);
+    view.promptMotionTrail = null;
+    if (!view.root || !clip) return;
+    const config = readPromptMotionTrailConfig(view.root, clip);
+    if (!config) return;
+    view.promptMotionTrail = createPromptMotionTrail(view.scene, view.root, config);
+    this.frame(view, view.root);
+  }
+
   frame(view: MultiCanvasView, object: THREE.Object3D, pad = 1.4): void {
     const box = new THREE.Box3().setFromObject(object);
+    expandBoundsForPromptMotion(box, view.promptMotionTrail?.config ?? null);
+    // Frame the full authored motion envelope, not just a projectile's initial pose.
+    const creation = object.userData.grudgeProvenance;
+    if (creation?.method === "original-procedural" && creation.plan?.kind === "game-gun") {
+      box.expandByPoint(new THREE.Vector3(0,.36,1.8));
+    }
     if (box.isEmpty()) return;
     const size = new THREE.Vector3();
     const center = new THREE.Vector3();
@@ -232,6 +264,8 @@ export class MultiCanvasHub {
       m.stopAllAction();
     }
     view.mixers.length = 0;
+    disposePromptMotionTrail(view.scene, view.promptMotionTrail);
+    view.promptMotionTrail = null;
     if (view.root) {
       view.scene.remove(view.root);
       disposeObjectTree(view.root);
@@ -300,6 +334,7 @@ export class MultiCanvasHub {
     }
 
     for (const m of view.mixers) m.update(dt * view.timeScale);
+    if (view.promptMotionTrail) updatePromptMotionTrail(view.promptMotionTrail, dt * view.timeScale);
     view.controls.update();
     view.camera.aspect = cssW / cssH;
     view.camera.updateProjectionMatrix();

@@ -53,6 +53,8 @@ export interface LoadedModel {
   materials?: MaterialSanitizeReport;
 }
 
+export type LoadedMaterialPolicy = "normalize" | "preserve-authored";
+
 export type ModelFormat =
   | "glb"
   | "gltf"
@@ -156,6 +158,7 @@ async function loadForgeSceneDoc(
       const child = await loadModel(file, {
         diskPath,
         sanitize: opts.sanitize,
+        materialPolicy: opts.materialPolicy,
         skipMagicBytes: false,
       });
       child.object.name = ent.name || child.object.name;
@@ -183,7 +186,7 @@ async function loadForgeSceneDoc(
     toonStyle: true,
     fixDefaultYellow: true,
     ...opts.sanitize,
-  });
+  }, opts.materialPolicy);
 }
 
 /** Recursively count triangles, vertices, and bones in an Object3D tree. */
@@ -338,25 +341,28 @@ function prepareMeshes(object: THREE.Object3D): void {
   object.updateMatrixWorld(true);
 }
 
-function finishModel(
+export function finishModel(
   object: THREE.Object3D,
   animations: THREE.AnimationClip[],
   gltf: GLTF | null,
   format: ModelFormat,
   sanitizeOpts?: MaterialSanitizeOptions,
+  materialPolicy: LoadedMaterialPolicy = "normalize",
 ): LoadedModel {
   prepareMeshes(object);
   const fmtHint =
     format === "glb" || format === "gltf" || format === "fbx" || format === "obj"
       ? format
       : "other";
-  const materials = sanitizeMaterials(object, {
-    format: fmtHint,
-    toonStyle: true,
-    fixDefaultYellow: true,
-    whiteWhenMapped: true,
-    ...sanitizeOpts,
-  });
+  const materials = materialPolicy === "preserve-authored"
+    ? undefined
+    : sanitizeMaterials(object, {
+      format: fmtHint,
+      toonStyle: true,
+      fixDefaultYellow: true,
+      whiteWhenMapped: true,
+      ...sanitizeOpts,
+    });
   const stats = tallyStats(object);
   return {
     object,
@@ -379,8 +385,17 @@ export interface LoadModelOptions {
   skipMagicBytes?: boolean;
   /** Extra material sanitize options. */
   sanitize?: MaterialSanitizeOptions;
+  /** Decode authored materials exactly, without normalization or sibling-map substitution. */
+  materialPolicy?: LoadedMaterialPolicy;
   /** Skip Toon human unarmed host for clip-only files. */
   skipGenericPreview?: boolean;
+}
+
+export function shouldApplySiblingMaterialRecovery(
+  object: THREE.Object3D,
+  opts: Pick<LoadModelOptions, "diskPath" | "materialPolicy">,
+): boolean {
+  return Boolean(opts.diskPath && !object.userData.grudgeProvenance && opts.materialPolicy !== "preserve-authored");
 }
 
 function dirnamePath(p: string): string {
@@ -465,6 +480,13 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
 
   const manager = createAssetManager(resourceDir);
   let loaded: LoadedModel;
+  const finishLoaded = (
+    object: THREE.Object3D,
+    animations: THREE.AnimationClip[],
+    gltf: GLTF | null,
+    loadedFormat: ModelFormat,
+    sanitizeOpts?: MaterialSanitizeOptions,
+  ) => finishModel(object, animations, gltf, loadedFormat, sanitizeOpts, opts.materialPolicy);
 
   async function loadFrom(urlToUse: string): Promise<LoadedModel> {
     switch (format) {
@@ -505,13 +527,24 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
         }
         const gltf = await gltfLoader.loadAsync(urlToUse);
         let scene = gltf.scene;
+        const provenance = gltf.parser?.json?.asset?.extras?.grudgeProvenance;
+        const promptAnimation = gltf.parser?.json?.asset?.extras?.grudgePromptAnimation;
+        const animationDefs = Array.isArray(gltf.parser?.json?.animations)
+          ? gltf.parser.json.animations
+          : [];
+        gltf.animations.forEach((clip, index) => {
+          const metadata = animationDefs[index]?.extras?.grudgePromptAnimation;
+          if (metadata) clip.userData.grudgePromptAnimation = metadata;
+        });
         let hasSkin = false;
         gltf.scene.traverse((n) => {
           if ((n as THREE.SkinnedMesh).isSkinnedMesh) hasSkin = true;
         });
         if (hasSkin) scene = SkeletonUtils.clone(gltf.scene) as THREE.Group;
+        if (provenance) scene.userData.grudgeProvenance = provenance;
+        if (promptAnimation) scene.userData.grudgePromptAnimation = promptAnimation;
         const outFmt: ModelFormat = format === "vrm" ? "glb" : format;
-        return finishModel(
+        return finishLoaded(
           scene,
           gltf.animations ?? [],
           gltf,
@@ -558,7 +591,7 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
           }
         }
         const obj = await objLoader.loadAsync(urlToUse);
-        return finishModel(obj, [], null, format, opts.sanitize);
+        return finishLoaded(obj, [], null, format, opts.sanitize);
       }
       case "css3d": {
         // HTML / CSS quick view plane for layout mockups — not a game mesh bake.
@@ -586,7 +619,7 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
           new THREE.LineBasicMaterial({ color: 0xc9a04e }),
         );
         group.add(frame);
-        return finishModel(group, [], null, "css3d", {
+        return finishLoaded(group, [], null, "css3d", {
           toonStyle: false,
           fixDefaultYellow: false,
           whiteWhenMapped: false,
@@ -613,7 +646,7 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
             sourceVersion: ver.version,
             via: "ingest:convert",
           };
-          return finishModel(scene, gltf.animations ?? [], gltf, "glb", {
+          return finishLoaded(scene, gltf.animations ?? [], gltf, "glb", {
             toonStyle: true,
             fixDefaultYellow: true,
             ...opts.sanitize,
@@ -634,7 +667,7 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
         }
         try {
           const fbx = new FBXLoader(manager).parse(buf, resourceDir ? resourceDir.replace(/\\/g, "/") + "/" : "");
-          return finishModel(
+          return finishLoaded(
             fbx,
             (fbx as any).animations ?? [],
             null,
@@ -659,7 +692,7 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
           geom,
           new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6, metalness: 0.05 }),
         );
-        return finishModel(mesh, [], null, format, opts.sanitize);
+        return finishLoaded(mesh, [], null, format, opts.sanitize);
       }
       case "ply": {
         const geom = await new PLYLoader(manager).loadAsync(urlToUse);
@@ -680,12 +713,12 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
                   vertexColors: !!geom.getAttribute("color"),
                 }),
               );
-        return finishModel(obj, [], null, format, opts.sanitize);
+        return finishLoaded(obj, [], null, format, opts.sanitize);
       }
       case "dae": {
         const dae = await new ColladaLoader(manager).loadAsync(urlToUse);
         if (!dae?.scene) throw new Error("Collada load returned empty scene");
-        return finishModel(
+        return finishLoaded(
           dae.scene,
           (dae as { animations?: THREE.AnimationClip[] }).animations ?? [],
           null,
@@ -695,7 +728,7 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
       }
       case "3mf": {
         const obj = await new ThreeMFLoader(manager).loadAsync(urlToUse);
-        return finishModel(obj, [], null, format, opts.sanitize);
+        return finishLoaded(obj, [], null, format, opts.sanitize);
       }
       case "three-json": {
         const text = await (await fetch(urlToUse)).text();
@@ -729,7 +762,7 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
               if ((n as THREE.SkinnedMesh).isSkinnedMesh) hasSkin = true;
             });
             if (hasSkin) scene = SkeletonUtils.clone(gltf.scene) as THREE.Group;
-            return finishModel(scene, gltf.animations ?? [], gltf, "gltf", opts.sanitize);
+            return finishLoaded(scene, gltf.animations ?? [], gltf, "gltf", opts.sanitize);
           } finally {
             URL.revokeObjectURL(gltfUrl);
           }
@@ -769,7 +802,7 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
               })()
             : parsed;
         root.userData.threeObjectLoader = true;
-        return finishModel(root, anims, null, "three-json", {
+        return finishLoaded(root, anims, null, "three-json", {
           toonStyle: false,
           fixDefaultYellow: true,
           whiteWhenMapped: true,
@@ -802,7 +835,7 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
   // Fill missing maps only (never overwrite good embedded/atlas maps).
   // Prefer the real model file path so sibling search walks the correct dirs.
   const siblingRoot = opts.diskPath || null;
-  if (siblingRoot) {
+  if (shouldApplySiblingMaterialRecovery(loaded.object, opts)) {
     try {
       const { finishImportedAsset } = await import("./localMaterials");
       await finishImportedAsset(loaded.object, siblingRoot, {

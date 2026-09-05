@@ -105,6 +105,20 @@ export function buildForgeApi(host: ForgeScriptHost) {
       host.mergeAnimations(s.id, [...s.animations, clip]);
       log(`Added procedural ${preset}`);
     },
+    addClip(clip: THREE.AnimationClip, play = true) {
+      const s = host.getSelected();
+      if (!s) {
+        log("Nothing selected");
+        return;
+      }
+      if (!(clip instanceof THREE.AnimationClip) || !clip.tracks.length) {
+        log("addClip needs a non-empty THREE.AnimationClip");
+        return;
+      }
+      host.mergeAnimations(s.id, [...s.animations, clip]);
+      if (play) host.playClip(s, clip);
+      log(`Added clip ${clip.name}${play ? " and started playback" : ""}`);
+    },
     applyAnimsFrom(sourceItemId: string) {
       const s = host.getSelected();
       const src = host.items.find((i) => i.id === sourceItemId);
@@ -201,7 +215,7 @@ export function buildForgeApi(host: ForgeScriptHost) {
       const lines = [
         "api.frame() / api.frameAll()",
         "api.play(index) · api.stop()",
-        "api.addProcedural('spin-y'|'bob'|'float'|...)",
+        "api.addProcedural('spin-y'|'bob'|'float'|...) · api.addClip(clip, play)",
         "api.applyAnimsFrom(sourceItemId)",
         "api.findAndApplyTextures(pathArray)",
         "api.listBones() · api.items · api.selected · api.select(id)",
@@ -240,6 +254,22 @@ export async function runForgeScript(
 }
 
 export const SCRIPT_EXAMPLES: Array<{ label: string; code: string }> = [
+  {
+    label: "Animate selected asset up",
+    code: `const balloon = api.object;
+if (!balloon) throw new Error("Load and select the prompt-generated asset first");
+const THREE = api.THREE;
+const times = [0, 1.6, 3.2, 4.8];
+const p = balloon.position.clone();
+const track = new THREE.VectorKeyframeTrack(
+  balloon.uuid + ".position",
+  times,
+  [p.x, p.y, p.z, p.x + 0.04, p.y + 0.9, p.z, p.x - 0.03, p.y + 1.8, p.z, p.x, p.y + 2.7, p.z],
+);
+api.addClip(new THREE.AnimationClip("FloatUp", 4.8, [track]), true);
+api.frame();
+api.log("FloatUp animation added to the selected prompt-generated asset");`,
+  },
   {
     label: "Frame + play first clip",
     code: `api.frame();\napi.play(0);\napi.log("framed + playing");`,

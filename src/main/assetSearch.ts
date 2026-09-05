@@ -33,6 +33,12 @@ export interface CatalogAsset {
 let cache: { at: number; items: CatalogAsset[] } | null = null;
 let inflight: Promise<CatalogAsset[]> | null = null;
 
+/** Reuse the catalog identity already shown by Assets, without another index scan. */
+export function cachedCatalogAsset(path:string):CatalogAsset|undefined {
+  const item=cache?.items.find(candidate=>candidate.path===path);
+  return item?{...item}:undefined;
+}
+
 function inferContentType(path: string): string {
   const ext = path.split(".").pop()?.toLowerCase() ?? "";
   const map: Record<string, string> = {

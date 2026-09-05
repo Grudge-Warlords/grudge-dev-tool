@@ -113,7 +113,10 @@ export function buildProceduralClip(
   preset: UnriggedPreset,
   duration = 2,
 ): THREE.AnimationClip {
-  const name = root.name || "Root";
+  // UUID bindings survive filenames containing dots (for example asset.glb).
+  // Three's PropertyBinding otherwise parses the dot as a property separator,
+  // which plays in some editor paths but exports an empty animation channel.
+  const name = root.uuid;
   const times = [0, duration / 4, duration / 2, (3 * duration) / 4, duration];
   const q0 = root.quaternion.clone();
   const p0 = root.position.clone();

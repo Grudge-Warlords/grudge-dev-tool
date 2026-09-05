@@ -1,4 +1,4 @@
-import { BrowserWindow, net } from "electron";
+import { app, BrowserWindow, dialog, net } from "electron";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, writeFile, readdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -6,6 +6,7 @@ import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import log from "./logger";
 import { classifyJsonSceneContent } from "../shared/sceneKinds";
+import { normalizeForgeExportBytes } from "../shared/forgeExportBytes";
 
 /**
  * Forge3D file-open bridge (explicit in-app Forge tools only).
@@ -104,6 +105,29 @@ const MIME_BY_EXT: Record<string, string> = {
   ".scene": "application/json",
   ".three": "application/json",
 };
+
+export async function saveExportFile(
+  args: { name: string; bytes: Uint8Array },
+  parent: BrowserWindow | null,
+): Promise<{ ok: true; savedPath: string } | { canceled: true }> {
+  const name = basename(String(args?.name ?? "asset.glb")).replace(/[^A-Za-z0-9._ -]+/g, "_");
+  if (!name.toLowerCase().endsWith(".glb")) throw new Error("Forge exports must use the .glb extension.");
+  const bytes = normalizeForgeExportBytes(args?.bytes);
+  if (!bytes || bytes.byteLength === 0 || bytes.byteLength > 1024 ** 3) {
+    throw new Error("Forge export bytes are empty or exceed the 1 GiB local-save limit.");
+  }
+  const options: Electron.SaveDialogOptions = {
+    title: "Save Forge GLB",
+    defaultPath: join(app.getPath("downloads"), name),
+    filters: [{ name: "glTF Binary", extensions: ["glb"] }],
+    properties: ["createDirectory", "showOverwriteConfirmation"],
+  };
+  const result = parent ? await dialog.showSaveDialog(parent, options) : await dialog.showSaveDialog(options);
+  if (result.canceled || !result.filePath) return { canceled: true };
+  const savedPath = resolve(result.filePath.toLowerCase().endsWith(".glb") ? result.filePath : `${result.filePath}.glb`);
+  await writeFile(savedPath, bytes);
+  return { ok: true, savedPath };
+}
 
 export type ResolvedSceneOpen = {
   /** Path to actually load (may differ from source for .bin companions). */

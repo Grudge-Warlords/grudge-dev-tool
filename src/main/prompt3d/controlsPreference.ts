@@ -33,6 +33,18 @@ export async function saveLocalControlsEnabled(enabled: boolean): Promise<void> 
   (await getStore()).set("localControlsEnabled", enabled);
 }
 
+export async function loadPlannerHost(): Promise<string | undefined> {
+  const value = (await getStore()).get("plannerHost");
+  return typeof value === "string" ? value : undefined;
+}
+
+export async function savePlannerHost(value: string): Promise<string> {
+  const url = new URL(value);
+  if (url.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) || url.username || url.password || url.search || url.hash || url.pathname !== "/") throw new Error("Use an uncredentialed loopback Ollama URL.");
+  (await getStore()).set("plannerHost", url.origin);
+  return url.origin;
+}
+
 function assertDraft(value: unknown): asserts value is AssetSpecV1 {
   const draft = value as AssetSpecV1 | null;
   if (!draft || draft.version !== PROMPT3D_SPEC_VERSION || typeof draft.prompt !== "string" || draft.prompt.length > 2000

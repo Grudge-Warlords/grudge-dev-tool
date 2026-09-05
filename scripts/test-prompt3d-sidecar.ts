@@ -2,18 +2,32 @@ import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
 async function main() {
   const root = resolve(process.env.GRUDGE_PROMPT3D_ROOT || "E:\\GrudgePrompt3D");
   const python = resolve(root, ".python", "cpython-3.10-windows-x86_64-none", "python.exe");
   assert.ok(existsSync(python), "isolated Prompt-to-3D Python runtime is required for the sidecar contract check");
-  const temp = await mkdtemp(join(root, ".sidecar-contract-"));
+  const temp = await mkdtemp(join(root, ".sidecar-$()`' spaces-contract-"));
   const rel = relative(root, temp);
   assert.ok(rel && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel), "test directory must remain inside the generator root");
   const token = randomBytes(32).toString("base64url");
   const sidecar = resolve(__dirname, "..", "tools", "prompt3d", "sidecar.py");
+  const sidecarSource = await readFile(sidecar, "utf8");
+  assert.ok(!sidecarSource.includes('command = " ".join(['), "WSL worker arguments must not be interpolated into a Bash command");
+  assert.ok(
+    sidecarSource.includes('provider_root_name="$1"')
+      && sidecarSource.includes('provider_environment="$HOME/.local/share/grudge-prompt3d/$provider_root_name/environment"')
+      && sidecarSource.includes('export PATH="$provider_environment/bin:$PATH"')
+      && sidecarSource.includes('export LD_LIBRARY_PATH="$provider_environment/lib:$provider_environment/lib64:${LD_LIBRARY_PATH:-}"')
+      && sidecarSource.includes('exec "$provider_environment/bin/python" "$@"'),
+    "the WSL launcher must keep the provider root and worker arguments quoted as positional values",
+  );
+  assert.ok(
+    sidecarSource.includes('"bash", wsl_path(launcher_path), *launcher_arguments]'),
+    "Windows-derived WSL paths must be passed as separate process arguments",
+  );
   const worker = resolve(__dirname, "fixtures", "prompt3d-cancel-worker.py");
   const child = spawn(python, [sidecar, "--port", "0", "--root", root, "--worker", worker], {
     windowsHide: true,

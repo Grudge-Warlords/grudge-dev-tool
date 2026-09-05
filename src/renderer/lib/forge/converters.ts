@@ -29,6 +29,7 @@ export async function exportToGlb(
   filenameBase = "scene",
   opts: GLTFExporterOptions = {},
 ): Promise<ExportResult> {
+  object.traverse(n => { if (n.userData.genericPreviewHost || n.userData.comparisonOnly) throw new Error("Borrowed preview or comparison assets cannot enter creation exports. Select the actual created asset."); });
   const start = performance.now();
   // Ensure maps are ready before export (avoid blank embeds)
   object.traverse((n) => {

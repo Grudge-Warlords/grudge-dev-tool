@@ -292,6 +292,11 @@ input, textarea, select {
   font: inherit;
   width: 100%;
 }
+input[type="checkbox"], input[type="radio"] {
+  width: auto;
+  padding: 0;
+  flex: 0 0 auto;
+}
 .row { display: flex; gap: 10px; align-items: center; }
 .row > * { flex: 1; }
 .kbd { font-family: monospace; background: var(--bg-2); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line); }

@@ -37,7 +37,11 @@ export function measureObjectSi(root: THREE.Object3D): SiBounds {
     box = bones.box;
     source = "bones";
   } else {
-    box = new THREE.Box3().setFromObject(root);
+    // The fast path expands geometry bounds by every morph-target delta, even
+    // when all current weights are zero. Use the precise path so the displayed
+    // SI dimensions describe the visible pose rather than a conservative
+    // animation envelope.
+    box = new THREE.Box3().setFromObject(root, true);
   }
   if (box.isEmpty()) {
     return {

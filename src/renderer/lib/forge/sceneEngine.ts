@@ -22,6 +22,7 @@ import { createInfiniteGrid } from "./infiniteGrid";
 import { attachBoneNameLabels, disposeBoneLabelGroup } from "./skeletonOverlay";
 import { measureObjectSi, type SiBounds } from "./siMeasure";
 import { bindSceneMeasure } from "./measureScale";
+import { applyViewportNavigation } from "./viewportNavigation";
 
 export type GizmoMode = "translate" | "rotate" | "scale";
 export type StudioView = "persp" | "front" | "right" | "top";
@@ -93,7 +94,6 @@ export class SceneEngine {
   private viewHelper: ViewHelperApi | null = null;
   private orthoCam: THREE.OrthographicCamera | null = null;
   private viewKind: StudioView = "persp";
-  private shiftPanBound = false;
   private rafHandle = 0;
   private resizeObserver?: ResizeObserver;
   private disposed = false;
@@ -197,13 +197,7 @@ export class SceneEngine {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.target.set(0, 0.5, 0);
-    // Chrome 3D Viewer + Blender: LMB orbit, RMB/MMB pan, Shift+LMB pan, scroll zoom
-    this.controls.mouseButtons = {
-      LEFT: THREE.MOUSE.ROTATE,
-      MIDDLE: THREE.MOUSE.PAN,
-      RIGHT: THREE.MOUSE.PAN,
-    };
-    this.bindShiftPan();
+    applyViewportNavigation(this.controls);
     this.bindViewHelper();
 
     this.transform = new TransformControls(this.camera, this.renderer.domElement);
@@ -804,7 +798,6 @@ export class SceneEngine {
     } catch { /* ignore */ }
     this.measureUnbind?.();
     this.measureUnbind = null;
-    this.unbindShiftPan();
     this.renderer.domElement.removeEventListener("pointerdown", this.onViewHelperPointer);
     this.viewHelper?.dispose();
     this.viewHelper = null;
@@ -847,31 +840,6 @@ export class SceneEngine {
       event.stopPropagation();
       this.viewHelper.center.copy(this.controls.target);
     }
-  };
-
-  private bindShiftPan(): void {
-    if (this.shiftPanBound) return;
-    this.shiftPanBound = true;
-    window.addEventListener("keydown", this.onShiftPanKey);
-    window.addEventListener("keyup", this.onShiftPanKey);
-    window.addEventListener("blur", this.onShiftPanBlur);
-  }
-
-  private unbindShiftPan(): void {
-    if (!this.shiftPanBound) return;
-    this.shiftPanBound = false;
-    window.removeEventListener("keydown", this.onShiftPanKey);
-    window.removeEventListener("keyup", this.onShiftPanKey);
-    window.removeEventListener("blur", this.onShiftPanBlur);
-  }
-
-  private onShiftPanKey = (e: KeyboardEvent): void => {
-    if (e.key !== "Shift") return;
-    this.controls.mouseButtons.LEFT = e.type === "keydown" ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
-  };
-
-  private onShiftPanBlur = (): void => {
-    this.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
   };
 
   private ensureOrtho(): void {

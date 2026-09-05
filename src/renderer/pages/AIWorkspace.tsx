@@ -449,8 +449,8 @@ export default function AIWorkspace() {
         <button type="button" className="btn ghost text-xs" disabled={busy} onClick={() => void window.grudge.coder.launch({})}>
           <Code2 size={12} /> Coder IDE
         </button>
-        <button type="button" className="btn ghost text-xs" disabled={busy} onClick={() => void window.grudge.app.openRoute("/forge")}>
-          <Hammer size={12} /> Forge 3D / WebGL
+        <button type="button" className="btn ghost text-xs" disabled={busy} onClick={() => void window.grudge.app.openRoute("/forge-local")}>
+          <Hammer size={12} /> Local Forge workbench
         </button>
       </div>
 
