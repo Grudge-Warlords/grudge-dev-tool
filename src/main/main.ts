@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell, nativeImage, session, crashReporter, dialog } from "electron";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
 import * as windowState from "./windowState";
@@ -83,9 +83,16 @@ import {
   getPluginHostStatus,
   getPluginToken,
 } from "./pluginHost";
+import { Prompt3DService } from "./prompt3d/service";
+import { PROMPT3D_CHANNELS, type LocalPrompt3DProviderId, type Prompt3DInstallRequest, type Prompt3DPlanRequest, type Prompt3DStartRequest } from "../shared/prompt3d";
+
+const OFFLINE_LOCAL_TEST = process.env.GRUDGE_OFFLINE_LOCAL_TEST === "1";
+if (OFFLINE_LOCAL_TEST) {
+  app.setPath("userData", resolve(process.env.GRUDGE_TEST_PROFILE || join(process.cwd(), ".local-test-profile")));
+}
 
 // Load .env from package / home / AppData (does not override existing process env).
-const envLoad = loadEnvFiles();
+const envLoad = OFFLINE_LOCAL_TEST ? { keysLoaded: 0, files: [] as string[] } : loadEnvFiles();
 initLogger();
 try {
   const log = require("./logger").default as { info: (m: string) => void };
@@ -113,7 +120,13 @@ crashReporter.start({
 
 let mainWindow: BrowserWindow | null = null;
 
-const RENDERER_DEV_URL = "http://localhost:5173";
+const prompt3d = new Prompt3DService({
+  root: resolve(process.env.GRUDGE_PROMPT3D_ROOT || join(app.getPath("userData"), "prompt3d")),
+  appRoot: app.isPackaged ? resolve(process.resourcesPath) : resolve(join(__dirname, "..", "..")),
+  offlineLocalTest: OFFLINE_LOCAL_TEST,
+});
+
+const RENDERER_DEV_URL = process.env.GRUDGE_RENDERER_URL || "http://localhost:5173";
 const RENDERER_PROD_INDEX = join(__dirname, "..", "renderer", "index.html");
 
 function windowIconPath(): string {
@@ -184,7 +197,8 @@ async function createMainWindow() {
     try {
       const u = new URL(url);
       if (u.protocol === "file:" && url.endsWith("index.html")) return;       // app reload
-      if (u.protocol === "http:" && u.hostname === "localhost") return;        // dev server
+      if (u.origin === new URL(RENDERER_DEV_URL).origin) return;                 // exact dev server
+      if (OFFLINE_LOCAL_TEST) { event.preventDefault(); return; }
       if (ALLOWED_NAV_HOSTS.test(u.hostname)) return;                          // OAuth
       event.preventDefault();
       shell.openExternal(url).catch(() => { /* ignore */ });
@@ -216,7 +230,7 @@ async function createMainWindow() {
 
   if (!app.isPackaged) {
     mainWindow.loadURL(RENDERER_DEV_URL);
-    mainWindow.webContents.openDevTools({ mode: "detach" });
+    if (!OFFLINE_LOCAL_TEST) mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
     mainWindow.loadFile(RENDERER_PROD_INDEX);
   }
@@ -224,6 +238,7 @@ async function createMainWindow() {
   // Allow window.open() to *.puter.com / puter.site (Puter SDK OAuth popup).
   // External links go to the default browser; everything else is denied.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (OFFLINE_LOCAL_TEST) return { action: "deny" };
     try {
       const u = new URL(url);
       const allowed = /(^|\.)puter\.(com|site)$/i.test(u.hostname);
@@ -268,14 +283,20 @@ if (!gotLock) {
   });
 
   app.whenReady().then(async () => {
+    if (OFFLINE_LOCAL_TEST) {
+      session.defaultSession.webRequest.onBeforeRequest({ urls: ["*://*/*"] }, (details, callback) => {
+        try { const url = new URL(details.url); callback({ cancel: !["127.0.0.1", "localhost"].includes(url.hostname) }); }
+        catch { callback({ cancel: true }); }
+      });
+    }
     // Stream local mp4/webm/audio into Elite Viewer without full-file blob load
     registerMediaFileProtocol();
     // Show UI first — never block window creation on Blender/ffmpeg probes.
     // Secrets seed runs in parallel so vault warm-up doesn't delay first paint.
     await createMainWindow();
-    createTray(() => mainWindow);
+    if (!OFFLINE_LOCAL_TEST) createTray(() => mainWindow);
     registerIpc();
-    void seedDefaultSecrets()
+    if (!OFFLINE_LOCAL_TEST) void seedDefaultSecrets()
       .then((seed) =>
         log.info(
           `[bootstrapSecrets] ready — seeded: ${seed?.seeded?.join?.(", ") || "none (vault already full or env empty)"}`,
@@ -316,13 +337,13 @@ if (!gotLock) {
     uploader.on("job:done", (p) => broadcast("upload:job-done", p));
 
     // Connectivity probe — every 30s, broadcast to all windows.
-    startConnectivity(allWindows, 30_000);
+    if (!OFFLINE_LOCAL_TEST) startConnectivity(allWindows, 30_000);
 
     // Auto-update (no-op in dev).
-    setupAutoUpdater(() => mainWindow);
+    if (!OFFLINE_LOCAL_TEST) setupAutoUpdater(() => mainWindow);
 
     // Loopback plugin host — VS Code / standalone / CLI attach here.
-    void startPluginHost({
+    if (!OFFLINE_LOCAL_TEST) void startPluginHost({
       showMain: () => {
         if (!mainWindow || mainWindow.isDestroyed()) return;
         mainWindow.show();
@@ -330,13 +351,13 @@ if (!gotLock) {
       },
     }).catch((err) => log.warn("[pluginHost] start failed", err));
 
-    void fileDefaults.ensureFileDefaultsOnLaunch().catch((err) =>
+    if (!OFFLINE_LOCAL_TEST) void fileDefaults.ensureFileDefaultsOnLaunch().catch((err) =>
       log.warn("[fileDefaults] launch ensure failed", err),
     );
 
     // Auto-plug GRUDACHAIN Ollama + agentic local AI on open.
     // If session is already grudachain/admin, run full agentic ensure (prefer ollama + model pull).
-    void (async () => {
+    if (!OFFLINE_LOCAL_TEST) void (async () => {
       try {
         const session = await puterAuth.getSession();
         const adminUser = session.puterUser;
@@ -375,12 +396,58 @@ app.on("before-quit", () => {
   coder.shutdownCoder();
   stopPluginHost();
   ollama.shutdown();
+  prompt3d.shutdown();
 });
 
 // ---------------------------------------------------------------------------
 // IPC bridge — every channel name is mirrored in src/preload/preload.ts.
 // ---------------------------------------------------------------------------
 function registerIpc() {
+  const prompt3dCapabilities = new Map<number, string>();
+  const assertPrompt3DSender = (event: Electron.IpcMainInvokeEvent) => {
+    if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error("Prompt-to-3D IPC sender is not the main application window.");
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error("Prompt-to-3D IPC is restricted to the top-level application frame.");
+    const frameUrl = event.senderFrame?.url ?? "";
+    const allowed = app.isPackaged
+      ? frameUrl.split("#", 1)[0] === pathToFileURL(RENDERER_PROD_INDEX).href
+      : (() => { try { return new URL(frameUrl).origin === new URL(RENDERER_DEV_URL).origin; } catch { return false; } })();
+    if (!allowed) throw new Error("Prompt-to-3D IPC origin is not authorized.");
+  };
+  const prompt3dCapabilityFor = (event: Electron.IpcMainInvokeEvent) => {
+    assertPrompt3DSender(event);
+    const token = prompt3dCapabilities.get(event.sender.id);
+    if (!token) throw new Error("Prompt-to-3D controls are not enabled for this application window.");
+    prompt3d.assertCapability(token);
+    return token;
+  };
+  prompt3d.on("install-progress", (payload) => mainWindow?.webContents.send(PROMPT3D_CHANNELS.installProgress, payload));
+  prompt3d.on("job-progress", (payload) => mainWindow?.webContents.send(PROMPT3D_CHANNELS.jobProgress, payload));
+  ipcMain.handle(PROMPT3D_CHANNELS.runtime, (event) => { assertPrompt3DSender(event); return { offlineLocalTest: OFFLINE_LOCAL_TEST, prompt3dRoot: prompt3d.getRoot() }; });
+  ipcMain.handle(PROMPT3D_CHANNELS.overview, (event, spec) => { assertPrompt3DSender(event); return prompt3d.overview(spec); });
+  ipcMain.handle(PROMPT3D_CHANNELS.grant, (event) => {
+    assertPrompt3DSender(event);
+    const existing = prompt3dCapabilities.get(event.sender.id);
+    if (existing) prompt3d.revoke(existing);
+    const token = prompt3d.grant();
+    const senderId = event.sender.id;
+    prompt3dCapabilities.set(senderId, token);
+    event.sender.once("destroyed", () => { prompt3d.revoke(token); prompt3dCapabilities.delete(senderId); });
+    return { enabled: true as const };
+  });
+  ipcMain.handle(PROMPT3D_CHANNELS.plan, (event, request: Prompt3DPlanRequest) => prompt3d.plan(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_CHANNELS.chooseRoot, async (event) => {
+    const token = prompt3dCapabilityFor(event);
+    const result = await dialog.showOpenDialog(mainWindow!, { title: "Choose local 3D generator storage", defaultPath: prompt3d.getRoot(), properties: ["openDirectory", "createDirectory"] });
+    if (result.canceled || !result.filePaths[0]) return null;
+    return prompt3d.setRoot(token, result.filePaths[0]);
+  });
+  ipcMain.handle(PROMPT3D_CHANNELS.install, (event, request: Prompt3DInstallRequest) => prompt3d.install(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_CHANNELS.cancelInstall, (event, providerId: LocalPrompt3DProviderId) => prompt3d.cancelInstall(prompt3dCapabilityFor(event), providerId));
+  ipcMain.handle(PROMPT3D_CHANNELS.start, (event, request: Prompt3DStartRequest) => prompt3d.start(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_CHANNELS.status, (event, id: string) => prompt3d.status(prompt3dCapabilityFor(event), id));
+  ipcMain.handle(PROMPT3D_CHANNELS.cancel, (event, id: string) => prompt3d.cancel(prompt3dCapabilityFor(event), id));
+  ipcMain.handle(PROMPT3D_CHANNELS.retry, (event, id: string) => prompt3d.retry(prompt3dCapabilityFor(event), id));
+  ipcMain.handle(PROMPT3D_CHANNELS.reveal, (event, path: string) => { const safe = prompt3d.authorizeResultPath(prompt3dCapabilityFor(event), path); shell.showItemInFolder(safe); return { ok: true }; });
   // Settings
   ipcMain.handle("settings:get", async () => {
     const idBaseUrl = await api.getIdBaseUrl();
@@ -786,7 +853,7 @@ function registerIpc() {
   ipcMain.handle("fileDefaults:clear", () => fileDefaults.clearOurProgIds());
 
   // Puter auth + Grudge identity
-  ipcMain.handle("auth:getSession", () => puterAuth.getSession());
+  ipcMain.handle("auth:getSession", () => OFFLINE_LOCAL_TEST ? { signedIn: true, grudgeId: "local-test", puterUser: { uuid: "local-test", username: "Local Prompt-to-3D", email: undefined }, hasToken: false } : puterAuth.getSession());
   ipcMain.handle("auth:setSession", (_e, token: string, user: any) => puterAuth.setSession(token, user));
   ipcMain.handle("auth:clearSession", () => puterAuth.clearSession());
   ipcMain.handle("auth:wipeIdentity", () => puterAuth.wipeIdentity());

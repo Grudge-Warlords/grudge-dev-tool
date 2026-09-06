@@ -28,6 +28,7 @@ import {
   FolderSearch,
   Box,
   MonitorPlay,
+  WandSparkles,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -57,6 +58,7 @@ const ThreeFlowStudio = React.lazy(() => import("./pages/ThreeFlowStudio"));
 const LocalFiles = React.lazy(() => import("./pages/LocalFiles"));
 const AssetLibrary = React.lazy(() => import("./pages/AssetLibrary"));
 const StudioHub = React.lazy(() => import("./pages/StudioHub"));
+const Prompt3D = React.lazy(() => import("./pages/Prompt3D"));
 
 import Login from "./pages/Login";
 import StatusBar from "./components/StatusBar";
@@ -66,6 +68,7 @@ import { hydrateFromMain, persistRoute, readMirror } from "./lib/workspace";
 import { clearHandoffCache } from "./lib/webviewSession";
 
 type Route =
+  | "/prompt3d"
   | "/browser"
   | "/search"
   | "/upload"
@@ -111,6 +114,7 @@ const NAV: NavEntry[] = [
   { route: "/studio", label: "Home", Icon: HomeIcon, primary: true },
   { route: "/local", label: "Local Files", Icon: FolderSearch, primary: true },
   { route: "/threeflow", label: "ThreeFlow", Icon: Box, primary: true },
+  { route: "/prompt3d", label: "Prompt to 3D", Icon: WandSparkles, primary: true },
   { route: "/browser", label: "Assets", Icon: FolderTree, primary: true },
   { route: "/skeleton", label: "Skeleton", Icon: Bone, primary: true, adminOnly: true },
   { route: "/forge", label: "Forge", Icon: Hammer, primary: true, adminOnly: true },
@@ -161,6 +165,7 @@ const FULL_HEIGHT_ROUTES = new Set<string>([
   "/view",
   "/local",
   "/threeflow",
+  "/prompt3d",
   "/forge",
   "/forge-local",
   "/skeleton",
@@ -224,8 +229,9 @@ export default function App() {
 
   useEffect(() => {
     void refreshSession();
-    void hydrateFromMain().then((snap) => {
-      if (snap?.route) setRoute(resolveRoute(snap.route));
+    void window.grudge.appRuntime?.().then((runtime: { offlineLocalTest?: boolean }) => {
+      if (runtime?.offlineLocalTest) setRoute("/prompt3d");
+      else void hydrateFromMain().then((snap) => { if (snap?.route) setRoute(resolveRoute(snap.route)); });
     });
     const off = window.grudge?.onNav?.((r: string) => {
       stashRouteQuery(r);
@@ -233,6 +239,8 @@ export default function App() {
     });
     void (async () => {
       try {
+        const runtime = await window.grudge.appRuntime?.();
+        if (runtime?.offlineLocalTest) return;
         const s = await window.grudge.auth.getSession();
         if (s?.signedIn && isAdmin(s)) {
           await window.grudge.ollama?.ensure?.({ agentic: true, reason: "renderer-admin-session" });
@@ -480,6 +488,7 @@ export default function App() {
               {route === "/games" && <FleetLauncher admin={admin} />}
               {route === "/view" && <ViewMode />}
               {route === "/threeflow" && <ThreeFlowStudio />}
+              {route === "/prompt3d" && <Prompt3D />}
               {route === "/local" && <LocalFiles />}
               {route === "/ai" && <AIWorkspace />}
               {route === "/accounts" && <Accounts />}
