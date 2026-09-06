@@ -9,6 +9,7 @@
  * Dev Tool also accepts a LoadingManager so Elite/local opens can rewrite
  * sibling textures via grudge-media. ThreeFlow's singleton cannot do that.
  */
+import * as THREE from "three";
 import type { LoadingManager, WebGLRenderer } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
@@ -37,6 +38,8 @@ function getDraco(): DRACOLoader {
   }
   return draco;
 }
+
+THREE.ColorManagement.enabled = true;
 
 function attachDecoders(loader: GLTFLoader): void {
   loader.setDRACOLoader(getDraco());

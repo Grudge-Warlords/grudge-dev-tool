@@ -103,6 +103,13 @@ export const FLEET_BEST_PRACTICES = {
     category: "fleet" as const,
     surfaces: ["deploy", "devtools", "coder"] as const,
   },
+  playCct: {
+    id: "play-rapier-cct",
+    title: "Play walk is Rapier CCT",
+    rule: "Live Open/Island3D/Casting walk uses Rapier kinematic createCharacterController (CharacterCapsuleKcc). Dev Tool /play is a kinematic TPS preview on SceneEngine — do not add a second physics engine here. three-mesh-bvh is pick/camera, not the play KCC.",
+    category: "fleet" as const,
+    surfaces: ["preview", "forge", "devtools", "pipeline"] as const,
+  },
   noMeshy: {
     id: "no-meshy",
     title: "Canonical meshes only",
@@ -386,6 +393,13 @@ export const SURFACE_BEST_PRACTICES = {
     rule: "Dev Tool Forge tab embeds https://forge.grudge-studio.com — not a fork. R3F+Rapier+.gfscene deploy. Warlords scene work = ThreeFlow (threeflow.vercel.app ?asset=). Local tools = convert/pop-out only. Production bake = grudge-convert → R2. Play test → Preview.",
     category: "surfaces" as const,
     surfaces: ["forge", "pipeline", "devtools", "preview"] as const,
+  },
+  viewportColor: {
+    id: "surface-viewport-color",
+    title: "Editor viewport colour (sRGB)",
+    rule: "Elite/Forge/Play default viewport is Grudge studio navy #0a0e1a with gold grid, ColorManagement on, outputColorSpace sRGB + ACES. Sand #EFD1B5 is an optional preset only — it tints PBR yellow. Color maps sRGB; ORM/normal NoColorSpace. r185 Timer not Clock.",
+    category: "surfaces" as const,
+    surfaces: ["devtools", "forge", "preview"] as const,
   },
   preview: {
     id: "surface-preview",

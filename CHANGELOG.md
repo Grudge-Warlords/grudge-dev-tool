@@ -4,7 +4,15 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+### Changed
+- **Elite viewport** default is Grudge studio navy (`#0a0e1a`) + gold SI grid, not sand `#EFD1B5` (sand stays a preset). Floor/grid follow the preset. `setBackgroundColor` also sets clear colour so ViewHelper cannot flash black.
+- **Color loader:** `ColorManagement.enabled` on `gltfProdLoader`, SceneEngine, and MultiCanvasHub. Base color stays sRGB; data maps `NoColorSpace` (existing sanitize).
+- **r185 Timer** replaces deprecated `THREE.Clock` on SceneEngine and MultiCanvasHub (Page Visibility, stable dt).
+- **Native Play** analog gamepad (left stick move, right stick look, A jump) + reused ground ray.
+
 ### Added
+- Shared `viewportColor.ts` presets: Studio / Charcoal / Neutral / Sand / White — Elite chips + Forge BG cycle.
+- Best-practice rules: live play = Rapier CCT; Dev Tool `/play` stays kinematic preview; editor viewport sRGB.
 - **Native Three Play** (`/play`) — SceneEngine + `gltfProdLoader`, Toon `{race}.glb`, WASD TPS (Orbit off), one mixer idle/walk/run, video plane, Forge scripts + AI script. Preview stays fleet webview. Not Rapier (live games own physics).
 - **Pipeline Review AI Worker** (`pipeline-review`) on the existing Scene Completion / `aiChat` stack — diagnose, convert, laterality, strip-position, optimize, R2+D1, CDN HEAD. Pipeline window: **Pipeline AI review** / **Review + send R2/D1**.
 - **Convert-before-upload** on **Send to R2 + D1**: FBX/OBJ/… → GLB, magic-byte, then PUT, then **HEAD** `assets.grudge-studio.com` (reject HTML 200).

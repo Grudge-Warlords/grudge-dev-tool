@@ -83,8 +83,8 @@ import {
 } from "../lib/forge/sceneCompletionExec";
 import type { SceneCompletionPlan } from "../../shared/sceneCompletion";
 import type { StoreCategory } from "../../shared/fleetGames";
-
-const BG_PRESETS = [0x0a0e1a, 0x111418, 0x1a1a25, 0xffffff, 0x444a55];
+import { EDITOR_VIEWPORT_LIST } from "../lib/forge/viewportColor";
+const BG_PRESETS = EDITOR_VIEWPORT_LIST.map((v) => v.bg);
 
 interface SceneItem {
   id: string;

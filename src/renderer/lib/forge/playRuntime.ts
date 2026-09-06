@@ -39,6 +39,10 @@ export class PlayRuntime {
   private wish = new THREE.Vector3();
   private ray = new THREE.Raycaster();
   private down = new THREE.Vector3(0, -1, 0);
+  private from = new THREE.Vector3();
+  private padX = 0;
+  private padY = 0;
+  private padJumpHeld = false;
   private idleClip: THREE.AnimationClip | null = null;
   private walkClip: THREE.AnimationClip | null = null;
   private runClip: THREE.AnimationClip | null = null;
@@ -51,6 +55,7 @@ export class PlayRuntime {
     public clips: THREE.AnimationClip[],
     public settings: PlaySettings,
   ) {
+    (this.ray as THREE.Raycaster & { firstHitOnly?: boolean }).firstHitOnly = true;
     this.idleClip = clipByHint(clips, ["idle", "stand", "wait"]);
     this.walkClip = clipByHint(clips, ["walk", "move"]);
     this.runClip = clipByHint(clips, ["run", "sprint"]);
@@ -190,8 +195,34 @@ export class PlayRuntime {
     }
   }
 
+  private pollGamepad(): void {
+    const pads = typeof navigator !== "undefined" ? navigator.getGamepads?.() : null;
+    if (!pads) return;
+    const pad = Array.from(pads).find((p) => p?.connected) ?? null;
+    if (!pad) {
+      this.padX = 0;
+      this.padY = 0;
+      return;
+    }
+    const dz = 0.18;
+    const dead = (v: number) => {
+      const a = Math.abs(v);
+      if (a < dz) return 0;
+      return Math.sign(v) * ((a - dz) / (1 - dz));
+    };
+    this.padX = dead(pad.axes[0] ?? 0);
+    this.padY = dead(-(pad.axes[1] ?? 0));
+    const lookX = dead(pad.axes[2] ?? 0);
+    const lookY = dead(pad.axes[3] ?? 0);
+    if (lookX || lookY) this.onMouse(lookX * 12, lookY * 12);
+    const jumpBtn = pad.buttons[0];
+    const jumpDown = !!(jumpBtn && (jumpBtn.pressed || jumpBtn.value > 0.5));
+    if (jumpDown && !this.padJumpHeld && this.grounded) this.jump();
+    this.padJumpHeld = jumpDown;
+  }
+
   private sampleGroundY(x: number, z: number, fromY: number): number {
-    this.ray.set(new THREE.Vector3(x, fromY + 4, z), this.down);
+    this.ray.set(this.from.set(x, fromY + 4, z), this.down);
     const hits = this.ray.intersectObjects(this.engine.scene.children, true);
     const hit = hits.find((h) => {
       const o = h.object;
@@ -208,6 +239,7 @@ export class PlayRuntime {
     this.sprinting = sprint;
     const speed = this.settings.moveSpeed * (sprint ? this.settings.sprintMul : 1);
 
+    this.pollGamepad();
     this.look.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     this.right.set(this.look.z, 0, -this.look.x);
     this.wish.set(0, 0, 0);
@@ -215,6 +247,10 @@ export class PlayRuntime {
     if (this.keys.has("KeyS")) this.wish.sub(this.look);
     if (this.keys.has("KeyA")) this.wish.add(this.right);
     if (this.keys.has("KeyD")) this.wish.sub(this.right);
+    if (this.wish.lengthSq() < 0.0001 && (this.padX || this.padY)) {
+      this.wish.addScaledVector(this.look, this.padY);
+      this.wish.addScaledVector(this.right, this.padX);
+    }
     const moving = this.wish.lengthSq() > 0.0001;
     this.moving = moving;
     if (moving) {

@@ -19,6 +19,7 @@ import React, {
 import * as THREE from "three";
 import { toast } from "sonner";
 import { SceneEngine, type StudioView } from "./lib/forge/sceneEngine";
+import { DEFAULT_EDITOR_VIEWPORT, EDITOR_VIEWPORT_LIST, viewportFromHex } from "./lib/forge/viewportColor";
 import { loadModel, loadModelFromUrl, isSupported, localFileUrl } from "./lib/forge/loaders";
 import {
     attachAnimationMixer,
@@ -354,7 +355,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
     const [boundsOn, setBoundsOn] = useState(false);
     const [si, setSi] = useState<SiBounds | null>(null);
     const [viewKind, setViewKind] = useState<StudioView>("persp");
-    const [bgColour, setBgColour] = useState("#efd1b5");
+    const [bgColour, setBgColour] = useState(DEFAULT_EDITOR_VIEWPORT.hex);
     const [items, setItems] = useState<ViewerSceneItem[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [gizmoSpace, setGizmoSpace] = useState<"world" | "local">("world");
@@ -409,13 +410,14 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
     useEffect(() => {
         if (!hostRef.current) return;
         const engine = new SceneEngine(hostRef.current, {
-            background: 0xefd1b5,
+            background: DEFAULT_EDITOR_VIEWPORT.bg,
             showGrid: true,
             showAxes: false,
             hdri: true,
             showGround: true,
-            gridCellColor: 0x7a5a38,
-            gridSectionColor: 0x3d2818,
+            groundColor: DEFAULT_EDITOR_VIEWPORT.ground,
+            gridCellColor: DEFAULT_EDITOR_VIEWPORT.gridCell,
+            gridSectionColor: DEFAULT_EDITOR_VIEWPORT.gridSection,
         });
         // Studio, not blown-out: keep IBL + key, avoid ACES white-out on sand floor.
         engine.studioLights.ambient.intensity = 0.28;
@@ -855,7 +857,13 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
     const handleBg = useCallback((hex: string) => {
         setBgColour(hex);
         if (!engineRef.current) return;
-        engineRef.current.scene.background = new THREE.Color(hex);
+        const n = parseInt(hex.replace("#", ""), 16);
+        if (!Number.isNaN(n)) engineRef.current.setBackgroundColor(n);
+        const preset = viewportFromHex(hex);
+        const floor = engineRef.current.scene.getObjectByName("GrudgeStudioGround") as THREE.Mesh | undefined;
+        if (preset && floor && (floor.material as THREE.MeshStandardMaterial).color) {
+            (floor.material as THREE.MeshStandardMaterial).color.setHex(preset.ground);
+        }
     }, []);
 
     // ── Animation handlers (exclusive primary clip — review/repair path) ─────
@@ -1582,16 +1590,32 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
                 <Toggle label="HDRI lighting" checked = { hdri }  onChange = { handleHdri } />
                     <Toggle label="Shadows"   checked = { shadows }   onChange = { handleShadows } />
                         <div style={ { marginTop: 6, display: "flex", alignItems: "center", gap: 8 } }>
-                            <span style={ { fontSize: 12, color: "var(--muted)" } }> Background </span>
-                                < input
-type = "color" value = { bgColour }
-onChange = {(e) => handleBg(e.target.value)}
-style = {{
-    width: 36, height: 22, padding: 1, border: "1px solid var(--line)",
-        borderRadius: 4, background: "var(--bg-2)", cursor: "pointer",
-              }}
-            />
-    </div>
+                            <span style={{ fontSize: 12, color: "var(--muted)" }}>Background</span>
+                            <input
+                                type="color"
+                                value={bgColour}
+                                onChange={(e) => handleBg(e.target.value)}
+                                style={{
+                                    width: 36, height: 22, padding: 1, border: "1px solid var(--line)",
+                                    borderRadius: 4, background: "var(--bg-2)", cursor: "pointer",
+                                }}
+                            />
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                            {EDITOR_VIEWPORT_LIST.map((p) => (
+                                <button
+                                    key={p.id}
+                                    type="button"
+                                    title={p.label}
+                                    onClick={() => handleBg(p.hex)}
+                                    style={{
+                                        width: 18, height: 18, borderRadius: 3, padding: 0, cursor: "pointer",
+                                        border: bgColour.toLowerCase() === p.hex ? "2px solid var(--gold)" : "1px solid var(--line)",
+                                        background: p.hex,
+                                    }}
+                                />
+                            ))}
+                        </div>
     < button onClick = { resetCamera } style = {{
     marginTop: 8, width: "100%", padding: "4px 0",
         background: "var(--bg-2)", border: "1px solid var(--line)",

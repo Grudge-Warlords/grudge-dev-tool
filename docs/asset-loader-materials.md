@@ -68,7 +68,8 @@ Prevents N WebGL contexts (black frames, context loss, yellow sludge when many p
 | FBX yellow / no atlas | `diskPath` + `grudge-media` relative TGA/PNG + sanitize yellow |
 | Black silhouette | ambient boost in Elite + metalness cap in sanitize |
 | Entire viewport black (cube only) | **v1.0.10** — ViewHelper was wiping the canvas; update Dev Tool |
-| Scrambled sRGB / muddy normals | baseColor → sRGB; data maps → NoColorSpace |
+| Scrambled sRGB / muddy normals | baseColor → sRGB; data maps → NoColorSpace; ColorManagement on |
+| Viewport tints the mesh yellow | Elite default is studio `#0a0e1a` (sand `#EFD1B5` is a preset only) |
 | Draco/Meshopt empty mesh | GLTFLoader setDRACOLoader + setMeshoptDecoder |
 | Tiny / giant mesh after open | keep author root scale (do not force `scale=1`) |
 | OBJ grey / no maps | sidecar `.mtl` via MTLLoader + `setResourcePath` + sibling fill |
