@@ -37,7 +37,7 @@ npm run publish:manual # bump patch → package → git tag → gh release creat
 | **Forge live** (`forge.grudge-studio.com`) | R3F + Rapier + `.gfscene` deploy | CDN URL only |
 | Local Forge3D / workbench | Pop-out mesh tools, script pad | same `loadModel` / `convertToGlb` |
 | **Pipeline Review worker** | Convert-before-upload · SI · laterality · CDN HEAD | `src/main/fleet/pipelineReviewWorker.ts` — sibling of Scene Completion |
-| **Native Play** (`/play`) | WASD TPS · one mixer · gltfProdLoader · video plane · Forge scripts | `PlayMode.tsx` + `playRuntime.ts` — not a fourth editor |
+| **Native Play** (`/play`) | WASD TPS · LocomotionCore · combatSkillKit · gltfProdLoader | `PlayMode.tsx` + `playRuntime.ts` + `studioQuality.ts`. Rapier CCT playtest = Open/Casting, not this tab |
 
 Production bake: main `convertFile` (FBX2glTF → Blender fallback) then `optimizeWebFile`. Browser `exportToGlb` is convenience only.
 

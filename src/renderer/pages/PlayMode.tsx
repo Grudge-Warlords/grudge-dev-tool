@@ -20,6 +20,7 @@ import { attachAnimationMixer } from "../lib/forge/forgeAnimation";
 import { PlayRuntime } from "../lib/forge/playRuntime";
 import { runForgeScript, type ForgeScriptHost } from "../lib/forge/forgeScript";
 import { TOON_PLAY_KITS, CDN_BASE } from "../../shared/prodPackages";
+import { FLEET_PLAYTEST_LINKS } from "../lib/forge/studioQuality";
 import {
   PLAY_HOTKEYS,
   loadPlaySettings,
@@ -95,7 +96,7 @@ export default function PlayMode() {
       rt.start();
       runtimeRef.current = rt;
       engine.frame(loaded.object);
-      setSi(`${box.h.toFixed(2)} m · ${loaded.bones} bones · ${anim.clips.length} clips`);
+      setSi(`${box.h.toFixed(2)} m · ${loaded.bones} bones · ${anim.clips.length} clips · ${rt.skillCount} skills`);
       setClipName(anim.clips[0]?.name ?? "none");
       setStatus(nameHint);
       toast.success("Play ready", { description: `${nameHint} · click canvas to look` });
@@ -159,6 +160,11 @@ export default function PlayMode() {
         setHud((h) => !h);
         return;
       }
+      if (e.code === "KeyF" && !e.ctrlKey && !e.metaKey) {
+        const name = rt.playPrimarySkill();
+        if (name) setClipName(name);
+        return;
+      }
       if (e.code === "KeyV" && !e.ctrlKey) {
         const on = rt.toggleVideo();
         toast.message(on ? "Video on" : "Video off");
@@ -172,6 +178,13 @@ export default function PlayMode() {
       }
       if (e.code >= "Digit0" && e.code <= "Digit9" && !e.ctrlKey) {
         const n = Number(e.code.slice(-1));
+        if (n >= 1 && n <= 4 && rt.skillCount) {
+          const name = rt.playSkillSlot(n - 1);
+          if (name) {
+            setClipName(name);
+            return;
+          }
+        }
         const name = rt.playClipIndex(n);
         if (name) setClipName(name);
       }
@@ -270,8 +283,22 @@ export default function PlayMode() {
           <span className="text-xs font-semibold tracking-wide">Native Three Play</span>
         </div>
         <p className="text-[10px] text-slate-500 leading-snug">
-          Production loader · one mixer · WASD. Not a second editor. Fleet clients stay on Preview.
+          Production loader · LocomotionCore · combatSkillKit · WASD. Not a second editor. Rapier CCT playtest is Open/Casting.
         </p>
+        <label className="text-[10px] uppercase tracking-wide text-slate-500">Fleet playtest (CCT)</label>
+        <div className="flex flex-col gap-1">
+          {FLEET_PLAYTEST_LINKS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className="text-left text-[10px] text-amber-200/90 hover:text-amber-100 underline-offset-2 hover:underline"
+              title={s.notes}
+              onClick={() => void G()?.os?.openExternal?.(s.url)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
         <label className="text-[10px] uppercase tracking-wide text-slate-500">Toon play kit</label>
         <select
           className="bg-black/50 border border-white/10 rounded px-2 py-1 text-xs"

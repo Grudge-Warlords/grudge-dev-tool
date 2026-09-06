@@ -12,6 +12,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ### Added
 - Shared `viewportColor.ts` presets: Studio / Charcoal / Neutral / Sand / White — Elite chips + Forge BG cycle.
+- **@grudge-studio file: deps** (`engine` 0.3.1 CCT contract, `animator` LocomotionCore, `assets` combatSkillKit). Native Play uses quality gait + F / 1–4 weapon skills; fleet CCT playtest links (Open Danger, Casting, Gladiators).
 - ThreeFlow tab **terrain starter** (local preview) next to live `/view` and `/editor` embeds; studio navy + sRGB + r185 Timer.
 - Best-practice rules: live play = Rapier CCT; Dev Tool `/play` stays kinematic preview; editor viewport sRGB.
 - **Prompt to 3D** (`/prompt3d`) — versioned `AssetSpec` planning, separately selectable official Hunyuan3D 2.1 and Microsoft TRELLIS local providers, live physical/setup/headroom gating, deliberate isolated installer/repair/remove workflow, loopback-only bounded jobs, preview, provenance, deterministic validation/quarantine, and handoff to the existing asset pipeline. Includes a source-side offline local-test mode with isolated profile/ports and no fleet/updater/Ollama/cloud contact.
