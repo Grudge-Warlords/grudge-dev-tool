@@ -135,12 +135,6 @@ const NAV: NavEntry[] = [
   { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true, hidden: true },
 ];
 
-declare global {
-  interface Window {
-    grudge: any;
-  }
-}
-
 interface Session {
   signedIn: boolean;
   grudgeId: string | null;

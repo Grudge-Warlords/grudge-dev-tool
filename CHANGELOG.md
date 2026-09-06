@@ -12,6 +12,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ### Added
 - Shared `viewportColor.ts` presets: Studio / Charcoal / Neutral / Sand / White — Elite chips + Forge BG cycle.
+- ThreeFlow tab **terrain starter** (local preview) next to live `/view` and `/editor` embeds; studio navy + sRGB + r185 Timer.
 - Best-practice rules: live play = Rapier CCT; Dev Tool `/play` stays kinematic preview; editor viewport sRGB.
 - **Native Three Play** (`/play`) — SceneEngine + `gltfProdLoader`, Toon `{race}.glb`, WASD TPS (Orbit off), one mixer idle/walk/run, video plane, Forge scripts + AI script. Preview stays fleet webview. Not Rapier (live games own physics).
 - **Pipeline Review AI Worker** (`pipeline-review`) on the existing Scene Completion / `aiChat` stack — diagnose, convert, laterality, strip-position, optimize, R2+D1, CDN HEAD. Pipeline window: **Pipeline AI review** / **Review + send R2/D1**.
