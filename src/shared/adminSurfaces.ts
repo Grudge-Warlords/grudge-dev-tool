@@ -64,7 +64,7 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     kind: "local-tool",
     apis: [FLEET_URLS.assets, FLEET_URLS.forge],
     description:
-      "Local Files: click preview; double-click 3D → ThreeFlow ThreePipe viewer/editor (loopback). Media → Elite.",
+      "Local Files: click preview; double-click 3D → Elite SceneEngine (one pipeline window). Media → Elite. ThreeFlow is explicit.",
   },
   {
     id: "threeflow",
@@ -74,7 +74,7 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     prodUrl: FLEET_URLS.threeflow,
     apis: [FLEET_URLS.threeflow, FLEET_URLS.assets, FLEET_URLS.ai],
     description:
-      "ThreeFlow in-app: ThreePipe /view + Vue /editor. Explorer double-click 3D opens the viewer with loopback + classify.",
+      "ThreeFlow in-app: Vue /editor via explicit Edit in ThreeFlow. Explorer double-click 3D opens Elite SceneEngine.",
   },
   {
     id: "forge",

@@ -1,11 +1,12 @@
 /**
  * Local file open system for Grudge Dev Tool.
  *
- * 3D meshes / scenes → ThreeFlow ThreePipe viewer / scene editor (loopback).
+ * 3D meshes / scenes → Elite SceneEngine (one pipeline window; extra files append).
  * Images / audio / video / text / PDF → Elite media viewer.
+ * ThreeFlow is an explicit "Edit in ThreeFlow" action — not the default double-click.
  */
 
-import { app, BrowserWindow } from "electron";
+import { BrowserWindow } from "electron";
 import { existsSync, statSync } from "node:fs";
 import { basename, dirname, extname, resolve } from "node:path";
 import {
@@ -20,7 +21,6 @@ import {
 import log from "./logger";
 import * as viewer from "./viewer";
 import { resolveSceneOpenPath } from "./forge";
-import { needsAutoPrepare, prepareForEliteViewer } from "./ingestion/designPreview";
 
 /**
  * Every extension the elite viewer can open from disk / Explorer.
@@ -173,38 +173,6 @@ export async function openPathInEliteViewer(
     const contentType = inferContentType(basename(p));
     const size = statSync(p).size;
 
-    if ((kind === "model3d" || kind === "scene3d") && needsAutoPrepare(p)) {
-      const prep = await prepareForEliteViewer(p);
-      if (prep.ok && prep.path) p = prep.path;
-    }
-
-    // 3D: ThreePipe viewer (default) with editor query — not Elite SceneEngine.
-    if (kind === "model3d" || kind === "scene3d") {
-      log.info(`[openFile] ThreeFlow pipeline ← ${kind} ${p}${openNote ? ` (${openNote})` : ""}`);
-      const { url } = viewer.openThreeFlowPipeline({
-        name: basename(p),
-        localPath: p,
-        mode: "view",
-        extra: { note: openNote || "" },
-      });
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        if (!mainWindow.isVisible()) mainWindow.show();
-        mainWindow.webContents.send("nav", "/threeflow");
-        mainWindow.webContents.send("openFile:opened", {
-          path: p,
-          sourcePath,
-          name: basename(p),
-          dir: dirname(p),
-          kind,
-          contentType,
-          size,
-          url,
-          note: openNote,
-        });
-      }
-      return { ok: true, token: url, kind };
-    }
-
     log.info(`[openFile] elite viewer ← ${kind} ${p}${openNote ? ` (${openNote})` : ""}`);
     const { token } = await viewer.openLocalPath(
       p,
@@ -212,11 +180,13 @@ export async function openPathInEliteViewer(
       mainWindow && !mainWindow.isDestroyed() ? mainWindow : null,
     );
 
-    // Focus main shell on Local Files so the app is the open system, not a silent ghost
+    // Viewer is already front. Don't steal to ThreeFlow / Local Files on 3D —
+    // that made double-click wait on a second SPA. Media can hint Local Files.
     if (mainWindow && !mainWindow.isDestroyed()) {
-      if (!mainWindow.isVisible()) mainWindow.show();
-      mainWindow.focus();
-      mainWindow.webContents.send("nav", "/local");
+      if (kind !== "model3d" && kind !== "scene3d") {
+        if (!mainWindow.isVisible()) mainWindow.show();
+        mainWindow.webContents.send("nav", "/local");
+      }
       mainWindow.webContents.send("openFile:opened", {
         path: p,
         sourcePath,
@@ -283,7 +253,7 @@ export function flushPendingTo(mainWindow: BrowserWindow): void {
     mainWindow.webContents.once("did-finish-load", run);
   } else {
     // Small delay so preload + IPC are live
-    setTimeout(run, 400);
+    setTimeout(run, 50);
   }
 }
 

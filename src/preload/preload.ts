@@ -233,7 +233,7 @@ const api = {
       }>,
     supportedExts: () =>
       ipcRenderer.invoke("openFile:supportedExts") as Promise<string[]>,
-    /** Fired when OS / Local Files opened a path (ThreeFlow for 3D, Elite for media). */
+    /** Fired when OS / Local Files opened a path (Elite SceneEngine for 3D, Elite for media). */
     onOpened: (
       cb: (info: {
         path: string;

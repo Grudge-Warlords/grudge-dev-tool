@@ -4,9 +4,9 @@
  *
  * Actions:
  *   • Click / Enter → inline preview (View Mode viewers)
- *   • Pop-out 3D → ThreeFlow (save / multi-mesh)
+ *   • Double-click / Pop-out 3D → Elite SceneEngine (one pipeline window)
  *   • Pop-out media → Elite viewer
- *   • Explicit "Send to Forge" only when user chooses it
+ *   • Explicit ThreeFlow / Forge only when user chooses it
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -167,6 +167,7 @@ function PreviewPane({
   asset,
   onPopOut,
   onViewMode,
+  onThreeFlow,
   onForge,
   onLocateInList,
   busy,
@@ -174,6 +175,7 @@ function PreviewPane({
   asset: AssetRef | null;
   onPopOut: () => void;
   onViewMode: () => void;
+  onThreeFlow: () => void;
   onForge: () => void;
   onLocateInList: () => void;
   busy: boolean;
@@ -185,8 +187,8 @@ function PreviewPane({
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted p-8 text-center">
         <HardDrive size={40} className="opacity-40" />
         <p className="text-sm max-w-xs">
-          Click to preview. Double-click 3D opens{" "}
-          <strong className="text-ink">ThreeFlow</strong> (save, multi-mesh). Images / audio / video stay in Elite.
+          Click to preview. Double-click 3D opens the{" "}
+          <strong className="text-ink">Elite viewer</strong> (same window, extra meshes append). Images / audio / video stay in Elite.
         </p>
       </div>
     );
@@ -210,11 +212,22 @@ function PreviewPane({
           className="btn ghost text-[11px] px-2 py-1"
           disabled={busy}
           onClick={onPopOut}
-          title={kind === "model3d" || kind === "scene3d" ? "ThreeFlow scene editor" : "Elite media viewer"}
+          title="Elite viewer (SceneEngine for 3D)"
         >
           <Maximize2 size={12} className="inline mr-1" />
-          {kind === "model3d" || kind === "scene3d" ? "ThreeFlow" : "Pop-out"}
+          Pop-out
         </button>
+        {(kind === "model3d" || kind === "scene3d") && (
+          <button
+            type="button"
+            className="btn ghost text-[11px] px-2 py-1"
+            disabled={busy}
+            onClick={onThreeFlow}
+            title="Edit in ThreeFlow (explicit)"
+          >
+            ThreeFlow
+          </button>
+        )}
         <button
           type="button"
           className="btn ghost text-[11px] px-2 py-1"
@@ -366,7 +379,7 @@ export default function LocalFiles() {
         }
         const is3d = info.kind === "model3d" || info.kind === "scene3d";
         toast.success(is3d ? "Elite 3D pipeline" : "Elite viewer", {
-          description: `${info.kind} · ${info.name}${is3d ? " · ThreeFlow from viewer/Admin" : ""}`,
+          description: `${info.kind} · ${info.name}${is3d ? " · Edit in ThreeFlow from the viewer" : ""}`,
         });
       } catch (e: unknown) {
         console.warn("[LocalFiles] openFile:opened", e);
@@ -435,7 +448,7 @@ export default function LocalFiles() {
       setBusy(true);
       try {
         if (mode === "popout") {
-          // Double-click / Pop-out: 3D → ThreeFlow ThreePipe; media → Elite.
+          // Double-click / Pop-out: Elite SceneEngine (3D) or Elite media.
           const r = await window.grudge.openFile?.openPath?.(entry.path);
           if (r && "ok" in r && r.ok) return;
           await window.grudge.viewer.openLocal({
@@ -534,6 +547,20 @@ export default function LocalFiles() {
     toast.success("Opened in View Mode");
   }, [preview]);
 
+  const onThreeFlow = useCallback(async () => {
+    const path = preview?.localPath || selected?.path;
+    const name = selected?.name || path?.split(/[/\\]/).pop() || "mesh";
+    if (!path) return;
+    setBusy(true);
+    try {
+      await window.grudge.viewer.openThreeFlow({ name, localPath: path });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "ThreeFlow open failed");
+    } finally {
+      setBusy(false);
+    }
+  }, [preview, selected]);
+
   const onForge = useCallback(async () => {
     if (!selected) return;
     setBusy(true);
@@ -576,7 +603,7 @@ export default function LocalFiles() {
           <div className="flex-1 min-w-0">
             <h1 className="text-sm font-bold text-gold tracking-wide">Local Files · Elite open</h1>
             <p className="text-[11px] text-muted">
-              Click = preview. Double-click 3D = <strong className="text-ink">ThreeFlow</strong>. Images / audio / video = Elite.
+              Click = preview. Double-click 3D = <strong className="text-ink">Elite viewer</strong>. Images / audio / video = Elite.
               System open = OS app. AI card = clipboard for agents.
             </p>
           </div>
@@ -723,7 +750,7 @@ export default function LocalFiles() {
                         title={
                           entry.isDirectory
                             ? entry.path
-                            : `${entry.path}\nDouble-click = ${entry.kind === "model3d" || entry.kind === "scene3d" ? "ThreeFlow editor" : "elite viewer"}`
+                            : `${entry.path}\nDouble-click = ${entry.kind === "model3d" || entry.kind === "scene3d" ? "Elite 3D viewer" : "elite viewer"}`
                         }
                       >
                         <KindImg kind={entry.isDirectory ? "dir" : entry.kind} size={16} />
@@ -755,9 +782,7 @@ export default function LocalFiles() {
                 onClick={() => void onPopOut()}
               >
                 <Maximize2 size={12} className="inline mr-1" />
-                {selected.kind === "model3d" || selected.kind === "scene3d"
-                  ? "Pop-out ThreeFlow"
-                  : "Pop-out viewer"}
+                Pop-out viewer
               </button>
               <button
                 type="button"
@@ -844,6 +869,7 @@ export default function LocalFiles() {
           asset={preview}
           onPopOut={onPopOut}
           onViewMode={onViewMode}
+          onThreeFlow={onThreeFlow}
           onForge={onForge}
           onLocateInList={() => void locateViewportAsset()}
           busy={busy}

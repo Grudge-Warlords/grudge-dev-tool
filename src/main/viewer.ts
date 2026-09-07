@@ -208,8 +208,8 @@ export function openThreeFlowEditor(opts: {
 }
 
 /**
- * OS / Local Files double-click: ThreePipe viewer (default) or scene editor.
- * Same pipeline window is reused; extra files navigate to the new asset.
+ * Explicit ThreeFlow view/editor pop-out (not Explorer default).
+ * Double-click uses Elite SceneEngine via openLocalPath / openViewer.
  */
 export function openThreeFlowPipeline(opts: {
   name: string;
@@ -380,7 +380,7 @@ export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: 
     height: VIEWER_HEIGHT,
     minWidth: 640,
     minHeight: 420,
-    show: false,
+    show: true,
     frame: true,
     autoHideMenuBar: true,
     backgroundColor: "#0a0e1a",
