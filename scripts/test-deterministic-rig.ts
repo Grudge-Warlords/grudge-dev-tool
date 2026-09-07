@@ -66,6 +66,13 @@ async function main(): Promise<void> {
   assert.equal(classifyDeterministicRig(spec("One original humanoid knight standing upright in a T-pose")).classification, "humanoid");
   assert.equal(classifyDeterministicRig(spec("One complete human standing upright, not a rabbit")).classification, "humanoid", "negated anatomy must not override the affirmative subject");
   assert.equal(classifyDeterministicRig(spec("One complete rabbit standing on four legs")).classification, "non-humanoid");
+  for (const subject of ["kangaroo", "wallaby", "penguin", "emu", "otter", "One animal with a tail"]) {
+    assert.equal(classifyDeterministicRig(spec(subject)).classification, "non-humanoid", `${subject} uses creature deformation, including animal bipeds`);
+  }
+  assert.equal(classifyDeterministicRig(spec("One human in T-pose, not a kangaroo")).classification, "humanoid");
+  assert.equal(classifyDeterministicRig(spec("One kangaroo-like humanoid")).classification, "ambiguous");
+  assert.equal(classifyDeterministicRig(spec("A female astronaut in a T-pose holding a sword")).classification, "ambiguous", "a held prop does not prove non-humanoid anatomy");
+  assert.equal(classifyDeterministicRig(spec("One human in T-pose holding a sword")).classification, "humanoid");
   assert.equal(classifyDeterministicRig(spec("One rabbit-like humanoid standing upright")).classification, "ambiguous", "mixed body plans must fail closed");
   assert.equal(classifyDeterministicRig(spec("One complete stylized character")).classification, "ambiguous");
   assert.equal(classifyDeterministicRig(spec("One complete sword", "prop")).classification, "rigid-object");

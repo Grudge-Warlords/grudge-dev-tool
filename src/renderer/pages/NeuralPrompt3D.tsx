@@ -1,6 +1,7 @@
 import Prompt3DNumberInput from "../components/Prompt3DNumberInput";
 import { prompt3DSettingsError, parsePrompt3DOptionalNumber, prompt3DFinishSettingsError } from "../../shared/prompt3dInputValidation";
 import { promptedMotionCapabilityError } from "../../shared/promptedMotionIntent";
+import { classifyPrompt3DAnimationSubject, prompt3DHyMotionSubjectError } from "../../shared/prompt3dAnimationSubject";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Box, CheckCircle2, ChevronDown, ChevronUp, Cpu, Download, Film, FolderOpen, HardDrive, ImagePlus, Loader2, Palette, Play, RefreshCw, Save, ShieldCheck, Square, Trash2, WandSparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -308,7 +309,6 @@ export default function Prompt3D({ guidedIntent }: { guidedIntent?: Prompt3DGuid
   useEffect(() => {
     let active = true;
     let receivedProgress = false;
-    let receivedFinishProgress = false;
     void window.grudge.prompt3d.draft().then((saved: AssetSpecV1 | null) => {
       if (active && saved && currentSpec.current === initialSpec.current) {
         setSpec(editableSpec({
@@ -336,11 +336,6 @@ export default function Prompt3D({ guidedIntent }: { guidedIntent?: Prompt3DGuid
       setPreviousResult((current) => current ?? history.previousResult);
     }).catch((error: unknown) => { if (active) toast.error("Could not restore saved results", { description: String(error) }); });
     const prompt3dApi = window.grudge.prompt3d;
-    if (typeof prompt3dApi.finishHistory === "function") {
-      void prompt3dApi.finishHistory().then((history: Prompt3DFinishHistory) => {
-        if (active && !receivedFinishProgress) setFinishJobs(history.jobs);
-      }).catch((error: unknown) => { if (active) toast.error("Could not restore finishing history", { description: String(error) }); });
-    }
     void window.grudge?.skeleton?.listLibraries?.().then((libraries: Array<{ packDir: string; name: string; clipCount: number }>) => {
       if (!active || !Array.isArray(libraries)) return;
       setAnimationLibraries(libraries);
@@ -349,10 +344,21 @@ export default function Prompt3D({ guidedIntent }: { guidedIntent?: Prompt3DGuid
     try {
       const pending = sessionStorage.getItem("grudge.prompt3d.pendingRigCorrection");
       if (pending) {
-        const parsed = JSON.parse(pending) as { sourceSha256?: string; placements?: Prompt3DAnimationOverrides["rigPlacements"] };
-        if (/^[a-f0-9]{64}$/i.test(parsed.sourceSha256 ?? "") && Array.isArray(parsed.placements) && parsed.placements.length === 22) {
+        const parsed = JSON.parse(pending) as { sourceSha256?: string; sourceJobId?: string; instruction?: string; placements?: Prompt3DAnimationOverrides["rigPlacements"]; animation?: Prompt3DAnimationOverrides; seed?: number };
+        if (/^[a-f0-9]{64}$/i.test(parsed.sourceSha256 ?? "") && (parsed.placements === undefined || (Array.isArray(parsed.placements) && parsed.placements.length === 22))) {
           setRigCorrectionPlacements(parsed.placements);
           setRigCorrectionSourceSha256(parsed.sourceSha256);
+          if (parsed.instruction) setAnimationPrompt(parsed.instruction);
+          if (parsed.sourceJobId) {
+            setFocusedFinishId(parsed.sourceJobId);
+            setAcceptedTextureForAnimationId(parsed.sourceJobId);
+            localStorage.setItem(ACCEPTED_TEXTURE_FOR_ANIMATION_KEY, parsed.sourceJobId);
+          }
+          setAnimationProvider(parsed.animation?.provider ?? "auto-cpu");
+          setAnimationMode(parsed.animation?.mode ?? "append");
+          setAnimationDuration(parsed.animation?.duration?.toString() ?? "");
+          if (parsed.animation?.libraryPackDir) setAnimationLibraryPackDir(parsed.animation.libraryPackDir);
+          setAnimationSeed(parsed.seed?.toString() ?? "");
           sessionStorage.removeItem("grudge.prompt3d.pendingRigCorrection");
         }
       }
@@ -367,12 +373,28 @@ export default function Prompt3D({ guidedIntent }: { guidedIntent?: Prompt3DGuid
     });
     const offFinish = typeof prompt3dApi.onFinishProgress === "function"
       ? prompt3dApi.onFinishProgress((value: Prompt3DFinishJobStatus) => {
-        receivedFinishProgress = true;
         setFinishJobs((current) => upsertFinishJob(current, value));
       })
       : undefined;
     return () => { active = false; readinessRequest.current++; offInstall?.(); offJob?.(); offFinish?.(); };
   }, []);
+
+  useEffect(() => {
+    if (!controlsEnabled || typeof window.grudge.prompt3d.finishHistory !== "function") return;
+    let active = true;
+    void window.grudge.prompt3d.finishHistory().then((history: Prompt3DFinishHistory) => {
+      if (!active) return;
+      setFinishJobs((current) => {
+        const merged = new Map(history.jobs.map((saved) => [saved.id, saved]));
+        for (const live of current) {
+          const saved = merged.get(live.id);
+          if (!saved || live.updatedAt >= saved.updatedAt) merged.set(live.id, live);
+        }
+        return [...merged.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      });
+    }).catch((error: unknown) => { if (active) toast.error("Could not restore finishing history", { description: String(error) }); });
+    return () => { active = false; };
+  }, [controlsEnabled]);
 
   useEffect(() => {
     if (!controlsEnabled || typeof window.grudge.prompt3d.workflowLibrary !== "function") return;
@@ -954,6 +976,15 @@ export default function Prompt3D({ guidedIntent }: { guidedIntent?: Prompt3DGuid
       toast.error("Persist the exact source revision approval before continuing");
       return;
     }
+    if (operation === "animation" && animationProvider === "hy-motion-1.0-lite") {
+      const subjectError = prompt3DHyMotionSubjectError(displayedFinish?.baseSpec ?? resultJob.spec);
+      if (subjectError) { toast.error(subjectError); return; }
+    }
+    if (operation === "animation" && rigCorrectionPlacements
+      && (source.kind !== "finish" || finishJobMap.get(source.jobId)?.sha256 !== rigCorrectionSourceSha256)) {
+      toast.error("These skeleton placements belong to another model revision. Return to that source or review this model's skeleton.");
+      return;
+    }
     const animation: Prompt3DAnimationOverrides = {
       // A correction must not carry the rejected clip forward. Keeping Append
       // here leaves the old result as the first/default clip and makes the
@@ -1296,8 +1327,11 @@ export default function Prompt3D({ guidedIntent }: { guidedIntent?: Prompt3DGuid
     : initialImageMode === "select" && specifiedReferences.length > 0 && referenceReady;
   const settingsError = prompt3DSettingsError(spec);
   const textureSettingsError = prompt3DFinishSettingsError(textureSeed);
+  const animationSubject = classifyPrompt3DAnimationSubject(displayedFinish?.baseSpec ?? resultJob?.spec ?? spec);
+  const hyMotionSubjectError = prompt3DHyMotionSubjectError(displayedFinish?.baseSpec ?? resultJob?.spec ?? spec);
   const animationSettingsError = prompt3DFinishSettingsError(animationSeed, animationDuration)
-    ?? (animationProvider === "auto-cpu" ? promptedMotionCapabilityError(animationPrompt) : null);
+    ?? (animationProvider === "auto-cpu" ? promptedMotionCapabilityError(animationPrompt) : null)
+    ?? (animationProvider === "hy-motion-1.0-lite" ? hyMotionSubjectError : null);
   const currentSaveError = workflowSaveError?.id === displayedFinish?.id ? workflowSaveError?.message : null;
   const canGenerate = Boolean(!settingsError && controlsEnabled && initialImageSourceReady && spec.prompt.trim() && !promptCompileError && referenceReady && !referenceCapabilityError && selected?.compliance.canRun && !busy && !plannerBusy && job?.state !== "running" && (!(awaitingConcept || conceptRejected) || pendingConceptAllowsEditedAttempt || freshSeedAllowsPreConceptRecovery) && !stricterReview);
   const requiredProviderIds: LocalPrompt3DProviderId[] = [spec.providerId === "trellis" ? "trellis" : "hunyuan3d-2"];
@@ -1382,9 +1416,12 @@ export default function Prompt3D({ guidedIntent }: { guidedIntent?: Prompt3DGuid
       sourcePath: rigReviewJob.rigReview.sourcePath,
       sourceSha256: rigReviewJob.rigReview.sourceSha256,
       finishJobId: rigReviewJob.id,
+      sourceJobId: rigReviewJob.source.kind === "finish" ? rigReviewJob.source.jobId : undefined,
       spec: rigReviewJob.baseSpec,
       instruction: rigReviewJob.instruction,
       suggestedPlacements: rigReviewJob.rigReview.suggestedPlacements,
+      seed: rigReviewJob.seed,
+      animation: { provider: animationProvider, mode: animationMode, ...(animationProvider === "local-animation-library" ? { libraryPackDir: animationLibraryPackDir } : {}), ...(animationDuration.trim() && !prompt3DFinishSettingsError("", animationDuration) ? { duration: Number(animationDuration) } : {}) },
     }));
     await window.grudge.app.openRoute("/skeleton");
   };
@@ -1618,7 +1655,8 @@ export default function Prompt3D({ guidedIntent }: { guidedIntent?: Prompt3DGuid
             <p className="mt-1 text-[11px] text-muted">The typed local router reads the full prompt and retained asset category. Walking, running and similar actions remain in place unless direction, path or distance is affirmative; negation never authorizes travel and return paths close.</p>
           </div>
           <details className="rounded border border-line bg-bg p-3" data-testid="prompt3d-motion-settings"><summary className="cursor-pointer text-xs text-gold">Optional animation settings · {animationProvider === "auto-cpu" ? "Local automatic" : animationProvider === "local-animation-library" ? "Local library" : "HY-Motion"} · {animationDuration || "Inferred"} seconds · {animationMode} · seed {animationSeed || "automatic"}</summary><div className="mt-3 space-y-3">
-          <label className="text-xs text-muted">Animation route<select className={`${input} mt-1`} value={animationProvider} onChange={(event) => setAnimationProvider(event.target.value as NonNullable<Prompt3DAnimationOverrides["provider"]>)}><option value="auto-cpu">Automatic guided CPU route (recommended)</option><option value="local-animation-library" disabled={animationLibraries.length === 0}>Local Skeleton Studio animation library</option><option value="hy-motion-1.0-lite" disabled={!motionProviderReady}>Optional HY-Motion 1.0 Lite</option></select></label>
+          <label className="text-xs text-muted">Animation route<select className={`${input} mt-1`} value={animationProvider} onChange={(event) => setAnimationProvider(event.target.value as NonNullable<Prompt3DAnimationOverrides["provider"]>)}><option value="auto-cpu">Automatic guided CPU route (recommended)</option><option value="local-animation-library" disabled={animationLibraries.length === 0}>Local Skeleton Studio animation library</option><option value="hy-motion-1.0-lite" disabled={!motionProviderReady || Boolean(hyMotionSubjectError)}>Optional HY-Motion 1.0 Lite</option></select></label>
+          {animationSubject.classification === "non-humanoid" && <p role="status" className="rounded border border-sky-500/30 bg-sky-500/5 p-3 text-xs text-sky-100">Animal body plan: local animation uses the existing creature deformation system. HY-Motion supports human skeletons only.</p>}
           {animationProvider === "auto-cpu" && <div className="rounded border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-emerald-100"><b>No GPU/headroom dependency</b><p className="mt-1 text-[11px] text-muted">The app will show whether it reused an existing rig, created a deterministic CPU rig, used morph/deformation, or used rigid-object motion. Ambiguous humanoids stop for Skeleton Studio correction.</p>{rigCorrectionPlacements && <p className="mt-1 text-amber-100">22 corrected Skeleton Studio placements are ready for the next immutable retry.</p>}</div>}
           {animationProvider === "local-animation-library" && <label className="text-xs text-muted">Installed local library<select className={`${input} mt-1`} value={animationLibraryPackDir} onChange={(event) => setAnimationLibraryPackDir(event.target.value)}>{animationLibraries.map((library) => <option key={library.packDir} value={library.packDir}>{library.name} · {library.clipCount} clips</option>)}</select></label>}
           {animationProvider === "hy-motion-1.0-lite" && !motionProviderReady && <div className="rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100"><AlertTriangle className="mr-1 inline" size={13} /><b>Optional HY-Motion is not ready.</b><p className="mt-1 text-[11px] text-muted">{motionProvider?.compliance.reasons.join(" ") || "Install and validate the local HY-Motion provider in advanced install options."}</p></div>}

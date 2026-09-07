@@ -247,19 +247,19 @@ function main() {
     "installOptionsRequired",
     "Current creation stage",
     'data-testid="prompt3d-initial-image-source"',
-    "Generate image",
-    "Select image",
+    "Prompt only",
+    "One image",
     "Standard game-asset baseline",
-    "Optional Hunyuan reference images",
+    "Four views",
     "Use the existing generated model",
     "Automatically added to Local Files",
   ]) assert.ok(rendererSource.includes(required), `stage-focused renderer is missing ${required}`);
   assert.ok(rendererSource.includes('useState<InitialImageMode>("choose")'), "a new asset must begin at the image-source decision rather than exposing later settings");
   assert.ok(rendererSource.includes('["source", "prompt", "concept-review"') && rendererSource.includes("of 9"), "image source must be the first numbered creation stage");
-  assert.ok(rendererSource.includes("onClick={beginGeneratedImage}") && rendererSource.includes("onClick={() => void beginSelectedImage()}"), "both initial source actions must be operational");
+  assert.ok(rendererSource.includes("onClick={beginGeneratedImage}") && rendererSource.includes('onClick={() => void chooseBoundView("front",true)}') && rendererSource.includes("onClick={beginFourViews}"), "both initial source actions must be operational");
   assert.ok(rendererSource.includes('initialImageMode === "generate"') && rendererSource.includes('initialImageMode === "select"') && rendererSource.includes("initialImageSourceReady"), "generation must remain bound to the source method selected at stage one");
   assert.ok(rendererSource.includes('setInitialImageMode("choose");') && rendererSource.includes("Change starting image"), "starting over or changing source must return to the first stage and clear stale reference input");
-  assert.ok(rendererSource.includes("front, left, back, right order") && rendererSource.includes("changeReferenceView"), "reference-image intake must expose and correct the camera role assigned to every Hunyuan view");
+  assert.ok(rendererSource.includes('["front","left","right","back"]') && rendererSource.includes("chooseBoundView(view)"), "reference-image intake must expose and correct the camera role assigned to every Hunyuan view");
   assert.ok(rendererSource.includes('const resultJob = job?.state === "complete" && job.variants.length ? job : null'), "a successor run must never fall back to a previous completed preview");
   assert.ok(rendererSource.includes("const displayedAssetPath = finishBusy || activeFinish || displayedFinishRejected ? undefined"), "starting or rejecting a finish revision must hide its previous preview");
   assert.ok(rendererSource.includes("setJob(null);") && rendererSource.includes("setPreviousResult(null);"), "starting a new Hunyuan generation must clear the previous live preview immediately");

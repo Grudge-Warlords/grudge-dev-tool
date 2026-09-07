@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1] - 2026-09-07
+
+- Route animal bipeds such as kangaroos through the existing local creature deformation author. Share subject evidence between the CPU binder, HY-Motion capability gate and animation UI; explain incompatible human-only motion before provider work.
+- Make Skeleton Studio available to local sessions so review handoffs load the exact model instead of redirecting to Home. Verify the source hash, preserve authored surfaces and open the Place step even when no fitted markers were supplied.
+- Return the source revision, motion prompt, seed, settings, selected local animation library and corrected markers to animation, with an option to return without applying markers. Restore retained finish history immediately after enabling local controls, without overwriting newer progress.
+- Keep character accessories out of body-type evidence so an unfamiliar humanoid holding a prop can still reach HY-Motion's existing semantic review.
+- Verify the retained failed kangaroo prompt through normal packaged controls: one four-second local deformation clip, unchanged geometry and textures, and visible hop/paired-limb/rear-region motion. Leave the new result unapproved for owner review; this is not a HY-Motion inference or strict visual-acceptance claim.
+
 ## 2026-09-06 — local shapes, asset reuse and editable moving areas
 
 - Add box, sphere, cylinder, cone, plane and torus to local procedural creation; retain earlier template prompts, local textures, bounded resizing and turntable animation without Hunyuan.

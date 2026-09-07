@@ -18,7 +18,7 @@ interface RetainedRoutingRevision{ id:string; sha256?:string; path?:string; upda
 export default function CreationFlowPage(){
   const [initial]=useState(savedDraft);
   const [fromBase]=useState(()=>Boolean(sessionStorage.getItem(CREATION_BASE_HANDOFF)));
-  const [method,setMethod]=useState<"procedural"|"neural">(()=>localStorage.getItem("grudge:creation-method")==="procedural"?"procedural":"neural");
+  const [method,setMethod]=useState<"procedural"|"neural">(()=>sessionStorage.getItem("grudge.prompt3d.pendingRigCorrection")?"neural":localStorage.getItem("grudge:creation-method")==="procedural"?"procedural":"neural");
   const [prompt,setPrompt]=useState<string>(initial.prompt??"");
   const [category,setCategory]=useState<AssetCategory>(CREATION_CATEGORIES.includes(initial.category)?initial.category:"prop");
   const [style,setStyle]=useState<AssetStyle>(CREATION_STYLES.includes(initial.style)?initial.style:"stylized");
@@ -36,7 +36,7 @@ export default function CreationFlowPage(){
   const [providerOverview,setProviderOverview]=useState<Prompt3DOverview|null>(null);
   const [neuralLatest,setNeuralLatest]=useState<RetainedRoutingRevision|null>(null);
   const [localAnimationLibraryCount,setLocalAnimationLibraryCount]=useState(0);
-  const [workspaceOpen,setWorkspaceOpen]=useState(false);
+  const [workspaceOpen,setWorkspaceOpen]=useState(()=>Boolean(sessionStorage.getItem("grudge.prompt3d.pendingRigCorrection")));
   const [baseSource,setBaseSource]=useState<CreationBaseSource|null>(null);
   useEffect(()=>{const pending=sessionStorage.getItem(CREATION_BASE_HANDOFF);if(pending){try{setBaseSource(JSON.parse(pending));setMethod("procedural");setWorkspaceOpen(true);setCurrent(null);setPrompt("");}catch{toast.error("The selected asset could not be restored.");}sessionStorage.removeItem(CREATION_BASE_HANDOFF);}},[]);
   const [guidedIntent,setGuidedIntent]=useState<Prompt3DGuidedIntent>();

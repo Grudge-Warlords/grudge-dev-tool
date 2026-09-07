@@ -117,7 +117,7 @@ const NAV: NavEntry[] = [
   { route: "/threeflow", label: "ThreeFlow", Icon: Box, primary: true },
   { route: "/prompt3d", label: "Prompt to 3D", Icon: WandSparkles, primary: true },
   { route: "/browser", label: "Assets", Icon: FolderTree, primary: true },
-  { route: "/skeleton", label: "Skeleton", Icon: Bone, primary: true, adminOnly: true },
+  { route: "/skeleton", label: "Skeleton", Icon: Bone, primary: true },
   { route: "/forge", label: "Forge", Icon: Hammer, primary: true, adminOnly: true },
   { route: "/preview", label: "Preview", Icon: Globe, primary: true, adminOnly: true },
   { route: "/play", label: "Play", Icon: MonitorPlay, primary: true },

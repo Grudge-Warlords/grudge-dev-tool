@@ -1,6 +1,7 @@
 import type { AssetSpecV1 } from "../../shared/prompt3d";
 import { localJsonPlan } from "./planner";
 import type { HyMotionCompatibilityDecision } from "./hyMotionRig";
+import { prompt3DHyMotionSubjectError } from "../../shared/prompt3dAnimationSubject";
 
 export interface HyMotionCompatibilityAnalysis extends HyMotionCompatibilityDecision {
   subject: string;
@@ -17,6 +18,8 @@ export async function analyzeHyMotionCompatibility(
   motionPrompt: string,
   planner: typeof localJsonPlan = localJsonPlan,
 ): Promise<HyMotionCompatibilityAnalysis> {
+  const subjectError = prompt3DHyMotionSubjectError(spec);
+  if (subjectError) throw new Error(`unsupported-motion-rig: ${subjectError}`);
   const format = {
     type: "object",
     additionalProperties: false,

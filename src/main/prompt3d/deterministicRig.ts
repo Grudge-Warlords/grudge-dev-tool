@@ -14,6 +14,7 @@ import {
 } from "../../shared/mixamo25";
 import { compilePrompt3DPrompt } from "../../shared/prompt3dRules";
 import { hasAffirmativePromptMatch } from "../../shared/promptedMotionIntent";
+import { classifyPrompt3DAnimationSubject } from "../../shared/prompt3dAnimationSubject";
 
 export const DETERMINISTIC_RIG_PROFILE = "grudge-mixamo25-cpu-fit-v1" as const;
 export const DETERMINISTIC_RIG_WEIGHTS = "nearest-bone-segment-four-weight-v1" as const;
@@ -95,8 +96,6 @@ export class DeterministicRigReviewRequiredError extends Error {
   }
 }
 
-const HUMAN_AFFIRMATIVE = /\b(?:human|humanoid|person|people|man|woman|boy|girl|warrior|soldier|knight|mage|wizard|rogue|pirate|dwarf|elf|orc|goblin|biped|two[- ]legged|android)\b/i;
-const NON_HUMANOID = /\b(?:non[- ]?humanoid|quadruped|four[- ]legged|rabbit|hare|dog|wolf|cat|lion|tiger|bear|horse|deer|fish|shark|whale|bird|eagle|snake|serpent|dragon|spider|insect|crab|octopus|centaur|mermaid|worm|slug|asteroid|vehicle|car|ship|weapon|sword|axe|hammer|flail|building)\b/i;
 const SAFE_STANCE = /\b(?:t[- ]?pose|a[- ]?pose|upright|standing|stand(?:s|ing)?|feet\s+(?:apart|separated)|arms?\s+(?:out|apart|spread|extended)|motion[- ]ready)\b/i;
 
 function stableJson(value: unknown): string {
@@ -119,27 +118,7 @@ function io(): NodeIO {
 
 export function classifyDeterministicRig(spec: AssetSpecV1): DeterministicRigClassificationDecision {
   const plan = compilePrompt3DPrompt(spec);
-  const combined = `${spec.prompt}\n${spec.objectRules?.shapeNotes ?? ""}`;
-  const humanAffirmative = hasAffirmativePromptMatch(combined, HUMAN_AFFIRMATIVE);
-  const nonHumanoidAffirmative = hasAffirmativePromptMatch(combined, NON_HUMANOID);
-  let classification: DeterministicRigClassification;
-  let rationale: string;
-  if (spec.category !== "character") {
-    classification = "rigid-object";
-    rationale = `The retained category is ${spec.category}; no anatomical skeleton is inferred.`;
-  } else if (humanAffirmative && nonHumanoidAffirmative) {
-    classification = "ambiguous";
-    rationale = "The retained character brief affirmatively describes both humanoid and non-humanoid anatomy; automatic bone placement stops for review.";
-  } else if (nonHumanoidAffirmative) {
-    classification = "non-humanoid";
-    rationale = "The retained character brief affirmatively identifies a non-humanoid body plan, so the existing deterministic deformation route is used.";
-  } else if (humanAffirmative) {
-    classification = "humanoid";
-    rationale = "The retained character brief affirmatively identifies a human-compatible biped; mesh checks must still prove that deterministic placement is safe.";
-  } else {
-    classification = "ambiguous";
-    rationale = "The retained character metadata does not prove a human-compatible two-arm/two-leg body plan.";
-  }
+  const { classification, rationale } = classifyPrompt3DAnimationSubject(spec);
   return {
     version: 1,
     classification,

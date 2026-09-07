@@ -139,7 +139,7 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     apis: [FLEET_URLS.assets, FLEET_URLS.objectStore, FLEET_URLS.ai],
     description:
       "Mixamo-like ~25-bone place → T-pose → retarget library → grudge-convert bake → R2/CDN.",
-    adminOnly: true,
+    adminOnly: false,
   },
   {
     id: "store",

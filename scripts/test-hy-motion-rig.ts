@@ -169,6 +169,23 @@ function rootTranslationValues(document: Document, animationIndex: number): Floa
 }
 
 async function testSemanticGate(): Promise<void> {
+  let animalPlannerCalled = false;
+  await assert.rejects(() => analyzeHyMotionCompatibility({ ...spec, prompt: "kangaroo" }, "Hop forward", async () => {
+    animalPlannerCalled = true;
+    throw new Error("An animal must not need an Ollama or HY-Motion request to explain its supported route.");
+  }), /unsupported-motion-rig.*Automatic guided CPU route/i);
+  assert.equal(animalPlannerCalled, false);
+  for (const accessory of ["holding a sword", "holding a baseball bat", "with a fox scarf"]) {
+    const accessoryHumanoid = await analyzeHyMotionCompatibility(
+      { ...spec, prompt: `A female astronaut in a T-pose ${accessory}` }, "Walk in place", async () => ({
+        model: "fixture-planner", proposal: {
+          classification: "humanoid", rootTranslation: "stationary", subject: "one female astronaut",
+          negations: [], rationale: "An accessory does not change the human body plan.",
+        },
+      }),
+    );
+    assert.equal(accessoryHumanoid.classification, "humanoid", "accessories must leave uncertain subjects available to the semantic planner");
+  }
   const stationary = await analyzeHyMotionCompatibility(spec, "Walk naturally in place; do not move forward", async (system, prompt) => {
     assert.match(system, /Read negation literally/);
     assert.match(prompt, /do not move forward/);
