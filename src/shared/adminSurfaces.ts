@@ -64,7 +64,7 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     kind: "local-tool",
     apis: [FLEET_URLS.assets, FLEET_URLS.forge],
     description:
-      "Local Files: click preview; double-click 3D → Elite SceneEngine (one pipeline window). Media → Elite. ThreeFlow is explicit.",
+      "Local Files: click preview; double-click → Elite viewer (gltfProdLoader). Vue ThreeFlow / ThreePipe are explicit.",
   },
   {
     id: "threeflow",
@@ -74,7 +74,7 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     prodUrl: FLEET_URLS.threeflow,
     apis: [FLEET_URLS.threeflow, FLEET_URLS.assets, FLEET_URLS.ai],
     description:
-      "ThreeFlow in-app: Vue /editor via explicit Edit in ThreeFlow. Explorer double-click 3D opens Elite SceneEngine.",
+      "ThreeFlow in-app: Vue /editor via explicit Edit in ThreeFlow. Explorer double-click 3D opens Elite viewer.",
   },
   {
     id: "forge",
@@ -136,9 +136,9 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     route: "/skeleton",
     label: "Skeleton",
     kind: "local-tool",
-    apis: [FLEET_URLS.assets, FLEET_URLS.objectStore, FLEET_URLS.ai],
+    apis: [FLEET_URLS.assets, FLEET_URLS.objectStore, FLEET_URLS.casting, FLEET_URLS.info, FLEET_URLS.ai],
     description:
-      "Mixamo-like ~25-bone place → T-pose → retarget library → grudge-convert bake → R2/CDN.",
+      "Mixamo-25 author extract/T-pose/place → left-role/right-clip bind → Toon Bip001 play pack → grudge-convert → R2/D1.",
     adminOnly: true,
   },
   {

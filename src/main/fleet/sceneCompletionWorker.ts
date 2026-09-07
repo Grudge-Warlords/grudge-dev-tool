@@ -38,7 +38,7 @@ Pipeline rules (best practices):
 2. fix-mesh before weld/seal when normals/NaN likely.
 3. weld before seal (patch open backs).
 4. ground after topology for props; island-prep for islands (ground+weld+seal).
-5. For characters: inspect-rig → suggest-mixamo25 → ensure-mixer.
+5. For characters: inspect-rig → suggest-mixamo25 (author) → retarget to Toon Bip001 play → ensure one mixer (strip hip .position).
 6. End with frame when helpful.
 7. Keep 3–12 steps. Prefer conservative weldThreshold 0.001–0.002.
 8. Include 2–5 bestPractices strings relevant to this asset.`;

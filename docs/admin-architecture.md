@@ -27,7 +27,7 @@ Code SSOT: `src/shared/adminSurfaces.ts` · `src/shared/fleet.ts` · `src/shared
 | **Preview** | hybrid | open · client · water · GRUDOX · Multiverse · warlords | Fleet **webview** playtests — `sceneId` / `glb` deep-links |
 | **Play** | local-tool | Toon `{race}.glb` + SceneEngine | Native Three.js player — WASD, one mixer, video, scripts |
 | **Coder** | hybrid | **https://coder.grudge-studio.com** + optional local PTY | Same Pages SPA; local for full FS/agent |
-| **Skeleton** | local | convert + CDN | Mixamo-25 → T-pose → retarget → **grudge-convert** → R2 |
+| **Skeleton** | local | convert + CDN | Mixamo-25 author → left/right bind → Toon Bip001 play → **grudge-convert** → R2 |
 | **Store** | hybrid | ObjectStore + info.* | Catalog packs / prefabs |
 | **BlenderKit** | local | daemon → convert | Ingest only — never production mesh SSOT |
 | **UUID** | system | `shared/grudgeUUID.ts` | Generate/parse only — agents must not invent formats |

@@ -13,7 +13,7 @@
 import { app, shell } from "electron";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { VIEWER_EXTS } from "./openFileBridge";
 import log from "./logger";
@@ -120,7 +120,7 @@ export async function setAllAsDefault(): Promise<{
     await regAdd(
       `HKCU\\${CAP_PATH}`,
       "ApplicationDescription",
-      "Grudge Three Pipeline — 3D, images, audio, video, text, PDF",
+      "Grudge Dev Tool — Elite 3D + media viewer (gltfProdLoader, images, audio, video, text, PDF)",
     );
     await regAdd(
       `HKCU\\Software\\RegisteredApplications`,
@@ -142,6 +142,20 @@ export async function setAllAsDefault(): Promise<{
       await regAdd(`HKCU\\Software\\Classes\\${ext}`, null, progId);
       // OpenWithProgids so we always appear in Open with
       await regAdd(`HKCU\\Software\\Classes\\${ext}\\OpenWithProgids`, progId, "");
+      // Drop Windows 3D Viewer / Store UserChoice so Explorer uses our ProgID.
+      try {
+        await execFileAsync(
+          "reg",
+          [
+            "delete",
+            `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\${ext}\\UserChoice`,
+            "/f",
+          ],
+          { windowsHide: true },
+        );
+      } catch {
+        /* locked by Hash / not present */
+      }
 
       // Capabilities file association map
       await regAdd(`HKCU\\${CAP_PATH}\\FileAssociations`, ext, progId);
@@ -240,26 +254,37 @@ export async function clearOurProgIds(): Promise<{ ok: true; cleared: number }> 
 }
 
 /**
- * Packaged first launch: register HKCU file types so Explorer double-click
- * opens the Grudge Three Pipeline. One-shot (marker in userData) so Clear
- * is not immediately undone.
+ * Packaged launch: register HKCU file types so Explorer double-click opens
+ * Elite viewer. Re-runs when app version or exe path changes (1.1.1 marker
+ * must not block 1.1.2 from reclaiming .glb from Windows 3D Viewer).
  */
 export async function ensureFileDefaultsOnLaunch(): Promise<void> {
   if (process.platform !== "win32") return;
   if (!app.isPackaged) return;
   const marker = join(app.getPath("userData"), "file-defaults-auto.json");
-  if (existsSync(marker)) return;
+  const exe = exePath();
+  const version = app.getVersion();
   try {
-    const st = await getDefaultsStatus();
-    if (st.defaults === 0) {
-      const r = await setAllAsDefault();
-      log.info(
-        `[fileDefaults] auto-register on launch ok=${r.ok} registered=${r.ok ? r.registered : 0}`,
-      );
+    let prev: { version?: string; exe?: string } = {};
+    if (existsSync(marker)) {
+      try {
+        prev = JSON.parse(readFileSync(marker, "utf8")) as {
+          version?: string;
+          exe?: string;
+        };
+      } catch {
+        prev = {};
+      }
     }
+    const sameBuild = prev.version === version && prev.exe === exe;
+    if (sameBuild) return;
+    const r = await setAllAsDefault();
+    log.info(
+      `[fileDefaults] auto-register v${version} ok=${r.ok} registered=${r.ok ? r.registered : 0}`,
+    );
     writeFileSync(
       marker,
-      JSON.stringify({ at: Date.now(), defaultsBefore: st.defaults }),
+      JSON.stringify({ at: Date.now(), version, exe }),
     );
   } catch (e: unknown) {
     log.warn(

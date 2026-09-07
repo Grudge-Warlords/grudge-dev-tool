@@ -68,12 +68,18 @@ const api = {
     one: (path: string, opts: any) => ipcRenderer.invoke("ingest:one", { path, opts }),
     convert: (path: string) => ipcRenderer.invoke("ingest:convert", { path }),
   },
-  // Skeleton Studio (Mixamo-25 placement, FBX extract, T-pose, anim library)
+  // Skeleton Studio (Mixamo-25 author → Toon Bip001 play)
   skeleton: {
     extract: (path: string) => ipcRenderer.invoke("skeleton:extract", path),
     tpose: (path: string, opts?: { aiHint?: string }) => ipcRenderer.invoke("skeleton:tpose", path, opts),
-    buildLibrary: (args: { modelPath: string; mapping?: unknown; packName?: string }) =>
-      ipcRenderer.invoke("skeleton:buildLibrary", args),
+    buildLibrary: (args: {
+      modelPath: string;
+      mapping?: unknown;
+      packName?: string;
+      packId?: string;
+      roleBinds?: Record<string, string>;
+      playSkeleton?: "bip001";
+    }) => ipcRenderer.invoke("skeleton:buildLibrary", args),
     saveMapping: (args: { path: string; mapping: unknown }) =>
       ipcRenderer.invoke("skeleton:saveMapping", args),
     listLibraries: () => ipcRenderer.invoke("skeleton:listLibraries"),
@@ -119,9 +125,12 @@ const api = {
     /** Pop-out viewer for a disk path (Local Files / OS open — not Forge). */
     openLocal: (args: { path: string; contentType?: string; size?: number }) =>
       ipcRenderer.invoke("viewer:openLocal", args) as Promise<{ ok: true; token: string }>,
-    /** Open ThreeFlow with a CDN mesh or local loopback file. */
+    /** Open ThreeFlow Vue `/editor` with a CDN mesh or local loopback file. */
     openThreeFlow: (args: { name: string; cdnUrl?: string; localPath?: string }) =>
       ipcRenderer.invoke("viewer:openThreeFlow", args) as Promise<{ ok: true; url: string }>,
+    /** Open isolated ThreePipe `/view` (explicit). Local double-click uses Elite. */
+    openThreePipe: (args: { name: string; cdnUrl?: string; localPath?: string }) =>
+      ipcRenderer.invoke("viewer:openThreePipe", args) as Promise<{ ok: true; url: string }>,
     getAsset: (token: string) =>
       ipcRenderer.invoke("viewer:getAsset", token) as Promise<{
         name: string;
@@ -217,8 +226,8 @@ const api = {
     },
   },
   /**
-   * Explorer / Local Files open — 3D → Grudge Three Pipeline; media → Elite.
-   * ThreeFlow is an explicit action. Never Forge by default.
+   * Explorer / Local Files open — 3D and media → Elite viewer.
+   * Vue ThreeFlow is an explicit action. Never Forge by default.
    */
   openFile: {
     openPath: (filePath: string) =>
@@ -233,7 +242,7 @@ const api = {
       }>,
     supportedExts: () =>
       ipcRenderer.invoke("openFile:supportedExts") as Promise<string[]>,
-    /** Fired when OS / Local Files opened a path (Elite SceneEngine for 3D, Elite for media). */
+    /** Fired when OS / Local Files opened a path (ThreePipe for 3D, Elite for media). */
     onOpened: (
       cb: (info: {
         path: string;

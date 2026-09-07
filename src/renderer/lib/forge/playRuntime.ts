@@ -260,9 +260,12 @@ export class PlayRuntime {
     this.ray.set(this.from.set(x, fromY + 4, z), this.down);
     const hits = this.ray.intersectObjects(this.engine.scene.children, true);
     const hit = hits.find((h) => {
-      const o = h.object;
-      if (o.userData?.forgeInternal) return true;
-      if ((o as THREE.Mesh).isMesh) return o !== this.videoMesh;
+      let n: THREE.Object3D | null = h.object;
+      while (n) {
+        if (n === this.player || n === this.videoMesh) return false;
+        if (n.userData?.forgeInternal) return true;
+        n = n.parent;
+      }
       return false;
     });
     return hit ? hit.point.y : 0;

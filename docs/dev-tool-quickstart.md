@@ -91,7 +91,7 @@ Open **Upload**. Drag files in. Set the target prefix, click *Start upload*. Eac
 ## 9. Forge 3D & Skeleton
 
 - **Forge 3D** — scene editor, paint tools, convert → GLB → R2.
-- **Skeleton Studio** — Mixamo-style bone placement, FBX extract, T-pose prep.
+- **Skeleton Studio** — Mixamo-25 author extract / T-pose / place, then bind Warlords roles (left) to clips (right) and save a **Toon Bip001** play pack (`grudge-convert` → R2).
 
 ## 10. Request URL / UUID
 

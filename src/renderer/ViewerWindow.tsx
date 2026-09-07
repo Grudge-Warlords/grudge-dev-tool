@@ -43,7 +43,8 @@ import {
     classify, basename, formatBytes,
     type AssetRef, type AssetKind,
 } from "./components/viewers/types";
-import { isPublicCdnUrl, forgeStudioAssetUrl, threeflowAssetUrl, threeflowViewUrl, localLoopbackAssetUrl } from "../shared/editorHandoff";
+import { isPublicCdnUrl, forgeStudioAssetUrl } from "../shared/editorHandoff";
+import { INFO_ICONS } from "../shared/infoIcons";
 import {
     collectPipelineReviewStats,
     executePipelineReviewPlan,
@@ -67,16 +68,15 @@ function KindBadge({ kind }: { kind: AssetKind }) {
         model3d: "#ffc62a", scene3d: "#ffc62a", image: "#46d586", video: "#7c6bff", audio: "#ff9f1c",
         text: "#88aaff", pdf: "#ff5577", font: "#dd88ff", design: "#c084fc", unknown: "#9aa6c8",
     };
-    // info.grudge-studio.com chrome icons (never assets.*)
     const infoIcon: Partial<Record<AssetKind, string>> = {
-        model3d: "https://info.grudge-studio.com/icons/pack/weapons/Sword_01.png",
-        scene3d: "https://info.grudge-studio.com/icons/pack/weapons/Hammer_01.png",
-        image: "https://info.grudge-studio.com/icons/pack/misc/Effect.png",
-        audio: "https://info.grudge-studio.com/icons/skills/class/hunter/hunter_01.png",
-        video: "https://info.grudge-studio.com/icons/skills/class/firemage/firemage_01.png",
-        text: "https://info.grudge-studio.com/icons/skills/class/engineer/engineer_01.png",
-        pdf: "https://info.grudge-studio.com/icons/pack/armor/Chest_01.png",
-        font: "https://info.grudge-studio.com/icons/skills/class/paladin/paladin_01.png",
+        model3d: INFO_ICONS.sword,
+        scene3d: INFO_ICONS.hammer,
+        image: INFO_ICONS.effect,
+        audio: INFO_ICONS.hunter,
+        video: INFO_ICONS.firemage,
+        text: INFO_ICONS.hammer,
+        pdf: INFO_ICONS.chest,
+        font: INFO_ICONS.paladin,
     };
     const src = infoIcon[kind];
     return (
@@ -1105,16 +1105,18 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
     function openThreePipeView() {
         const cdn = cdnAssetUrl();
         const localPath = asset?.localPath || asset?.sourcePath;
-        const href = cdn
-            ? threeflowViewUrl(cdn, { name: asset?.name || "mesh" })
-            : localPath
-                ? threeflowViewUrl(localLoopbackAssetUrl(localPath), { name: asset?.name || "mesh" })
-                : "";
-        if (!href) {
+        if (!cdn && !localPath) {
             toast.error("Need a local mesh or CDN URL");
             return;
         }
-        G()?.os?.openExternal?.(href);
+        void G()?.viewer?.openThreePipe?.({
+            name: asset?.name || "mesh",
+            cdnUrl: cdn || undefined,
+            localPath: localPath || undefined,
+        }).then((r: { ok?: boolean; error?: string }) => {
+            if (r?.ok) toast.success("ThreePipe editor");
+            else toast.error(r?.error || "ThreePipe open failed");
+        }).catch((e: Error) => toast.error(e?.message || "ThreePipe open failed"));
     }
 
     function diskPathForUpload(): string | null {
@@ -1918,7 +1920,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
 {/* Actions — working only */}
 <Section title="Actions" >
     <ActionBtn onClick={ sendToR2D1 } icon="" label="Send to R2 + D1" color="var(--ok)" />
-    <ActionBtn onClick={ openThreePipeView } icon = "" label = "View (ThreePipe)" color = "#d4af37" />
+    <ActionBtn onClick={ openThreePipeView } icon = "" label = "Open ThreePipe editor" color = "#d4af37" />
     <ActionBtn onClick={ openThreeFlow } icon = "" label = "Edit in ThreeFlow" color = "#d4af37" />
     <ActionBtn onClick={ openForgeLive } icon = "" label = "Open in Forge (live)" color = "var(--gold)" />
         <ActionBtn

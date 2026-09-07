@@ -1,9 +1,9 @@
 /**
  * Local file open system for Grudge Dev Tool.
  *
- * 3D meshes / scenes → Elite SceneEngine (one pipeline window; extra files append).
+ * 3D meshes / scenes → Elite viewer (gltfProdLoader, diskPath, textures).
  * Images / audio / video / text / PDF → Elite media viewer.
- * ThreeFlow is an explicit "Edit in ThreeFlow" action — not the default double-click.
+ * Vue ThreeFlow `/editor` and ThreePipe `/view` are explicit actions.
  */
 
 import { BrowserWindow } from "electron";
@@ -173,18 +173,16 @@ export async function openPathInEliteViewer(
     const contentType = inferContentType(basename(p));
     const size = statSync(p).size;
 
-    log.info(`[openFile] elite viewer ← ${kind} ${p}${openNote ? ` (${openNote})` : ""}`);
+    log.info(`[openFile] elite ← ${kind} ${p}${openNote ? ` (${openNote})` : ""}`);
     const { token } = await viewer.openLocalPath(
       p,
       { contentType, size },
       mainWindow && !mainWindow.isDestroyed() ? mainWindow : null,
     );
 
-    // Viewer is already front. Don't steal to ThreeFlow / Local Files on 3D —
-    // that made double-click wait on a second SPA. Media can hint Local Files.
     if (mainWindow && !mainWindow.isDestroyed()) {
+      if (!mainWindow.isVisible()) mainWindow.show();
       if (kind !== "model3d" && kind !== "scene3d") {
-        if (!mainWindow.isVisible()) mainWindow.show();
         mainWindow.webContents.send("nav", "/local");
       }
       mainWindow.webContents.send("openFile:opened", {
@@ -266,4 +264,4 @@ export function fileAssociationExts(): string[] {
   return [...VIEWER_EXTS].map((e) => e.replace(/^\./, ""));
 }
 
-log.info(`[openFile] elite bridge ready — ${VIEWER_EXTS.size} extensions`);
+log.info(`[openFile] bridge ready — ${VIEWER_EXTS.size} extensions (3D → Elite, media → Elite)`);

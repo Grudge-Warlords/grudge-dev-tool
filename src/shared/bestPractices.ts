@@ -418,7 +418,7 @@ export const SURFACE_BEST_PRACTICES = {
   skeletonStore: {
     id: "surface-skeleton-store",
     title: "Skeleton · Store · BlenderKit · UUID",
-    rule: "Skeleton: 25-bone place → T-pose → retarget → convert → CDN. Store/catalogs: ObjectStore + info.grudge-studio.com JSON. BlenderKit is ingest only (daemon → convert), not mesh SSOT. UUID: shared/grudgeUUID.ts only.",
+    rule: "Skeleton Studio: Mixamo-25 is AUTHOR only (extract/T-pose/place). Play skeleton is Toon Bip001 22-core on {race}.glb — one mixer, hip rotation kept, hip position stripped. Bind UX is roles left / clips right (same as Casting Showcase). Export stamps skeleton:bip001 + role-binds.json. Clips = R2; role table = info.*/casting anim-packs.json; D1 = index only. Store/catalogs: ObjectStore + info JSON. BlenderKit is ingest only. UUID: shared/grudgeUUID.ts only.",
     category: "surfaces" as const,
     surfaces: ["devtools", "assets", "pipeline"] as const,
   },

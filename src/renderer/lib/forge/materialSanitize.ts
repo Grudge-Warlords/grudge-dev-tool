@@ -253,7 +253,9 @@ export function sanitizeMaterials(
     const skinned = mesh as THREE.SkinnedMesh;
     if (skinned.isSkinnedMesh) {
       skinned.frustumCulled = false;
-      if (skinned.skeleton) skinned.skeleton.pose();
+      // Bind pose as loaded. Do not skeleton.pose() per mesh — Toon kits share
+      // one skeleton across Body/Arms/Legs/Head variants; multi-pose puts the
+      // head under the feet and warps ELF/WK modular skins.
     }
 
     const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];

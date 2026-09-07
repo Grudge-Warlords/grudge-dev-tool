@@ -4,7 +4,20 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.1.2] — 2026-09-07
+
+### Fixed
+- **Explorer / Local Files 3D double-click** opens **Elite viewer** (`gltfProdLoader`, disk textures, TGA/MTL). Stopped auto-opening `threeflow.vercel.app/view` (HTTPS classify HUD cannot load `127.0.0.1` files).
+- **Chrome icons** load PNG bytes from `assets.grudge-studio.com` (`icon-registry.json` `cdnBase`). `info.grudge-studio.com/icons/…` is SPA HTML, not images.
+- **File defaults** re-register on version/exe change and drop Windows 3D Viewer `UserChoice` so `.glb`/`.fbx` reclaim Grudge Dev Tool after auto-update.
+- **Play tab** uses Toon `loadToonPlayKit` (mesh_ids, bone SI, Bip001 packs) instead of dumping the whole modular GLB.
+
 ### Changed
+- Vue ThreeFlow `/editor` and ThreePipe `/view` stay **explicit** actions.
+
+### Changed
+- **Skeleton Studio** (`/skeleton`) remade as the Warlords play-skeleton editor: Mixamo-25 stays **author** (extract / T-pose / place); **save** stamps Toon **Bip001** 22-core. Bind UX is Casting Showcase — **actions left / clips right**. Race dropdown previews on Toon `{race}.glb` (kit weapons hidden, hip `.position` stripped). Export writes `bip001-play-bones.json`, `role-binds.json`, `anim-packs-fragment.json`. Ship queues R2 + D1 index (not Railway). Hydrates `anim-packs.json` from Casting / CDN / info.* / ObjectStore.
+- **Anim role table** (Skeleton Studio + Casting Showcase): 8-way strafes, crouch/sneak, greatsword, rifle fire, rolls, cover/wall-hug/climb, action-adventure. Cover/wall-hug are desired until clips extract. Rifle + greatsword use existing baked JSON.
 - **Elite viewport** default is Grudge studio navy (`#0a0e1a`) + gold SI grid, not sand `#EFD1B5` (sand stays a preset). Floor/grid follow the preset. `setBackgroundColor` also sets clear colour so ViewHelper cannot flash black.
 - **Color loader:** `ColorManagement.enabled` on `gltfProdLoader`, SceneEngine, and MultiCanvasHub. Base color stays sRGB; data maps `NoColorSpace` (existing sanitize).
 - **r185 Timer** replaces deprecated `THREE.Clock` on SceneEngine and MultiCanvasHub (Page Visibility, stable dt).
@@ -25,6 +38,8 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ### Changed
 - `viewer:convertModel` IPC forwards `localPath` (disk convert, not http-only).
+- **3D double-click / Open with** opens **Elite viewer** (`gltfProdLoader` + disk textures). ThreePipe `/view` is a classify HUD on HTTPS and cannot fetch `127.0.0.1` loopback files — it is explicit only. Vue `/editor` remains **Edit in ThreeFlow**.
+- **Chrome icons** use `assets.grudge-studio.com` PNG bytes (`icon-registry.json` `cdnBase`). `info.grudge-studio.com/icons/…` returns SPA HTML, not images.
 
 ## [1.1.0] — 2026-08-20
 
@@ -283,6 +298,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - **GRUDA Hub optional** — projects/agent work offline with local identity + local AI.
 - Agent AI UI: **Start local AI** button; removed "Open full GRUDA Agent" external browser link.
 
+[1.1.2]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.1.2
 [1.0.5]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.5
 [1.0.8]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.8
 [1.0.9]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.9

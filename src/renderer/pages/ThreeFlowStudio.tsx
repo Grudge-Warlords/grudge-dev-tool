@@ -313,7 +313,7 @@ export default function ThreeFlowStudio() {
        <div className="min-w-0">
          <strong className="text-sm text-amber-100">ThreeFlow</strong>
          <p className="text-[10px] text-white/45 truncate">
-           {mode === "view" ? "ThreePipe viewer" : mode === "terrain" ? "Terrain starter" : "Scene editor"} · {HOME.replace(/^https?:\/\//, "")}
+           {mode === "view" ? "ThreePipe editor" : mode === "terrain" ? "Terrain starter" : "Scene editor"} · {HOME.replace(/^https?:\/\//, "")}
          </p>
        </div>
        <div className="ml-auto flex flex-wrap items-center gap-2">

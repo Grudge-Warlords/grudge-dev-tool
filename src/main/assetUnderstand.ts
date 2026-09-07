@@ -87,7 +87,7 @@ function openHintsFor(kind: AssetKindCard, stream: boolean): string[] {
   const is3d = kind === "model3d" || kind === "scene3d";
   const hints = [
     is3d
-      ? "Local Files: click = inline preview · double-click 3D = Elite SceneEngine (one pipeline window)"
+      ? "Local Files: click = inline preview · double-click 3D = ThreePipe editor (threeflow /view)"
       : "Local Files: double-click / Pop-out = Elite media viewer (not Forge)",
     "System open = OS default app (Blender / Photoshop / Photos / …)",
     "Explorer: Open with Grudge Dev Tool after Settings → Set as default",
@@ -244,10 +244,10 @@ export async function understandAsset(opts: {
       aiNote ? `### AI / inspect\n${aiNote}` : "### AI / inspect\n_(none yet — use withAi for image vision)_",
       "",
       "### Agent instructions",
-      `- Treat kind=\`${kind}\` when routing tools (Pipeline for 3D review · ThreeFlow explicit edit · Elite for media).`,
+      `- Treat kind=\`${kind}\` when routing tools (ThreePipe for 3D open · Vue ThreeFlow explicit edit · Elite for media).`,
       `- Do not force Forge for audio/video/image; Forge is 3D deploy only, explicit.`,
       kind === "model3d" || kind === "scene3d"
-        ? `- 3D review is Grudge Three Pipeline; Edit in ThreeFlow is explicit.`
+        ? `- 3D double-click opens ThreePipe editor; Edit in ThreeFlow is explicit.`
         : null,
       stream ? `- Use stream URL for playback, never full-file blob for large media.` : null,
     ].filter(Boolean) as string[];

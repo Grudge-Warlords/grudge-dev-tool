@@ -48,6 +48,10 @@ export const FLEET_URLS = {
   warstrat: "https://warstrat.grudge-studio.com",
   /** Forge 3D editor (production) — develop + deploy 3D games */
   forge: "https://forge.grudge-studio.com",
+  /** Warlords UX / weapon-effects lab — ANIM_PACKS JSON + play-kit health */
+  casting: "https://casting.grudge.studio",
+  /** Gladiators combat lab /admin kit bake */
+  combatLab: "https://grudge-combat.vercel.app",
   /**
    * ThreeFlow — Warlords scene editor / deploy surface (Vue + three r185).
    * Viewer/Forge hand off CDN URLs via ?asset= — not a second play host.
@@ -222,6 +226,13 @@ export function buildTruthProbes(apiBase: string): TruthProbe[] {
       label: "CDN Toon human.glb",
       url: `${FLEET_URLS.assets}/asset-packs/toon-rts-characters/glb/characters/human.glb`,
       role: "assets",
+    },
+    {
+      id: "casting-anim-packs",
+      label: "Casting ANIM_PACKS JSON",
+      url: `${FLEET_URLS.casting}/api/v1/anim-packs.json`,
+      role: "assets",
+      optional: true,
     },
     {
       id: "cdn-grudge6",

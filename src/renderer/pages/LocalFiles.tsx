@@ -4,9 +4,8 @@
  *
  * Actions:
  *   • Click / Enter → inline preview (View Mode viewers)
- *   • Double-click / Pop-out 3D → Elite SceneEngine (one pipeline window)
- *   • Pop-out media → Elite viewer
- *   • Explicit ThreeFlow / Forge only when user chooses it
+ *   • Double-click / Pop-out → Elite viewer (gltfProdLoader + disk textures)
+ *   • Explicit ThreeFlow / ThreePipe / Forge only when user chooses it
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -378,8 +377,8 @@ export default function LocalFiles() {
           /* pop-out is enough */
         }
         const is3d = info.kind === "model3d" || info.kind === "scene3d";
-        toast.success(is3d ? "Elite 3D pipeline" : "Elite viewer", {
-          description: `${info.kind} · ${info.name}${is3d ? " · Edit in ThreeFlow from the viewer" : ""}`,
+        toast.success(is3d ? "ThreePipe editor" : "Elite viewer", {
+          description: `${info.kind} · ${info.name}${is3d ? " · Vue ThreeFlow stays Edit in ThreeFlow" : ""}`,
         });
       } catch (e: unknown) {
         console.warn("[LocalFiles] openFile:opened", e);
@@ -448,18 +447,17 @@ export default function LocalFiles() {
       setBusy(true);
       try {
         if (mode === "popout") {
-          // Double-click / Pop-out: Elite SceneEngine (3D) or Elite media.
           const r = await window.grudge.openFile?.openPath?.(entry.path);
-          if (r && "ok" in r && r.ok) return;
+          if (r && "ok" in r && r.ok) {
+            toast.success("Opened in Elite viewer", { description: entry.name });
+            return;
+          }
           await window.grudge.viewer.openLocal({
             path: entry.path,
             contentType: entry.contentType,
             size: entry.size,
           });
-          toast.error(
-            (r && "error" in r && r.error) || "Open failed",
-            { description: entry.name },
-          );
+          toast.success("Opened in Elite viewer", { description: entry.name });
           return;
         }
 

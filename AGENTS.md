@@ -32,16 +32,18 @@ npm run publish:manual # bump patch → package → git tag → gh release creat
 
 | Surface | Role | Loader / convert |
 |---------|------|------------------|
-| **Elite Viewer** (this app, pop-out) | Media **and** 3D opener (SceneEngine: hierarchy, delete, save-as) | `gltfProdLoader` + `SceneEngine` |
-| **ThreeFlow** (`threeflow.vercel.app`) | Scene edit — **explicit** from Elite / Admin View | `?asset=` CDN or loopback `/v1/local-file` |
+| **Elite Viewer** (this app, pop-out) | Default folder / Explorer double-click — media **and** 3D with production loaders | `gltfProdLoader` + `SceneEngine` + diskPath / TGA / sibling maps |
+| **ThreePipe** (`threeflow.vercel.app/view`) | Explicit inspect / classify HUD — not local double-click (HTTPS cannot fetch `127.0.0.1`) | `?asset=` public CDN only |
+| **ThreeFlow** (`threeflow.vercel.app/editor`) | Scene edit — **explicit** Edit in ThreeFlow | `?asset=` CDN or loopback `/v1/local-file` |
 | **Forge live** (`forge.grudge-studio.com`) | R3F + Rapier + `.gfscene` deploy | CDN URL only |
 | Local Forge3D / workbench | Pop-out mesh tools, script pad | same `loadModel` / `convertToGlb` |
 | **Pipeline Review worker** | Convert-before-upload · SI · laterality · CDN HEAD | `src/main/fleet/pipelineReviewWorker.ts` — sibling of Scene Completion |
 | **Native Play** (`/play`) | WASD TPS · LocomotionCore · combatSkillKit · gltfProdLoader | `PlayMode.tsx` + `playRuntime.ts` + `studioQuality.ts`. Rapier CCT playtest = Open/Casting, not this tab |
+| **Skeleton Studio** (`/skeleton`) | Mixamo-25 **author** extract/T-pose/place → left-role / right-clip bind → **Toon Bip001 play** pack → `grudge-convert` → R2/D1 | `genericPreviewHost` Toon `{race}.glb` · `mixamo25.ts` · `retargetLibrary.ts`. Not a fourth editor. Play body is never Mixamo Y-Bot |
 
 Production bake: main `convertFile` (FBX2glTF → Blender fallback) then `optimizeWebFile`. Browser `exportToGlb` is convenience only.
 
-Handoff SSOT: `src/shared/editorHandoff.ts`. Local 3D double-click opens the **Grudge Three Pipeline** (one SceneEngine window; extra files append). ThreeFlow is **Edit in ThreeFlow** in that window. Do not iframe ThreeFlow.
+Handoff SSOT: `src/shared/editorHandoff.ts`. Local 3D double-click opens **Elite viewer** (`viewer.html` + `gltfProdLoader`). Extra 3D files reuse that window. Vue ThreeFlow `/editor` and ThreePipe `/view` are **explicit**. Do not iframe ThreeFlow. Chrome icons: `src/shared/infoIcons.ts` (PNG on `assets.grudge-studio.com`; catalog JSON on `info.grudge-studio.com`).
 
 ## Architecture
 

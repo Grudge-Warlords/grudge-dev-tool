@@ -51,7 +51,7 @@ export function threeflowAssetUrl(cdnUrl: string, extra?: Record<string, string>
   return u.toString();
 }
 
-/** ThreePipe inspect on ThreeFlow — not a fourth editor, not the Vue r185 bundle. */
+/** Isolated ThreePipe editor on ThreeFlow `/view` — not a fourth product, not the Vue r185 bundle. */
 export function threeflowViewUrl(cdnUrl: string, extra?: Record<string, string>): string {
   const u = new URL(FLEET_URLS.threeflow);
   u.pathname = "/view";
@@ -63,7 +63,7 @@ export function threeflowViewUrl(cdnUrl: string, extra?: Record<string, string>)
   return u.toString();
 }
 
-/** Double-click / Open with → ThreePipe view (default) or Vue editor. */
+/** Double-click / Open with → ThreePipe editor (default `/view`) or Vue `/editor`. */
 export function threeflowPipelineUrl(
   cdnUrl: string,
   mode: "view" | "editor" = "view",
