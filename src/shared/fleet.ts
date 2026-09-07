@@ -319,23 +319,26 @@ export function buildTruthProbes(apiBase: string): TruthProbe[] {
   ];
 }
 
+export const TRUTH_PROBE_TIMEOUT_MS = 8_000;
+
 export async function probeEndpoint(probe: TruthProbe): Promise<TruthProbe> {
   const method = probe.role === "assets" ? "HEAD" : "GET";
   const start = Date.now();
   try {
     const res = await fetch(probe.url, {
       method,
+      signal: AbortSignal.timeout(TRUTH_PROBE_TIMEOUT_MS),
       headers: method === "GET" ? { Accept: "application/json, text/html, */*" } : undefined,
     });
-    const ct = res.headers.get("content-type") || "";
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    // These are reachability probes: cancel the body instead of downloading catalogs or HTML.
+    void res.body?.cancel().catch(() => undefined);
     const htmlLeak =
-      probe.role !== "assets" &&
       probe.role !== "ai" &&
       probe.role !== "forge" &&
       probe.role !== "play" &&
       probe.role !== "optional" &&
-      ct.includes("text/html") &&
-      !res.ok;
+      (ct.includes("text/html") || ct.includes("application/xhtml+xml"));
     // Expected auth without token
     const authRouteOk =
       (probe.id === "auth-me" || probe.id === "characters") &&

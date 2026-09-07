@@ -84,11 +84,7 @@ function run(cmd, args, opts = {}) {
   console.log(`\n$ ${display}`);
   if (opts.dryRun) { console.log("  (dry-run, skipped)"); return { status: 0, stdout: "", stderr: "" }; }
   // On Windows, `npm` and `gh` are `.cmd` shims that cannot be spawned without
-  // a shell. `git` is a real .exe and works either way — and crucially MUST
-  // NOT use shell on win32, otherwise commit messages containing < > (the
-  // canonical Co-Authored-By <email> form) get parsed as redirect operators
-  // by cmd.exe and the commit fails with "The syntax of the command is
-  // incorrect.".
+  // a shell. `git` is a real executable and works without one.
   const useShell = opts.shell
     ?? (process.platform === "win32" && cmd !== "git");
   // When shell is true on Windows, spawnSync joins args into a single string
@@ -186,12 +182,7 @@ function main() {
     process.exit(1);
   }
 
-  // 2. Sync with origin
-  console.log(`\n[publish-manual] syncing with origin/main`);
-  run("git", ["fetch", "origin", "--tags"]);
-  run("git", ["pull", "--rebase", "origin", "main"]);
-
-  // 3. Compute new version
+  // 2. Compute new version. Dry-run stops before every network or write action.
   const pkgPath = join(ROOT, "package.json");
   const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
   const current = pkg.version;
@@ -199,9 +190,14 @@ function main() {
   console.log(`\n[publish-manual] ${current} → ${next}`);
 
   if (args.dryRun) {
-    console.log(`[publish-manual] DRY RUN — would publish v${next} but stopping here.`);
+    console.log(`[publish-manual] DRY RUN — would publish v${next}; no fetch, pull, write, build, tag, push, or release was attempted.`);
     return;
   }
+
+  // 3. Sync with origin
+  console.log(`\n[publish-manual] syncing with origin/main`);
+  run("git", ["fetch", "origin", "--tags"]);
+  run("git", ["pull", "--rebase", "origin", "main"]);
 
   pkg.version = next;
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n", "utf8");
@@ -230,7 +226,7 @@ function main() {
 
   // 7. Commit + tag + push (with one rebase retry on race)
   run("git", ["add", "package.json", "CHANGELOG.md", "package-lock.json"], { allowFail: true });
-  run("git", ["commit", "-m", `release: v${next}`, "-m", "Co-Authored-By: Oz <oz-agent@warp.dev>"]);
+  run("git", ["commit", "-m", `release: v${next}`]);
   run("git", ["tag", "-a", `v${next}`, "-m", `v${next}`]);
 
   let pushRes = run("git", ["push", "origin", "main", "--follow-tags"], { allowFail: true });
@@ -243,7 +239,7 @@ function main() {
   // 8. Publish release
   const releaseNotes = args.notes
     ? args.notes
-    : `Automated manual publish of v${next}. See CHANGELOG.md for details. Auto-update will deliver this within ~4h to existing installs.`;
+    : `Manual publish of v${next}. See CHANGELOG.md for details. Existing installs will discover the update on their next update check and require user consent before download and installation.`;
   run("gh", [
     "release", "create", `v${next}`,
     "-R", REPO,

@@ -6,7 +6,9 @@ import {
   Box, Music, Search as SearchIcon, Copy, ExternalLink, Home,
 } from "lucide-react";
 import type { AssetRef } from "../components/viewers/types";
-import { readMirror } from "../lib/workspace";
+import type { CreationLibraryAsset } from "../../shared/creationFlow";
+import { readMirror, writeMirror } from "../lib/workspace";
+import { useAssetAsCreationBase } from "../lib/creationHandoff";
 import { openAssetInViewMode } from "./ViewMode";
 import { inferContentType, isImagePath, isModelPath } from "../../shared/mediaTypes";
 
@@ -46,6 +48,12 @@ function basename(path: string): string {
   const trimmed = path.replace(/\/$/, "");
   const i = trimmed.lastIndexOf("/");
   return i >= 0 ? trimmed.slice(i + 1) : trimmed;
+}
+
+function canUseAsCreationBase(path: string, category?: string): boolean {
+  if (!path.toLowerCase().endsWith(".glb")) return false;
+  const label = `${path} ${category ?? ""}`.toLowerCase();
+  return !label.includes("animation") && !label.includes("mixamo");
 }
 
 interface TreeNodeProps {
@@ -158,6 +166,11 @@ export default function Browser() {
     enabled: isGlobalSearch,
     staleTime: 30_000,
   });
+  const localLibrary = useQuery({
+    queryKey: ["creation.local-library"],
+    queryFn: async (): Promise<CreationLibraryAsset[]> => window.grudge.creation.library(),
+    staleTime: 0,
+  });
 
   const folders = listing.data?.folders ?? [];
   const files = listing.data?.items ?? [];
@@ -195,6 +208,19 @@ export default function Browser() {
   const openInViewMode = (it: { name: string; size: number; contentType: string }) => {
     openAssetInViewMode(toRef(it));
   };
+  const openLocalSaved = (asset: CreationLibraryAsset) => openAssetInViewMode({
+    name: asset.name,
+    url: `local://${encodeURIComponent(asset.savedPath)}`,
+    localPath: asset.savedPath,
+    contentType: "model/gltf-binary",
+    size: asset.byteSize,
+  });
+  const openLocalFolder = async (asset: CreationLibraryAsset) => {
+    const dir=asset.savedPath.replace(/[\\/][^\\/]+$/,"");
+    writeMirror({localAssetsRoot:dir});
+    await window.grudge.workspace.patch({localAssetsRoot:dir});
+    await window.grudge.app.openRoute("/local");
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -208,6 +234,20 @@ export default function Browser() {
           <strong className="text-sky-300"> View Mode</strong>.
         </p>
       </div>
+
+      <section className="mb-3 rounded-md border border-gold/30 bg-gold/5 p-3" aria-label="Local saved assets">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div><h2 className="text-sm font-semibold text-gold">Local saved assets ({localLibrary.data?.length??0})</h2><p className="text-[11px] text-muted">Exact Prompt-to-3D revisions saved on this computer. These are immediately usable and are never uploaded automatically.</p></div>
+          <button className="rounded border border-line px-3 py-1 text-xs" onClick={()=>void localLibrary.refetch()}>Refresh</button>
+        </div>
+        {localLibrary.isLoading&&<p className="text-xs text-muted">Loading local asset library…</p>}
+        {localLibrary.error&&<p className="text-xs text-danger">{(localLibrary.error as Error).message}</p>}
+        {!localLibrary.isLoading&&!localLibrary.data?.length&&<p className="text-xs text-muted">No Prompt-to-3D revisions have been added with the Save button yet.</p>}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">{localLibrary.data?.map(asset=><article key={asset.id} className="rounded border border-line bg-bg-2 p-3 text-xs">
+          <div className="flex items-start gap-2"><Box size={18} className="mt-0.5 shrink-0 text-gold"/><div className="min-w-0 flex-1"><b className="block truncate" title={asset.name}>{asset.name}</b><p className="mt-1 line-clamp-2 text-muted">{asset.prompt}</p><p className="mt-1 text-[10px] text-muted">{asset.kind??"asset"} · {asset.category} · {asset.style} · {(asset.byteSize/1024).toFixed(1)} KB</p></div></div>
+          <div className="mt-2 flex flex-wrap gap-2"><button className="rounded bg-gold px-3 py-1 font-semibold text-black" onClick={()=>openLocalSaved(asset)}>Use now</button><button className="rounded border border-line px-3 py-1" onClick={()=>void useAssetAsCreationBase({kind:"local-file",path:asset.savedPath})}>Use as base</button><button className="rounded border border-line px-3 py-1" onClick={()=>void openLocalFolder(asset)}>Local Files</button><button className="rounded border border-line px-3 py-1" onClick={()=>void window.grudge.files.reveal(asset.savedPath)}>Reveal</button></div>
+        </article>)}</div>
+      </section>
 
       <div className="flex flex-1 gap-3 min-h-0">
         <aside className="w-64 shrink-0 border border-line rounded-md bg-bg-1 overflow-y-auto p-1">
@@ -330,6 +370,7 @@ export default function Browser() {
                           <span className="text-[10px] text-gold/80 shrink-0">{it.category}</span>
                         )}
                         <span className="text-[10px] text-muted shrink-0">{it.packId}</span>
+                        {path.toLowerCase().endsWith(".glb")&&<button className="copy-btn disabled:cursor-not-allowed disabled:opacity-40" disabled={!canUseAsCreationBase(path,it.category)} title={canUseAsCreationBase(path,it.category)?"Create an independent editable working copy":"Animation-only files need a character model and cannot be used as a standalone base"} onClick={e=>{e.stopPropagation();void useAssetAsCreationBase({kind:"objectstore",key:path});}}>{canUseAsCreationBase(path,it.category)?"Use as base":"Animation only"}</button>}
                         <button
                           type="button"
                           className="copy-btn"
@@ -426,6 +467,7 @@ export default function Browser() {
                         <div className="text-[11px] truncate" title={it.name}>{basename(it.name)}</div>
                         <div className="flex items-center gap-1 text-[10px] text-muted">
                           <span>{(it.size / 1024).toFixed(1)} KB</span>
+                          {it.name.toLowerCase().endsWith(".glb")&&<button className="copy-btn disabled:cursor-not-allowed disabled:opacity-40" disabled={!canUseAsCreationBase(it.name)} title={canUseAsCreationBase(it.name)?"Create an independent editable working copy":"Animation-only files need a character model and cannot be used as a standalone base"} onClick={e=>{e.stopPropagation();void useAssetAsCreationBase({kind:"objectstore",key:it.name});}}>{canUseAsCreationBase(it.name)?"Use as base":"Animation only"}</button>}
                           <button
                             className="ml-auto copy-btn opacity-0 group-hover:opacity-100"
                             title="Copy as path (R2 key)"

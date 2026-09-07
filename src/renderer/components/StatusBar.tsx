@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Wifi, WifiOff, RefreshCw, Download, FileText, ShieldCheck, Bot } from "lucide-react";
+import type { UpdaterStatus } from "../../shared/ipc";
+import { toast } from "sonner";
 
 export interface ConnectivityState {
   reachable: boolean;
@@ -10,13 +12,6 @@ export interface ConnectivityState {
   status: number | null;
   error: string | null;
   truthScore?: number | null;
-}
-
-interface UpdaterStatus {
-  phase?: "available" | "downloading" | "ready" | "error" | "none";
-  version?: string;
-  percent?: number;
-  error?: string;
 }
 
 export function StatusDot({ state }: { state: "ok" | "warn" | "bad" | "idle" }) {
@@ -48,27 +43,30 @@ export default function StatusBar({
   } | null>(null);
 
   useEffect(() => {
-    let off1: (() => void) | undefined;
-    let off2: (() => void) | undefined;
-    let off3: (() => void) | undefined;
+    let active = true;
+    let receivedUpdateStatus = false;
+    const off1 = window.grudge?.connectivity?.onChange?.((s: ConnectivityState) => setConn(s));
+    const off2 = window.grudge?.updater?.onStatus?.((s: UpdaterStatus) => { receivedUpdateStatus = true; setUpd(s); });
+    const off3 = window.grudge?.ollama?.onStatus?.((s: any) => setOllama(s));
+    void window.grudge?.updater?.getStatus?.().then((status: UpdaterStatus) => {
+      if (active && !receivedUpdateStatus) setUpd(status);
+    }).catch(() => { /* A later explicit check can retry status retrieval. */ });
     void (async () => {
       try {
         const initial = await window.grudge?.connectivity?.get?.();
-        if (initial) setConn(initial);
+        if (active && initial) setConn(initial);
       } catch {
         /* ignore */
       }
       try {
         const st = await window.grudge?.ollama?.status?.();
-        if (st) setOllama(st);
+        if (active && st) setOllama(st);
       } catch {
         /* ignore */
       }
-      off1 = window.grudge?.connectivity?.onChange?.((s: ConnectivityState) => setConn(s));
-      off2 = window.grudge?.updater?.onStatus?.((s: UpdaterStatus) => setUpd(s));
-      off3 = window.grudge?.ollama?.onStatus?.((s: any) => setOllama(s));
     })();
     return () => {
+      active = false;
       off1?.();
       off2?.();
       off3?.();
@@ -151,7 +149,24 @@ export default function StatusBar({
         <FileText size={12} /> logs
       </button>
       {upd?.phase && upd.phase !== "none" && (
-        <span className="flex items-center gap-1 text-gold">
+        <button
+          type="button"
+          className="flex items-center gap-1 text-gold disabled:cursor-default"
+          disabled={upd.phase === "downloading" || upd.phase === "error"}
+          onClick={() => {
+            const action = upd.phase === "available" ? window.grudge?.updater?.download?.() : upd.phase === "ready" ? window.grudge?.updater?.install?.() : undefined;
+            void action?.catch((error: unknown) => toast.error("Update could not continue", { description: String(error) }));
+          }}
+          title={
+            upd.phase === "available"
+              ? "Download this update"
+              : upd.phase === "ready"
+                ? "Restart and install this update"
+                : upd.phase === "error"
+                  ? upd.error ?? "Update error"
+                  : "Update status"
+          }
+        >
           {upd.phase === "downloading" && <Download size={12} />}
           {upd.phase === "ready" && <RefreshCw size={12} />}
           {upd.phase === "downloading"
@@ -163,7 +178,7 @@ export default function StatusBar({
                 : upd.phase === "error"
                   ? "update err"
                   : ""}
-        </span>
+        </button>
       )}
     </div>
   );

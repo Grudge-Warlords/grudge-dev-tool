@@ -1,4 +1,12 @@
-import type { AssetCategory, AssetSpecV1, AssetStyle } from "../../shared/prompt3d";
+import {
+  normalizePrompt3DTextureResolution,
+  PROMPT3D_TEXTURE_RESOLUTIONS,
+  type AssetCategory,
+  type AssetSpecV1,
+  type AssetStyle,
+  type Prompt3DTextureResolution,
+} from "../../shared/prompt3d";
+import { applyPrompt3DEdit } from "../../shared/prompt3dRules";
 
 const CATEGORIES: AssetCategory[] = ["prop", "building", "road-furniture", "environment"];
 const STYLES: AssetStyle[] = ["realistic", "stylized", "low-poly", "hand-painted", "industrial", "custom"];
@@ -55,16 +63,17 @@ export function applyPrompt3DPlanProposal(
   const warnings = Object.keys(value)
     .filter((key) => !TOP_LEVEL_FIELDS.has(key))
     .map((key) => `Ignored non-allowlisted planner field: ${key}`);
-  const next = structuredClone(current);
+  let next = structuredClone(current);
 
   const generationPrompt = boundedString(proposal.generationPrompt, 2_000);
-  if (generationPrompt) next.prompt = generationPrompt;
-  else if (proposal.generationPrompt !== undefined) warnings.push("Ignored invalid generationPrompt.");
+  if (generationPrompt) {
+    if (generationPrompt !== current.prompt) next = applyPrompt3DEdit(next, generationPrompt);
+  } else if (proposal.generationPrompt !== undefined) warnings.push("Ignored invalid generationPrompt.");
 
-  if (CATEGORIES.includes(proposal.category as AssetCategory)) next.category = proposal.category as AssetCategory;
+  if (proposal.category === current.category) next.category = current.category;
   else if (proposal.category !== undefined) warnings.push("Ignored unsupported asset category.");
 
-  if (STYLES.includes(proposal.style as AssetStyle)) next.style = proposal.style as AssetStyle;
+  if (proposal.style === current.style) next.style = current.style;
   else if (proposal.style !== undefined) warnings.push("Ignored unsupported style.");
 
   if (next.style === "custom") {
@@ -94,12 +103,15 @@ export function applyPrompt3DPlanProposal(
     if (isRecord(proposal.budgets)
       && Number.isInteger(proposal.budgets.maxTriangles)
       && finiteInRange(proposal.budgets.maxTriangles, 100, 2_000_000)
-      && [512, 1024, 2048, 4096].includes(proposal.budgets.maxTextureResolution as number)
+      && PROMPT3D_TEXTURE_RESOLUTIONS.includes(proposal.budgets.maxTextureResolution as Prompt3DTextureResolution)
       && Number.isSafeInteger(proposal.budgets.maxTextureBytes)
       && finiteInRange(proposal.budgets.maxTextureBytes, 1, 512 * 1024 ** 2)) {
+      const proposedResolution = proposal.budgets.maxTextureResolution as Prompt3DTextureResolution;
+      const maxTextureResolution = normalizePrompt3DTextureResolution(current.providerId, proposedResolution);
+      if (maxTextureResolution !== proposedResolution) warnings.push(`Adjusted texture resolution to ${maxTextureResolution} for ${current.providerId}.`);
       next.budgets = {
         maxTriangles: proposal.budgets.maxTriangles,
-        maxTextureResolution: proposal.budgets.maxTextureResolution as 512 | 1024 | 2048 | 4096,
+        maxTextureResolution,
         maxTextureBytes: proposal.budgets.maxTextureBytes,
       };
     } else warnings.push("Ignored invalid generation budgets.");

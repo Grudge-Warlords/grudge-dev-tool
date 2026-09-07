@@ -37,6 +37,18 @@ Same pattern as Casting Showcase Anims:
 Race dropdown loads the Toon play host so you preview clips on the production skeleton.
 
 ## Actionable steps
+**Dev Tool route:** `/skeleton` (local tool, available to signed-in and local test sessions)
+**Product role:** **wired** Mixamo-25 wizard → **grudge-convert** → R2/CDN → Forge.
+
+See [Admin architecture](admin-architecture.md).
+
+## Prompt-to-3D review handoff
+
+**Review fitted skeleton and place markers** opens this local tool with the exact retained source GLB, verifies its SHA-256 and enters **Place**. Supplied fitted markers are overlaid; an unrigged source with no marker suggestions is shown honestly as zero bones. Loading another file clears the previous correction context.
+
+**Use corrected placements in Prompt-to-3D** returns all 22 core placements together with the source revision, original motion prompt, seed and animation settings. The next submission checks the source hash again and creates an immutable sibling. **Return to animation** preserves that context without applying placements. Known animals, including animal bipeds, use the existing local creature deformation route; HY-Motion retains its human/humanoid-only gate.
+
+## Actionable steps (not labels)
 
 Each step tab **runs or focuses a real pipeline action**:
 

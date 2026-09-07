@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import sharp from "sharp";
 import type { AssetSpecV1, Prompt3DValidationCheck, Prompt3DValidationReport } from "../../shared/prompt3d";
+import { resolveObjectRules } from "../../shared/prompt3dRules";
 
 function check(id: string, status: Prompt3DValidationCheck["status"], message: string, measured?: string | number | boolean, required?: string | number | boolean): Prompt3DValidationCheck {
   return { id, status, message, measured, required };
@@ -41,20 +42,55 @@ export async function validatePrompt3DGlb(glbPath: string, spec: AssetSpecV1, qu
     });
     checks.push(check("stable-root", rootContract ? "pass" : "fail", rootContract ? "Each scene has one identity-transform stable root at the canonical pivot." : `Each scene must have one identity-transform root named '${spec.coordinateContract.stableRootName}'.`, rootContract, true));
 
+    const nodeIsDerived = (node: any) => {
+      const extras = node.getExtras?.() ?? {};
+      const effect = extras.grudgePromptAnimationEffect ?? {};
+      return extras.grudgeMotionTrail === true || extras.grudgeDerivedGeometry === true || effect.generator === "grudge-prompt-motion-1";
+    };
+    const instancesByMesh = new Map<any, any[]>();
+    for (const node of nodes) {
+      const mesh = node.getMesh?.();
+      if (!mesh) continue;
+      const instances = instancesByMesh.get(mesh) ?? [];
+      instances.push(node);
+      instancesByMesh.set(mesh, instances);
+    }
+    const transformPoint = (matrix: ArrayLike<number>, x: number, y: number, z: number): [number, number, number] => {
+      const w = Number(matrix[3]) * x + Number(matrix[7]) * y + Number(matrix[11]) * z + Number(matrix[15]);
+      const divisor = Number.isFinite(w) && Math.abs(w) > 1e-12 ? w : 1;
+      return [
+        (Number(matrix[0]) * x + Number(matrix[4]) * y + Number(matrix[8]) * z + Number(matrix[12])) / divisor,
+        (Number(matrix[1]) * x + Number(matrix[5]) * y + Number(matrix[9]) * z + Number(matrix[13])) / divisor,
+        (Number(matrix[2]) * x + Number(matrix[6]) * y + Number(matrix[10]) * z + Number(matrix[14])) / divisor,
+      ];
+    };
+
     let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-    let finite = true, attributesFinite = true, normals = true, uvs = true, tangents = true, materials = true, normalMapPresent = false, indicesValid = true, triangleMode = true, degenerateTriangles = 0, primitiveCount = 0;
+    let finite = true, attributesFinite = true, normals = true, uvs = true, tangents = true, materials = true, normalMapPresent = false, indicesValid = true, triangleMode = true, degenerateTriangles = 0, basePrimitiveCount = 0, derivedPrimitiveCount = 0;
     for (const mesh of meshes) {
-      const countsTowardBudget = !/_LOD1$/i.test(mesh.getName?.() || "");
+      const instances = instancesByMesh.get(mesh) ?? [];
+      const meshExtras = mesh.getExtras?.() ?? {};
+      const meshEffect = meshExtras.grudgePromptAnimationEffect ?? {};
+      const meshMarkedDerived = meshExtras.grudgeMotionTrail === true || meshExtras.grudgeDerivedGeometry === true || meshEffect.generator === "grudge-prompt-motion-1";
+      const baseInstances = meshMarkedDerived ? [] : instances.filter((node) => !nodeIsDerived(node));
+      const contributesToBase = baseInstances.length > 0;
+      const worldMatrices = baseInstances.map((node) => node.getWorldMatrix?.()).filter(Boolean);
+      const countsTowardBudget = contributesToBase && !/_LOD1$/i.test(mesh.getName?.() || "");
       for (const primitive of mesh.listPrimitives?.() ?? []) {
-        primitiveCount += 1;
+        if (contributesToBase) basePrimitiveCount += 1;
+        else derivedPrimitiveCount += 1;
         const position = primitive.getAttribute?.("POSITION");
         const array = position?.getArray?.() as ArrayLike<number> | undefined;
         if (!array || array.length < 3) { finite = false; continue; }
         for (let i = 0; i < array.length; i += 3) {
           const x = Number(array[i]), y = Number(array[i + 1]), z = Number(array[i + 2]);
           if (![x, y, z].every(Number.isFinite)) { finite = false; break; }
-          minX = Math.min(minX, x); minY = Math.min(minY, y); minZ = Math.min(minZ, z);
-          maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); maxZ = Math.max(maxZ, z);
+          for (const matrix of worldMatrices) {
+            const [worldX, worldY, worldZ] = transformPoint(matrix, x, y, z);
+            if (![worldX, worldY, worldZ].every(Number.isFinite)) { finite = false; break; }
+            minX = Math.min(minX, worldX); minY = Math.min(minY, worldY); minZ = Math.min(minZ, worldZ);
+            maxX = Math.max(maxX, worldX); maxY = Math.max(maxY, worldY); maxZ = Math.max(maxZ, worldZ);
+          }
         }
         const indices = primitive.getIndices?.();
         const indexArray = indices?.getArray?.() as ArrayLike<number> | undefined;
@@ -80,20 +116,25 @@ export async function validatePrompt3DGlb(glbPath: string, spec: AssetSpecV1, qu
           }
         }
         if (countsTowardBudget) triangleCount += Math.floor(elementCount / 3);
-        normals &&= Boolean(primitive.getAttribute?.("NORMAL"));
-        uvs &&= Boolean(primitive.getAttribute?.("TEXCOORD_0"));
-        tangents &&= Boolean(primitive.getAttribute?.("TANGENT"));
+        if (contributesToBase) {
+          normals &&= Boolean(primitive.getAttribute?.("NORMAL"));
+          uvs &&= Boolean(primitive.getAttribute?.("TEXCOORD_0"));
+          tangents &&= Boolean(primitive.getAttribute?.("TANGENT"));
+        }
         for (const semantic of ["NORMAL", "TANGENT", "TEXCOORD_0"]) {
           const attribute = primitive.getAttribute?.(semantic)?.getArray?.() as ArrayLike<number> | undefined;
           if (attribute) for (let i = 0; i < attribute.length; i += 1) if (!Number.isFinite(Number(attribute[i]))) { attributesFinite = false; break; }
         }
         const material = primitive.getMaterial?.();
-        normalMapPresent ||= Boolean(material?.getNormalTexture?.());
-        materials &&= !spec.generateTextures || Boolean(material?.getBaseColorTexture?.());
+        if (contributesToBase) {
+          normalMapPresent ||= Boolean(material?.getNormalTexture?.());
+          materials &&= !spec.generateTextures || Boolean(material?.getBaseColorTexture?.());
+        }
       }
     }
-    const geometryFinite = finite && primitiveCount > 0 && [minX, minY, minZ, maxX, maxY, maxZ].every(Number.isFinite);
-    checks.push(check("mesh-primitives", primitiveCount > 0 ? "pass" : "fail", primitiveCount > 0 ? "GLB contains mesh primitives." : "GLB meshes contain no primitives.", primitiveCount, ">0"));
+    const geometryFinite = finite && basePrimitiveCount > 0 && [minX, minY, minZ, maxX, maxY, maxZ].every(Number.isFinite);
+    checks.push(check("mesh-primitives", basePrimitiveCount > 0 ? "pass" : "fail", basePrimitiveCount > 0 ? "GLB contains rendered base-model mesh primitives." : "GLB contains no rendered base-model primitives.", basePrimitiveCount, ">0"));
+    if (derivedPrimitiveCount > 0) checks.push(check("derived-effects", "pass", `${derivedPrimitiveCount} marked derived-effect primitive${derivedPrimitiveCount === 1 ? " was" : "s were"} validated for finite topology but excluded from base-object bounds, texture requirements and triangle budget.`, derivedPrimitiveCount));
     checks.push(check("finite-geometry", geometryFinite ? "pass" : "fail", geometryFinite ? "All inspected positions are finite." : "Geometry contains no usable positions, or contains NaN/infinite positions."));
     checks.push(check("topology-indices", indicesValid ? "pass" : "fail", indicesValid ? "All inspected indices address valid vertices." : "One or more primitives contain invalid indices."));
     checks.push(check("triangle-topology", triangleMode && degenerateTriangles === 0 ? "pass" : "fail", triangleMode && degenerateTriangles === 0 ? "All primitives are non-degenerate indexed or implicit triangles." : "Provider output contains a non-triangle primitive, incomplete triangle, or degenerate triangle.", degenerateTriangles, 0));
@@ -108,18 +149,31 @@ export async function validatePrompt3DGlb(glbPath: string, spec: AssetSpecV1, qu
       boundsMeters = { width: maxX - minX, height: maxY - minY, depth: maxZ - minZ, minY };
       const target = { width: spec.dimensions.width * unitScale, height: spec.dimensions.height * unitScale, depth: spec.dimensions.depth * unitScale };
       const tolerance = 0.08;
-      const sizePass = Math.abs(boundsMeters.width - target.width) <= Math.max(target.width * tolerance, 0.01)
+      const exactSizePass = Math.abs(boundsMeters.width - target.width) <= Math.max(target.width * tolerance, 0.01)
         && Math.abs(boundsMeters.height - target.height) <= Math.max(target.height * tolerance, 0.01)
         && Math.abs(boundsMeters.depth - target.depth) <= Math.max(target.depth * tolerance, 0.01);
-      checks.push(check("units-and-size", sizePass ? "pass" : "fail", sizePass ? "Bounds match requested meter scale." : "Bounds do not match requested size within 8% tolerance.", JSON.stringify(boundsMeters), JSON.stringify(target)));
-      const grounded = Math.abs(minY) <= 0.005;
-      checks.push(check("ground-contact", grounded ? "pass" : "fail", grounded ? "Contact plane is grounded at Y=0." : "Lowest geometry point is not grounded at Y=0.", minY, 0));
+      const sizePass = spec.scaleMode === "exact" ? exactSizePass : Math.abs(boundsMeters.height - target.height) <= Math.max(target.height * tolerance, 0.01);
+      checks.push(check("units-and-size", sizePass ? "pass" : "fail", sizePass ? (spec.scaleMode === "exact" ? "Bounds match requested meter scale." : "Requested height is applied uniformly, preserving the generated proportions.") : "Bounds do not match the requested scale.", JSON.stringify(boundsMeters), JSON.stringify(target)));
+      if (spec.scaleMode !== "exact" && !exactSizePass) checks.push(check("proportions", "warning", "Width/depth differ from the brief. Inspect and refine the shape; the model was not stretched to force a match."));
+      if (spec.objectRules) {
+        const rule = resolveObjectRules(spec);
+        const anchor = rule.anchor;
+        const offset = [minX + boundsMeters.width * anchor.x, minY + boundsMeters.height * anchor.y, minZ + boundsMeters.depth * anchor.z];
+        const placed = offset.every(v => Math.abs(v) <= 0.005);
+        const marker = nodes.find((n: any) => n.getName?.() === "GrudgeAttachment" && n.getExtras?.()?.grudgeAttachment?.component === rule.component);
+        const markerAtOrigin = marker?.getWorldTranslation?.().every((v: number) => Math.abs(v) <= 1e-6);
+        checks.push(check("attachment-origin", placed && markerAtOrigin ? "pass" : "fail", `${rule.anchorLabel}: selected bounds point and attachment marker must be at (0, 0, 0).`, JSON.stringify(offset), "[0,0,0]"));
+        checks.push(check("component-review", "warning", `${rule.profile.label} / ${rule.component}: inspect orientation, component completeness and the actual grip/socket location. Bounds placement does not identify semantic parts.`));
+      } else {
+        const grounded = Math.abs(minY) <= 0.005;
+        checks.push(check("ground-contact", grounded ? "pass" : "fail", grounded ? "Contact plane is grounded at Y=0." : "Lowest geometry point is not grounded at Y=0.", minY, 0));
+      }
     } else {
       checks.push(check("units-and-size", "fail", "Bounds cannot be measured without finite geometry."));
       checks.push(check("ground-contact", "fail", "Ground contact cannot be measured without finite geometry."));
     }
     const extras = root.getAsset?.()?.extras ?? {};
-    checks.push(check("coordinate-contract", extras?.grudgePrompt3D?.upAxis === "+Y" && extras?.grudgePrompt3D?.forwardAxis === "+Z" ? "pass" : "fail", "Asset must declare +Y up and +Z forward in glTF asset extras."));
+    checks.push(check("coordinate-contract", extras?.grudgePrompt3D?.upAxis === "+Y" && extras?.grudgePrompt3D?.forwardAxis === "+Z" && extras?.grudgePrompt3D?.origin === (spec.objectRules ? "attachment-point" : "ground-center") ? "pass" : "fail", "Asset must declare +Y up, +Z forward and the selected ground or attachment origin in glTF asset extras."));
     const collisionNode = nodes.find((n: any) => /^collision/i.test(n.getName?.() || "") && n.getExtras?.()?.grudgeCollision?.shape === "box");
     const lodNode = nodes.find((n: any) => /^lod[_-]?1/i.test(n.getName?.() || "") && n.getExtras?.()?.grudgeLod?.level === 1 && n.getMesh?.());
     checks.push(check("collision", spec.generateCollision ? (collisionNode ? "pass" : "fail") : "warning", spec.generateCollision ? "Requested typed collision node is required." : "Collision generation was not requested."));
@@ -140,6 +194,7 @@ export async function validatePrompt3DGlb(glbPath: string, spec: AssetSpecV1, qu
     checks.push(check("parse", "fail", error instanceof Error ? error.message : String(error)));
   }
 
+  checks.push(check("visual-review", "warning", "Technical checks cannot confirm resemblance, completeness or artistic quality. Inspect every side before accepting this asset."));
   const gameReady = !checks.some((c) => c.status === "fail");
   const sourceHash = createHash("sha256").update(await readFile(glbPath).catch(() => Buffer.alloc(0))).digest("hex");
   const deterministicId = createHash("sha256").update(JSON.stringify({ sourceHash, spec, checks })).digest("hex");

@@ -140,6 +140,8 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     description:
       "Mixamo-25 author extract/T-pose/place → left-role/right-clip bind → Toon Bip001 play pack → grudge-convert → R2/D1.",
     adminOnly: true,
+      "Mixamo-like ~25-bone place → T-pose → retarget library → grudge-convert bake → R2/CDN.",
+    adminOnly: false,
   },
   {
     id: "store",

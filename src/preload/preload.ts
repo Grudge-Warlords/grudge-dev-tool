@@ -1,22 +1,88 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { PROMPT3D_CHANNELS, type AssetSpecV1, type LocalPrompt3DProviderId, type Prompt3DInstallRequest, type Prompt3DPlanRequest, type Prompt3DStartRequest } from "../shared/prompt3d";
+import { PROMPT3D_CHANNELS, type AssetSpecV1, type LocalPrompt3DProviderId, type Prompt3DApproveConceptRequest, type Prompt3DInstallRequest, type Prompt3DPlanRequest, type Prompt3DReferenceImageSelection, type Prompt3DRejectConceptRequest, type Prompt3DStartRequest } from "../shared/prompt3d";
+import type { Prompt3DAppRuntime, Prompt3DHistory } from "../shared/prompt3d";
+import {
+  PROMPT3D_WORKFLOW_CHANNELS,
+  type Prompt3DAssetSource,
+  type Prompt3DApproveVisualRequest,
+  type Prompt3DBatchExportResult,
+  type Prompt3DBatchRequest,
+  type Prompt3DBatchStatus,
+  type Prompt3DFinishHistory,
+  type Prompt3DFinishJobStatus,
+  type Prompt3DFinishRequest,
+  type Prompt3DFinishVisualRejection,
+  type Prompt3DRejectFinishVisualRequest,
+  type Prompt3DVisualApproval,
+  type Prompt3DWorkflowArtifactRequest,
+  type Prompt3DWorkflowArtifactVerification,
+  type Prompt3DWorkflowExportResult,
+  type Prompt3DWorkflowLibraryAsset,
+  type Prompt3DWorkflowPortableExportRecord,
+  type Prompt3DWorkflowSaveResult,
+} from "../shared/prompt3dWorkflow";
+import type { AssetRefinementRequest, AssetRefinementPlan, AssetRefinementRecipe, AssetRefinementRevision } from "../shared/assetRefinement";
+import { CREATION_CHANNELS, type CreationRequest, type CreationAttempt, type CreationLibraryAsset, type CreationSaveResult } from "../shared/creationFlow";
+import { UPDATER_CHANNELS, type UpdaterStatus } from "../shared/ipc";
 
 const api = {
-  appRuntime: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.runtime),
+  creation: {
+    submit: (request: CreationRequest) => ipcRenderer.invoke(CREATION_CHANNELS.submit, request) as Promise<CreationAttempt>,
+    history: () => ipcRenderer.invoke(CREATION_CHANNELS.history) as Promise<CreationAttempt[]>,
+    reopen: (id: string) => ipcRenderer.invoke(CREATION_CHANNELS.reopen, id) as Promise<CreationAttempt>,
+    save: (id: string) => ipcRenderer.invoke(CREATION_CHANNELS.save, id) as Promise<CreationSaveResult>,
+    library: () => ipcRenderer.invoke(CREATION_CHANNELS.library) as Promise<CreationLibraryAsset[]>,
+  },
+  appRuntime: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.runtime) as Promise<Prompt3DAppRuntime>,
   prompt3d: {
+    inspectDeformation: (id: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.inspectDeformation, id),
+    previewDeformation: (edit: import("../shared/deformationRegions").DeformationEdit) => ipcRenderer.invoke(PROMPT3D_CHANNELS.previewDeformation, edit),
     overview: (spec?: AssetSpecV1) => ipcRenderer.invoke(PROMPT3D_CHANNELS.overview, spec),
+    history: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.history) as Promise<Prompt3DHistory>,
+    draft: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.draft) as Promise<AssetSpecV1 | null>,
+    saveDraft: (spec: AssetSpecV1) => ipcRenderer.invoke(PROMPT3D_CHANNELS.saveDraft, spec) as Promise<{ saved: true }>,
     grant: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.grant) as Promise<{ enabled: true }>,
+    revoke: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.revoke) as Promise<{ enabled: false }>,
     plan: (request: Prompt3DPlanRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.plan, request),
+    refine: (request: AssetRefinementRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.refine, request) as Promise<AssetRefinementPlan>,
+    saveRevision: (request: { bytes: Uint8Array; recipe: AssetRefinementRecipe }) => ipcRenderer.invoke(PROMPT3D_CHANNELS.saveRevision, request) as Promise<AssetRefinementRevision>,
+    setPlannerHost: (host: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.plannerHost, host) as Promise<string>,
+    startPlanner: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.startPlanner) as Promise<string>,
     chooseRoot: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.chooseRoot),
+    chooseReferenceImage: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.chooseReferenceImage) as Promise<Prompt3DReferenceImageSelection | null>,
+    chooseReferenceImages: () => ipcRenderer.invoke(PROMPT3D_CHANNELS.chooseReferenceImages) as Promise<Prompt3DReferenceImageSelection[] | null>,
     install: (request: Prompt3DInstallRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.install, request),
     cancelInstall: (providerId: LocalPrompt3DProviderId) => ipcRenderer.invoke(PROMPT3D_CHANNELS.cancelInstall, providerId),
     start: (request: Prompt3DStartRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.start, request),
+    approveConcept: (request: Prompt3DApproveConceptRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.approveConcept, request),
+    rejectConcept: (request: Prompt3DRejectConceptRequest) => ipcRenderer.invoke(PROMPT3D_CHANNELS.rejectConcept, request),
+    regenerateConcept: (id: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.regenerateConcept, id),
     status: (id: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.status, id),
     cancel: (id: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.cancel, id),
     retry: (id: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.retry, id),
     reveal: (path: string) => ipcRenderer.invoke(PROMPT3D_CHANNELS.reveal, path),
+    finishStart: (request: Prompt3DFinishRequest) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.finishStart, request) as Promise<Prompt3DFinishJobStatus>,
+    finishHistory: () => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.finishHistory) as Promise<Prompt3DFinishHistory>,
+    finishStatus: (id: string) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.finishStatus, id) as Promise<Prompt3DFinishJobStatus>,
+    finishCancel: (id: string) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.finishCancel, id) as Promise<Prompt3DFinishJobStatus>,
+    workflowApproveVisual: (request: Prompt3DApproveVisualRequest) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.approveVisual, request) as Promise<Prompt3DVisualApproval>,
+    workflowRejectFinishVisual: (request: Prompt3DRejectFinishVisualRequest) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.rejectFinishVisual, request) as Promise<Prompt3DFinishVisualRejection>,
+    workflowSave: (source: Prompt3DAssetSource) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.save, source) as Promise<Prompt3DWorkflowSaveResult>,
+    workflowLibrary: () => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.library) as Promise<Prompt3DWorkflowLibraryAsset[]>,
+    workflowExport: (source: Prompt3DAssetSource) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.export, source) as Promise<
+      { canceled: true } | Prompt3DWorkflowExportResult
+    >,
+    workflowExportHistory: () => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.exportHistory) as Promise<Prompt3DWorkflowPortableExportRecord[]>,
+    workflowVerifyArtifact: (request: Prompt3DWorkflowArtifactRequest) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.verifyArtifact, request) as Promise<Prompt3DWorkflowArtifactVerification>,
+    batchStart: (request: Prompt3DBatchRequest) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.batchStart, request) as Promise<Prompt3DBatchStatus>,
+    batchStatus: (id?: string) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.batchStatus, id) as Promise<Prompt3DBatchStatus | null>,
+    batchCancel: (id: string) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.batchCancel, id) as Promise<Prompt3DBatchStatus>,
+    batchRetry: (id: string, itemId?: string) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.batchRetry, id, itemId) as Promise<Prompt3DBatchStatus>,
+    batchExport: (id: string) => ipcRenderer.invoke(PROMPT3D_WORKFLOW_CHANNELS.batchExport, id) as Promise<{ canceled: true } | Prompt3DBatchExportResult>,
     onInstallProgress: (cb: (status: unknown) => void) => { const listener = (_e: unknown, status: unknown) => cb(status); ipcRenderer.on(PROMPT3D_CHANNELS.installProgress, listener); return () => ipcRenderer.removeListener(PROMPT3D_CHANNELS.installProgress, listener); },
     onJobProgress: (cb: (status: unknown) => void) => { const listener = (_e: unknown, status: unknown) => cb(status); ipcRenderer.on(PROMPT3D_CHANNELS.jobProgress, listener); return () => ipcRenderer.removeListener(PROMPT3D_CHANNELS.jobProgress, listener); },
+    onFinishProgress: (cb: (status: Prompt3DFinishJobStatus) => void) => { const listener = (_e: unknown, status: Prompt3DFinishJobStatus) => cb(status); ipcRenderer.on(PROMPT3D_WORKFLOW_CHANNELS.finishProgress, listener); return () => ipcRenderer.removeListener(PROMPT3D_WORKFLOW_CHANNELS.finishProgress, listener); },
+    onBatchProgress: (cb: (status: Prompt3DBatchStatus) => void) => { const listener = (_e: unknown, status: Prompt3DBatchStatus) => cb(status); ipcRenderer.on(PROMPT3D_WORKFLOW_CHANNELS.batchProgress, listener); return () => ipcRenderer.removeListener(PROMPT3D_WORKFLOW_CHANNELS.batchProgress, listener); },
   },
   // Settings
   settings: {
@@ -308,12 +374,14 @@ const api = {
   },
   // Auto-update
   updater: {
-    check: () => ipcRenderer.invoke("updater:check"),
-    install: () => ipcRenderer.invoke("updater:install"),
-    onStatus: (cb: (s: any) => void) => {
-      const listener = (_e: any, s: any) => cb(s);
-      ipcRenderer.on("updater:status", listener);
-      return () => ipcRenderer.removeListener("updater:status", listener);
+    getStatus: (): Promise<UpdaterStatus> => ipcRenderer.invoke(UPDATER_CHANNELS.getStatus),
+    check: () => ipcRenderer.invoke(UPDATER_CHANNELS.check),
+    download: () => ipcRenderer.invoke(UPDATER_CHANNELS.download),
+    install: () => ipcRenderer.invoke(UPDATER_CHANNELS.install),
+    onStatus: (cb: (s: UpdaterStatus) => void) => {
+      const listener = (_e: unknown, s: UpdaterStatus) => cb(s);
+      ipcRenderer.on(UPDATER_CHANNELS.status, listener);
+      return () => ipcRenderer.removeListener(UPDATER_CHANNELS.status, listener);
     },
   },
   // Auto-launch (Windows startup)
@@ -480,6 +548,8 @@ const api = {
       ipcRenderer.invoke("forge:readLocalImage", imagePath),
     writeTempFile: (args: { name: string; bytes: Uint8Array }) =>
       ipcRenderer.invoke("forge:writeTempFile", args) as Promise<string>,
+    saveExport: (args: { name: string; bytes: Uint8Array }) =>
+      ipcRenderer.invoke("forge:saveExport", args) as Promise<{ ok: true; savedPath: string } | { canceled: true }>,
     /** Download a public CDN model and open it in Forge 3D. */
     openRemote: (url: string) => ipcRenderer.invoke("forge:openRemote", url) as Promise<{ path: string; name: string }>,
     /** Pop out the 3D viewport to a separate window. */

@@ -32,7 +32,7 @@ import { understandAsset } from "./assetUnderstand";
 import { extractZip } from "./ingestion/archive";
 import log, { initLogger, getLogFilePath } from "./logger";
 import { startConnectivity, stopConnectivity, getConnectivity } from "./connectivity";
-import { setupAutoUpdater, checkForUpdatesNow, quitAndInstall } from "./updater";
+import { setupAutoUpdater, checkForUpdatesNow, downloadUpdateNow, quitAndInstall, getUpdaterStatus } from "./updater";
 import { getCfStatus, readCf, writeCf, clearCf, resolvePublicCdnBase } from "./cf/credentials";
 import { workerHealth } from "./cf/objectStoreWorker";
 import { r2Health, resetR2Client, r2GetSignedUploadUrl, r2GetSignedDownloadUrl, r2List, r2PublicUrl, r2Head } from "./cf/r2Direct";
@@ -89,7 +89,25 @@ import {
   getPluginToken,
 } from "./pluginHost";
 import { Prompt3DService } from "./prompt3d/service";
-import { PROMPT3D_CHANNELS, type LocalPrompt3DProviderId, type Prompt3DInstallRequest, type Prompt3DPlanRequest, type Prompt3DStartRequest } from "../shared/prompt3d";
+import { discoverPrompt3DRoot } from "./prompt3d/discovery";
+import { localControlsEnabled, saveLocalControlsEnabled, loadPrompt3DDraft, savePrompt3DDraft, loadPlannerHost, savePlannerHost } from "./prompt3d/controlsPreference";
+import { PROMPT3D_CHANNELS, type LocalPrompt3DProviderId, type Prompt3DApproveConceptRequest, type Prompt3DInstallRequest, type Prompt3DPlanRequest, type Prompt3DRejectConceptRequest, type Prompt3DStartRequest } from "../shared/prompt3d";
+import {
+  PROMPT3D_WORKFLOW_CHANNELS,
+  type Prompt3DAssetSource,
+  type Prompt3DApproveVisualRequest,
+  type Prompt3DWorkflowArtifactRequest,
+  type Prompt3DBatchRequest,
+  type Prompt3DFinishRequest,
+  type Prompt3DRejectFinishVisualRequest,
+} from "../shared/prompt3dWorkflow";
+import { CREATION_CHANNELS, type CreationRequest } from "../shared/creationFlow";
+import { UPDATER_CHANNELS } from "../shared/ipc";
+import { creationHistory, creationLibrary, reopenCreation, saveCreationToLibrary, submitCreation } from "./prompt3d/creationService";
+import { planAssetRefinement, saveAssetRefinement } from "./prompt3d/refinement";
+import { startCpuPlanner, stopOwnedCpuPlanner } from "./prompt3d/plannerRuntime";
+import { recordWorkflowExport, verifyWorkflowArtifact, workflowExportHistory } from "./prompt3d/artifactVerification";
+import { inspectPrompt3DReferenceImage } from "./prompt3d/referenceImage";
 
 const OFFLINE_LOCAL_TEST = process.env.GRUDGE_OFFLINE_LOCAL_TEST === "1";
 if (OFFLINE_LOCAL_TEST) {
@@ -129,6 +147,7 @@ const prompt3d = new Prompt3DService({
   root: resolve(process.env.GRUDGE_PROMPT3D_ROOT || join(app.getPath("userData"), "prompt3d")),
   appRoot: app.isPackaged ? resolve(process.resourcesPath) : resolve(join(__dirname, "..", "..")),
   offlineLocalTest: OFFLINE_LOCAL_TEST,
+  onWorkflowLibraryRoot: async (localAssetsRoot) => { await workspaceStore.saveWorkspace({ localAssetsRoot }); },
 });
 
 const RENDERER_DEV_URL = process.env.GRUDGE_RENDERER_URL || "http://localhost:5173";
@@ -296,6 +315,23 @@ if (!gotLock) {
     }
     // Stream local mp4/webm/audio into Elite Viewer without full-file blob load
     registerMediaFileProtocol();
+    // Keep an explicitly selected generator root across app restarts. An
+    // environment override remains authoritative for isolated/offline runs.
+    if (!process.env.GRUDGE_PROMPT3D_ROOT) {
+      const savedWorkspace = await workspaceStore.loadWorkspace();
+      if (savedWorkspace.prompt3dRoot) {
+        await prompt3d.restoreRoot(savedWorkspace.prompt3dRoot);
+      } else {
+        const discoveredRoot = await discoverPrompt3DRoot([
+          "E:\\GrudgePrompt3D",
+          join(app.getPath("userData"), "prompt3d"),
+        ]);
+        if (discoveredRoot) {
+          await prompt3d.restoreRoot(discoveredRoot);
+          await workspaceStore.saveWorkspace({ prompt3dRoot: discoveredRoot });
+        }
+      }
+    }
     // Show UI first — never block window creation on Blender/ffmpeg probes.
     // Secrets seed runs in parallel so vault warm-up doesn't delay first paint.
     await createMainWindow();
@@ -409,6 +445,12 @@ app.on("before-quit", () => {
 // ---------------------------------------------------------------------------
 function registerIpc() {
   const prompt3dCapabilities = new Map<number, string>();
+  let controlsQueue: Promise<unknown> = Promise.resolve();
+  const serializeControls = <T,>(operation: () => Promise<T>): Promise<T> => {
+    const result = controlsQueue.then(operation);
+    controlsQueue = result.catch(() => undefined);
+    return result;
+  };
   const assertPrompt3DSender = (event: Electron.IpcMainInvokeEvent) => {
     if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error("Prompt-to-3D IPC sender is not the main application window.");
     if (event.senderFrame !== event.sender.mainFrame) throw new Error("Prompt-to-3D IPC is restricted to the top-level application frame.");
@@ -425,34 +467,181 @@ function registerIpc() {
     prompt3d.assertCapability(token);
     return token;
   };
-  prompt3d.on("install-progress", (payload) => mainWindow?.webContents.send(PROMPT3D_CHANNELS.installProgress, payload));
-  prompt3d.on("job-progress", (payload) => mainWindow?.webContents.send(PROMPT3D_CHANNELS.jobProgress, payload));
-  ipcMain.handle(PROMPT3D_CHANNELS.runtime, (event) => { assertPrompt3DSender(event); return { offlineLocalTest: OFFLINE_LOCAL_TEST, prompt3dRoot: prompt3d.getRoot() }; });
-  ipcMain.handle(PROMPT3D_CHANNELS.overview, (event, spec) => { assertPrompt3DSender(event); return prompt3d.overview(spec); });
-  ipcMain.handle(PROMPT3D_CHANNELS.grant, (event) => {
+  const enablePrompt3DForWindow = (event: Electron.IpcMainInvokeEvent) => {
     assertPrompt3DSender(event);
-    const existing = prompt3dCapabilities.get(event.sender.id);
-    if (existing) prompt3d.revoke(existing);
+    if (prompt3dCapabilities.has(event.sender.id)) return;
     const token = prompt3d.grant();
     const senderId = event.sender.id;
     prompt3dCapabilities.set(senderId, token);
-    event.sender.once("destroyed", () => { prompt3d.revoke(token); prompt3dCapabilities.delete(senderId); });
-    return { enabled: true as const };
+    event.sender.once("destroyed", () => {
+      prompt3d.revoke(token);
+      if (prompt3dCapabilities.get(senderId) === token) prompt3dCapabilities.delete(senderId);
+    });
+  };
+  prompt3d.on("install-progress", (payload) => mainWindow?.webContents.send(PROMPT3D_CHANNELS.installProgress, payload));
+  prompt3d.on("job-progress", (payload) => mainWindow?.webContents.send(PROMPT3D_CHANNELS.jobProgress, payload));
+  prompt3d.on("finish-progress", (payload) => mainWindow?.webContents.send(PROMPT3D_WORKFLOW_CHANNELS.finishProgress, payload));
+  prompt3d.on("batch-progress", (payload) => mainWindow?.webContents.send(PROMPT3D_WORKFLOW_CHANNELS.batchProgress, payload));
+  ipcMain.handle(PROMPT3D_CHANNELS.runtime, (event) => serializeControls(async () => {
+    assertPrompt3DSender(event);
+    const enabled = await localControlsEnabled();
+    if (enabled) enablePrompt3DForWindow(event);
+    return { offlineLocalTest: OFFLINE_LOCAL_TEST, prompt3dRoot: prompt3d.getRoot(), localControlsEnabled: enabled, plannerHost: await loadPlannerHost() };
+  }));
+  ipcMain.handle(PROMPT3D_CHANNELS.overview, (event, spec) => { assertPrompt3DSender(event); return prompt3d.overview(spec); });
+  ipcMain.handle(PROMPT3D_CHANNELS.history, (event) => { assertPrompt3DSender(event); return prompt3d.history(); });
+  ipcMain.handle(PROMPT3D_CHANNELS.draft, async (event) => {
+    assertPrompt3DSender(event);
+    return await loadPrompt3DDraft() ?? (await prompt3d.history()).latestJob?.spec ?? null;
   });
+  ipcMain.handle(PROMPT3D_CHANNELS.saveDraft, async (event, spec) => {
+    assertPrompt3DSender(event);
+    await savePrompt3DDraft(spec);
+    return { saved: true };
+  });
+  ipcMain.handle(PROMPT3D_CHANNELS.grant, (event) => serializeControls(async () => {
+    assertPrompt3DSender(event);
+    await saveLocalControlsEnabled(true);
+    enablePrompt3DForWindow(event);
+    return { enabled: true as const };
+  }));
+  ipcMain.handle(PROMPT3D_CHANNELS.revoke, (event) => serializeControls(async () => {
+    assertPrompt3DSender(event);
+    await saveLocalControlsEnabled(false);
+    prompt3d.revokeAll();
+    prompt3dCapabilities.clear();
+    return { enabled: false as const };
+  }));
   ipcMain.handle(PROMPT3D_CHANNELS.plan, (event, request: Prompt3DPlanRequest) => prompt3d.plan(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_CHANNELS.refine, (event, request) => { prompt3d.assertCapability(prompt3dCapabilityFor(event)); return planAssetRefinement(request); });
+  ipcMain.handle(PROMPT3D_CHANNELS.plannerHost, (event, host: string) => { prompt3d.assertCapability(prompt3dCapabilityFor(event)); return savePlannerHost(host); });
+  ipcMain.handle(PROMPT3D_CHANNELS.startPlanner, (event) => { prompt3d.assertCapability(prompt3dCapabilityFor(event)); return startCpuPlanner(); });
+  app.on("before-quit", stopOwnedCpuPlanner);
+  ipcMain.handle(PROMPT3D_CHANNELS.saveRevision, (event, request) => { prompt3d.assertCapability(prompt3dCapabilityFor(event)); return saveAssetRefinement(prompt3d.getRoot(), request); });
   ipcMain.handle(PROMPT3D_CHANNELS.chooseRoot, async (event) => {
     const token = prompt3dCapabilityFor(event);
     const result = await dialog.showOpenDialog(mainWindow!, { title: "Choose local 3D generator storage", defaultPath: prompt3d.getRoot(), properties: ["openDirectory", "createDirectory"] });
     if (result.canceled || !result.filePaths[0]) return null;
-    return prompt3d.setRoot(token, result.filePaths[0]);
+    const overview = await prompt3d.setRoot(token, result.filePaths[0]);
+    await workspaceStore.saveWorkspace({ prompt3dRoot: prompt3d.getRoot() });
+    return overview;
+  });
+  ipcMain.handle(PROMPT3D_CHANNELS.chooseReferenceImage, async (event) => {
+    prompt3dCapabilityFor(event);
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: "Choose a local reference image",
+      properties: ["openFile"],
+      filters: [
+        { name: "Reference images", extensions: ["png", "jpg", "jpeg", "webp"] },
+      ],
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    return inspectPrompt3DReferenceImage(result.filePaths[0]);
+  });
+  ipcMain.handle(PROMPT3D_CHANNELS.chooseReferenceImages, async (event) => {
+    prompt3dCapabilityFor(event);
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: "Choose one to four Hunyuan reference views",
+      properties: ["openFile", "multiSelections"],
+      filters: [
+        { name: "Reference images", extensions: ["png", "jpg", "jpeg", "webp"] },
+      ],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    if (result.filePaths.length > 4) throw new Error("Choose no more than four reference images.");
+    return Promise.all(result.filePaths.map((path) => inspectPrompt3DReferenceImage(path)));
   });
   ipcMain.handle(PROMPT3D_CHANNELS.install, (event, request: Prompt3DInstallRequest) => prompt3d.install(prompt3dCapabilityFor(event), request));
   ipcMain.handle(PROMPT3D_CHANNELS.cancelInstall, (event, providerId: LocalPrompt3DProviderId) => prompt3d.cancelInstall(prompt3dCapabilityFor(event), providerId));
   ipcMain.handle(PROMPT3D_CHANNELS.start, (event, request: Prompt3DStartRequest) => prompt3d.start(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_CHANNELS.approveConcept, (event, request: Prompt3DApproveConceptRequest) => prompt3d.approveConcept(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_CHANNELS.rejectConcept, (event, request: Prompt3DRejectConceptRequest) => prompt3d.rejectConcept(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_CHANNELS.regenerateConcept, (event, id: string) => prompt3d.regenerateConcept(prompt3dCapabilityFor(event), id));
+  ipcMain.handle(CREATION_CHANNELS.history, (event) => { assertPrompt3DSender(event); return creationHistory(prompt3d.getRoot()); });
+  ipcMain.handle(PROMPT3D_CHANNELS.inspectDeformation, (event, id: string) => prompt3d.inspectDeformation(prompt3dCapabilityFor(event), id));
+  ipcMain.handle(PROMPT3D_CHANNELS.previewDeformation, (event, edit: import("../shared/deformationRegions").DeformationEdit) => prompt3d.previewDeformation(prompt3dCapabilityFor(event), edit));
+  ipcMain.handle(CREATION_CHANNELS.submit, (event, request: CreationRequest) => { prompt3d.assertCapability(prompt3dCapabilityFor(event)); return submitCreation(prompt3d.getRoot(), request); });
+  ipcMain.handle(CREATION_CHANNELS.reopen, (event, id: string) => { assertPrompt3DSender(event); return reopenCreation(prompt3d.getRoot(), id); });
+  ipcMain.handle(CREATION_CHANNELS.library, (event) => { assertPrompt3DSender(event); return creationLibrary(prompt3d.getRoot()); });
+  ipcMain.handle(CREATION_CHANNELS.save, async (event, id: string) => {
+    assertPrompt3DSender(event);
+    const result=await saveCreationToLibrary(prompt3d.getRoot(),id);
+    await workspaceStore.saveWorkspace({localAssetsRoot:result.localAssetsRoot});
+    return result;
+  });
   ipcMain.handle(PROMPT3D_CHANNELS.status, (event, id: string) => prompt3d.status(prompt3dCapabilityFor(event), id));
   ipcMain.handle(PROMPT3D_CHANNELS.cancel, (event, id: string) => prompt3d.cancel(prompt3dCapabilityFor(event), id));
   ipcMain.handle(PROMPT3D_CHANNELS.retry, (event, id: string) => prompt3d.retry(prompt3dCapabilityFor(event), id));
   ipcMain.handle(PROMPT3D_CHANNELS.reveal, (event, path: string) => { const safe = prompt3d.authorizeResultPath(prompt3dCapabilityFor(event), path); shell.showItemInFolder(safe); return { ok: true }; });
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.finishStart, (event, request: Prompt3DFinishRequest) =>
+    prompt3d.finishStart(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.finishHistory, (event) => {
+    prompt3dCapabilityFor(event);
+    return prompt3d.finishHistory();
+  });
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.finishStatus, (event, id: string) =>
+    prompt3d.finishStatus(prompt3dCapabilityFor(event), id));
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.finishCancel, (event, id: string) =>
+    prompt3d.finishCancel(prompt3dCapabilityFor(event), id));
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.approveVisual, (event, request: Prompt3DApproveVisualRequest) =>
+    prompt3d.workflowApproveVisual(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.rejectFinishVisual, (event, request: Prompt3DRejectFinishVisualRequest) =>
+    prompt3d.workflowRejectFinishVisual(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.save, async (event, source: Prompt3DAssetSource) => {
+    const result = await prompt3d.workflowSave(prompt3dCapabilityFor(event), source);
+    await workspaceStore.saveWorkspace({ localAssetsRoot: result.localAssetsRoot });
+    return result;
+  });
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.library, (event) =>
+    prompt3d.workflowLibrary(prompt3dCapabilityFor(event)));
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.export, async (event, source: Prompt3DAssetSource) => {
+    const token = prompt3dCapabilityFor(event);
+    const safeJobId = typeof source?.jobId === "string"
+      ? source.jobId.replace(/[^a-z0-9_-]/gi, "").slice(0, 32)
+      : "";
+    const variant = source?.kind === "generation" && Number.isInteger(source.variantIndex)
+      ? `-variant-${Number(source.variantIndex) + 1}`
+      : "";
+    const result = await dialog.showSaveDialog(mainWindow!, {
+      title: "Export finished Prompt-to-3D asset",
+      defaultPath: join(app.getPath("documents"), `grudge-${safeJobId || "asset"}${variant}.glb`),
+      filters: [{ name: "glTF Binary", extensions: ["glb"] }],
+      properties: ["createDirectory", "showOverwriteConfirmation"],
+    });
+    if (result.canceled || !result.filePath) return { canceled: true as const };
+    const exported = await prompt3d.workflowExport(token, source, result.filePath);
+    const finished = await prompt3d.finishStatus(token, source.jobId);
+    return recordWorkflowExport(prompt3d.getRoot(), finished, exported);
+  });
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.exportHistory, (event) => {
+    prompt3dCapabilityFor(event);
+    return workflowExportHistory(prompt3d.getRoot());
+  });
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.verifyArtifact, async (event, request: Prompt3DWorkflowArtifactRequest) => {
+    const token = prompt3dCapabilityFor(event);
+    const managedAssets = request?.kind === "managed" ? await prompt3d.workflowLibrary(token) : [];
+    return verifyWorkflowArtifact(prompt3d.getRoot(), request, managedAssets);
+  });
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.batchStart, (event, request: Prompt3DBatchRequest) =>
+    prompt3d.batchStart(prompt3dCapabilityFor(event), request));
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.batchStatus, (event, id?: string) =>
+    prompt3d.batchStatus(prompt3dCapabilityFor(event), id));
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.batchCancel, (event, id: string) =>
+    prompt3d.batchCancel(prompt3dCapabilityFor(event), id));
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.batchRetry, (event, id: string, itemId?: string) =>
+    prompt3d.batchRetry(prompt3dCapabilityFor(event), id, itemId));
+  ipcMain.handle(PROMPT3D_WORKFLOW_CHANNELS.batchExport, async (event, id: string) => {
+    const token = prompt3dCapabilityFor(event);
+    const batch = prompt3d.batchStatus(token, id);
+    if (!batch || batch.state !== "complete") throw new Error("Finish the serial Prompt-to-3D batch before exporting its outputs.");
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: "Export all finished Prompt-to-3D batch assets",
+      defaultPath: app.getPath("documents"),
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (result.canceled || !result.filePaths[0]) return { canceled: true as const };
+    return prompt3d.batchExport(token, id, result.filePaths[0]);
+  });
   // Settings
   ipcMain.handle("settings:get", async () => {
     const idBaseUrl = await api.getIdBaseUrl();
@@ -727,8 +916,10 @@ function registerIpc() {
   ipcMain.handle("connectivity:get", () => getConnectivity());
 
   // Updater
-  ipcMain.handle("updater:check", () => checkForUpdatesNow());
-  ipcMain.handle("updater:install", () => { quitAndInstall(); });
+  ipcMain.handle(UPDATER_CHANNELS.getStatus, (event) => { assertPrompt3DSender(event); return getUpdaterStatus(); });
+  ipcMain.handle(UPDATER_CHANNELS.check, (event) => { assertPrompt3DSender(event); return checkForUpdatesNow(); });
+  ipcMain.handle(UPDATER_CHANNELS.download, (event) => { assertPrompt3DSender(event); return downloadUpdateNow(); });
+  ipcMain.handle(UPDATER_CHANNELS.install, (event) => { assertPrompt3DSender(event); quitAndInstall(); });
 
   // Auto-launch on Windows startup
   ipcMain.handle("settings:getAutoLaunch", () => app.getLoginItemSettings().openAtLogin);
@@ -975,6 +1166,8 @@ function registerIpc() {
     forge.readLocalImage(imagePath));
   ipcMain.handle("forge:writeTempFile", async (_e, args: { name: string; bytes: Uint8Array }) =>
     forge.writeTempModelFile(args.name, args.bytes));
+  ipcMain.handle("forge:saveExport", async (_e, args: { name: string; bytes: Uint8Array }) =>
+    forge.saveExportFile(args, mainWindow && !mainWindow.isDestroyed() ? mainWindow : null));
   ipcMain.handle("forge:openRemote", async (_e, url: string) => {
     if (!url || typeof url !== "string") throw new Error("forge:openRemote requires a URL");
     return forge.openRemoteModel(url, mainWindow && !mainWindow.isDestroyed() ? mainWindow : null);

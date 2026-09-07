@@ -27,6 +27,18 @@ import {
 import { SceneEngine } from "../lib/forge/sceneEngine";
 import { loadModel, type LoadedModel } from "../lib/forge/loaders";
 import { makeBoneLabel } from "../lib/forge/skeletonOverlay";
+import type { Prompt3DAnimationOverrides } from "../../shared/prompt3dWorkflow";
+
+interface Prompt3DRigContext {
+  sourcePath: string;
+  sourceSha256?: string;
+  finishJobId: string;
+  sourceJobId?: string;
+  instruction: string;
+  animation?: Prompt3DAnimationOverrides;
+  seed?: number;
+  suggestedPlacements?: BonePlacement[];
+}
 import {
   applyUnarmedVisibility,
   loadToonPlayKit,
@@ -154,6 +166,7 @@ export default function SkeletonStudio() {
     blender?: { available?: boolean; path?: string; version?: string };
     fbx2gltf?: { available?: boolean; path?: string };
   } | null>(null);
+  const [prompt3dContext, setPrompt3dContext] = useState<Prompt3DRigContext | null>(null);
 
   const [packId, setPackId] = useState("sword_shield");
   const [playRace, setPlayRace] = useState("human");
@@ -331,6 +344,7 @@ export default function SkeletonStudio() {
   }
 
   async function loadFromPath(path: string) {
+  async function loadFromPath(path: string, suggestedPlacements?: BonePlacement[], reviewContext?: Prompt3DRigContext) {
     if (!window.grudge?.forge?.readFile) {
       toast.error("Forge IPC missing — restart Dev Tool");
       return;
@@ -345,6 +359,10 @@ export default function SkeletonStudio() {
         bytes.byteOffset,
         bytes.byteOffset + bytes.byteLength,
       ) as ArrayBuffer;
+      if (reviewContext?.sourceSha256) {
+        const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", ab)), (value) => value.toString(16).padStart(2, "0")).join("");
+        if (digest !== reviewContext.sourceSha256) throw new Error("The model changed since this skeleton review was requested. Reopen review from its exact retained revision.");
+      }
       const file = new File([ab], name);
       const loaded = await loadModel(file, { diskPath: path });
       await attachLoaded(loaded, path, true);
@@ -356,6 +374,56 @@ export default function SkeletonStudio() {
       setStep("extract");
       setStatusLine(
         `Loaded · ${loaded.bones} bones · ${loaded.animations.length} clips · extract next`,
+      const loaded = await loadModel(file, { diskPath: path, materialPolicy: "preserve-authored", skipGenericPreview: Boolean(reviewContext) });
+      if (engineRef.current) {
+        const scene = engineRef.current.scene;
+        const toRemove: THREE.Object3D[] = [];
+        scene.children.forEach((o) => {
+          if (o.userData?.isUserModel) toRemove.push(o);
+        });
+        toRemove.forEach((o) => {
+          engineRef.current?.removeSkeletonHelper(o);
+          const m = o.userData.grudgeMixer as THREE.AnimationMixer | undefined;
+          if (m) engineRef.current?.removeMixer(m);
+          scene.remove(o);
+        });
+        loaded.object.userData.isUserModel = true;
+        scene.add(loaded.object);
+        engineRef.current.frame(loaded.object);
+
+        const { attachAnimationMixer } = await import("../lib/forge/forgeAnimation");
+        const handle = attachAnimationMixer(loaded.object, loaded.animations, {
+          dropRootMotion: true,
+        });
+        engineRef.current.mixers.push(handle.mixer);
+        engineRef.current.setSkeletonHelper(loaded.object, showSkeleton);
+        setMixer(handle.mixer);
+        setAnimClips(handle.clips);
+        setActiveAction(null);
+
+        const jointNames = collectBoneNames(loaded.object);
+        if (jointNames.length) {
+          setMapping(() =>
+            applyAutoMapToDoc({ ...emptyMapping(path), placements: suggestedPlacements ?? [] }, jointNames),
+          );
+        } else {
+          setMapping({ ...emptyMapping(path), placements: suggestedPlacements?.length ? suggestedPlacements : [] });
+        }
+      }
+      setModel(loaded);
+      setPrompt3dContext(reviewContext ?? null);
+      setDiskPath(path);
+      setExtract(null);
+      setPackDir(null);
+      setTposePath(null);
+      setSlotOverrides({});
+      setStep(reviewContext || suggestedPlacements?.length ? "place" : "extract");
+      setStatusLine(
+        suggestedPlacements?.length
+          ? `Loaded · ${suggestedPlacements.length}/22 fitted markers · review and correct the overlay`
+          : reviewContext
+            ? `Loaded exact review model · ${loaded.bones} bones · no fitted markers supplied`
+            : `Loaded · ${loaded.bones} bones · ${loaded.animations.length} clips · ready to extract`,
       );
       toast.success("Character loaded", {
         description: `${loaded.bones} bones · ${loaded.animations.length} clips`,
@@ -372,15 +440,44 @@ export default function SkeletonStudio() {
   useEffect(() => {
     try {
       const pending = sessionStorage.getItem("grudge.skeleton.pendingPath");
+      const contextRaw = sessionStorage.getItem("grudge.skeleton.prompt3dContext");
+      const context = contextRaw ? JSON.parse(contextRaw) as Prompt3DRigContext : null;
       if (pending) {
         sessionStorage.removeItem("grudge.skeleton.pendingPath");
-        void loadFromPath(pending);
+        const matchedContext = context?.sourcePath === pending && context.finishJobId && context.instruction ? context : undefined;
+        sessionStorage.removeItem("grudge.skeleton.prompt3dContext");
+        void loadFromPath(pending, matchedContext?.suggestedPlacements, matchedContext);
       }
     } catch {
       /* ignore */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only handoff
   }, []);
+
+  async function returnCorrectionToPrompt3D(applyPlacements = true) {
+    if (!prompt3dContext) return;
+    if (applyPlacements && mapping.placements.length !== MIXAMO_25_CORE.length) {
+      toast.error(`Place all ${MIXAMO_25_CORE.length} Mixamo-25 core markers before returning.`);
+      return;
+    }
+    const unique = new Set(mapping.placements.map((placement) => placement.bone));
+    if (applyPlacements && unique.size !== MIXAMO_25_CORE.length) {
+      toast.error("Each Mixamo-25 core bone needs exactly one placement.");
+      return;
+    }
+    sessionStorage.setItem("grudge.prompt3d.pendingRigCorrection", JSON.stringify({
+      sourcePath: prompt3dContext.sourcePath,
+      sourceSha256: prompt3dContext.sourceSha256,
+      finishJobId: prompt3dContext.finishJobId,
+      sourceJobId: prompt3dContext.sourceJobId,
+      instruction: prompt3dContext.instruction,
+      animation: prompt3dContext.animation,
+      seed: prompt3dContext.seed,
+      ...(applyPlacements ? { placements: mapping.placements } : {}),
+    }));
+    toast.success(applyPlacements ? "Corrected placements returned to Prompt-to-3D" : "Animation prompt restored", { description: "The exact painted source and motion settings remain retained." });
+    await window.grudge.app.openRoute("/prompt3d");
+  }
 
   async function pickFile() {
     if (!window.grudge?.files?.pickForUpload) {
@@ -930,7 +1027,9 @@ export default function SkeletonStudio() {
         setStep("load");
         return;
       }
-      if (!(mapping.autoMap?.matched || Object.keys(mapping.reverseMap || {}).length)) {
+      if (prompt3dContext) {
+        setStatusLine("Review the model and fitted markers, or return to its retained animation prompt.");
+      } else if (!(mapping.autoMap?.matched || Object.keys(mapping.reverseMap || {}).length)) {
         await runAutoMap();
       } else {
         setStatusLine("Click mesh to place active Mixamo bone (snaps to nearest joint)");
@@ -1407,6 +1506,40 @@ export default function SkeletonStudio() {
                   <Target className="h-4 w-4" /> Auto-map Mixamo-25
                 </button>
                 <p className="text-[10px] text-slate-500">{BIP001_PLAY_LAW}</p>
+                <div className="max-h-56 overflow-y-auto space-y-0.5">
+                  {MIXAMO_25_CORE.map((b) => {
+                    const placed = mapping.placements.some((p) => p.bone === b);
+                    const src =
+                      mapping.reverseMap?.[b] ||
+                      mapping.placements.find((p) => p.bone === b)?.sourceBone;
+                    return (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => setActiveBone(b)}
+                        className={`flex w-full items-center justify-between rounded px-1.5 py-0.5 text-left text-[11px] ${
+                          activeBone === b
+                            ? "bg-cyan-950 text-cyan-200"
+                            : "hover:bg-white/5 text-slate-300"
+                        }`}
+                      >
+                        <span className="truncate">
+                          {b}
+                          {src ? <span className="text-slate-600"> ← {src}</span> : null}
+                        </span>
+                        <span className={placed || src ? "text-emerald-400" : "text-slate-600"}>
+                          {placed || src ? "●" : "○"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {prompt3dContext && <div className="rounded border border-amber-500/40 bg-amber-950/20 p-2 text-[11px] text-amber-100">
+                  <b>Prompt-to-3D correction</b>
+                  <p className="mt-1 text-slate-400">Adjust the fitted overlay, then return all 22 placements. The painted source remains unchanged.</p>
+                  <button type="button" disabled={busy || mapping.placements.length !== MIXAMO_25_CORE.length} onClick={() => void returnCorrectionToPrompt3D()} className="mt-2 w-full rounded border border-amber-400/50 px-2 py-2 font-semibold disabled:opacity-40">Use corrected placements in Prompt-to-3D</button>
+                  <button type="button" disabled={busy} onClick={() => void returnCorrectionToPrompt3D(false)} className="mt-2 w-full rounded border border-white/20 px-2 py-2">Return to animation</button>
+                </div>}
               </section>
             )}
 

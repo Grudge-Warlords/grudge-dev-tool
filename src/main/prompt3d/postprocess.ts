@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { AssetSpecV1 } from "../../shared/prompt3d";
+import { resolveObjectRules } from "../../shared/prompt3dRules";
 
 export async function postprocessPrompt3DGlb(input: string, output: string, spec: AssetSpecV1): Promise<void> {
   const { NodeIO, PropertyType } = require("@gltf-transform/core");
@@ -25,11 +26,17 @@ export async function postprocessPrompt3DGlb(input: string, output: string, spec
   }
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
   const positions: any[] = [];
+  const seenPositions = new Set<unknown>();
+  const objectRule = spec.objectRules ? resolveObjectRules(spec) : undefined;
   for (const mesh of root.listMeshes?.() ?? []) {
     for (const primitive of mesh.listPrimitives?.() ?? []) {
       const accessor = primitive.getAttribute?.("POSITION");
       const array = accessor?.getArray?.();
       if (!accessor || !array) continue;
+      if (seenPositions.has(accessor)) continue;
+      seenPositions.add(accessor);
+      // Deliberate user correction only; never infer a hilt from unlabelled geometry.
+      if (objectRule?.flipVertical) for (let i = 0; i < array.length; i += 3) { array[i] = -array[i]; array[i + 1] = -array[i + 1]; }
       positions.push({ accessor, array });
       for (let i = 0; i < array.length; i += 3) {
         minX = Math.min(minX, Number(array[i])); maxX = Math.max(maxX, Number(array[i]));
@@ -43,13 +50,14 @@ export async function postprocessPrompt3DGlb(input: string, output: string, spec
   const target = [spec.dimensions.width * unit, spec.dimensions.height * unit, spec.dimensions.depth * unit];
   const spans = [maxX - minX, maxY - minY, maxZ - minZ];
   if (spans.some((v) => v <= 0)) throw new Error("Provider output has a zero-sized geometry axis.");
-  const scales = target.map((v, i) => v / spans[i]);
-  const centerX = (minX + maxX) / 2, centerZ = (minZ + maxZ) / 2;
+  const scales = spec.scaleMode === "exact" ? target.map((v, i) => v / spans[i]) : spans.map(() => target[1] / spans[1]);
+  const anchor = objectRule?.anchor ?? { x: 0.5, y: 0, z: 0.5 };
+  const centerX = minX + spans[0] * anchor.x, anchorY = minY + spans[1] * anchor.y, centerZ = minZ + spans[2] * anchor.z;
   for (const { accessor, array } of positions) {
     const next = new (array.constructor as any)(array.length);
     for (let i = 0; i < array.length; i += 3) {
       next[i] = (Number(array[i]) - centerX) * scales[0];
-      next[i + 1] = (Number(array[i + 1]) - minY) * scales[1];
+      next[i + 1] = (Number(array[i + 1]) - anchorY) * scales[1];
       next[i + 2] = (Number(array[i + 2]) - centerZ) * scales[2];
     }
     accessor.setArray(next);
@@ -95,7 +103,9 @@ export async function postprocessPrompt3DGlb(input: string, output: string, spec
   if (sourceTriangles > spec.budgets.maxTriangles) {
     const { MeshoptSimplifier } = require("meshoptimizer");
     await MeshoptSimplifier.ready;
-    await document.transform(simplify({ simplifier: MeshoptSimplifier, ratio: spec.budgets.maxTriangles / sourceTriangles, error: 1 }));
+    // Do not destroy a thin blade or guard to force a budget. Validation can
+    // request a larger budget when this silhouette-preserving pass cannot fit.
+    await document.transform(simplify({ simplifier: MeshoptSimplifier, ratio: spec.budgets.maxTriangles / sourceTriangles, error: 0.005 }));
     cleanTriangles();
   }
   await document.transform(normals({ overwrite: true }));
@@ -106,6 +116,11 @@ export async function postprocessPrompt3DGlb(input: string, output: string, spec
     stableRoots.push(stableRoot);
     scene.addChild(stableRoot);
     for (const child of children) if (child !== stableRoot) stableRoot.addChild(child);
+    if (objectRule) {
+      const attachment = document.createNode("GrudgeAttachment");
+      attachment.setExtras({ grudgeAttachment: { label: objectRule.anchorLabel, objectType: objectRule.type, component: objectRule.component, normalizedBounds: anchor, method: "user-bounds", semanticPositionVerified: false } });
+      stableRoot.addChild(attachment);
+    }
   }
   if (spec.generateCollision) {
     for (const stableRoot of stableRoots) {
@@ -113,8 +128,8 @@ export async function postprocessPrompt3DGlb(input: string, output: string, spec
       collision.setExtras({
         grudgeCollision: {
           shape: "box",
-          sizeMeters: { width: target[0], height: target[1], depth: target[2] },
-          centerMeters: { x: 0, y: target[1] / 2, z: 0 },
+          sizeMeters: { width: spans[0] * scales[0], height: spans[1] * scales[1], depth: spans[2] * scales[2] },
+          centerMeters: { x: (0.5 - anchor.x) * spans[0] * scales[0], y: (0.5 - anchor.y) * spans[1] * scales[1], z: (0.5 - anchor.z) * spans[2] * scales[2] },
         },
       });
       stableRoot.addChild(collision);
@@ -153,7 +168,7 @@ export async function postprocessPrompt3DGlb(input: string, output: string, spec
     }
   }
   const asset = root.getAsset?.() ?? {};
-  Object.assign(asset, { generator: "Grudge Dev Tool Prompt-to-3D", extras: { ...(asset.extras ?? {}), grudgePrompt3D: { specVersion: spec.version, upAxis: "+Y", forwardAxis: "+Z", origin: "ground-center", unit: "meter" } } });
+  Object.assign(asset, { generator: "Grudge Dev Tool Prompt-to-3D", extras: { ...(asset.extras ?? {}), grudgePrompt3D: { specVersion: spec.version, upAxis: "+Y", forwardAxis: "+Z", origin: objectRule ? "attachment-point" : "ground-center", objectType: objectRule?.type, component: objectRule?.component, attachment: objectRule ? { label: objectRule.anchorLabel, normalizedBounds: anchor, semanticPositionVerified: false } : undefined, flipVertical: objectRule?.flipVertical ?? false, unit: "meter", scaleMode: spec.scaleMode ?? "preserve", sourceSpans: spans, appliedScales: scales, visualReview: "required" } } });
   await mkdir(dirname(output), { recursive: true });
   await io.write(output, document);
 }

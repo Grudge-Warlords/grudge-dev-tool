@@ -121,8 +121,6 @@ export function registerMediaFileProtocol(): void {
         if (filePath.startsWith("/") && /^[A-Za-z]:/.test(filePath.slice(1))) {
           filePath = filePath.slice(1);
         }
-      } else {
-        filePath = decodeURIComponent(filePath);
       }
       filePath = resolve(normalize(filePath));
       const resolved = resolveExistingMediaPath(filePath);

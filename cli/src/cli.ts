@@ -32,6 +32,7 @@ program
   .description("ONE TRUTH health check — config, auth, fleet probes")
   .option("--api-base <url>", "Override API base")
   .option("--json", "Machine-readable output")
+  .option("--no-write", "Do not persist the latest doctor score")
   .action(async (opts) => {
     process.exit(await runDoctor(opts));
   });

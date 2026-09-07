@@ -13,17 +13,26 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const DEV_TOOL_ROOT = path.resolve(process.env.GRUDGE_DEV_TOOL_ROOT || path.join(SCRIPT_DIR, ".."));
+const GITHUB_ROOT = path.resolve(process.env.GRUDGE_GITHUB_ROOT || "F:/GitHub");
+
+function githubPath(...segments) {
+  return path.join(GITHUB_ROOT, ...segments);
+}
 
 const ROOTS = [
-  { id: "legion-api", file: "F:/GitHub/grudge-ai-hub/wrangler.toml", role: "AI path API" },
-  { id: "ai-hub", file: "F:/GitHub/grudge-ai-hub/wrangler.domain.toml", role: "Legion AI domain SSOT" },
-  { id: "ai-gateway", file: "F:/GitHub/GrudgeBuilder/workers/ai/wrangler.toml", role: "AI gateway (staging / jobs)" },
-  { id: "observatory", file: "F:/GitHub/grudge-dev-tool/deploy/observatory/wrangler.toml", role: "Telemetry" },
-  { id: "cdn", file: "F:/GitHub/GrudgeBuilder/workers/cdn/wrangler.toml", role: "R2 CDN" },
-  { id: "id-gateway", file: "F:/GitHub/GrudgeBuilder/workers/id-gateway/wrangler.toml", role: "Grudge ID edge" },
-  { id: "wallet", file: "F:/GitHub/GrudgeBuilder/workers/wallet-site/wrangler.toml", role: "Wallet edge" },
-  { id: "objectstore", file: "F:/GitHub/ObjectStore/wrangler.toml", role: "ObjectStore API" },
-  { id: "auth-legacy", file: "F:/GitHub/grudge-auth-worker/wrangler.toml", role: "Legacy auth (prefer id.*)" },
+  { id: "legion-api", file: githubPath("grudge-ai-hub", "wrangler.toml"), role: "AI path API" },
+  { id: "ai-hub", file: githubPath("grudge-ai-hub", "wrangler.domain.toml"), role: "Legion AI domain SSOT" },
+  { id: "ai-gateway", file: githubPath("GrudgeBuilder", "workers", "ai", "wrangler.toml"), role: "AI gateway (staging / jobs)" },
+  { id: "observatory", file: path.join(DEV_TOOL_ROOT, "deploy", "observatory", "wrangler.toml"), role: "Telemetry" },
+  { id: "cdn", file: githubPath("GrudgeBuilder", "workers", "cdn", "wrangler.toml"), role: "R2 CDN" },
+  { id: "id-gateway", file: githubPath("GrudgeBuilder", "workers", "id-gateway", "wrangler.toml"), role: "Grudge ID edge" },
+  { id: "wallet", file: githubPath("GrudgeBuilder", "workers", "wallet-site", "wrangler.toml"), role: "Wallet edge" },
+  { id: "objectstore", file: githubPath("ObjectStore", "wrangler.toml"), role: "ObjectStore API" },
+  { id: "auth-legacy", file: githubPath("grudge-auth-worker", "wrangler.toml"), role: "Legacy auth (prefer id.*)" },
 ];
 
 const MIN_DATE = "2025-09-01";
@@ -42,7 +51,6 @@ function parseTomlLite(text) {
     hasKv: false,
     secretsComment: /secret put|Secrets/i.test(text),
     routes: [],
-    raw: text,
   };
   const nameM = text.match(/^\s*name\s*=\s*"([^"]+)"/m);
   if (nameM) out.name = nameM[1];
@@ -79,7 +87,7 @@ function score(p) {
     secretsDocumented: false,
   };
   if (!checks.fileExists) {
-    return { ...checks, parsed: null, pass: 0, total: 4, pct: 0 };
+    return { checks, parsed: null, pass: 0, total: 5, pct: 0 };
   }
   const parsed = parseTomlLite(readFileSync(p.file, "utf8"));
   checks.compatibility_date = dateOk(parsed.compatibility_date);
@@ -101,10 +109,28 @@ function score(p) {
 
 const json = process.argv.includes("--json");
 const rows = ROOTS.map((r) => ({ ...r, ...score(r) }));
+const worst = rows.reduce((value, row) => Math.min(value, row.pct), 100);
+const aiRoutes = rows.flatMap((r) =>
+  (r.parsed?.routes || [])
+    .filter((p) => p.includes("ai.grudge-studio.com"))
+    .map((p) => ({ id: r.id, pattern: p })),
+);
+const routeCollision = new Set(aiRoutes.map((route) => route.id)).size > 1;
+const objectStoreAiRoute = aiRoutes.some((route) => route.id === "objectstore");
+const failed = worst < 80 || routeCollision || objectStoreAiRoute;
 
 if (json) {
-  console.log(JSON.stringify(rows, null, 2));
-  process.exit(0);
+  console.log(JSON.stringify({
+    roots: { devTool: DEV_TOOL_ROOT, github: GITHUB_ROOT },
+    rows,
+    aiRoutes,
+    checks: {
+      worstScore: worst,
+      routeCollision: !routeCollision,
+      objectStoreDoesNotClaimAiRoute: !objectStoreAiRoute,
+    },
+  }, null, 2));
+  process.exit(failed ? 1 : 0);
 }
 
 console.log("Grudge Workers config audit (checklist §8)\n");
@@ -119,11 +145,9 @@ console.log(
 );
 console.log("-".repeat(80));
 
-let worst = 100;
 for (const r of rows) {
   if (!r.checks.fileExists) {
     console.log(`${r.id.padEnd(14)}MISS  ${r.file}`);
-    worst = 0;
     continue;
   }
   const d = r.parsed.compatibility_date || "—";
@@ -136,18 +160,14 @@ for (const r of rows) {
     (r.checks.secretsDocumented ? "yes" : "hint").padEnd(8) +
     (r.parsed.name || "");
   console.log(line);
-  if (r.pct < worst) worst = r.pct;
 }
 
-const aiRoutes = rows.flatMap((r) =>
-  (r.parsed?.routes || [])
-    .filter((p) => p.includes("ai.grudge-studio.com"))
-    .map((p) => ({ id: r.id, pattern: p })),
-);
 console.log("\nai.grudge-studio.com route claims:");
 if (!aiRoutes.length) console.log("  (none declared — OK if routes live in CF dashboard only)");
 else aiRoutes.forEach((a) => console.log(`  ${a.id}: ${a.pattern}`));
 
 console.log(`\nWorst score: ${worst}%  (target 100% on config columns)`);
+if (routeCollision) console.log("FAIL: more than one Worker config claims ai.grudge-studio.com.");
+if (objectStoreAiRoute) console.log("FAIL: ObjectStore must never claim ai.grudge-studio.com.");
 console.log("Code columns (no module state / waitUntil / stream) need source review — see docs.");
-process.exit(worst < 80 ? 1 : 0);
+process.exit(failed ? 1 : 0);

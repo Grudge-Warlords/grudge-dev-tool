@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Grudge-Warlords/grudge-dev-tool/config/maintenance.policy.schema.json",
+  "title": "Grudge Dev Tool governed maintenance policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "mode",
+    "schedule",
+    "approval",
+    "stateDirectory",
+    "protectedPaths",
+    "authority",
+    "budgets",
+    "discovery",
+    "validation",
+    "scoring"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "mode": { "enum": ["discovery-only", "bounded-staging"] },
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "rrule", "notificationPolicy"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "rrule": { "type": ["string", "null"] },
+        "notificationPolicy": { "type": ["string", "null"] }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approved", "approvedBy", "approvedAt", "policyDigest"],
+      "properties": {
+        "approved": { "type": "boolean" },
+        "approvedBy": { "type": ["string", "null"] },
+        "approvedAt": { "type": ["string", "null"], "format": "date-time" },
+        "policyDigest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "stateDirectory": { "type": ["string", "null"] },
+    "protectedPaths": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "networkDiscovery",
+        "runLocalValidation",
+        "writeRepository",
+        "createIsolatedStaging",
+        "installDependencies",
+        "promoteChanges",
+        "commitChanges",
+        "pushChanges",
+        "deployOrRelease",
+        "changeSecretsOrPermissions",
+        "downloadModels",
+        "stopUnownedProcesses"
+      ],
+      "properties": {
+        "networkDiscovery": { "type": "boolean" },
+        "runLocalValidation": { "type": "boolean" },
+        "writeRepository": { "type": "boolean" },
+        "createIsolatedStaging": { "type": "boolean" },
+        "installDependencies": { "type": "boolean" },
+        "promoteChanges": { "type": "boolean" },
+        "commitChanges": { "type": "boolean" },
+        "pushChanges": { "type": "boolean" },
+        "deployOrRelease": { "type": "boolean" },
+        "changeSecretsOrPermissions": { "type": "boolean" },
+        "downloadModels": { "type": "boolean" },
+        "stopUnownedProcesses": { "type": "boolean" }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wallClockMinutes",
+        "inputTokens",
+        "outputTokens",
+        "gpuMinutes",
+        "gpuVramMiB",
+        "diskReadMiB",
+        "diskWriteMiB",
+        "networkMiB",
+        "changedFiles",
+        "changedLines",
+        "retries",
+        "reservePercent"
+      ],
+      "properties": {
+        "wallClockMinutes": { "$ref": "#/$defs/budget" },
+        "inputTokens": { "$ref": "#/$defs/budget" },
+        "outputTokens": { "$ref": "#/$defs/budget" },
+        "gpuMinutes": { "$ref": "#/$defs/budget" },
+        "gpuVramMiB": { "$ref": "#/$defs/budget" },
+        "diskReadMiB": { "$ref": "#/$defs/budget" },
+        "diskWriteMiB": { "$ref": "#/$defs/budget" },
+        "networkMiB": { "$ref": "#/$defs/budget" },
+        "changedFiles": { "$ref": "#/$defs/budget" },
+        "changedLines": { "$ref": "#/$defs/budget" },
+        "retries": { "$ref": "#/$defs/budget" },
+        "reservePercent": { "type": ["number", "null"], "minimum": 0, "maximum": 100 }
+      }
+    },
+    "discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registryMetadata", "osvAudit", "maxCandidates", "requestTimeoutSeconds", "allowedHosts"],
+      "properties": {
+        "registryMetadata": { "type": "boolean" },
+        "osvAudit": { "type": "boolean" },
+        "maxCandidates": { "$ref": "#/$defs/budget" },
+        "requestTimeoutSeconds": { "$ref": "#/$defs/budget" },
+        "allowedHosts": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["npmScripts", "holdMinutes"],
+      "properties": {
+        "npmScripts": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "holdMinutes": { "$ref": "#/$defs/budget" }
+      }
+    },
+    "scoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimumForStaging", "weights"],
+      "properties": {
+        "minimumForStaging": { "type": ["number", "null"] },
+        "weights": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "evidence", "reversibility", "testability", "risk", "resourceCost"],
+          "properties": {
+            "value": { "type": "number", "minimum": 0 },
+            "evidence": { "type": "number", "minimum": 0 },
+            "reversibility": { "type": "number", "minimum": 0 },
+            "testability": { "type": "number", "minimum": 0 },
+            "risk": { "type": "number", "minimum": 0 },
+            "resourceCost": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "budget": { "type": ["number", "null"], "minimum": 0 }
+  }
+}

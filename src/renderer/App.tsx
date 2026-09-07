@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { INFO_NAV } from "../shared/infoIcons";
+import InfoIcon from "./components/InfoIcon";
 
 const Browser = React.lazy(() => import("./pages/Browser"));
 const Search = React.lazy(() => import("./pages/Search"));
@@ -116,7 +117,7 @@ const NAV: NavEntry[] = [
   { route: "/threeflow", label: "ThreeFlow", Icon: Box, primary: true },
   { route: "/prompt3d", label: "Prompt to 3D", Icon: WandSparkles, primary: true },
   { route: "/browser", label: "Assets", Icon: FolderTree, primary: true },
-  { route: "/skeleton", label: "Skeleton", Icon: Bone, primary: true, adminOnly: true },
+  { route: "/skeleton", label: "Skeleton", Icon: Bone, primary: true },
   { route: "/forge", label: "Forge", Icon: Hammer, primary: true, adminOnly: true },
   { route: "/preview", label: "Preview", Icon: Globe, primary: true, adminOnly: true },
   { route: "/play", label: "Play", Icon: MonitorPlay, primary: true },
@@ -146,7 +147,12 @@ interface Session {
   hasToken: boolean;
 }
 
-const VALID_ROUTES = new Set<string>(NAV.map((n) => n.route));
+const VALID_ROUTES = new Set<string>([
+  ...NAV.map((n) => n.route),
+  // Internal editor route: intentionally hidden from the primary navigation,
+  // but reachable from Agent AI, Local Files and main-process file handoffs.
+  "/forge-local",
+]);
 /** Legacy routes remapped after shell simplification */
 const ROUTE_ALIASES: Record<string, Route> = {
   "/playcanvas": "/play",
@@ -165,7 +171,6 @@ const FULL_HEIGHT_ROUTES = new Set<string>([
   "/view",
   "/local",
   "/threeflow",
-  "/prompt3d",
   "/forge",
   "/forge-local",
   "/skeleton",
@@ -376,7 +381,7 @@ export default function App() {
                   {(["/local", "/browser", "/forge", "/studio"] as const).includes(
                     n.route as "/local",
                   ) ? (
-                    <img
+                    <InfoIcon
                       src={
                         n.route === "/local"
                           ? INFO_NAV.localFiles
@@ -386,13 +391,8 @@ export default function App() {
                               ? INFO_NAV.forge
                               : INFO_NAV.home
                       }
-                      alt=""
-                      width={16}
-                      height={16}
-                      style={{ objectFit: "contain" }}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
+                      fallback={n.Icon}
+                      size={16}
                     />
                   ) : (
                     <n.Icon size={16} />

@@ -1,5 +1,145 @@
 # Changelog
 
+## [1.1.1] - 2026-09-07
+
+- Route animal bipeds such as kangaroos through the existing local creature deformation author. Share subject evidence between the CPU binder, HY-Motion capability gate and animation UI; explain incompatible human-only motion before provider work.
+- Make Skeleton Studio available to local sessions so review handoffs load the exact model instead of redirecting to Home. Verify the source hash, preserve authored surfaces and open the Place step even when no fitted markers were supplied.
+- Return the source revision, motion prompt, seed, settings, selected local animation library and corrected markers to animation, with an option to return without applying markers. Restore retained finish history immediately after enabling local controls, without overwriting newer progress.
+- Keep character accessories out of body-type evidence so an unfamiliar humanoid holding a prop can still reach HY-Motion's existing semantic review.
+- Verify the retained failed kangaroo prompt through normal packaged controls: one four-second local deformation clip, unchanged geometry and textures, and visible hop/paired-limb/rear-region motion. Leave the new result unapproved for owner review; this is not a HY-Motion inference or strict visual-acceptance claim.
+
+## 2026-09-06 — local shapes, asset reuse and editable moving areas
+
+- Add box, sphere, cylinder, cone, plane and torus to local procedural creation; retain earlier template prompts, local textures, bounded resizing and turntable animation without Hunyuan.
+- Add normal Assets/Local Files working-copy handoffs; retain immutable source hashes, embedded/catalog identity, materials, skins and clips, and support Meshopt source decoding.
+- Add actual influence previews and named/coloured custom moving areas, model-relative instructions, strength and coverage, undo/reset, exact retained clip binding and sibling saves. Preserve rejected originals and unrelated clips.
+- Split Hunyuan starts into prompt only, one image and four individually labelled images; reject duplicate bytes and incomplete four-view sets.
+- Keep positive small-subject, full-body and broad-margin conditioning in natural-creature concept prompts so ears, feet and tails are less likely to be cropped before review.
+- Re-centre close but complete provider concepts inside a broad deterministic margin while retaining the untouched provider image; continue to reject subjects that actually touch an image boundary, and always require human semantic review.
+- Remove the unvalidated 256/384 px Hunyuan Paint modes after real output produced incoherent UV atlases. The app now exposes only the upstream-supported 512 px six-view profile, requires Tencent's recommended 21 GiB free VRAM and reports busy below that threshold instead of spending time on a predictably unusable texture.
+- Reject a full selected output volume before provider inference using stage-specific conservative space estimates, an explicit recovery message and no installed-provider bypass. Keep post-approval geometry progress above the retained 36% gate.
+- Collapse optional local settings/history, retain authored materials and frame long or tall models to their true projected bounds so the saved-model viewport remains useful without cropping.
+- Pass normal-app create/adjust/animate/save/reopen checks for local assets and real catalog reuse. Pass one-image Hunyuan kangaroo geometry review; retain both visibly defective Paint attempts as rejected, so no neural animation or full-chain acceptance is claimed.
+
+## 2026-09-05 — guided input, recovery and configuration reliability
+
+- Reduce active creation to one primary subject prompt with optional generation, finishing and batch controls collapsed; expose the missing custom-style description. Preserve all exact concept and staged visual-approval requirements behind a comprehensive explicit review action.
+- Keep malformed numeric text visible, enforce shared bounds in renderer and main process, and reject known unsupported affirmative transformations before a partial motion result can be authored. Preserve negation across temporal `not yet` and end it at contrasting clauses.
+- Refresh current-provider readiness without stale-response overwrites. Retain current managed-save failures with explicit retry and duplicate-save protection.
+- Add eight-second probe aborts, unused-body cleanup and API/asset HTML fallback rejection; make doctor JSON/text exit status consistent and recognize the canonical project configuration.
+- Retain updater status across reloads, guard trusted IPC senders, separate allowed update states and coalesce duplicate actions. Missing feeds stay unconfigured; install errors remain recoverable.
+- Build and smoke an isolated Windows installer; normal-profile installation and genuine asset acceptance remain separate in PROJECT_STATUS.md.
+
+## 2026-09-05 — capability-based Hunyuan generation
+
+- Replace fixed-card Hunyuan gates with measured operation profiles: full GPU, offloaded lightweight GPU and high-RAM CPU shape generation, plus balanced and lightweight six-view Hunyuan Paint. Keep the same pinned local providers, retain every selected setting/device/GPU UUID in provenance, and never silently substitute a procedural, stock or cloud result.
+- Preserve generic creature anatomy, counts and part-to-body relationships in short natural-language prompts while keeping the subject ahead of the standard plain-white/no-stand presentation contract. Make negative compilation resist accidental positive readings of “do not”/“no” clauses and avoid broad creature-class suppression.
+- Add bounded offline concept-sweep diagnostics that produce Hunyuan images and a manifest for prompt investigation only; these outputs are explicitly ineligible as geometry or acceptance evidence.
+- Prove a genuine concept and technically valid geometry run, then correctly withhold visual acceptance when the required rear tail was not visible. The workflow remains stopped before Paint, motion and final save/export/reopen.
+
+## 2026-09-05 — packaged new-asset workflow repair
+
+- Treat local installers without a published update-feed file as unconfigured, rather than repeatedly displaying a missing-file updater error. Discovery, download and install remain separate; no feed is invented or contacted.
+- Start guided new roots from clean generation defaults and the planned category/style, without inheriting a previous creature's scale, anatomy, seed or reference bindings. Explicit current-asset revisions retain their category and scale.
+- Recognize ordinary prop-motion requests including float, hover, bob, spin and rotate, plus swim/slither, in both new and retained-asset routing. Use the existing affirmative-intent gate so excluded motion is not scheduled.
+- Add regression coverage for the live crystal request, stale-setting isolation and negated motion. Full package, provider and save/reopen evidence is recorded separately in PROJECT_STATUS.md.
+
+## 2026-09-04 — unified quality-first Prompt-to-3D routing
+
+- Make `/prompt3d` the single guided owner surface for new creation and exact-revision continuation. A typed allowlisted compiler routes to existing procedural, Hunyuan, TRELLIS, Paint/refinement, CPU animation, optional HY-Motion, Skeleton Studio, Forge, Scene Completion, validation and save capabilities without creating replacement editors or arbitrary execution hooks.
+- Rank creation routes by capability/expected quality, verified readiness, provenance compliance and resource feasibility. Show a blocked quality leader and next eligible route before continuing, expose a compact explicit override, and retain the automatic recommendation, override, enabled stages and exact revision in creation/workflow provenance.
+- Keep Grudge-local planning authoritative: deterministic routing makes no model contact; the explicit advanced schema planner uses the existing loopback `grudge-dev` preference, performs no start/pull/install, and has no external-provider or `localAgent.ts` fallback.
+- Add only a minimal reversible UI scaffold. Final 4K layout, spacing and information hierarchy remain pending the user's live visual design review and are not claimed as accepted.
+
+## 2026-09-04 — hardware-independent local animation
+
+- Make the guided CPU route the default manual animation choice. It requires no neural-motion install or GPU/headroom threshold, while optional HY-Motion continues to select its CUDA or official CPU execution profile from measured capability rather than a named card.
+- Add deterministic Mixamo-25 skin preparation for safely classified humanoids, explicit Skeleton Studio correction when anatomy or pose is uncertain, compatible local animation-library retargeting, existing prompt-bound deformation for non-humanoids and truthful object-space motion for rigid props.
+- Preserve exact approved Hunyuan geometry and Paint bindings through every CPU route, retain immutable route-specific provenance and show a prominent non-generative/non-HY-Motion label. Strict Hunyuan and serial-batch acceptance explicitly reject these local CPU routes.
+- Route anatomy, stance and skeletal-action keywords through the shared negation-aware analyser. Negated anatomy or motion can no longer be treated as affirmative, and mixed humanoid/non-humanoid descriptions fail closed.
+
+## 2026-09-04 — capability-based HY-Motion execution
+
+- Replace the fixed-GPU runtime gate with ordered provider-native execution profiles. Prefer full HY-Motion CUDA inference when a measured adapter has 24 GiB total and 20 GiB currently free VRAM; otherwise offer the official CPU path when at least 32 GiB total and 24 GiB free system RAM is available.
+- Enumerate all NVIDIA adapters and bind CUDA by retained GPU UUID, so a lower-capacity display card at index 0 cannot mask or receive work intended for another card.
+- Add a visibly labelled basic CPU profile with a retained 12-step inference schedule. It still loads the pinned official HY-Motion Lite checkpoint and generates skeletal channels; it never falls through to procedural transforms, canned clips or a cloud service.
+- Bind execution profile, device, validation schedule and optional GPU UUID into the motion request, returned motion artifact, provenance and GLB binder. Any mismatch fails before the result can reach visual approval.
+- Show the automatically selected profile and its speed/fidelity tradeoff in Install Options and the animation stage, while retaining the same human/humanoid compatibility and visual acceptance gates.
+
+## 2026-09-04 — genuine local HY-Motion skeletal animation
+
+- Add the pinned official HY-Motion 1.0 Lite source/model/runtime as a separate local motion provider with signed installation records, deep pre-run verification and provider-bound execution.
+- Retain the model's native 22-joint rotations, root trajectory and rest rig instead of its wooden preview body. Bind those joints to the exact approved Hunyuan mesh through the Studio's existing Mixamo-25 core, with a real skin, inverse-bind matrices, normalized four-weight influences and generated bone channels.
+- Replace the instant procedural animation path in the installed-neural workflow. The animation screen now sends prompt, duration, clip mode and seed to HY-Motion; append/replacement, exact rejection, final save/export and reopen remain available.
+- Add a local semantic compatibility and negation gate. Horizontal root travel is retained only when explicitly requested; ordinary locomotion remains in place, while non-humanoid or contradictory prompts fail visibly rather than becoming a rigid slide.
+- Prove in focused tests that geometry and Hunyuan Paint fingerprints remain unchanged, stationary travel is stripped, explicit travel is retained, 22 generated rotation channels are playable, skin weights are normalized, clips append correctly and compatibility evidence cannot be swapped.
+
+## 2026-09-04 — clause-bound local motion analysis
+
+- Stop collapsing materially different animation prompts into the same canned gait. Paired-limb synchronization, alternating coordination, numeric lower-limb articulation, ground contact and rear/tail counterbalance are now separate typed requirements with separate motion operators.
+- Run the installed loopback Ollama model as a semantic checkpoint during the explicit **Analyse prompt and create animation** action. It must acknowledge every compiler-extracted requirement; an omission or change fails before animation authoring, with no cloud fallback and no GPU use.
+- Retain requirement-to-operator coverage and local-analysis evidence inside the clip plan and provenance, and show the exact coverage beside the animation preview before visual approval.
+- Add synchronized reach/tuck, rear counter-phase deformation, gait rise and body lean. For the retained 0.8 × 1.8 × 1.6 m front-referenced subject, unspecified forward travel is now 2.0 m rather than 4.8 m, and its explicit front reference follows the coordinate contract instead of the prompt-only right-facing assumption.
+- Render nine frames from the exact retained Hunyuan mesh for semantic inspection, and add regressions for the previously ignored prompt, conflicting coordination, unsafe articulation angles, semantic-plan omissions and measurable output channels.
+
+## 2026-09-04 — prompt-bound creature animation
+
+- Separate body-part directions from whole-subject placement. Wording such as “body bends down” and “legs move forward” now compiles to in-place body operators rather than a downward or forward root slide; an affirmative whole-subject “return to the original position” authors an out-and-back path that ends at its start.
+- Add a generic crouch/bend morph, continuously weighted alternating limb motion, and the retained creature-facing direction for body-local movement. The compiler remains object-agnostic and does not add a model-specific rig, mesh, template, or asset implementation.
+- Block creature/character prompts that contain only rigid translation or rotation, both visibly in the creation panel and synchronously in backend preflight. The panel now shows the inferred path and body actions before generation.
+- Measure actual morph POSITION displacement and animated weights after GLB serialization. A named morph target no longer counts as implemented motion unless it produces an active, non-zero body mutation; the evidence is retained in finishing validation and provenance.
+
+## 2026-09-04 — optional Stage 4 shape refinement
+
+- Add **Use the existing generated model** to Stage 4 after the exact base Hunyuan geometry has passed technical checks and explicit multi-view visual approval. This advances directly to the texture prompt; shape refinement remains available instead of being mandatory for an individual asset.
+- Retain the decision as a timestamped, hash-bound explicit-user-action record tied to the exact generation job, first variant, model SHA-256, geometry identity and visual-approval evidence. Texture approval, later animation, managed save, portable export and reopen all revalidate that record.
+- Keep the strict six-item serial acceptance route unchanged: batch dispatch rejects the base-model shortcut and still requires a prompted, approved Hunyuan shape refinement for every item.
+
+## 2026-09-04 — Hunyuan reference-image generation
+
+- Make image sourcing the first new-asset decision. Stage 1 presents only **Generate image** and **Select image**; the former opens prompt-based HunyuanDiT concept configuration, while the latter opens the verified local multi-image picker before exposing prompt, dimensions, seed and generation settings.
+- Show the chosen source method at Stage 2, allow it to be changed before generation, return new assets to the source decision, and require the current method and its exact reference state to agree before the Generate action can become available.
+- Add one-to-four-image intake directly to the current creation stage, with visible front, left, back and right roles that can be corrected before generation. Preserve the existing prompt-only route and keep strict serial acceptance batches prompt-only.
+- Route a single image through Hunyuan3D 2.1 and two to four labelled images through the separately pinned official `tencent/Hunyuan3D-2mv` checkpoint and multiview processor. Translate only the older official config's Python namespace in a retained job-local runtime config; never alter the signed safetensors weights.
+- Decode, bound, copy and SHA-256 bind every selected source before provider preflight. Revalidate the ordered view set at concept approval, provider dispatch, save, export and reopen, and retain all view roles and hashes in provenance and root lineage.
+- Add typed IPC/preload contracts, multi-selection UI, install inventory, tamper/role/ordering tests, and an offline real-model load plus labelled-conditioning smoke test. Visual correctness remains subject to the existing explicit concept and model approval gates.
+- Declare the provider's one-to-four-view limits, required front view, supported roles and exact single/multiview model selection as typed manifest capability. Dispatch now rejects any undeclared provider, route, role, count, duplicate byte set or model choice instead of discarding an image or substituting another provider.
+- Show a retained local thumbnail, role, dimensions and hash for every view, with per-image reorder and removal controls. The UI names the automatically selected official model and keeps Generate disabled for a set outside the declared capability.
+- Prove the implemented route with a fresh offline four-view RTX 3090 pass at 50 shape steps and octree resolution 512, then inspect the 403,996-triangle result from six directions. Runtime/provider viability passed; the test mesh was deliberately denied semantic visual acceptance and no texture or animation acceptance was inferred.
+
+## 2026-09-01 — Cosmetic detail and bounded structural refinement
+
+- Add two truthful follow-up operations to the current procedural asset: **enhance** authors new cosmetic detail meshes, while **adjust** changes only supported named parts. Both create immutable child revisions, change the geometry hash and retain the existing embedded textures, animation clips, asset ID and source lineage.
+- Add sword fuller/inlay, ricasso collar, guard caps and pommel inlays; game-prop vent ribs, energy coils, sight and side studs; and character shoulder plates, cuffs, belt buckle, knee trim and boot trim.
+- Add bounded structural controls through ordinary prompts: sword blade length/width/curvature and guard width; game-prop length/bulk and muzzle size; character height/breadth and head size. Move the cosmetic projectile with the adjusted muzzle and preserve the sword swipe and articulated dance clips.
+- Expose per-asset **Available refinements**, applied-change summaries, detail-node counts and previous/current geometry identity in the existing Prompt-to-3D page. Unsupported free-form sculpting remains unavailable instead of being silently approximated.
+- Verify all six follow-ups through the normal packaged Grudge UI in one isolated session, then cleanly restart only that package and replay the three final adjusted assets from local storage without regeneration. All 15 original and refinement revisions remain available. Build `original-flow-2026-09-01.2`; optional Ollama, neural providers and commercial licensing remain outside this CPU procedural proof.
+
+## 2026-08-31 — Coherent original creation, texturing and motion
+
+- Use existing Category/Style plus optional local planning; remove the redundant Object/Component panel from the creation workflow and supersede the mandatory concept-choice design. Preserve original briefs and internal object rules without overriding explicit user choices.
+- Add an explicitly selected CPU procedural method for basic curved swords, cosmetic game gun props and original segmented people. No borrowed model or reference render is used as creation input, and it never silently replaces a neural provider.
+- Keep the current asset across short texture/animation follow-ups. Author embedded surface maps, grip-pivot sword swipes, a visible cosmetic muzzle projectile and independently articulated character joints.
+- Save every submitted attempt and stage separately with prompt/settings, source method/build, immutable GLB, provenance, hashes, validation and event history. Expose local Open / replay without regeneration; failed attempts remain records rather than fake replayable assets.
+- Remove automatic generic/library character preview loading and reject borrowed/comparison preview markers on affected refinement/export paths. Preserve existing model libraries on disk.
+- Verify all three nine-stage prompt chains in one continuous packaged UI session and visibly reopen/replay all three final local GLBs. Trial package and original user app are separate. Retain 31 actual screenshots, exact prompts and an illustrated guide under the originating task's `outputs/grudge-flow-trial-01` directory. Optional Ollama/neural providers and Hunyuan commercial clearance are outside this procedural proof.
+- Separately verify clean trial-process restart with the same isolated profile: nine stages/preferences restore and all three final local models replay with textures/motion. Retain eleven additional screenshots and unchanged-file evidence; the original user app remains untouched.
+
+## 2026-08-31 — Object and component generation rules
+
+- Add remembered object type/component choices and a visible compiled geometry prompt. Profiles cover swords, axes, striking weapons, polearms, staffs, bows, shields, grapples, props and environment/building fixtures; components have their own shape and orientation rules.
+- Keep original prose as the surface brief. Exclude presentation and decorative clauses from geometry conditioning, put type/orientation/white background first, and prevent approving an outdated concept after shape rules change.
+- Export a typed attachment marker at the chosen bounds point, with editable X/Y/Z percentages and an explicit vertical flip. Update collision placement and technical origin checks; semantic grip/socket correctness still requires visual inspection.
+- Present concept-background/framing rejections as review messages instead of progress-bar tracebacks. No new model download, cloud fallback or automatic generation.
+
+## 2026-08-31 — Sword shape quality and chat refinement
+
+- Prioritize defining shape in concept prompts, isolate white-background foreground, reject cropped concepts, and seed geometry explicitly at 512 reconstruction resolution.
+- Preserve proportions by scaling uniformly to requested height; keep source geometry and avoid aggressive simplification that destroys thin details.
+- Add concept preview/approval/reuse and distinguish technical checks from visual acceptance.
+- Extend local Forge with CPU-planned chat recipes, procedural texture regions, turntable/swing/thrust previews, before/after, scrubbing and immutable autosaved GLB revisions. Original assets remain available.
+- Add explicit precision longsword/sabre/leafblade/rapier authoring with named parts and adjustable blade profiles. It is labeled procedural and never substitutes itself for Hunyuan. Save a separate local planner endpoint; an explicit button can start installed native CPU Ollama without downloading models.
+
 All notable changes to **grudge-dev-tool** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
@@ -28,6 +168,8 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - **@grudge-studio file: deps** (`engine` 0.3.1 CCT contract, `animator` LocomotionCore, `assets` combatSkillKit). Native Play uses quality gait + F / 1–4 weapon skills; fleet CCT playtest links (Open Danger, Casting, Gladiators).
 - ThreeFlow tab **terrain starter** (local preview) next to live `/view` and `/editor` embeds; studio navy + sRGB + r185 Timer.
 - Best-practice rules: live play = Rapier CCT; Dev Tool `/play` stays kinematic preview; editor viewport sRGB.
+- Governed daily maintenance control plane with a digest-bound, fail-closed policy; external run ledger; per-process GPU observation; lockfile/integrity and icon checks; metered opt-in registry/OSV discovery; SPDX 2.3 SBOMs; explicit evidence classes; isolated-staging prompt; hold/rollback rules; and an inactive scheduled entry point. All budgets are unconfigured and all authority switches are off by default.
+- Separate `ci:local` and `ci:live` validation surfaces. Machine-readable doctor runs can use `--no-write` and no longer need to persist a health score.
 - **Prompt to 3D** (`/prompt3d`) — versioned `AssetSpec` planning, separately selectable official Hunyuan3D 2.1 and Microsoft TRELLIS local providers, live physical/setup/headroom gating, deliberate isolated installer/repair/remove workflow, loopback-only bounded jobs, preview, provenance, deterministic validation/quarantine, and handoff to the existing asset pipeline. Includes a source-side offline local-test mode with isolated profile/ports and no fleet/updater/Ollama/cloud contact.
 - Prompt-to-3D installer reproducibility — pinned TRELLIS CUDA/source dependencies replace the upstream moving-head setup script, Hunyuan/TRELLIS offline model closure is explicit, WSL distribution selection is configurable without moving it, and signed manifests include isolated runtime-lock hashes.
 - **Native Three Play** (`/play`) — SceneEngine + `gltfProdLoader`, Toon `{race}.glb`, WASD TPS (Orbit off), one mixer idle/walk/run, video plane, Forge scripts + AI script. Preview stays fleet webview. Not Rapier (live games own physics).
@@ -37,9 +179,28 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - Doctor / fleet health: scored **CDN Toon human.glb** HEAD. Author WK FBX probe is optional.
 
 ### Changed
+- Desktop update checks no longer download or install automatically. The user explicitly chooses download and then restart/install. Manual publish dry-runs now stop before fetch/pull and every write, and release commits no longer add agent attribution.
+- Worker configuration audits resolve the Dev Tool checkout from the running script, accept a configurable GitHub root, fail JSON mode consistently, and reject duplicate or ObjectStore claims on `ai.grudge-studio.com`.
+- Prompted animation now separates body action from placement: walking, running, swimming, slithering and flying animate in place unless the prompt explicitly requests a direction, path or measured displacement. Directional distance and hop height scale from the generated asset dimensions, negated motion terms remain constraints, grounded gait receives visible alternating lower-body deformation, and validation rejects missing travel, unintended in-place translation or a vertical hop that does not land. Subject-relative forward/backward travel for the generic creature profile now follows its retained viewer-right presentation pose instead of sliding on the unrelated canonical +Z engine axis; explicit world-space directions are unchanged.
+- Prompt-to-3D automatically saves the asset brief and each job's status and restores prior results (including older output folders). Starting a new generation clears the live preview while preserving earlier files and history. Interrupted jobs are retained for deliberate retry and never resume automatically.
+- **Enable local controls** is now one remembered checkbox. Its enabled/disabled choice survives navigation and application restarts; capability secrets remain window-scoped in the main process, with explicit install/run actions unchanged.
 - `viewer:convertModel` IPC forwards `localPath` (disk convert, not http-only).
 - **3D double-click / Open with** opens **Elite viewer** (`gltfProdLoader` + disk textures). ThreePipe `/view` is a classify HUD on HTTPS and cannot fetch `127.0.0.1` loopback files — it is explicit only. Vue `/editor` remains **Edit in ThreeFlow**.
 - **Chrome icons** use `assets.grudge-studio.com` PNG bytes (`icon-registry.json` `cdnBase`). `info.grudge-studio.com/icons/…` returns SPA HTML, not images.
+- Prompt-to-3D now uses the same padded, scrolling shell alignment as other work pages, persists a chosen generator root across restarts, automatically adopts the complete pinned `E:\\GrudgePrompt3D` installation when no choice is saved, and reconciles stale status files against detected install manifests.
+- Agent AI's local workbench action now opens the actual in-app Forge workbench through a registered hidden route. The primitive toolbar exposes Box, Sphere, and Plane, and the script pad includes a typed clip attachment API plus a balloon-with-string float-up example that can be built, previewed, animated, and exported entirely through the Grudge UI.
+
+### Fixed
+- A visually approved first animation now advances the normal single-asset workflow directly to **Save, export and reopen** instead of trapping the user in animation configuration until a second animation is approved. The final panel exposes an explicit **Save final model to Local Files** action alongside automatic saving, plus an optional **Add or refine animation** route that can return to save without discarding the approved result. The separate strict six-item acceptance batch continues to require both animation prompts and approvals.
+- Texture and animation review now exposes an explicit classified **Reject** action. Rejection is sealed to the exact retained job, asset hash, prompt, specification and finish fingerprint; it hides the failed preview and permits a corrected sibling only from the exact approved parent. Animation correction is locked to **Replace rejected clip(s)** so a bad clip cannot remain first or make regeneration appear unchanged. Merely unapproved output is no longer treated as rejected.
+- Prompt-to-3D now gives an approved Hunyuan Paint result an explicit **Use approved texture and configure animation** action. The exact approved texture is already retained locally, the manual continuation survives a restart, and final manual save/export accepts that texture after one approved animation. The strict six-item acceptance batch still requires both an initial and refined texture plus both animation revisions.
+- All Dev Tool 3D viewports now share left-drag X/Y pan, right-drag orbit, middle-drag camera dolly, and wheel zoom. Prompt-to-3D displays the current navigation context and last action, resets stale active state, and reapplies the same mapping when an asset or workflow stage hands off.
+- Hunyuan shape-refinement lineage now permits multiple genuine prompt-edited concept successors instead of misclassifying every post-first edit as seed-only regeneration. New prompt edits advance the retained seed exactly once; existing fully hash-bound same-seed edits remain reopenable through a narrow compatibility path, while unchanged prompts, forged decision kinds and discontinuous provider/reference bindings still fail closed.
+- Hunyuan concept review now records the effective subject-presentation contract, requires three explicit hash-bound visual checks before approval, and retains classified semantic/presentation/prompt-understanding rejections before a fresh-seed regeneration. Exact technical-report, inspection, correction-prompt, seed and successor-plan evidence is revalidated by history reload, provider geometry and final workflow lineage. Completed legacy assets still reopen, while pending legacy concepts require fresh structured generation.
+- Hunyuan Prompt-to-3D now stops durably after one retained concept and requires the separate **Approve for 3D** action before loading geometry. Approval is bound to the exact job/attempt, concept SHA-256, current prompt/plan, seed, provider and canonical AssetSpec; regeneration advances the seed once with textures off and retains immutable ancestry. Root/variant specs, concept prompt, saved approval and final provenance agree on the current brief, and stale or tampered state fails closed.
+- Prompt-to-3D now accepts and retains a job before preflight, reports elapsed time for hardware/WSL readiness, signed-provider verification, sidecar health, provider/model warm-up, concept inference/review, geometry, post-processing and validation, and avoids the redundant full model-byte rehash on every Generate click. Concept framing rejection is labelled as a concept-quality failure, preserves the image, and offers only a deliberate concept-only retry with a new seed before geometry can load.
+- Local Files no longer retries a failed remote file-type icon indefinitely. File rows, the page header, and sidebar keep fixed-size local icons when the icon host is unavailable, avoiding broken-image flicker and repeated requests.
+- Packaged sandbox preload now bundles shared Prompt-to-3D channels into one file, preserving the `window.grudge` auth and `appRuntime` bridges in production builds.
 
 ## [1.1.0] — 2026-08-20
 
