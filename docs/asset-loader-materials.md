@@ -45,7 +45,7 @@ Prevents N WebGL contexts (black frames, context loss, yellow sludge when many p
 ## Runtime loaders (renderer)
 
 - `loadModel(file, { diskPath })` — TGA handler, **Draco + Meshopt + KTX2** via `gltfProdLoader` (same factory as ThreeFlow r185 — bundled WASM, no gstatic/jsDelivr), magic bytes for GLB/glTF, `sanitizeMaterials`
-  - **Local / Elite open:** when `diskPath` is set, model loads via `grudge-media://` so FBX/OBJ/glTF **relative textures** resolve next to the file (not lost on blob:).
+  - **Local / Elite open:** `diskPath` from `webUtils.getPathForFile` (not `file.path`). Model loads via `grudge-media://` so FBX/OBJ/glTF **relative textures / .bin / .mtl** resolve next to the file (not lost on blob:). GLTFLoader relatives that drop the media query are rewritten back to the sibling path.
   - LoadingManager URL modifier rewrites relative map paths → `grudge-media://local/?path=…`
   - **mediaProtocol fallback:** if path 404s, search `Textures/`, `textures/`, `Maps/`, parents (Kenney packs)
   - Sibling fill (`finishImportedAsset`) only **fills missing** maps — never overwrites good embedded atlases; bare random PNGs need high name affinity

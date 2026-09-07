@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { SceneEngine, type StudioView } from "./lib/forge/sceneEngine";
 import { DEFAULT_EDITOR_VIEWPORT, EDITOR_VIEWPORT_LIST, viewportFromHex } from "./lib/forge/viewportColor";
 import { loadModel, loadModelFromUrl, isSupported, localFileUrl } from "./lib/forge/loaders";
+import { diskPathFromFile } from "./lib/filePaths";
 import {
     attachAnimationMixer,
     setPrimaryAction,
@@ -697,7 +698,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
                     toast.error(`Unsupported: ${file.name}`);
                     continue;
                 }
-                const diskPath = (file as File & { path?: string }).path;
+                const diskPath = diskPathFromFile(file);
                 const loaded = await loadModel(file, {
                     diskPath,
                     sanitize: { toonStyle: true, fixDefaultYellow: true, whiteWhenMapped: true },
