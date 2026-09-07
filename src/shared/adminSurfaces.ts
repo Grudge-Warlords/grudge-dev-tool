@@ -64,7 +64,7 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     kind: "local-tool",
     apis: [FLEET_URLS.assets, FLEET_URLS.forge],
     description:
-      "Local Files: click preview; double-click 3D → ThreeFlow ThreePipe viewer/editor (loopback). Media → Elite.",
+      "Local Files: click preview; double-click → Elite viewer (gltfProdLoader). Vue ThreeFlow / ThreePipe are explicit.",
   },
   {
     id: "threeflow",
@@ -74,7 +74,7 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     prodUrl: FLEET_URLS.threeflow,
     apis: [FLEET_URLS.threeflow, FLEET_URLS.assets, FLEET_URLS.ai],
     description:
-      "ThreeFlow in-app: ThreePipe /view + Vue /editor. Explorer double-click 3D opens the viewer with loopback + classify.",
+      "ThreeFlow in-app: Vue /editor via explicit Edit in ThreeFlow. Explorer double-click 3D opens Elite viewer.",
   },
   {
     id: "forge",
@@ -136,8 +136,10 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     route: "/skeleton",
     label: "Skeleton",
     kind: "local-tool",
-    apis: [FLEET_URLS.assets, FLEET_URLS.objectStore, FLEET_URLS.ai],
+    apis: [FLEET_URLS.assets, FLEET_URLS.objectStore, FLEET_URLS.casting, FLEET_URLS.info, FLEET_URLS.ai],
     description:
+      "Mixamo-25 author extract/T-pose/place → left-role/right-clip bind → Toon Bip001 play pack → grudge-convert → R2/D1.",
+    adminOnly: true,
       "Mixamo-like ~25-bone place → T-pose → retarget library → grudge-convert bake → R2/CDN.",
     adminOnly: false,
   },
@@ -252,7 +254,10 @@ export const ADMIN_FLEET_HOSTS = [
   { id: "water", label: "Water island", url: FLEET_URLS.water, group: "games" as const },
   { id: "warlords", label: "Warlords", url: FLEET_URLS.warlords, group: "games" as const },
   { id: "foundry", label: "Character Foundry", url: FLEET_URLS.characterFoundry, group: "games" as const },
-  { id: "builder", label: "Grok Builder", url: FLEET_URLS.grokBuilder, group: "tools" as const },
+  { id: "velocity", label: "Velocity City", url: FLEET_URLS.velocity, group: "games" as const },
+  { id: "avernus", label: "Avernus Arena", url: FLEET_URLS.avernus, group: "games" as const },
+  { id: "voxelStudio", label: "Studio world gold", url: FLEET_URLS.voxelStudio, group: "games" as const },
+  { id: "threeflow", label: "ThreeFlow", url: FLEET_URLS.threeflow, group: "tools" as const },
   { id: "observatory", label: "Observatory", url: FLEET_URLS.observatory, group: "ops" as const },
 ] as const;
 

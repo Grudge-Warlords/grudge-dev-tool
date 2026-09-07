@@ -144,7 +144,30 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.1.2] — 2026-09-07
+
+### Fixed
+- **Explorer / Local Files 3D double-click** opens **Elite viewer** (`gltfProdLoader`, disk textures, TGA/MTL). Stopped auto-opening `threeflow.vercel.app/view` (HTTPS classify HUD cannot load `127.0.0.1` files).
+- **Chrome icons** load PNG bytes from `assets.grudge-studio.com` (`icon-registry.json` `cdnBase`). `info.grudge-studio.com/icons/…` is SPA HTML, not images.
+- **File defaults** re-register on version/exe change and drop Windows 3D Viewer `UserChoice` so `.glb`/`.fbx` reclaim Grudge Dev Tool after auto-update.
+- **Play tab** uses Toon `loadToonPlayKit` (mesh_ids, bone SI, Bip001 packs) instead of dumping the whole modular GLB.
+
+### Changed
+- Vue ThreeFlow `/editor` and ThreePipe `/view` stay **explicit** actions.
+
+### Changed
+- **Skeleton Studio** (`/skeleton`) remade as the Warlords play-skeleton editor: Mixamo-25 stays **author** (extract / T-pose / place); **save** stamps Toon **Bip001** 22-core. Bind UX is Casting Showcase — **actions left / clips right**. Race dropdown previews on Toon `{race}.glb` (kit weapons hidden, hip `.position` stripped). Export writes `bip001-play-bones.json`, `role-binds.json`, `anim-packs-fragment.json`. Ship queues R2 + D1 index (not Railway). Hydrates `anim-packs.json` from Casting / CDN / info.* / ObjectStore.
+- **Anim role table** (Skeleton Studio + Casting Showcase): 8-way strafes, crouch/sneak, greatsword, rifle fire, rolls, cover/wall-hug/climb, action-adventure. Cover/wall-hug are desired until clips extract. Rifle + greatsword use existing baked JSON.
+- **Elite viewport** default is Grudge studio navy (`#0a0e1a`) + gold SI grid, not sand `#EFD1B5` (sand stays a preset). Floor/grid follow the preset. `setBackgroundColor` also sets clear colour so ViewHelper cannot flash black.
+- **Color loader:** `ColorManagement.enabled` on `gltfProdLoader`, SceneEngine, and MultiCanvasHub. Base color stays sRGB; data maps `NoColorSpace` (existing sanitize).
+- **r185 Timer** replaces deprecated `THREE.Clock` on SceneEngine and MultiCanvasHub (Page Visibility, stable dt).
+- **Native Play** analog gamepad (left stick move, right stick look, A jump) + reused ground ray.
+
 ### Added
+- Shared `viewportColor.ts` presets: Studio / Charcoal / Neutral / Sand / White — Elite chips + Forge BG cycle.
+- **@grudge-studio file: deps** (`engine` 0.3.1 CCT contract, `animator` LocomotionCore, `assets` combatSkillKit). Native Play uses quality gait + F / 1–4 weapon skills; fleet CCT playtest links (Open Danger, Casting, Gladiators).
+- ThreeFlow tab **terrain starter** (local preview) next to live `/view` and `/editor` embeds; studio navy + sRGB + r185 Timer.
+- Best-practice rules: live play = Rapier CCT; Dev Tool `/play` stays kinematic preview; editor viewport sRGB.
 - Governed daily maintenance control plane with a digest-bound, fail-closed policy; external run ledger; per-process GPU observation; lockfile/integrity and icon checks; metered opt-in registry/OSV discovery; SPDX 2.3 SBOMs; explicit evidence classes; isolated-staging prompt; hold/rollback rules; and an inactive scheduled entry point. All budgets are unconfigured and all authority switches are off by default.
 - Separate `ci:local` and `ci:live` validation surfaces. Machine-readable doctor runs can use `--no-write` and no longer need to persist a health score.
 - **Prompt to 3D** (`/prompt3d`) — versioned `AssetSpec` planning, separately selectable official Hunyuan3D 2.1 and Microsoft TRELLIS local providers, live physical/setup/headroom gating, deliberate isolated installer/repair/remove workflow, loopback-only bounded jobs, preview, provenance, deterministic validation/quarantine, and handoff to the existing asset pipeline. Includes a source-side offline local-test mode with isolated profile/ports and no fleet/updater/Ollama/cloud contact.
@@ -162,6 +185,8 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - Prompt-to-3D automatically saves the asset brief and each job's status and restores prior results (including older output folders). Starting a new generation clears the live preview while preserving earlier files and history. Interrupted jobs are retained for deliberate retry and never resume automatically.
 - **Enable local controls** is now one remembered checkbox. Its enabled/disabled choice survives navigation and application restarts; capability secrets remain window-scoped in the main process, with explicit install/run actions unchanged.
 - `viewer:convertModel` IPC forwards `localPath` (disk convert, not http-only).
+- **3D double-click / Open with** opens **Elite viewer** (`gltfProdLoader` + disk textures). ThreePipe `/view` is a classify HUD on HTTPS and cannot fetch `127.0.0.1` loopback files — it is explicit only. Vue `/editor` remains **Edit in ThreeFlow**.
+- **Chrome icons** use `assets.grudge-studio.com` PNG bytes (`icon-registry.json` `cdnBase`). `info.grudge-studio.com/icons/…` returns SPA HTML, not images.
 - Prompt-to-3D now uses the same padded, scrolling shell alignment as other work pages, persists a chosen generator root across restarts, automatically adopts the complete pinned `E:\\GrudgePrompt3D` installation when no choice is saved, and reconciles stale status files against detected install manifests.
 - Agent AI's local workbench action now opens the actual in-app Forge workbench through a registered hidden route. The primitive toolbar exposes Box, Sphere, and Plane, and the script pad includes a typed clip attachment API plus a balloon-with-string float-up example that can be built, previewed, animated, and exported entirely through the Grudge UI.
 
@@ -434,6 +459,7 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 - **GRUDA Hub optional** — projects/agent work offline with local identity + local AI.
 - Agent AI UI: **Start local AI** button; removed "Open full GRUDA Agent" external browser link.
 
+[1.1.2]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.1.2
 [1.0.5]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.5
 [1.0.8]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.8
 [1.0.9]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.9

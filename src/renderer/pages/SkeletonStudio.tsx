@@ -1,7 +1,7 @@
 /**
- * Skeleton Studio — wired Mixamo-25 wizard:
- * load → extract → tpose → place → skills → export → libraries
- * Each step tab runs/focuses a real action (not a no-op label).
+ * Skeleton Studio — Mixamo-25 author → Toon Bip001 play.
+ * Load → extract → T-pose → place → bind (roles left / clips right) → grudge-convert → ship.
+ * Play body is Toon {race}.glb (Bip001 22-core). Mixamo is author only.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
@@ -40,16 +40,31 @@ interface Prompt3DRigContext {
   suggestedPlacements?: BonePlacement[];
 }
 import {
+  applyUnarmedVisibility,
+  loadToonPlayKit,
+  rematchClipsToHost,
+} from "../lib/forge/genericPreview";
+import {
   MIXAMO_25_CORE,
   ANIM_WEAPON_PACKS,
   type Mixamo25Bone,
   type BonePlacement,
   type SkeletonMappingDoc,
   emptyMapping,
-  ANIM_SKILL_SLOTS,
   matchSkillSlot,
   applyAutoMapToDoc,
+  WARLORDS_PACK_IDS,
+  WARLORDS_PACK_META,
+  ANIM_FAMILY_ORDER,
+  ANIM_FAMILY_LABELS,
+  listStudioRoles,
+  fetchAnimPacksCatalog,
+  detectRigFamily,
+  BIP001_PLAY_CORE,
+  BIP001_PLAY_LAW,
 } from "../../shared/mixamo25";
+import { TOON_PLAY_KITS } from "../../shared/prodPackages";
+import { FLEET_URLS } from "../../shared/fleet";
 
 declare global {
   interface Window {
@@ -57,14 +72,7 @@ declare global {
   }
 }
 
-type Step =
-  | "load"
-  | "extract"
-  | "tpose"
-  | "place"
-  | "skills"
-  | "export"
-  | "libraries";
+type Step = "load" | "extract" | "tpose" | "place" | "bind" | "convert" | "ship";
 
 interface LocalLib {
   packDir: string;
@@ -78,19 +86,17 @@ interface LocalLib {
   manifestPath: string;
 }
 
-const STEPS: Array<{
-  id: Step;
-  label: string;
-  hint: string;
-}> = [
+const STEPS: Array<{ id: Step; label: string; hint: string }> = [
   { id: "load", label: "Load", hint: "Open FBX/GLB character" },
   { id: "extract", label: "Extract", hint: "Textures + anim clips" },
   { id: "tpose", label: "T-pose", hint: "Blender rest pose prep" },
   { id: "place", label: "Place", hint: "Map Mixamo-25 bones" },
-  { id: "skills", label: "Skills", hint: "Clip → skill slots" },
-  { id: "export", label: "Export", hint: "Build anim library pack" },
-  { id: "libraries", label: "Libraries", hint: "Local + fleet packs" },
+  { id: "bind", label: "Bind", hint: "Actions left · clips right" },
+  { id: "convert", label: "Convert", hint: "grudge-convert + Bip001 pack" },
+  { id: "ship", label: "Ship", hint: "R2 + D1 index + Documents" },
 ];
+
+const RACES = Object.keys(TOON_PLAY_KITS);
 
 function findNearestBone(root: THREE.Object3D, world: THREE.Vector3): THREE.Bone | null {
   let best: THREE.Bone | null = null;
@@ -117,18 +123,20 @@ function collectBoneNames(root: THREE.Object3D): string[] {
   return names;
 }
 
-function makeLabel(text: string): THREE.Sprite {
-  return makeBoneLabel(text);
-}
-
 function apiReady(): boolean {
   return Boolean(window.grudge?.skeleton && window.grudge?.files && window.grudge?.forge);
+}
+
+function clipKey(name: string): string {
+  return String(name || "").replace(/\.json$/i, "");
 }
 
 export default function SkeletonStudio() {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<SceneEngine | null>(null);
   const markersRef = useRef<THREE.Group | null>(null);
+  const authorRef = useRef<THREE.Object3D | null>(null);
+  const authorClipsRef = useRef<THREE.AnimationClip[]>([]);
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const pointer = useMemo(() => new THREE.Vector2(), []);
 
@@ -136,7 +144,7 @@ export default function SkeletonStudio() {
   const [diskPath, setDiskPath] = useState<string | null>(null);
   const [model, setModel] = useState<LoadedModel | null>(null);
   const [busy, setBusy] = useState(false);
-  const [statusLine, setStatusLine] = useState("Open a skinned FBX/GLB to begin.");
+  const [statusLine, setStatusLine] = useState("Open a skinned FBX/GLB — Mixamo author, Toon Bip001 play.");
   const [extract, setExtract] = useState<any>(null);
   const [activeBone, setActiveBone] = useState<Mixamo25Bone>("Hips");
   const [mapping, setMapping] = useState<SkeletonMappingDoc>(() => emptyMapping(""));
@@ -153,7 +161,6 @@ export default function SkeletonStudio() {
   const [fleetAnims, setFleetAnims] = useState<Array<{ name: string; url?: string; key?: string }>>(
     [],
   );
-  const [slotOverrides, setSlotOverrides] = useState<Record<string, string>>({});
   const [apiOk, setApiOk] = useState(true);
   const [tools, setTools] = useState<{
     blender?: { available?: boolean; path?: string; version?: string };
@@ -161,7 +168,18 @@ export default function SkeletonStudio() {
   } | null>(null);
   const [prompt3dContext, setPrompt3dContext] = useState<Prompt3DRigContext | null>(null);
 
-  // Scene host
+  const [packId, setPackId] = useState("sword_shield");
+  const [playRace, setPlayRace] = useState("human");
+  const [playHostOn, setPlayHostOn] = useState(false);
+  const [selRole, setSelRole] = useState("");
+  const [selClip, setSelClip] = useState("");
+  const [roleBinds, setRoleBinds] = useState<Record<string, string>>({});
+  const [cloudPacks, setCloudPacks] = useState<{
+    url: string;
+    packIds: string[];
+  } | null>(null);
+  const [rigFamily, setRigFamily] = useState<"mixamo" | "biped" | "bandai" | "unknown">("unknown");
+
   useEffect(() => {
     if (!viewportRef.current) return;
     const engine = new SceneEngine(viewportRef.current, {
@@ -175,7 +193,6 @@ export default function SkeletonStudio() {
     markers.name = "bone-markers";
     engine.scene.add(markers);
     markersRef.current = markers;
-    // Force resize after layout settles (full-height shell)
     requestAnimationFrame(() => {
       window.dispatchEvent(new Event("resize"));
     });
@@ -187,19 +204,20 @@ export default function SkeletonStudio() {
 
   useEffect(() => {
     setApiOk(apiReady());
-    void window.grudge?.settings?.toolchain?.().then((t: any) => {
-      // toolchain may be array or keyed object depending on main shape
-      if (Array.isArray(t)) {
-        const blender = t.find((x: any) => /blender/i.test(x?.name || ""));
-        const fbx = t.find((x: any) => /fbx2gltf|fbx/i.test(x?.name || ""));
-        setTools({ blender, fbx2gltf: fbx });
-      } else if (t && typeof t === "object") {
-        setTools({
-          blender: t.blender || t.Blender,
-          fbx2gltf: t.fbx2gltf || t.FBX2glTF,
-        });
-      }
-    }).catch(() => setTools(null));
+    void window.grudge?.settings?.toolchain?.()
+      .then((t: any) => {
+        if (Array.isArray(t)) {
+          const blender = t.find((x: any) => /blender/i.test(x?.name || ""));
+          const fbx = t.find((x: any) => /fbx2gltf|fbx/i.test(x?.name || ""));
+          setTools({ blender, fbx2gltf: fbx });
+        } else if (t && typeof t === "object") {
+          setTools({
+            blender: t.blender || t.Blender,
+            fbx2gltf: t.fbx2gltf || t.FBX2glTF,
+          });
+        }
+      })
+      .catch(() => setTools(null));
   }, []);
 
   const rebuildMarkers = useCallback(
@@ -219,7 +237,7 @@ export default function SkeletonStudio() {
         mesh.position.set(...p.world);
         mesh.userData.bone = p.bone;
         g.add(mesh);
-        const label = makeLabel(p.bone + (p.sourceBone ? ` ← ${p.sourceBone}` : ""));
+        const label = makeBoneLabel(p.bone + (p.sourceBone ? ` ← ${p.sourceBone}` : ""));
         label.position.set(p.world[0], p.world[1] + 0.08, p.world[2]);
         g.add(label);
       }
@@ -246,7 +264,7 @@ export default function SkeletonStudio() {
       const res = await window.grudge?.os?.search?.({
         q: "anim",
         limit: 24,
-        prefix: "models/anims",
+        prefix: "prod/anims",
       });
       const items = res?.items ?? res?.results ?? res ?? [];
       if (Array.isArray(items)) {
@@ -266,8 +284,66 @@ export default function SkeletonStudio() {
   useEffect(() => {
     void refreshLibraries();
     void refreshFleetAnims();
+    void fetchAnimPacksCatalog().then((doc) => {
+      if (!doc) {
+        setStatusLine((s) => s);
+        return;
+      }
+      setCloudPacks({ url: doc.url, packIds: Object.keys(doc.packs) });
+    });
   }, []);
 
+  function clearUserModels() {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const scene = engine.scene;
+    const toRemove: THREE.Object3D[] = [];
+    scene.children.forEach((o) => {
+      if (o.userData?.isUserModel) toRemove.push(o);
+    });
+    toRemove.forEach((o) => {
+      engine.removeSkeletonHelper(o);
+      const m = o.userData.grudgeMixer as THREE.AnimationMixer | undefined;
+      if (m) engine.removeMixer(m);
+      scene.remove(o);
+    });
+  }
+
+  async function attachLoaded(loaded: LoadedModel, path: string, asAuthor: boolean) {
+    if (!engineRef.current) return;
+    clearUserModels();
+    loaded.object.userData.isUserModel = true;
+    engineRef.current.scene.add(loaded.object);
+    engineRef.current.frame(loaded.object);
+
+    const { attachAnimationMixer } = await import("../lib/forge/forgeAnimation");
+    const handle = attachAnimationMixer(loaded.object, loaded.animations, {
+      dropRootMotion: true,
+    });
+    engineRef.current.mixers.push(handle.mixer);
+    engineRef.current.setSkeletonHelper(loaded.object, showSkeleton);
+    setMixer(handle.mixer);
+    setAnimClips(handle.clips);
+    setActiveAction(null);
+    setModel(loaded);
+    setDiskPath(path);
+
+    const jointNames = collectBoneNames(loaded.object);
+    setRigFamily(detectRigFamily(jointNames));
+    if (asAuthor) {
+      authorRef.current = loaded.object;
+      authorClipsRef.current = loaded.animations.slice();
+      if (jointNames.length) {
+        setMapping((m) =>
+          applyAutoMapToDoc({ ...emptyMapping(path), placements: m.placements }, jointNames),
+        );
+      } else {
+        setMapping(emptyMapping(path));
+      }
+    }
+  }
+
+  async function loadFromPath(path: string) {
   async function loadFromPath(path: string, suggestedPlacements?: BonePlacement[], reviewContext?: Prompt3DRigContext) {
     if (!window.grudge?.forge?.readFile) {
       toast.error("Forge IPC missing — restart Dev Tool");
@@ -288,6 +364,16 @@ export default function SkeletonStudio() {
         if (digest !== reviewContext.sourceSha256) throw new Error("The model changed since this skeleton review was requested. Reopen review from its exact retained revision.");
       }
       const file = new File([ab], name);
+      const loaded = await loadModel(file, { diskPath: path });
+      await attachLoaded(loaded, path, true);
+      setExtract(null);
+      setPackDir(null);
+      setTposePath(null);
+      setPlayHostOn(false);
+      setRoleBinds({});
+      setStep("extract");
+      setStatusLine(
+        `Loaded · ${loaded.bones} bones · ${loaded.animations.length} clips · extract next`,
       const loaded = await loadModel(file, { diskPath: path, materialPolicy: "preserve-authored", skipGenericPreview: Boolean(reviewContext) });
       if (engineRef.current) {
         const scene = engineRef.current.scene;
@@ -351,7 +437,6 @@ export default function SkeletonStudio() {
     }
   }
 
-  // Consume pending path from Assets → Skeleton handoff (after loadFromPath exists)
   useEffect(() => {
     try {
       const pending = sessionStorage.getItem("grudge.skeleton.pendingPath");
@@ -414,6 +499,68 @@ export default function SkeletonStudio() {
     }
   }
 
+  async function previewOnToonRace(race: string) {
+    const srcObj = authorRef.current;
+    const srcClips = authorClipsRef.current.length
+      ? authorClipsRef.current
+      : animClips;
+    if (!srcClips.length && !srcObj) {
+      toast.error("Load an author FBX/GLB first");
+      setStep("load");
+      return;
+    }
+    setBusy(true);
+    setPlayRace(race);
+    setStatusLine(`Preview on Toon ${race} (Bip001 play)…`);
+    try {
+      const host = await loadToonPlayKit(race);
+      applyUnarmedVisibility(host.object, race);
+      let clips = rematchClipsToHost(srcClips, host.object);
+      if (srcObj && clips.length < srcClips.length) {
+        try {
+          const { retargetClips } = await import("../lib/forge/boneAliases");
+          const retargeted = retargetClips(srcClips, host.object, srcObj, {
+            dropRootChain: true,
+          });
+          if (retargeted.length > clips.length) clips = retargeted;
+        } catch {
+          /* rematch-only fallback */
+        }
+      }
+      const loaded: LoadedModel = {
+        object: host.object,
+        animations: clips,
+        gltf: model?.gltf ?? null,
+        format: "glb",
+        triangles: model?.triangles ?? 0,
+        vertices: model?.vertices ?? 0,
+        bones: collectBoneNames(host.object).length,
+        materials: model?.materials,
+      };
+      await attachLoaded(loaded, diskPath || toonKitUrlFallback(race), false);
+      setPlayHostOn(true);
+      setRigFamily("biped");
+      setStep("bind");
+      setStatusLine(
+        `Play host · Toon ${race} · ${clips.length} clips rematched onto ${BIP001_PLAY_CORE.length}-bone Bip001`,
+      );
+      toast.success(`Preview on ${race}`, {
+        description: `${clips.length} clips · hip .position stripped`,
+      });
+    } catch (e: unknown) {
+      toast.error("Toon preview failed", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toonKitUrlFallback(race: string): string {
+    const kit = TOON_PLAY_KITS[race] ?? TOON_PLAY_KITS.human;
+    return `${FLEET_URLS.assets}/${kit.r2Key}`;
+  }
+
   async function runExtract() {
     if (!diskPath) {
       toast.error("Load a model first");
@@ -431,11 +578,9 @@ export default function SkeletonStudio() {
         setExtract(res);
         if (res.skeleton?.jointNames?.length) {
           setMapping((m) => applyAutoMapToDoc(m, res.skeleton.jointNames));
+          setRigFamily(detectRigFamily(res.skeleton.jointNames));
         }
-        if (res.glbPath && res.glbPath !== diskPath) {
-          // Prefer converted GLB for later steps
-          setDiskPath(res.glbPath);
-        }
+        if (res.glbPath && res.glbPath !== diskPath) setDiskPath(res.glbPath);
         setStep("tpose");
         setStatusLine(
           `Extracted ${res.textures?.length ?? 0} textures · ${res.animations?.length ?? 0} clips · ${res.skeleton?.jointCount ?? 0} joints`,
@@ -540,7 +685,6 @@ export default function SkeletonStudio() {
     }
   }
 
-  // Place mode clicks
   useEffect(() => {
     const el = viewportRef.current;
     const engine = engineRef.current;
@@ -610,22 +754,33 @@ export default function SkeletonStudio() {
       return;
     }
     setBusy(true);
-    setStatusLine("Building retarget anim library v2…");
+    setStatusLine("Building Warlords Bip001 anim library…");
     try {
+      const mappingOut: SkeletonMappingDoc = {
+        ...mapping,
+        packId,
+        roleBinds,
+        authorSkeleton: "mixamo-25",
+        playSkeleton: "bip001",
+        skeleton: "bip001",
+      };
       const res = await window.grudge.skeleton.buildLibrary({
         modelPath: path,
-        mapping,
-        packName: path.split(/[/\\]/).pop()?.replace(/\.[^.]+$/, "") + "-mixamo25",
+        mapping: mappingOut,
+        packName: `${path.split(/[/\\]/).pop()?.replace(/\.[^.]+$/, "") || "pack"}-${packId}`,
+        packId,
+        roleBinds,
+        playSkeleton: "bip001",
       });
       if (!res?.ok) {
         toast.error("Library build failed", { description: res?.errors?.join("; ") });
         setStatusLine(`Export failed: ${res?.errors?.join("; ")}`);
       } else {
         setPackDir(res.packDir);
-        setStep("export");
-        setStatusLine(`Pack ready: ${res.packDir}`);
-        toast.success("Anim library pack ready", {
-          description: `${res.clips?.length ?? 0} clips · ${res.autoMapped ?? 0} bones mapped`,
+        setStep("convert");
+        setStatusLine(`Pack ready (Bip001 play): ${res.packDir}`);
+        toast.success("Play skeleton pack ready", {
+          description: `${res.clips?.length ?? 0} clips · ${res.autoMapped ?? 0} bones · ${packId}`,
         });
         void refreshLibraries();
       }
@@ -646,7 +801,7 @@ export default function SkeletonStudio() {
           description: res.dest,
         });
         void refreshLibraries();
-        setStep("libraries");
+        setStep("ship");
       } else toast.error(res?.error || "Install failed");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "install error");
@@ -660,43 +815,78 @@ export default function SkeletonStudio() {
     setBusy(true);
     try {
       const stamp = Date.now();
+      const prefix = `models/anims/libraries/${stamp}`;
       const rest = `${packDir}/rest.glb`.replace(/\\/g, "/");
+      const files = [
+        { localPath: rest, targetPath: `${prefix}/rest.glb`, contentType: "model/gltf-binary" },
+        {
+          localPath: `${packDir}/anim-library-manifest.json`,
+          targetPath: `${prefix}/anim-library-manifest.json`,
+          contentType: "application/json",
+        },
+        {
+          localPath: `${packDir}/retarget-map.json`,
+          targetPath: `${prefix}/retarget-map.json`,
+          contentType: "application/json",
+        },
+        {
+          localPath: `${packDir}/skeleton-mapping.json`,
+          targetPath: `${prefix}/skeleton-mapping.json`,
+          contentType: "application/json",
+        },
+        {
+          localPath: `${packDir}/clips-index.json`,
+          targetPath: `${prefix}/clips-index.json`,
+          contentType: "application/json",
+        },
+        {
+          localPath: `${packDir}/bip001-play-bones.json`,
+          targetPath: `${prefix}/bip001-play-bones.json`,
+          contentType: "application/json",
+        },
+        {
+          localPath: `${packDir}/role-binds.json`,
+          targetPath: `${prefix}/role-binds.json`,
+          contentType: "application/json",
+        },
+        {
+          localPath: `${packDir}/anim-packs-fragment.json`,
+          targetPath: `${prefix}/anim-packs-fragment.json`,
+          contentType: "application/json",
+        },
+      ];
       const job = {
         id: `skel-${stamp}`,
-        packId: "anim-libraries",
+        packId: packId || "anim-libraries",
         packVersion: "2.0.0",
         buildManifest: true,
-        files: [
-          {
-            localPath: rest,
-            targetPath: `models/anims/libraries/${stamp}/rest.glb`,
-            contentType: "model/gltf-binary",
-          },
-          {
-            localPath: `${packDir}/anim-library-manifest.json`,
-            targetPath: `models/anims/libraries/${stamp}/anim-library-manifest.json`,
-            contentType: "application/json",
-          },
-          {
-            localPath: `${packDir}/retarget-map.json`,
-            targetPath: `models/anims/libraries/${stamp}/retarget-map.json`,
-            contentType: "application/json",
-          },
-          {
-            localPath: `${packDir}/skeleton-mapping.json`,
-            targetPath: `models/anims/libraries/${stamp}/skeleton-mapping.json`,
-            contentType: "application/json",
-          },
-          {
-            localPath: `${packDir}/clips-index.json`,
-            targetPath: `models/anims/libraries/${stamp}/clips-index.json`,
-            contentType: "application/json",
-          },
-        ],
+        files,
       };
       await window.grudge.upload.enqueue(job);
-      toast.success("Upload queued → models/anims/libraries on R2");
-      setStatusLine("Upload queued to fleet CDN");
+      const cdn = `${FLEET_URLS.assets}/${prefix}/rest.glb`;
+      try {
+        await window.grudge?.os?.registerAsset?.({
+          grudge_uuid: `skel-${stamp}`,
+          r2_key: `${prefix}/rest.glb`,
+          category: "animation",
+          content_type: "model/gltf-binary",
+          pack_id: packId,
+          name: `${packId}-bip001-play`,
+          cdn_url: cdn,
+          metadata: {
+            skeleton: "bip001",
+            authorSkeleton: "mixamo-25",
+            purpose: "play",
+            packId,
+            roleBinds,
+          },
+        });
+      } catch {
+        /* index optional — binaries still queued */
+      }
+      toast.success("Upload queued → R2 libraries + D1 index");
+      setStatusLine(`Queued ${prefix} · defs still merge into anim-packs.json`);
+      setStep("ship");
     } catch (e: unknown) {
       toast.error("Upload failed", {
         description: e instanceof Error ? e.message : String(e),
@@ -754,6 +944,7 @@ export default function SkeletonStudio() {
       });
       const merged = [...model.animations, ...retargeted];
       model.animations = merged;
+      authorClipsRef.current = [...authorClipsRef.current, ...source.animations];
       const { attachAnimationMixer } = await import("../lib/forge/forgeAnimation");
       if (mixer) engineRef.current.removeMixer(mixer);
       const handle = attachAnimationMixer(model.object, merged, { dropRootMotion: true });
@@ -762,8 +953,8 @@ export default function SkeletonStudio() {
       setAnimClips(handle.clips);
       setActiveAction(null);
       toast.success(`Retargeted ${retargeted.length} clips`, { description: name });
-      setStep("skills");
-      setStatusLine(`+${retargeted.length} retargeted clips — assign skill slots`);
+      setStep("bind");
+      setStatusLine(`+${retargeted.length} retargeted clips — bind roles on the left`);
     } catch (e: unknown) {
       toast.error("Retarget failed", {
         description: e instanceof Error ? e.message : String(e),
@@ -801,11 +992,25 @@ export default function SkeletonStudio() {
     setActiveAction(act);
   }
 
-  /** Step tab click: navigate AND run the step's primary action when ready */
+  function playNamedClip(name: string) {
+    const clip = animClips.find((c) => clipKey(c.name) === clipKey(name) || c.name === name);
+    if (clip) playAnimClip(clip);
+    else toast.message(`Clip not on mixer · ${name}`);
+  }
+
+  function bindRoleToClip(role: string, clipName: string) {
+    const key = clipKey(clipName);
+    setRoleBinds((b) => ({ ...b, [role]: key }));
+    setSelRole(role);
+    setSelClip(key);
+    playNamedClip(key);
+    toast.success(`Bound ${role} ← ${key}`);
+  }
+
   async function goStep(s: Step) {
     setStep(s);
     if (s === "load" && !diskPath) {
-      setStatusLine("Click Open FBX/GLB to load a character");
+      setStatusLine("Click Open FBX/GLB to load an author character");
       return;
     }
     if (s === "extract" && diskPath && !extract && !busy) {
@@ -813,7 +1018,6 @@ export default function SkeletonStudio() {
       return;
     }
     if (s === "tpose" && diskPath && !busy) {
-      // Stay on panel; user confirms AI hint then runs
       setStatusLine("Review T-pose hint, then run AI T-pose prep");
       return;
     }
@@ -832,22 +1036,18 @@ export default function SkeletonStudio() {
       }
       return;
     }
-    if (s === "skills") {
-      setStatusLine(
-        animClips.length || extract?.animations?.length
-          ? "Assign clips to skill slots"
-          : "Extract or load clips first",
-      );
+    if (s === "bind") {
+      setStatusLine("Click an action (left), then a clip (right) to bind. Preview on Toon race.");
       return;
     }
-    if (s === "export" && diskPath && !packDir && !busy) {
+    if (s === "convert" && diskPath && !packDir && !busy) {
       await exportLibrary();
       return;
     }
-    if (s === "libraries") {
+    if (s === "ship") {
       void refreshLibraries();
       void refreshFleetAnims();
-      setStatusLine("Local Documents libraries + fleet anim search");
+      setStatusLine("Install locally and/or upload R2 · D1 index (not player SSOT)");
     }
   }
 
@@ -861,10 +1061,33 @@ export default function SkeletonStudio() {
     extract: Boolean(extract?.ok),
     tpose: Boolean(tposePath),
     place: placedCount >= 8 || autoMatched >= 12,
-    skills: animClips.length > 0 || clips.length > 0,
-    export: Boolean(packDir),
-    libraries: libraries.length > 0,
+    bind: Object.keys(roleBinds).length > 0 || animClips.length > 0,
+    convert: Boolean(packDir),
+    ship: libraries.length > 0,
   };
+
+  const studioRoles = useMemo(() => {
+    const packRoles = cloudPacks ? [] : [];
+    return listStudioRoles(packRoles);
+  }, [cloudPacks]);
+
+  const clipRows = useMemo(() => {
+    const names = new Set<string>();
+    const rows: Array<{ name: string; duration?: number; source: "mixer" | "extract" }> = [];
+    for (const c of animClips) {
+      const n = c.name || "(unnamed)";
+      if (names.has(n)) continue;
+      names.add(n);
+      rows.push({ name: n, duration: c.duration, source: "mixer" });
+    }
+    for (const c of clips) {
+      const n = String(c.name || "");
+      if (!n || names.has(n)) continue;
+      names.add(n);
+      rows.push({ name: n, duration: c.duration, source: "extract" });
+    }
+    return rows;
+  }, [animClips, clips]);
 
   const onFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -895,14 +1118,13 @@ export default function SkeletonStudio() {
       }}
       onDrop={onFileDrop}
     >
-      {/* Header + actionable steps */}
       <header className="shrink-0 border-b border-white/10 bg-black/40">
         <div className="flex flex-wrap items-center gap-2 px-3 py-2">
           <Bone className="h-4 w-4 text-cyan-400" />
           <div className="min-w-0">
             <h1 className="text-sm font-semibold tracking-wide">Skeleton Studio</h1>
-            <p className="text-[10px] text-slate-500 truncate">
-              Mixamo-25 · extract · T-pose · retarget · grudge-convert → CDN
+            <p className="truncate text-[10px] text-slate-500">
+              Mixamo-25 author · extract · T-pose · retarget · Toon Bip001 play · grudge-convert
             </p>
           </div>
           {!apiOk && (
@@ -910,6 +1132,39 @@ export default function SkeletonStudio() {
               <AlertCircle className="h-3 w-3" /> IPC incomplete — restart app
             </span>
           )}
+          <label className="ml-2 flex items-center gap-1 text-[10px] text-slate-400">
+            Race
+            <select
+              className="rounded border border-slate-700 bg-black/60 px-1 py-0.5 text-[10px] text-cyan-200"
+              value={playRace}
+              onChange={(e) => void previewOnToonRace(e.target.value)}
+              disabled={busy}
+              title="Warlords play body — Toon {race}.glb Bip001"
+            >
+              {RACES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-1 text-[10px] text-slate-400">
+            Pack
+            <select
+              className="rounded border border-slate-700 bg-black/60 px-1 py-0.5 text-[10px] text-cyan-200"
+              value={packId}
+              onChange={(e) => {
+                setPackId(e.target.value);
+                setSelRole("");
+              }}
+            >
+              {WARLORDS_PACK_IDS.map((id) => (
+                <option key={id} value={id}>
+                  {WARLORDS_PACK_META[id]?.label || id}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="ml-auto flex flex-wrap gap-1">
             <button
               type="button"
@@ -917,7 +1172,7 @@ export default function SkeletonStudio() {
               onClick={() => void pickFile()}
               disabled={busy}
             >
-              <FolderOpen className="inline h-3 w-3 mr-1" />
+              <FolderOpen className="mr-1 inline h-3 w-3" />
               Open model
             </button>
             <button
@@ -962,52 +1217,147 @@ export default function SkeletonStudio() {
             );
           })}
         </nav>
-        <div className="border-t border-white/5 px-3 py-1 text-[10px] text-slate-400 font-mono truncate flex flex-wrap gap-x-3 gap-y-0.5">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 truncate border-t border-white/5 px-3 py-1 font-mono text-[10px] text-slate-400">
           <span>
             {busy ? "Working…" : statusLine}
             {diskPath ? ` · ${diskPath.split(/[/\\]/).pop()}` : ""}
           </span>
           <span className="text-slate-600">
+            Author {rigFamily}
+            {" · "}
+            Play {playHostOn ? `Toon ${playRace}` : "author mesh"}
+            {" · Mixer "}
+            {mixer ? <span className="text-emerald-400">on</span> : <span className="text-amber-400">off</span>}
+            {" · "}
             Blender:{" "}
             {tools?.blender?.available === true ? (
               <span className="text-emerald-400">ready</span>
             ) : tools?.blender?.available === false ? (
-              <span className="text-amber-400">missing (T-pose needs Blender)</span>
+              <span className="text-amber-400">missing</span>
             ) : (
               <span className="text-slate-500">…</span>
             )}
-            {" · "}
-            FBX2glTF:{" "}
-            {tools?.fbx2gltf?.available === true ? (
-              <span className="text-emerald-400">ready</span>
-            ) : tools?.fbx2gltf?.available === false ? (
-              <span className="text-amber-400">optional</span>
+            {cloudPacks ? (
+              <span className="text-cyan-700">
+                {" · ANIM_PACKS "}
+                {cloudPacks.packIds.length} ← {cloudPacks.url.replace(/^https:\/\//, "").split("/")[0]}
+              </span>
             ) : (
-              <span className="text-slate-500">…</span>
+              <span className="text-slate-600"> · ANIM_PACKS local fallback</span>
             )}
           </span>
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {/* Viewport */}
+        {/* LEFT — actions (or Mixamo-25 bones on Place) */}
+        <aside className="flex w-[16.5rem] shrink-0 flex-col border-r border-white/10 bg-black/35">
+          <div className="flex items-center justify-between border-b border-white/5 px-2 py-1.5">
+            <h2 className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              {step === "place" ? "Mixamo-25 bones" : "Actions"}
+            </h2>
+            {step !== "place" && (
+              <span className="text-[9px] text-slate-600">{Object.keys(roleBinds).length} bound</span>
+            )}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+            {step === "place" ? (
+              <div className="space-y-0.5">
+                {MIXAMO_25_CORE.map((b) => {
+                  const placed = mapping.placements.some((p) => p.bone === b);
+                  const src =
+                    mapping.reverseMap?.[b] ||
+                    mapping.placements.find((p) => p.bone === b)?.sourceBone;
+                  return (
+                    <button
+                      key={b}
+                      type="button"
+                      onClick={() => setActiveBone(b)}
+                      className={`flex w-full items-center justify-between rounded px-1.5 py-0.5 text-left text-[11px] ${
+                        activeBone === b
+                          ? "bg-cyan-950 text-cyan-200"
+                          : "text-slate-300 hover:bg-white/5"
+                      }`}
+                    >
+                      <span className="truncate">
+                        {b}
+                        {src ? <span className="text-slate-600"> ← {src}</span> : null}
+                      </span>
+                      <span className={placed || src ? "text-emerald-400" : "text-slate-600"}>
+                        {placed || src ? "●" : "○"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              ANIM_FAMILY_ORDER.map((fam) => {
+                const list = studioRoles.filter((d) => d.family === fam);
+                if (!list.length) return null;
+                return (
+                  <div key={fam} className="mb-2">
+                    <h3 className="px-1 py-0.5 text-[9px] uppercase tracking-wide text-slate-600">
+                      {ANIM_FAMILY_LABELS[fam]}
+                    </h3>
+                    {list.map((d) => {
+                      const bound = roleBinds[d.role];
+                      const on = selRole === d.role;
+                      return (
+                        <button
+                          key={d.role}
+                          type="button"
+                          title={`${d.label}${d.input ? " · " + d.input : ""}${bound ? " · " + bound : ""}`}
+                          onClick={() => {
+                            setSelRole(d.role);
+                            if (bound) {
+                              setSelClip(bound);
+                              playNamedClip(bound);
+                            }
+                            toast.message(bound ? `${d.role} · ${bound}` : `Pick a clip → ${d.role}`);
+                          }}
+                          className={`mb-0.5 flex w-full items-center justify-between rounded px-1.5 py-1 text-left text-[11px] ${
+                            on
+                              ? "bg-cyan-950/80 text-cyan-100"
+                              : bound
+                                ? "text-emerald-200/90 hover:bg-white/5"
+                                : "text-slate-400 hover:bg-white/5"
+                          }`}
+                        >
+                          <span className="truncate">{d.role}</span>
+                          <small className="ml-1 shrink-0 text-[9px] text-slate-500">
+                            {bound ? "bound" : "set →"}
+                          </small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </aside>
+
+        {/* VIEWPORT */}
         <div className="relative min-h-0 min-w-0 flex-1 bg-[#0a0e1a]">
           <div ref={viewportRef} className="absolute inset-0" />
           {!model && (
-            <div className="pointer-events-none absolute inset-0 z-[2] flex flex-col items-center justify-center gap-3 text-center px-6">
+            <div className="pointer-events-none absolute inset-0 z-[2] flex flex-col items-center justify-center gap-3 px-6 text-center">
               <Bone className="h-10 w-10 text-cyan-500/40" />
               <p className="text-sm text-slate-300">No character loaded</p>
-              <p className="text-[11px] text-slate-500 max-w-sm">
-                <strong className="text-cyan-300">Drop</strong> an FBX/GLB anywhere on this page, or{" "}
-                <strong className="text-cyan-300">Open model</strong> — needs a humanoid skeleton.
+              <p className="max-w-sm text-[11px] text-slate-500">
+                Drop an FBX/GLB, or Open model. Author can be Mixamo — play save is Toon Bip001.
               </p>
             </div>
           )}
           {step === "place" && model && (
             <div className="pointer-events-none absolute left-3 top-3 rounded bg-black/75 px-2 py-1 text-[11px] text-cyan-200">
               <MousePointer2 className="mr-1 inline h-3 w-3" />
-              Click mesh → place <strong>{activeBone}</strong> ({placedCount}/
-              {MIXAMO_25_CORE.length}) · snaps to nearest bone
+              Click mesh → place <strong>{activeBone}</strong> ({placedCount}/{MIXAMO_25_CORE.length})
+            </div>
+          )}
+          {playHostOn && (
+            <div className="pointer-events-none absolute right-3 top-3 rounded bg-black/75 px-2 py-1 text-[10px] text-emerald-300">
+              Play · Toon {playRace} · {BIP001_PLAY_CORE.length} Bip001
             </div>
           )}
           {busy && (
@@ -1017,57 +1367,81 @@ export default function SkeletonStudio() {
           )}
         </div>
 
-        {/* Step panel */}
-        <aside className="flex w-[24rem] shrink-0 flex-col border-l border-white/10 bg-black/30">
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
-            {/* Always: model status */}
+        {/* RIGHT — clips + step tools */}
+        <aside className="flex w-[22rem] shrink-0 flex-col border-l border-white/10 bg-black/30">
+          <div className="flex-1 space-y-3 overflow-y-auto p-3 text-xs">
             {model && (
-              <section className="rounded border border-white/10 bg-black/40 p-2 space-y-1.5">
+              <section className="space-y-1.5 rounded border border-white/10 bg-black/40 p-2">
                 <div className="text-[10px] text-slate-400">
-                  Mixer:{" "}
-                  {mixer ? (
-                    <span className="text-emerald-400">on</span>
-                  ) : (
-                    <span className="text-amber-400">off</span>
-                  )}{" "}
-                  · Bones {model.bones} · Clips {animClips.length} · Map {autoMatched}/22
+                  Bones {model.bones} · Clips {animClips.length} · Map {autoMatched}/22
+                  {" · "}
+                  <label className="inline-flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={showSkeleton}
+                      onChange={(e) => setShowSkeleton(e.target.checked)}
+                    />
+                    helper
+                  </label>
                 </div>
-                <label className="flex items-center gap-2 text-[11px]">
-                  <input
-                    type="checkbox"
-                    checked={showSkeleton}
-                    onChange={(e) => setShowSkeleton(e.target.checked)}
-                  />
-                  Skeleton helper
-                </label>
-                {animClips.length > 0 && (
-                  <div className="max-h-24 overflow-auto rounded border border-slate-800">
-                    {animClips.map((c) => (
-                      <button
-                        key={c.uuid}
-                        type="button"
-                        onClick={() => playAnimClip(c)}
-                        className={`flex w-full items-center gap-1 truncate px-2 py-1 text-left text-[10px] hover:bg-cyan-950/50 ${
-                          activeAction?.getClip() === c
-                            ? "bg-cyan-900/40 text-cyan-200"
-                            : "text-slate-400"
-                        }`}
-                      >
-                        <Play className="h-2.5 w-2.5 shrink-0" />
-                        {c.name || "(unnamed)"} · {c.duration.toFixed(1)}s
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void previewOnToonRace(playRace)}
+                  className="w-full rounded border border-emerald-800/50 bg-emerald-950/30 px-2 py-1.5 text-[11px] text-emerald-100 disabled:opacity-40"
+                >
+                  Preview on Toon {playRace} (play skeleton)
+                </button>
               </section>
             )}
 
-            {/* Step: LOAD */}
+            <section>
+              <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                Clips
+              </h2>
+              <p className="mb-1 text-[10px] text-slate-600">
+                Select an action on the left, then a clip here to bind.
+              </p>
+              <div className="max-h-48 overflow-auto rounded border border-slate-800">
+                {clipRows.length === 0 && (
+                  <p className="px-2 py-2 text-[10px] text-slate-600">No clips — extract or retarget</p>
+                )}
+                {clipRows.map((c) => {
+                  const on = selClip === clipKey(c.name) || activeAction?.getClip()?.name === c.name;
+                  const slot = matchSkillSlot(c.name);
+                  return (
+                    <button
+                      key={c.name}
+                      type="button"
+                      onClick={() => {
+                        if (selRole) bindRoleToClip(selRole, c.name);
+                        else {
+                          setSelClip(clipKey(c.name));
+                          playNamedClip(c.name);
+                          toast.message(`Pick an action first · ${c.name}`);
+                        }
+                      }}
+                      className={`flex w-full items-center gap-1 truncate px-2 py-1 text-left text-[10px] hover:bg-cyan-950/50 ${
+                        on ? "bg-cyan-900/40 text-cyan-200" : "text-slate-400"
+                      }`}
+                    >
+                      <Play className="h-2.5 w-2.5 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                      <span className="shrink-0 text-[9px] text-slate-600">
+                        {c.duration != null ? `${c.duration.toFixed(1)}s` : ""}
+                        {slot ? ` · ${slot.id}` : ""}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
             {step === "load" && (
               <section className="space-y-2">
-                <h2 className="text-xs font-semibold text-cyan-200">1 · Load character</h2>
+                <h2 className="text-xs font-semibold text-cyan-200">1 · Load author</h2>
                 <p className="text-[11px] text-slate-400">
-                  Open a skinned FBX or GLB. Viewport shows the mesh + skeleton + playable clips.
+                  Mixamo / Bandai / Biped FBX or GLB. Play body stays Toon race kit.
                 </p>
                 <button
                   type="button"
@@ -1077,56 +1451,32 @@ export default function SkeletonStudio() {
                 >
                   <FolderOpen className="h-4 w-4" /> Open FBX / GLB / OBJ
                 </button>
-                {diskPath && (
-                  <button
-                    type="button"
-                    className="w-full rounded border border-emerald-700/40 px-2 py-2 text-[11px] text-emerald-200"
-                    onClick={() => void goStep("extract")}
-                  >
-                    Next: Extract →
-                  </button>
-                )}
               </section>
             )}
 
-            {/* Step: EXTRACT */}
             {step === "extract" && (
               <section className="space-y-2">
                 <h2 className="text-xs font-semibold text-cyan-200">2 · Extract</h2>
-                <p className="text-[11px] text-slate-400">
-                  Converts if needed, pulls textures + animation metadata, auto-maps joints.
-                </p>
                 <button
                   type="button"
                   disabled={!diskPath || busy}
                   onClick={() => void runExtract()}
-                  className="flex w-full items-center justify-center gap-2 rounded-md bg-slate-800 px-3 py-3 text-sm font-medium disabled:opacity-40 hover:bg-slate-700"
+                  className="flex w-full items-center justify-center gap-2 rounded-md bg-slate-800 px-3 py-3 text-sm font-medium hover:bg-slate-700 disabled:opacity-40"
                 >
                   <FileBox className="h-4 w-4" /> Run extract
                 </button>
                 {extract && (
                   <div className="rounded border border-slate-700 p-2 text-[11px] text-slate-300">
-                    Textures: {extract.textures?.length ?? 0} · Anims:{" "}
-                    {extract.animations?.length ?? 0} · Joints:{" "}
-                    {extract.skeleton?.jointCount ?? 0}
-                    {extract.glbPath && (
-                      <div className="mt-1 truncate text-[10px] text-slate-500">
-                        GLB: {extract.glbPath}
-                      </div>
-                    )}
+                    Textures: {extract.textures?.length ?? 0} · Anims: {extract.animations?.length ?? 0} ·
+                    Joints: {extract.skeleton?.jointCount ?? 0}
                   </div>
                 )}
               </section>
             )}
 
-            {/* Step: TPOSE */}
             {step === "tpose" && (
               <section className="space-y-2">
                 <h2 className="text-xs font-semibold text-cyan-200">3 · T-pose</h2>
-                <p className="text-[11px] text-slate-400">
-                  Requires Blender on PATH or toolchain settings. Optional AI hint polish via Ollama.
-                </p>
-                <label className="text-[10px] text-slate-500">Hint</label>
                 <textarea
                   value={aiHint}
                   onChange={(e) => setAiHint(e.target.value)}
@@ -1144,7 +1494,6 @@ export default function SkeletonStudio() {
               </section>
             )}
 
-            {/* Step: PLACE */}
             {step === "place" && (
               <section className="space-y-2">
                 <h2 className="text-xs font-semibold text-cyan-200">4 · Place bones</h2>
@@ -1156,6 +1505,7 @@ export default function SkeletonStudio() {
                 >
                   <Target className="h-4 w-4" /> Auto-map Mixamo-25
                 </button>
+                <p className="text-[10px] text-slate-500">{BIP001_PLAY_LAW}</p>
                 <div className="max-h-56 overflow-y-auto space-y-0.5">
                   {MIXAMO_25_CORE.map((b) => {
                     const placed = mapping.placements.some((p) => p.bone === b);
@@ -1193,10 +1543,12 @@ export default function SkeletonStudio() {
               </section>
             )}
 
-            {/* Step: SKILLS */}
-            {step === "skills" && (
+            {step === "bind" && (
               <section className="space-y-2">
-                <h2 className="text-xs font-semibold text-cyan-200">5 · Skill slots</h2>
+                <h2 className="text-xs font-semibold text-cyan-200">5 · Bind roles</h2>
+                <p className="text-[11px] text-slate-400">
+                  {WARLORDS_PACK_META[packId]?.skills || packId}. Same as Casting Showcase.
+                </p>
                 <button
                   type="button"
                   disabled={!model || busy}
@@ -1205,55 +1557,59 @@ export default function SkeletonStudio() {
                 >
                   <Wand2 className="h-3.5 w-3.5" /> Retarget clips from another pack
                 </button>
-                <div className="max-h-52 overflow-y-auto space-y-0.5">
-                  {(clips.length
-                    ? clips
-                    : animClips.map((c) => ({ name: c.name }))
-                  ).map((c: any) => {
-                    const slot = matchSkillSlot(c.name);
-                    const override = slotOverrides[c.name];
-                    return (
-                      <div key={c.name} className="flex justify-between gap-1 text-[10px]">
-                        <span className="truncate text-slate-300">{c.name}</span>
-                        <select
-                          className="max-w-[7.5rem] rounded border border-slate-800 bg-black/50 text-[9px] text-cyan-400"
-                          value={override || slot?.id || ""}
-                          onChange={(e) =>
-                            setSlotOverrides((o) => ({ ...o, [c.name]: e.target.value }))
-                          }
-                        >
-                          <option value="">—</option>
-                          {ANIM_SKILL_SLOTS.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.id}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    );
-                  })}
-                  {!clips.length && !animClips.length && (
-                    <p className="text-slate-600">No clips — extract or retarget first</p>
-                  )}
-                </div>
+                {selRole && (
+                  <p className="text-[10px] text-cyan-300">
+                    Action <strong>{selRole}</strong>
+                    {selClip ? ` ← ${selClip}` : " — click a clip"}
+                  </p>
+                )}
               </section>
             )}
 
-            {/* Step: EXPORT */}
-            {step === "export" && (
+            {step === "convert" && (
               <section className="space-y-2">
-                <h2 className="text-xs font-semibold text-cyan-200">6 · Export library</h2>
+                <h2 className="text-xs font-semibold text-cyan-200">6 · Convert · save play skeleton</h2>
                 <button
                   type="button"
                   disabled={!diskPath || busy}
                   onClick={() => void exportLibrary()}
                   className="flex w-full items-center justify-center gap-2 rounded-md border border-emerald-700/50 bg-emerald-950/40 px-3 py-3 text-sm font-medium disabled:opacity-40"
                 >
-                  <Package className="h-4 w-4" /> Build retarget pack v2
+                  <Package className="h-4 w-4" /> Build Bip001 play pack
                 </button>
                 {packDir && (
                   <>
                     <p className="break-all text-[10px] text-emerald-400/90">{packDir}</p>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void convertOnly()}
+                      className="w-full rounded border border-slate-700 px-2 py-2 text-[11px]"
+                    >
+                      grudge-convert GLB
+                    </button>
+                  </>
+                )}
+              </section>
+            )}
+
+            {step === "ship" && (
+              <section className="space-y-2">
+                <h2 className="flex items-center gap-1 text-xs font-semibold text-cyan-200">
+                  <Library className="h-3.5 w-3.5" /> 7 · Ship
+                  <button
+                    type="button"
+                    className="ml-auto text-slate-500 hover:text-cyan-400"
+                    onClick={() => {
+                      void refreshLibraries();
+                      void refreshFleetAnims();
+                    }}
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                  </button>
+                </h2>
+                {packDir && (
+                  <>
                     <button
                       type="button"
                       disabled={busy}
@@ -1268,29 +1624,10 @@ export default function SkeletonStudio() {
                       onClick={() => void uploadPack()}
                       className="flex w-full items-center gap-2 rounded border border-cyan-700/40 bg-cyan-950/30 px-2 py-2"
                     >
-                      <Upload className="h-3.5 w-3.5" /> Upload to fleet R2
+                      <Upload className="h-3.5 w-3.5" /> Upload R2 + D1 index
                     </button>
                   </>
                 )}
-              </section>
-            )}
-
-            {/* Step: LIBRARIES */}
-            {step === "libraries" && (
-              <section className="space-y-2">
-                <h2 className="text-xs font-semibold text-cyan-200 flex items-center gap-1">
-                  <Library className="h-3.5 w-3.5" /> 7 · Libraries
-                  <button
-                    type="button"
-                    className="ml-auto text-slate-500 hover:text-cyan-400"
-                    onClick={() => {
-                      void refreshLibraries();
-                      void refreshFleetAnims();
-                    }}
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                  </button>
-                </h2>
                 <button
                   type="button"
                   onClick={() => void window.grudge.skeleton.openLibraryDir()}
@@ -1298,12 +1635,7 @@ export default function SkeletonStudio() {
                 >
                   <FolderOpen className="h-3.5 w-3.5" /> Open Documents/grudge-anim-libraries
                 </button>
-                <div className="max-h-48 space-y-1 overflow-y-auto">
-                  {libraries.length === 0 && (
-                    <p className="text-[10px] text-slate-600">
-                      No local packs — finish Export first.
-                    </p>
-                  )}
+                <div className="max-h-36 space-y-1 overflow-y-auto">
                   {libraries.map((lib) => (
                     <button
                       key={lib.packDir}
@@ -1313,26 +1645,26 @@ export default function SkeletonStudio() {
                     >
                       <div className="truncate font-medium text-slate-200">{lib.name}</div>
                       <div className="text-[9px] text-slate-500">
-                        {lib.clipCount} clips · {lib.jointCount} joints
+                        {lib.skeleton} · {lib.clipCount} clips · {lib.jointCount} joints
                       </div>
                     </button>
                   ))}
                 </div>
                 {fleetAnims.length > 0 && (
                   <div>
-                    <p className="text-[9px] uppercase text-slate-600">Fleet models/anims</p>
+                    <p className="text-[9px] uppercase text-slate-600">Fleet prod/anims</p>
                     {fleetAnims.map((a, i) => (
-                      <div
-                        key={`${a.key || a.name}-${i}`}
-                        className="truncate text-[10px] text-slate-500"
-                      >
+                      <div key={`${a.key || a.name}-${i}`} className="truncate text-[10px] text-slate-500">
                         {a.name}
                       </div>
                     ))}
                   </div>
                 )}
                 <p className="text-[9px] text-slate-600">
-                  Weapon packs: {ANIM_WEAPON_PACKS.slice(0, 6).join(", ")}…
+                  Packs: {ANIM_WEAPON_PACKS.slice(0, 8).join(", ")}…
+                </p>
+                <p className="text-[9px] text-slate-600">
+                  Lab bind: {FLEET_URLS.casting} · Combat: {FLEET_URLS.combatLab}
                 </p>
               </section>
             )}

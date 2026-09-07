@@ -17,6 +17,11 @@ import {
 
 // Privileged media scheme — BEFORE app.ready (required by Electron)
 registerMediaSchemePrivileged();
+// HTTPS ThreePipe (`threeflow.vercel.app/view`) fetches local meshes from 127.0.0.1:17380.
+app.commandLine.appendSwitch(
+  "disable-features",
+  "BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessRespectPreflightResults",
+);
 import * as api from "./api";
 import { uploader } from "./uploader";
 import * as bk from "./blenderkit/daemon";
@@ -819,12 +824,18 @@ function registerIpc() {
     modelPath: string;
     mapping?: unknown;
     packName?: string;
+    packId?: string;
+    roleBinds?: Record<string, string>;
+    playSkeleton?: "bip001";
   }) => {
     const { buildRetargetLibraryPack } = await import("./ingestion/retargetLibrary");
     return buildRetargetLibraryPack({
       modelPath: args.modelPath,
       mapping: args.mapping as any,
       packName: args.packName,
+      packId: args.packId,
+      roleBinds: args.roleBinds,
+      playSkeleton: args.playSkeleton ?? "bip001",
     });
   });
   ipcMain.handle("skeleton:saveMapping", async (_e, args: { path: string; mapping: unknown }) => {
@@ -1011,6 +1022,22 @@ function registerIpc() {
         }).catch((err) => log.warn("[viewer] plugin host", err));
       }
       return viewer.openThreeFlowEditor(args);
+    },
+  );
+  ipcMain.handle(
+    "viewer:openThreePipe",
+    async (_e, args: { name: string; cdnUrl?: string; localPath?: string }) => {
+      if (args?.localPath) {
+        await startPluginHost({
+          showMain: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.show();
+              mainWindow.focus();
+            }
+          },
+        }).catch((err) => log.warn("[viewer] plugin host", err));
+      }
+      return viewer.openThreeFlowPipeline({ ...args, mode: "view" });
     },
   );
   ipcMain.handle("viewer:openLocal", (_e, args: { path: string; contentType?: string; size?: number }) => {

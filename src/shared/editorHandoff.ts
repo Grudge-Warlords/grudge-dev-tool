@@ -13,6 +13,21 @@ import { DEFAULT_PLUGIN_PORT } from "./plugin/contract";
 
 export type EditorSurface = "threeflow" | "forge" | "elite";
 
+/**
+ * The only three editor surfaces. Do not add Grok Builder / Pipeline / Studio
+ * as a fourth play editor — they are ingest or labs.
+ */
+export const EDITOR_TRIO: ReadonlyArray<{
+  id: EditorSurface;
+  label: string;
+  role: string;
+  host: string;
+}> = [
+  { id: "elite", label: "Elite (Dev Tool)", role: "preview / hierarchy / save", host: "local" },
+  { id: "threeflow", label: "ThreeFlow", role: "Warlords scene edit", host: FLEET_URLS.threeflow },
+  { id: "forge", label: "Forge", role: "R3F + Rapier deploy", host: FLEET_URLS.forge },
+];
+
 export function isPublicCdnUrl(url: string | null | undefined): url is string {
   if (!url) return false;
   return /^https?:\/\//i.test(url) && !/^https?:\/\/(localhost|127\.0\.0\.1)(:|$)/i.test(url);
@@ -36,7 +51,7 @@ export function threeflowAssetUrl(cdnUrl: string, extra?: Record<string, string>
   return u.toString();
 }
 
-/** ThreePipe inspect on ThreeFlow — not a fourth editor, not the Vue r185 bundle. */
+/** Isolated ThreePipe editor on ThreeFlow `/view` — not a fourth product, not the Vue r185 bundle. */
 export function threeflowViewUrl(cdnUrl: string, extra?: Record<string, string>): string {
   const u = new URL(FLEET_URLS.threeflow);
   u.pathname = "/view";
@@ -48,7 +63,7 @@ export function threeflowViewUrl(cdnUrl: string, extra?: Record<string, string>)
   return u.toString();
 }
 
-/** Double-click / Open with → ThreePipe view (default) or Vue editor. */
+/** Double-click / Open with → ThreePipe editor (default `/view`) or Vue `/editor`. */
 export function threeflowPipelineUrl(
   cdnUrl: string,
   mode: "view" | "editor" = "view",

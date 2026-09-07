@@ -7,6 +7,12 @@ import * as THREE from "three";
 import type { SceneEngine } from "./sceneEngine";
 import { setPrimaryAction, type AnimLoopMode } from "./forgeAnimation";
 import type { PlaySettings } from "../../../shared/playHotkeys";
+import {
+  applyGamepadDeadzone,
+  bindCombatSkills,
+  bindLocomotionCore,
+} from "./studioQuality";
+import type { LocomotionCore, WeaponSkillDef } from "@grudge-studio/animator";
 
 export type PlayGait = "idle" | "walk" | "run" | "clip";
 
@@ -39,10 +45,16 @@ export class PlayRuntime {
   private wish = new THREE.Vector3();
   private ray = new THREE.Raycaster();
   private down = new THREE.Vector3(0, -1, 0);
+  private from = new THREE.Vector3();
+  private padX = 0;
+  private padY = 0;
+  private padJumpHeld = false;
   private idleClip: THREE.AnimationClip | null = null;
   private walkClip: THREE.AnimationClip | null = null;
   private runClip: THREE.AnimationClip | null = null;
   private action: THREE.AnimationAction | null = null;
+  private loco: LocomotionCore | null = null;
+  private skills: WeaponSkillDef[] = [];
 
   constructor(
     public engine: SceneEngine,
@@ -51,14 +63,23 @@ export class PlayRuntime {
     public clips: THREE.AnimationClip[],
     public settings: PlaySettings,
   ) {
+    (this.ray as THREE.Raycaster & { firstHitOnly?: boolean }).firstHitOnly = true;
     this.idleClip = clipByHint(clips, ["idle", "stand", "wait"]);
     this.walkClip = clipByHint(clips, ["walk", "move"]);
     this.runClip = clipByHint(clips, ["run", "sprint"]);
     if (!this.idleClip && clips[0]) this.idleClip = clips[0];
+    if (mixer) {
+      this.loco = bindLocomotionCore(mixer, clips);
+      this.skills = bindCombatSkills(clips, "sword_shield");
+    }
   }
 
   start(): void {
     this.engine.setPlayDrive(true);
+    if (this.loco && this.mixer) {
+      const i = this.engine.mixers.indexOf(this.mixer);
+      if (i >= 0) this.engine.mixers.splice(i, 1);
+    }
     this.unTick = this.engine.onTick((dt) => this.tick(dt));
     const onDown = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
@@ -87,6 +108,8 @@ export class PlayRuntime {
     this.unKey?.();
     this.unKey = null;
     this.engine.setPlayDrive(false);
+    this.loco?.dispose();
+    this.loco = null;
     this.disposeVideo();
   }
 
@@ -127,6 +150,10 @@ export class PlayRuntime {
   }
 
   playGait(g: PlayGait): void {
+    if (this.loco) {
+      this.gait = g;
+      return;
+    }
     if (!this.mixer) return;
     const clip =
       g === "run"
@@ -139,6 +166,25 @@ export class PlayRuntime {
     this.gait = g;
     const loop: AnimLoopMode = "repeat";
     this.action = setPrimaryAction(this.mixer, clip, loop);
+  }
+
+  /** F / slot 1 — combatSkillKit primary (sword_shield attack). */
+  playPrimarySkill(): string | null {
+    const skill = this.skills[0];
+    if (!skill || !this.loco) return null;
+    const ok = this.loco.playWeaponSkill(skill);
+    return ok ? (skill.name ?? skill.id) : null;
+  }
+
+  playSkillSlot(slot: number): string | null {
+    const skill = this.skills[slot];
+    if (!skill || !this.loco) return null;
+    const ok = this.loco.playWeaponSkill(skill);
+    return ok ? (skill.name ?? skill.id) : null;
+  }
+
+  get skillCount(): number {
+    return this.skills.length;
   }
 
   attachVideo(src: string): void {
@@ -190,13 +236,36 @@ export class PlayRuntime {
     }
   }
 
+  private pollGamepad(): void {
+    const pads = typeof navigator !== "undefined" ? navigator.getGamepads?.() : null;
+    if (!pads) return;
+    const pad = Array.from(pads).find((p) => p?.connected) ?? null;
+    if (!pad) {
+      this.padX = 0;
+      this.padY = 0;
+      return;
+    }
+    this.padX = applyGamepadDeadzone(pad.axes[0] ?? 0);
+    this.padY = applyGamepadDeadzone(-(pad.axes[1] ?? 0));
+    const lookX = applyGamepadDeadzone(pad.axes[2] ?? 0);
+    const lookY = applyGamepadDeadzone(pad.axes[3] ?? 0);
+    if (lookX || lookY) this.onMouse(lookX * 12, lookY * 12);
+    const jumpBtn = pad.buttons[0];
+    const jumpDown = !!(jumpBtn && (jumpBtn.pressed || jumpBtn.value > 0.5));
+    if (jumpDown && !this.padJumpHeld && this.grounded) this.jump();
+    this.padJumpHeld = jumpDown;
+  }
+
   private sampleGroundY(x: number, z: number, fromY: number): number {
-    this.ray.set(new THREE.Vector3(x, fromY + 4, z), this.down);
+    this.ray.set(this.from.set(x, fromY + 4, z), this.down);
     const hits = this.ray.intersectObjects(this.engine.scene.children, true);
     const hit = hits.find((h) => {
-      const o = h.object;
-      if (o.userData?.forgeInternal) return true;
-      if ((o as THREE.Mesh).isMesh) return o !== this.videoMesh;
+      let n: THREE.Object3D | null = h.object;
+      while (n) {
+        if (n === this.player || n === this.videoMesh) return false;
+        if (n.userData?.forgeInternal) return true;
+        n = n.parent;
+      }
       return false;
     });
     return hit ? hit.point.y : 0;
@@ -208,6 +277,7 @@ export class PlayRuntime {
     this.sprinting = sprint;
     const speed = this.settings.moveSpeed * (sprint ? this.settings.sprintMul : 1);
 
+    this.pollGamepad();
     this.look.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     this.right.set(this.look.z, 0, -this.look.x);
     this.wish.set(0, 0, 0);
@@ -215,6 +285,10 @@ export class PlayRuntime {
     if (this.keys.has("KeyS")) this.wish.sub(this.look);
     if (this.keys.has("KeyA")) this.wish.add(this.right);
     if (this.keys.has("KeyD")) this.wish.sub(this.right);
+    if (this.wish.lengthSq() < 0.0001 && (this.padX || this.padY)) {
+      this.wish.addScaledVector(this.look, this.padY);
+      this.wish.addScaledVector(this.right, this.padX);
+    }
     const moving = this.wish.lengthSq() > 0.0001;
     this.moving = moving;
     if (moving) {
@@ -232,7 +306,13 @@ export class PlayRuntime {
       this.grounded = true;
     }
 
-    if (this.gait !== "clip") {
+    if (this.loco) {
+      const mag = moving ? Math.min(1, this.wish.length()) : 0;
+      this.loco.setGaitTarget(moving, sprint ? 1 : mag * 0.7, sprint);
+      this.loco.update(dt);
+      const g = this.loco.currentGait;
+      this.gait = g === "idle" ? "idle" : g === "walk" ? "walk" : "run";
+    } else if (this.gait !== "clip") {
       const want: PlayGait = moving ? (sprint ? "run" : "walk") : "idle";
       this.playGait(want);
     }

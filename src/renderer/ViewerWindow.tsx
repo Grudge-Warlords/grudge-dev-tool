@@ -19,7 +19,9 @@ import React, {
 import * as THREE from "three";
 import { toast } from "sonner";
 import { SceneEngine, type StudioView } from "./lib/forge/sceneEngine";
+import { DEFAULT_EDITOR_VIEWPORT, EDITOR_VIEWPORT_LIST, viewportFromHex } from "./lib/forge/viewportColor";
 import { loadModel, loadModelFromUrl, isSupported, localFileUrl } from "./lib/forge/loaders";
+import { diskPathFromFile } from "./lib/filePaths";
 import {
     attachAnimationMixer,
     setPrimaryAction,
@@ -41,7 +43,8 @@ import {
     classify, basename, formatBytes,
     type AssetRef, type AssetKind,
 } from "./components/viewers/types";
-import { isPublicCdnUrl, forgeStudioAssetUrl, threeflowAssetUrl, threeflowViewUrl, localLoopbackAssetUrl } from "../shared/editorHandoff";
+import { isPublicCdnUrl, forgeStudioAssetUrl } from "../shared/editorHandoff";
+import { INFO_ICONS } from "../shared/infoIcons";
 import {
     collectPipelineReviewStats,
     executePipelineReviewPlan,
@@ -65,16 +68,15 @@ function KindBadge({ kind }: { kind: AssetKind }) {
         model3d: "#ffc62a", scene3d: "#ffc62a", image: "#46d586", video: "#7c6bff", audio: "#ff9f1c",
         text: "#88aaff", pdf: "#ff5577", font: "#dd88ff", design: "#c084fc", unknown: "#9aa6c8",
     };
-    // info.grudge-studio.com chrome icons (never assets.*)
     const infoIcon: Partial<Record<AssetKind, string>> = {
-        model3d: "https://info.grudge-studio.com/icons/pack/weapons/Sword_01.png",
-        scene3d: "https://info.grudge-studio.com/icons/pack/weapons/Hammer_01.png",
-        image: "https://info.grudge-studio.com/icons/pack/misc/Effect.png",
-        audio: "https://info.grudge-studio.com/icons/skills/class/hunter/hunter_01.png",
-        video: "https://info.grudge-studio.com/icons/skills/class/firemage/firemage_01.png",
-        text: "https://info.grudge-studio.com/icons/skills/class/engineer/engineer_01.png",
-        pdf: "https://info.grudge-studio.com/icons/pack/armor/Chest_01.png",
-        font: "https://info.grudge-studio.com/icons/skills/class/paladin/paladin_01.png",
+        model3d: INFO_ICONS.sword,
+        scene3d: INFO_ICONS.hammer,
+        image: INFO_ICONS.effect,
+        audio: INFO_ICONS.hunter,
+        video: INFO_ICONS.firemage,
+        text: INFO_ICONS.hammer,
+        pdf: INFO_ICONS.chest,
+        font: INFO_ICONS.paladin,
     };
     const src = infoIcon[kind];
     return (
@@ -354,7 +356,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
     const [boundsOn, setBoundsOn] = useState(false);
     const [si, setSi] = useState<SiBounds | null>(null);
     const [viewKind, setViewKind] = useState<StudioView>("persp");
-    const [bgColour, setBgColour] = useState("#efd1b5");
+    const [bgColour, setBgColour] = useState(DEFAULT_EDITOR_VIEWPORT.hex);
     const [items, setItems] = useState<ViewerSceneItem[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [gizmoSpace, setGizmoSpace] = useState<"world" | "local">("world");
@@ -409,13 +411,14 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
     useEffect(() => {
         if (!hostRef.current) return;
         const engine = new SceneEngine(hostRef.current, {
-            background: 0xefd1b5,
+            background: DEFAULT_EDITOR_VIEWPORT.bg,
             showGrid: true,
             showAxes: false,
             hdri: true,
             showGround: true,
-            gridCellColor: 0x7a5a38,
-            gridSectionColor: 0x3d2818,
+            groundColor: DEFAULT_EDITOR_VIEWPORT.ground,
+            gridCellColor: DEFAULT_EDITOR_VIEWPORT.gridCell,
+            gridSectionColor: DEFAULT_EDITOR_VIEWPORT.gridSection,
         });
         // Studio, not blown-out: keep IBL + key, avoid ACES white-out on sand floor.
         engine.studioLights.ambient.intensity = 0.28;
@@ -695,7 +698,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
                     toast.error(`Unsupported: ${file.name}`);
                     continue;
                 }
-                const diskPath = (file as File & { path?: string }).path;
+                const diskPath = diskPathFromFile(file);
                 const loaded = await loadModel(file, {
                     diskPath,
                     sanitize: { toonStyle: true, fixDefaultYellow: true, whiteWhenMapped: true },
@@ -855,7 +858,13 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
     const handleBg = useCallback((hex: string) => {
         setBgColour(hex);
         if (!engineRef.current) return;
-        engineRef.current.scene.background = new THREE.Color(hex);
+        const n = parseInt(hex.replace("#", ""), 16);
+        if (!Number.isNaN(n)) engineRef.current.setBackgroundColor(n);
+        const preset = viewportFromHex(hex);
+        const floor = engineRef.current.scene.getObjectByName("GrudgeStudioGround") as THREE.Mesh | undefined;
+        if (preset && floor && (floor.material as THREE.MeshStandardMaterial).color) {
+            (floor.material as THREE.MeshStandardMaterial).color.setHex(preset.ground);
+        }
     }, []);
 
     // ── Animation handlers (exclusive primary clip — review/repair path) ─────
@@ -1096,16 +1105,18 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
     function openThreePipeView() {
         const cdn = cdnAssetUrl();
         const localPath = asset?.localPath || asset?.sourcePath;
-        const href = cdn
-            ? threeflowViewUrl(cdn, { name: asset?.name || "mesh" })
-            : localPath
-                ? threeflowViewUrl(localLoopbackAssetUrl(localPath), { name: asset?.name || "mesh" })
-                : "";
-        if (!href) {
+        if (!cdn && !localPath) {
             toast.error("Need a local mesh or CDN URL");
             return;
         }
-        G()?.os?.openExternal?.(href);
+        void G()?.viewer?.openThreePipe?.({
+            name: asset?.name || "mesh",
+            cdnUrl: cdn || undefined,
+            localPath: localPath || undefined,
+        }).then((r: { ok?: boolean; error?: string }) => {
+            if (r?.ok) toast.success("ThreePipe editor");
+            else toast.error(r?.error || "ThreePipe open failed");
+        }).catch((e: Error) => toast.error(e?.message || "ThreePipe open failed"));
     }
 
     function diskPathForUpload(): string | null {
@@ -1582,16 +1593,32 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
                 <Toggle label="HDRI lighting" checked = { hdri }  onChange = { handleHdri } />
                     <Toggle label="Shadows"   checked = { shadows }   onChange = { handleShadows } />
                         <div style={ { marginTop: 6, display: "flex", alignItems: "center", gap: 8 } }>
-                            <span style={ { fontSize: 12, color: "var(--muted)" } }> Background </span>
-                                < input
-type = "color" value = { bgColour }
-onChange = {(e) => handleBg(e.target.value)}
-style = {{
-    width: 36, height: 22, padding: 1, border: "1px solid var(--line)",
-        borderRadius: 4, background: "var(--bg-2)", cursor: "pointer",
-              }}
-            />
-    </div>
+                            <span style={{ fontSize: 12, color: "var(--muted)" }}>Background</span>
+                            <input
+                                type="color"
+                                value={bgColour}
+                                onChange={(e) => handleBg(e.target.value)}
+                                style={{
+                                    width: 36, height: 22, padding: 1, border: "1px solid var(--line)",
+                                    borderRadius: 4, background: "var(--bg-2)", cursor: "pointer",
+                                }}
+                            />
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                            {EDITOR_VIEWPORT_LIST.map((p) => (
+                                <button
+                                    key={p.id}
+                                    type="button"
+                                    title={p.label}
+                                    onClick={() => handleBg(p.hex)}
+                                    style={{
+                                        width: 18, height: 18, borderRadius: 3, padding: 0, cursor: "pointer",
+                                        border: bgColour.toLowerCase() === p.hex ? "2px solid var(--gold)" : "1px solid var(--line)",
+                                        background: p.hex,
+                                    }}
+                                />
+                            ))}
+                        </div>
     < button onClick = { resetCamera } style = {{
     marginTop: 8, width: "100%", padding: "4px 0",
         background: "var(--bg-2)", border: "1px solid var(--line)",
@@ -1893,7 +1920,7 @@ style = {{
 {/* Actions — working only */}
 <Section title="Actions" >
     <ActionBtn onClick={ sendToR2D1 } icon="" label="Send to R2 + D1" color="var(--ok)" />
-    <ActionBtn onClick={ openThreePipeView } icon = "" label = "View (ThreePipe)" color = "#d4af37" />
+    <ActionBtn onClick={ openThreePipeView } icon = "" label = "Open ThreePipe editor" color = "#d4af37" />
     <ActionBtn onClick={ openThreeFlow } icon = "" label = "Edit in ThreeFlow" color = "#d4af37" />
     <ActionBtn onClick={ openForgeLive } icon = "" label = "Open in Forge (live)" color = "var(--gold)" />
         <ActionBtn

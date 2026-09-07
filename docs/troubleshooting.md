@@ -30,11 +30,11 @@ A running list of every error we've seen and the exact fix. Cross-referenced fro
 ### Viewport is black (only the XYZ cube shows)
 **Symptom.** Pop-out Elite 3D window is a black hole; the corner view cube still draws.
 **Cause.** Three.js `ViewHelper.render()` calls `renderer.render()` with `autoClear=true` and only a corner viewport. That **clears the whole color buffer**, then paints the cube. Fixed in **v1.0.10** (`SceneEngine`: `autoClear=false` + explicit `clear()`, same as ThreeFlow).
-**Fix.** Update to [v1.0.11+](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest). Do not iframe ThreeFlow into Elite. **Local Files 3D double-click opens ThreeFlow**; Elite is media. If a local GLB fails to load in ThreeFlow, confirm Dev Tool is running (plugin host `:17380`) so `?asset=http://127.0.0.1:17380/v1/local-file/<name>?path=` can fetch the file.
+**Fix.** Update to [v1.0.11+](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest). Do not iframe ThreeFlow into Elite. **Local Files 3D double-click opens the ThreePipe editor** (`/view?asset=`); Elite is media. If a local GLB fails to load, confirm Dev Tool is running (plugin host `:17380`) so `?asset=http://127.0.0.1:17380/v1/local-file/<name>?path=` can fetch the file.
 
-### Local GLB opens Elite instead of ThreeFlow
-**Cause.** Old build (≤1.0.10) or renderer-only reload without restarting Electron main.
-**Fix.** Restart Grudge Dev Tool after install/update so `openFileBridge` + preload pick up ThreeFlow routing.
+### Local GLB opens Elite instead of ThreePipe
+**Cause.** Old build, or ThreePipe had no fetchable URL (blob-only) so Elite SceneEngine is the fallback.
+**Fix.** Restart Grudge Dev Tool after update. For disk files, plugin host `:17380` must be up (started with the app). Vue ThreeFlow is still **Edit in ThreeFlow**, not the default double-click.
 ---
 ## App / installer
 ### "Tray icon doesn't appear"

@@ -267,6 +267,12 @@ function createAssetManager(resourceDir?: string | null): THREE.LoadingManager {
     const dir = resourceDir.replace(/\\/g, "/").replace(/\/?$/, "/");
     manager.setURLModifier((url) => {
       if (!url) return url;
+      // GLTFLoader resolves relatives against grudge-media://local/?path=… and
+      // drops the query, producing grudge-media://local/foo.bin — restore sibling.
+      if (url.startsWith("grudge-media://local/") && !url.includes("?path=")) {
+        const rest = decodeURIComponent(url.replace(/^grudge-media:\/\/local\/?/i, ""));
+        if (rest) return localFileUrl(resolveAgainstDir(dir, rest));
+      }
       // Already absolute fetchable
       if (
         url.startsWith("blob:") ||
@@ -554,40 +560,17 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
       }
       case "obj": {
         const objLoader = new OBJLoader(manager);
-        if (resourceDir) {
-          // MTLLoader resolves map_Kd relative to this path
-          const mtlLoader = new MTLLoader(manager);
-          mtlLoader.setResourcePath(resourceDir.replace(/\\/g, "/").replace(/\/?$/, "/"));
-          mtlLoader.setPath(resourceDir.replace(/\\/g, "/").replace(/\/?$/, "/"));
-          if (opts.diskPath) {
-            const mtlName = (opts.diskPath.split(/[/\\]/).pop() || "model.obj").replace(
-              /\.obj$/i,
-              ".mtl",
-            );
-            try {
-              const mtl = await mtlLoader.loadAsync(mtlName);
-              mtl.preload();
-              objLoader.setMaterials(mtl);
-            } catch {
-              // Fallback: absolute MTL path via media protocol
-              try {
-                const mtlDisk = opts.diskPath.replace(/\.obj$/i, ".mtl");
-                const mtl = await new MTLLoader(manager).loadAsync(localFileUrl(mtlDisk));
-                mtl.preload();
-                objLoader.setMaterials(mtl);
-              } catch {
-                /* sibling fill later */
-              }
-            }
-          }
-        } else if (opts.diskPath) {
+        if (opts.diskPath) {
           const mtlDisk = opts.diskPath.replace(/\.obj$/i, ".mtl");
           try {
-            const mtl = await new MTLLoader(manager).loadAsync(localFileUrl(mtlDisk));
+            const mtlLoader = new MTLLoader(manager);
+            mtlLoader.setPath("");
+            mtlLoader.setResourcePath("");
+            const mtl = await mtlLoader.loadAsync(localFileUrl(mtlDisk));
             mtl.preload();
             objLoader.setMaterials(mtl);
           } catch {
-            /* MTL optional */
+            /* sibling fill later */
           }
         }
         const obj = await objLoader.loadAsync(urlToUse);
@@ -666,6 +649,8 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
           return loadConvertedGlb(conv.outputPath);
         }
         try {
+          const fbx = new FBXLoader(manager).parse(buf, "");
+          return finishModel(
           const fbx = new FBXLoader(manager).parse(buf, resourceDir ? resourceDir.replace(/\\/g, "/") + "/" : "");
           return finishLoaded(
             fbx,

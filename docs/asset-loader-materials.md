@@ -45,7 +45,7 @@ Prevents N WebGL contexts (black frames, context loss, yellow sludge when many p
 ## Runtime loaders (renderer)
 
 - `loadModel(file, { diskPath })` — TGA handler, **Draco + Meshopt + KTX2** via `gltfProdLoader` (same factory as ThreeFlow r185 — bundled WASM, no gstatic/jsDelivr), magic bytes for GLB/glTF, `sanitizeMaterials`
-  - **Local / Elite open:** when `diskPath` is set, model loads via `grudge-media://` so FBX/OBJ/glTF **relative textures** resolve next to the file (not lost on blob:).
+  - **Local / Elite open:** `diskPath` from `webUtils.getPathForFile` (not `file.path`). Model loads via `grudge-media://` so FBX/OBJ/glTF **relative textures / .bin / .mtl** resolve next to the file (not lost on blob:). GLTFLoader relatives that drop the media query are rewritten back to the sibling path.
   - LoadingManager URL modifier rewrites relative map paths → `grudge-media://local/?path=…`
   - **mediaProtocol fallback:** if path 404s, search `Textures/`, `textures/`, `Maps/`, parents (Kenney packs)
   - Sibling fill (`finishImportedAsset`) only **fills missing** maps — never overwrites good embedded atlases; bare random PNGs need high name affinity
@@ -68,7 +68,8 @@ Prevents N WebGL contexts (black frames, context loss, yellow sludge when many p
 | FBX yellow / no atlas | `diskPath` + `grudge-media` relative TGA/PNG + sanitize yellow |
 | Black silhouette | ambient boost in Elite + metalness cap in sanitize |
 | Entire viewport black (cube only) | **v1.0.10** — ViewHelper was wiping the canvas; update Dev Tool |
-| Scrambled sRGB / muddy normals | baseColor → sRGB; data maps → NoColorSpace |
+| Scrambled sRGB / muddy normals | baseColor → sRGB; data maps → NoColorSpace; ColorManagement on |
+| Viewport tints the mesh yellow | Elite default is studio `#0a0e1a` (sand `#EFD1B5` is a preset only) |
 | Draco/Meshopt empty mesh | GLTFLoader setDRACOLoader + setMeshoptDecoder |
 | Tiny / giant mesh after open | keep author root scale (do not force `scale=1`) |
 | OBJ grey / no maps | sidecar `.mtl` via MTLLoader + `setResourcePath` + sibling fill |

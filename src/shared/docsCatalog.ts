@@ -169,7 +169,7 @@ export const DOCS_CATALOG: DocEntry[] = [
     title: "Skeleton Studio",
     file: "skeleton-studio.md",
     pagesPath: "/skeleton-studio.html",
-    description: "25-bone place, T-pose, retarget libraries.",
+    description: "Mixamo-25 author → Toon Bip001 play skeleton, left/right bind, convert.",
     group: "tools",
   },
   {

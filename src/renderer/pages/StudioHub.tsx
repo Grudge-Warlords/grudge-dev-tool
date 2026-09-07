@@ -53,7 +53,7 @@ const PRIMARY: Array<{
   {
     id: "skeleton",
     label: "Skeleton",
-    desc: "Mixamo-25 · extract · T-pose · retarget pack",
+    desc: "Mixamo-25 author → Toon Bip001 play · bind · convert",
     route: "/skeleton",
     Icon: Bone,
     adminOnly: true,

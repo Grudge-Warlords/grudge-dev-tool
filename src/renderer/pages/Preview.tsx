@@ -94,6 +94,24 @@ const PLAY_PRESETS: Array<{
     url: FLEET_URLS.forge,
     hint: "Production editor (view mode)",
   },
+  {
+    id: "velocity",
+    label: "Velocity City",
+    url: FLEET_URLS.velocity,
+    hint: "drive.grudge-studio.com — not Pages Cruise",
+  },
+  {
+    id: "avernus",
+    label: "Avernus Arena",
+    url: FLEET_URLS.avernus,
+    hint: "Portal /avernus-arena",
+  },
+  {
+    id: "voxel-studio",
+    label: "Studio world",
+    url: FLEET_URLS.voxelStudio,
+    hint: "GRUDOX /studio voxel-engine gold",
+  },
 ];
 
 function normalizeAddress(raw: string): string {

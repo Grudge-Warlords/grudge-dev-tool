@@ -4,6 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { AnimationClip, Object3D } from "three";
 import { toast } from "sonner";
 import {
   Gamepad2,
@@ -20,6 +21,14 @@ import { attachAnimationMixer } from "../lib/forge/forgeAnimation";
 import { PlayRuntime } from "../lib/forge/playRuntime";
 import { runForgeScript, type ForgeScriptHost } from "../lib/forge/forgeScript";
 import { TOON_PLAY_KITS, CDN_BASE } from "../../shared/prodPackages";
+import { FLEET_PLAYTEST_LINKS } from "../lib/forge/studioQuality";
+import {
+  applyUnarmedVisibility,
+  loadToonPlayKit,
+  loadToonPlayPackClips,
+  looksLikeToonKit,
+} from "../lib/forge/genericPreview";
+import { plantPlayKitSi } from "../lib/forge/siMeasure";
 import {
   PLAY_HOTKEYS,
   loadPlaySettings,
@@ -82,23 +91,43 @@ export default function PlayMode() {
     engineRef.current = engine;
 
     try {
-      const loaded = await loadModelFromUrl(url, nameHint, {
-        diskPath,
-        sanitize: { toonStyle: true, fixDefaultYellow: true, whiteWhenMapped: true },
-      });
-      engine.scene.add(loaded.object);
-      const box = measureObjectSi(loaded.object);
-      loaded.object.position.y = -box.min[1];
-      const anim = attachAnimationMixer(loaded.object, loaded.animations, { dropRootMotion: true });
+      const raceId = Object.keys(TOON_PLAY_KITS).find((id) => url === toonUrl(id) || nameHint.startsWith(`${id}.`));
+      let object: Object3D;
+      let animations: AnimationClip[] = [];
+      let bones = 0;
+      if (raceId && !diskPath) {
+        const playKit = await loadToonPlayKit(raceId);
+        animations = await loadToonPlayPackClips(playKit.object);
+        object = playKit.object;
+      } else {
+        const loaded = await loadModelFromUrl(url, nameHint, {
+          diskPath,
+          sanitize: { toonStyle: true, fixDefaultYellow: true, whiteWhenMapped: true },
+        });
+        object = loaded.object;
+        animations = loaded.animations;
+        bones = loaded.bones;
+        if (looksLikeToonKit(object)) {
+          const race = raceId || "human";
+          applyUnarmedVisibility(object, race);
+          plantPlayKitSi(object, TOON_PLAY_KITS[race]?.heightM ?? 1.8);
+          if (!animations.length) animations = await loadToonPlayPackClips(object);
+        }
+      }
+      engine.scene.add(object);
+      const box = measureObjectSi(object);
+      const anim = attachAnimationMixer(object, animations, { dropRootMotion: true });
       if (anim.mixer) engine.mixers.push(anim.mixer);
-      const rt = new PlayRuntime(engine, loaded.object, anim.mixer, anim.clips, loadPlaySettings());
+      const rt = new PlayRuntime(engine, object, anim.mixer, anim.clips, loadPlaySettings());
       rt.start();
       runtimeRef.current = rt;
-      engine.frame(loaded.object);
-      setSi(`${box.h.toFixed(2)} m · ${loaded.bones} bones · ${anim.clips.length} clips`);
+      engine.frame(object);
+      setSi(
+        `${(object.userData.deployHeightM as number | undefined)?.toFixed?.(2) ?? box.h.toFixed(2)} m · ${anim.bones || bones} bones · ${anim.clips.length} clips · ${rt.skillCount} skills`,
+      );
       setClipName(anim.clips[0]?.name ?? "none");
       setStatus(nameHint);
-      toast.success("Play ready", { description: `${nameHint} · click canvas to look` });
+      toast.success("Play ready", { description: `${nameHint} · WASD move · click canvas to look` });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setStatus(msg);
@@ -159,6 +188,11 @@ export default function PlayMode() {
         setHud((h) => !h);
         return;
       }
+      if (e.code === "KeyF" && !e.ctrlKey && !e.metaKey) {
+        const name = rt.playPrimarySkill();
+        if (name) setClipName(name);
+        return;
+      }
       if (e.code === "KeyV" && !e.ctrlKey) {
         const on = rt.toggleVideo();
         toast.message(on ? "Video on" : "Video off");
@@ -172,6 +206,13 @@ export default function PlayMode() {
       }
       if (e.code >= "Digit0" && e.code <= "Digit9" && !e.ctrlKey) {
         const n = Number(e.code.slice(-1));
+        if (n >= 1 && n <= 4 && rt.skillCount) {
+          const name = rt.playSkillSlot(n - 1);
+          if (name) {
+            setClipName(name);
+            return;
+          }
+        }
         const name = rt.playClipIndex(n);
         if (name) setClipName(name);
       }
@@ -272,6 +313,20 @@ export default function PlayMode() {
         <p className="text-[10px] text-slate-500 leading-snug">
           Production loader · one mixer · WASD. Not a second editor. Fleet clients stay on Preview.
         </p>
+        <label className="text-[10px] uppercase tracking-wide text-slate-500">Fleet playtest (CCT)</label>
+        <div className="flex flex-col gap-1">
+          {FLEET_PLAYTEST_LINKS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className="text-left text-[10px] text-amber-200/90 hover:text-amber-100 underline-offset-2 hover:underline"
+              title={s.notes}
+              onClick={() => void G()?.os?.openExternal?.(s.url)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
         <label className="text-[10px] uppercase tracking-wide text-slate-500">Toon play kit</label>
         <select
           className="bg-black/50 border border-white/10 rounded px-2 py-1 text-xs"

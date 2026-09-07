@@ -189,7 +189,7 @@ export const FLEET_GAMES: FleetGame[] = [
     url: "https://drive.grudge-studio.com",
     repo: "grudge-drive",
     engine: "Three.js",
-    status: "active",
+    status: "live",
     category: "racing",
     topics: ["racing", "demo"],
     thumbnail: THUMB("grudge-drive"),

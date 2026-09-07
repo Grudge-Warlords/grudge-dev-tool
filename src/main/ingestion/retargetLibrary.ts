@@ -19,10 +19,14 @@ import {
   ANIM_SKILL_SLOTS,
   ANIM_WEAPON_PACKS,
   MIXAMO_25_VERSION,
+  BIP001_PLAY_CORE,
+  BIP001_PLAY_LAW,
+  MIXAMO_CORE_TO_BIP001,
   type SkeletonMappingDoc,
   matchSkillSlot,
   autoMapBonesFromNames,
   buildSkuNamesMap,
+  buildBip001PlayNamesMap,
   applyAutoMapToDoc,
   emptyMapping,
 } from "../../shared/mixamo25";
@@ -55,6 +59,9 @@ export async function buildRetargetLibraryPack(opts: {
   mapping?: SkeletonMappingDoc | null;
   outDir?: string;
   packName?: string;
+  packId?: string;
+  roleBinds?: Record<string, string>;
+  playSkeleton?: "bip001";
 }): Promise<RetargetLibraryResult> {
   const packDir = opts.outDir ?? join(tmpdir(), `grudge-anim-lib-${randomUUID()}`);
   const result: RetargetLibraryResult = {
@@ -108,10 +115,27 @@ export async function buildRetargetLibraryPack(opts: {
       : autoMapBonesFromNames(extract.skeleton.jointNames).reverseMap;
 
   const skuNames = buildSkuNamesMap(reverseMap, extract.skeleton.jointNames);
+  const bip001Names = buildBip001PlayNamesMap(reverseMap);
+  const packId = opts.packId || mapping.packId || "sword_shield";
+  const roleBinds = {
+    ...(mapping.roleBinds || {}),
+    ...(opts.roleBinds || {}),
+  };
+
+  const mappingOut: SkeletonMappingDoc = {
+    ...mapping,
+    reverseMap,
+    packId,
+    roleBinds,
+    authorSkeleton: "mixamo-25",
+    playSkeleton: "bip001",
+    skeleton: "bip001",
+    updatedAt: new Date().toISOString(),
+  };
 
   await fs.writeFile(
     join(packDir, "skeleton-mapping.json"),
-    JSON.stringify({ ...mapping, reverseMap, updatedAt: new Date().toISOString() }, null, 2),
+    JSON.stringify(mappingOut, null, 2),
     "utf8",
   );
   await fs.writeFile(
@@ -119,12 +143,66 @@ export async function buildRetargetLibraryPack(opts: {
     JSON.stringify(
       {
         version: MIXAMO_25_VERSION,
-        skeleton: "mixamo-25",
-        /** SkeletonUtils.retargetClip `names` option: targetBone → sourceBone */
+        authorSkeleton: "mixamo-25",
+        playSkeleton: "bip001",
+        skeleton: "bip001",
+        law: BIP001_PLAY_LAW,
+        /** SkeletonUtils.retargetClip `names` option: Mixamo-25 targetBone → sourceBone */
         names: skuNames,
+        /** Play mixer names: Bip001 bone → author source bone */
+        playNames: bip001Names,
         reverseMap,
         boneMap: mapping.boneMap,
-        note: "Use with three.js SkeletonUtils.retargetClip or boneAliases.retargetClips",
+        mixamoToBip001: MIXAMO_CORE_TO_BIP001,
+        note: "Play = Toon Bip001. Author = Mixamo-25. Strip hip .position. One mixer.",
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  await fs.writeFile(
+    join(packDir, "bip001-play-bones.json"),
+    JSON.stringify(
+      {
+        id: "bip001-play-bones",
+        version: MIXAMO_25_VERSION,
+        law: BIP001_PLAY_LAW,
+        core: BIP001_PLAY_CORE,
+        author: "mixamo-25",
+        play: "bip001",
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  await fs.writeFile(
+    join(packDir, "role-binds.json"),
+    JSON.stringify(
+      {
+        packId,
+        skeleton: "bip001",
+        binds: roleBinds,
+        note: "Left-column Warlords roles → clip names. Ship fragment into anim-packs.json.",
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  const fragmentRoles: Record<string, string> = {};
+  for (const [role, clip] of Object.entries(roleBinds)) {
+    if (role && clip) fragmentRoles[role] = clip;
+  }
+  await fs.writeFile(
+    join(packDir, "anim-packs-fragment.json"),
+    JSON.stringify(
+      {
+        packs: { [packId]: fragmentRoles },
+        skeleton: "bip001",
+        note: "Merge into info.*/casting anim-packs.json. Clips stay R2 binaries.",
       },
       null,
       2,
@@ -205,7 +283,7 @@ export async function buildRetargetLibraryPack(opts: {
     }
     await fs.writeFile(
       join(packDir, "by-weapon", `${pack}.json`),
-      JSON.stringify({ weaponPack: pack, slots, skeleton: "mixamo-25" }, null, 2),
+      JSON.stringify({ weaponPack: pack, slots, skeleton: "bip001", authorSkeleton: "mixamo-25" }, null, 2),
       "utf8",
     );
   }
@@ -229,11 +307,17 @@ export async function buildRetargetLibraryPack(opts: {
   const manifest = {
     version: 2,
     name: opts.packName || basename(opts.modelPath).replace(/\.[^.]+$/, "") + "-anim-lib",
-    skeleton: "mixamo-25",
+    skeleton: "bip001",
+    authorSkeleton: "mixamo-25",
+    playSkeleton: "bip001",
+    packId,
     mixamo25Version: MIXAMO_25_VERSION,
     restGlb: "rest.glb",
     mapping: "skeleton-mapping.json",
     retargetMap: "retarget-map.json",
+    playBones: "bip001-play-bones.json",
+    roleBinds: "role-binds.json",
+    animPacksFragment: "anim-packs-fragment.json",
     clipsIndex: "clips-index.json",
     skillSlots: ANIM_SKILL_SLOTS.map((s) => s.id),
     weaponPacks: [...ANIM_WEAPON_PACKS],
@@ -249,8 +333,10 @@ export async function buildRetargetLibraryPack(opts: {
     createdAt: new Date().toISOString(),
     grudgeStudio: {
       weaponPacks: [...ANIM_WEAPON_PACKS],
-      retarget: "retarget-map.json names + boneAliases.retargetClips (SkeletonUtils)",
-      runtime: "Open / Forge / gameopen attachAnimationMixer + retargetClips",
+      play: "Toon RTS {race}.glb Bip001 22-core · one mixer · strip hip .position",
+      retarget: "retarget-map.json playNames + boneAliases.retargetClips (SkeletonUtils)",
+      runtime: "Casting loadRaceKit / Dev Tool /play / Open attachAnimationMixer",
+      store: "R2 binaries · info.* / casting anim-packs.json defs · D1 index only",
     },
   };
 

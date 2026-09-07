@@ -127,7 +127,7 @@ const NAV: NavEntry[] = [
   // More (full tools only)
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true },
   { route: "/view", label: "View Mode", Icon: Eye, adminOnly: true },
-  { route: "/builder", label: "Grok Builder", Icon: Hammer },
+  { route: "/builder", label: "Grok Builder (lab)", Icon: Hammer, hidden: true },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
   { route: "/library", label: "Store", Icon: Store },
   { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
@@ -139,12 +139,6 @@ const NAV: NavEntry[] = [
   { route: "/uuid", label: "UUID", Icon: Fingerprint, hidden: true },
   { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true, hidden: true },
 ];
-
-declare global {
-  interface Window {
-    grudge: any;
-  }
-}
 
 interface Session {
   signedIn: boolean;
@@ -168,6 +162,8 @@ const ROUTE_ALIASES: Record<string, Route> = {
   /** Search / request URL live under Assets filter UX; keep bookmarks working */
   "/search": "/browser",
   "/request": "/browser",
+  /** Grok Builder is a lab — Forge is the deploy editor */
+  "/grok-builder": "/forge",
 };
 
 const FULL_HEIGHT_ROUTES = new Set<string>([

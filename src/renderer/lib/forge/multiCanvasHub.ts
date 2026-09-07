@@ -73,7 +73,7 @@ export class MultiCanvasHub {
   private envMap: THREE.Texture | null = null;
   private views = new Map<string, MultiCanvasView>();
   private raf = 0;
-  private clock = new THREE.Clock();
+  private timer = new THREE.Timer();
   private running = false;
   private nextId = 1;
   private io: IntersectionObserver | null = null;
@@ -93,6 +93,8 @@ export class MultiCanvasHub {
       preserveDrawingBuffer: true, // required for 2D blit + screenshots
       stencil: false,
     });
+    THREE.ColorManagement.enabled = true;
+    this.timer.connect(document);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -288,7 +290,7 @@ export class MultiCanvasHub {
   private ensureLoop(): void {
     if (this.running) return;
     this.running = true;
-    this.clock.start();
+    this.timer.reset();
     const tick = () => {
       if (!this.running) return;
       this.raf = requestAnimationFrame(tick);
@@ -303,7 +305,8 @@ export class MultiCanvasHub {
   }
 
   private renderAll(): void {
-    const dt = Math.min(0.05, this.clock.getDelta());
+    this.timer.update();
+    const dt = Math.min(0.05, this.timer.getDelta());
     for (const view of this.views.values()) {
       if (view.disposed || !view.visible) continue;
       try {

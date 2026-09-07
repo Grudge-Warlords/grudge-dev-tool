@@ -149,9 +149,9 @@ function normalizeAsset(raw: unknown): ViewerAssetRef {
 }
 
 /**
- * Pop-out ThreeFlow scene editor (explicit from pipeline Actions).
+ * Pop-out ThreeFlow Vue scene editor (explicit "Edit in ThreeFlow").
  * CDN URL or local mesh via loopback plugin host (`/v1/local-file/<name>?path=`).
- * Explorer / Local Files 3D opens the Grudge Three Pipeline (Elite SceneEngine).
+ * Explorer / Local Files 3D default is ThreePipe `/view` via openThreeFlowPipeline.
  */
 export function openThreeFlowEditor(opts: {
   name: string;
@@ -208,8 +208,8 @@ export function openThreeFlowEditor(opts: {
 }
 
 /**
- * OS / Local Files double-click: ThreePipe viewer (default) or scene editor.
- * Same pipeline window is reused; extra files navigate to the new asset.
+ * Default 3D double-click / Open with — isolated ThreePipe editor on ThreeFlow `/view`.
+ * Extra 3D files reuse this window (`?asset=` loopback or CDN). Vue `/editor` stays explicit.
  */
 export function openThreeFlowPipeline(opts: {
   name: string;
@@ -224,7 +224,7 @@ export function openThreeFlowPipeline(opts: {
   } else if (opts.localPath) {
     assetUrl = localLoopbackAssetUrl(opts.localPath);
   }
-  if (!assetUrl) throw new Error("ThreeFlow pipeline needs a CDN URL or local mesh path");
+  if (!assetUrl) throw new Error("ThreePipe editor needs a CDN URL or local mesh path");
 
   const mode = opts.mode || "view";
   const href = threeflowPipelineUrl(assetUrl, mode, {
@@ -233,14 +233,18 @@ export function openThreeFlowPipeline(opts: {
     autoScale: "0",
     ...(opts.extra || {}),
   });
+  const title =
+    mode === "editor"
+      ? `${basename(opts.name)} — ThreeFlow editor`
+      : `${basename(opts.name)} — ThreePipe editor`;
 
   if (pipelineWin && !pipelineWin.isDestroyed()) {
     void pipelineWin.loadURL(href);
-    pipelineWin.setTitle(`${basename(opts.name)} — ThreeFlow ${mode}`);
+    pipelineWin.setTitle(title);
     if (!pipelineWin.isVisible()) pipelineWin.show();
     pipelineWin.focus();
     pipelineWin.moveTop();
-    log.info("ThreeFlow pipeline reuse", opts.name, href.slice(0, 140));
+    log.info("ThreePipe pipeline reuse", opts.name, href.slice(0, 140));
     return { ok: true, url: href };
   }
 
@@ -249,11 +253,11 @@ export function openThreeFlowPipeline(opts: {
     height: 800,
     minWidth: 800,
     minHeight: 520,
-    show: false,
+    show: true,
     frame: true,
     autoHideMenuBar: true,
     backgroundColor: "#0a0e1a",
-    title: `${basename(opts.name)} — ThreeFlow ${mode}`,
+    title,
     alwaysOnTop: true,
     skipTaskbar: false,
     icon: nativeImage.createFromPath(viewerIconPath()),
@@ -266,20 +270,46 @@ export function openThreeFlowPipeline(opts: {
       allowRunningInsecureContent: true,
     },
   });
+  win.webContents.session.setPermissionRequestHandler((_wc, _permission, callback) => {
+    callback(true);
+  });
+  win.webContents.on("did-fail-load", (_e, code, desc, url, isMain) => {
+    if (!isMain || code === -3) return;
+    log.warn("ThreePipe did-fail-load", code, desc, url);
+  });
+  win.webContents.on("did-finish-load", () => {
+    log.info("ThreePipe loaded", win.webContents.getURL().slice(0, 160));
+  });
   win.setAlwaysOnTop(true, "screen-saver");
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   pipelineWin = win;
-  win.once("ready-to-show", () => {
-    win.show();
-    win.focus();
-    win.moveTop();
-  });
+  win.show();
+  win.focus();
+  win.moveTop();
   win.on("closed", () => {
     if (pipelineWin === win) pipelineWin = null;
   });
   void win.loadURL(href);
-  log.info("ThreeFlow pipeline", opts.name, href.slice(0, 140));
+  log.info("ThreePipe pipeline", opts.name, href.slice(0, 140));
   return { ok: true, url: href };
+}
+
+function publicHttpAssetUrl(url: string | undefined): string | undefined {
+  if (!url || !/^https?:\/\//i.test(url)) return undefined;
+  if (url.startsWith("blob:") || url.startsWith("local:") || url.startsWith("grudge-media:")) {
+    return undefined;
+  }
+  return url;
+}
+
+/** 3D disk/CDN → ThreePipe `/view`. Returns null when the asset has no fetchable URL. */
+function tryOpenThreePipe(asset: ViewerAssetRef): { ok: true; url: string } | null {
+  if (!isPipelineAsset(asset)) return null;
+  const name = basename(asset.localPath || asset.name || "mesh");
+  const cdnUrl = publicHttpAssetUrl(asset.url);
+  const localPath = asset.localPath;
+  if (!cdnUrl && !localPath) return null;
+  return openThreeFlowPipeline({ name, cdnUrl, localPath, mode: "view" });
 }
 
 /** Open pop-out viewer for a file on disk (Local Files / Explorer — not Forge). */
@@ -355,10 +385,16 @@ export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: 
   const token = newToken();
   assetStore.set(token, asset);
 
+  // Local (and CDN) 3D double-click → Elite viewer.html with gltfProdLoader.
+  // Do NOT auto-open https://threeflow.vercel.app/view — that page is the
+  // ThreePipe classify HUD, and HTTPS cannot fetch 127.0.0.1 loopback files.
+  // Explicit "Open ThreePipe" / "Edit in ThreeFlow" still call openThreeFlowPipeline.
+
   if (
     isPipelineAsset(asset) &&
     pipelineWin &&
-    !pipelineWin.isDestroyed()
+    !pipelineWin.isDestroyed() &&
+    /viewer\.html/i.test(pipelineWin.webContents.getURL() || "")
   ) {
     try {
       pipelineWin.webContents.send("pipeline:append", { token });
@@ -380,7 +416,7 @@ export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: 
     height: VIEWER_HEIGHT,
     minWidth: 640,
     minHeight: 420,
-    show: false,
+    show: true,
     frame: true,
     autoHideMenuBar: true,
     backgroundColor: "#0a0e1a",
@@ -404,7 +440,13 @@ export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: 
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
   openWindows.set(token, win);
-  if (pipeline) pipelineWin = win;
+  if (pipeline) {
+    const eliteLive =
+      pipelineWin &&
+      !pipelineWin.isDestroyed() &&
+      /viewer\.html/i.test(pipelineWin.webContents.getURL() || "");
+    if (!eliteLive) pipelineWin = win;
+  }
 
   win.once("ready-to-show", () => {
     win.show();

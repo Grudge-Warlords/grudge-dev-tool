@@ -1,5 +1,7 @@
 {
   "name": "grudge-dev-tool",
+  "version": "1.1.2",
+  "description": "Grudge Dev Tool — Elite 3D + media viewer, ONE TRUTH admin, Forge live + ThreeFlow handoff.",
   "version": "1.1.1",
   "description": "Grudge Dev Tool — Grudge Three Pipeline (multi-asset 3D opener), Elite media, ONE TRUTH admin, Forge live + ThreeFlow handoff.",
   "private": true,
@@ -116,6 +118,9 @@
     "fflate": "^0.8.2",
     "keytar": "^7.9.0",
     "lucide-react": "^0.408.0",
+    "@grudge-studio/animator": "file:../GrudgeStudioNPM/packages/animator",
+    "@grudge-studio/assets": "file:../GrudgeStudioNPM/packages/assets",
+    "@grudge-studio/engine": "file:../GrudgeStudioNPM/packages/engine",
     "meshoptimizer": "^0.22.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

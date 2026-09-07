@@ -8,6 +8,7 @@ import {
   type FleetHandoffPayload,
   buildEmbedUrl,
 } from "../../shared/fleetAuthHandoff";
+import { isCanonicalAdmin } from "../../shared/adminAllowlist";
 
 export type WebviewLike = {
   executeJavaScript?: (code: string, userGesture?: boolean) => Promise<unknown>;
@@ -76,11 +77,15 @@ export async function embedUrlWithSession(
   extra?: Record<string, string>,
 ): Promise<string> {
   const h = await loadHandoff();
+  const admin = isCanonicalAdmin({ username: h.username, email: h.email });
   return buildEmbedUrl({
     baseUrl,
     grudgeId: h.grudgeId,
     username: h.username,
-    extraParams: extra,
+    extraParams: {
+      ...extra,
+      ...(admin ? { admin: "1", operator: h.username ?? "admin" } : {}),
+    },
   });
 }
 

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { DEFAULT_EDITOR_VIEWPORT } from "./viewportColor";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
@@ -48,6 +49,7 @@ export interface SceneEngineOptions {
   hdri?: boolean;
   /** Studio ground plane so the viewport is never an empty void. */
   showGround?: boolean;
+  groundColor?: number;
   gridCellColor?: number;
   gridSectionColor?: number;
 }
@@ -71,7 +73,7 @@ export class SceneEngine {
    * Keeping the helper as a separate field so `dispose()` can remove it.
    */
   private readonly transformHelper: THREE.Object3D;
-  readonly clock = new THREE.Clock();
+  readonly timer = new THREE.Timer();
   readonly mixers: THREE.AnimationMixer[] = [];
   readonly studioLights: {
     key: THREE.DirectionalLight;
@@ -103,7 +105,9 @@ export class SceneEngine {
   private readonly tickListeners = new Set<(dt: number) => void>();
 
   constructor(private container: HTMLElement, opts: SceneEngineOptions = {}) {
-    const bg = opts.background ?? 0x0a0e1a;
+    THREE.ColorManagement.enabled = true;
+    this.timer.connect(document);
+    const bg = opts.background ?? DEFAULT_EDITOR_VIEWPORT.bg;
     this.scene.background = new THREE.Color(bg);
 
     // Min 2×2 — avoids black frames / SMAA issues at 0 size (multi-canvas best practice)
@@ -113,6 +117,7 @@ export class SceneEngine {
     this.camera.position.set(3, 2.5, 4);
     this.camera.lookAt(0, 0.5, 0);
     this.activeCamera = this.camera;
+    (this.raycaster as THREE.Raycaster & { firstHitOnly?: boolean }).firstHitOnly = true;
 
     // Full pop-out viewer: dedicated context OK (one window).
     // Grid previews use MultiCanvasHub instead (see multiCanvasHub.ts).
@@ -176,12 +181,12 @@ export class SceneEngine {
     }
 
     if (opts.showGround !== false) {
-      this.mountStudioGround();
+      this.mountStudioGround(opts.groundColor ?? DEFAULT_EDITOR_VIEWPORT.ground);
     }
     if (opts.showGrid !== false) {
       this.grid = createInfiniteGrid({
-        cellColor: opts.gridCellColor,
-        sectionColor: opts.gridSectionColor,
+        cellColor: opts.gridCellColor ?? DEFAULT_EDITOR_VIEWPORT.gridCell,
+        sectionColor: opts.gridSectionColor ?? DEFAULT_EDITOR_VIEWPORT.gridSection,
       });
       // Sit just above the studio floor so the grid is not z-fought / occluded.
       this.grid.position.y = 0.01;
@@ -240,11 +245,11 @@ export class SceneEngine {
   }
 
   /** Warm sand studio floor (ThreeFlow-style) so empty scenes are readable. */
-  private mountStudioGround(): void {
+  private mountStudioGround(color = DEFAULT_EDITOR_VIEWPORT.ground): void {
     if (this.ground) return;
     const geo = new THREE.PlaneGeometry(80, 80);
     const mat = new THREE.MeshStandardMaterial({
-      color: 0xc9b089,
+      color,
       roughness: 0.96,
       metalness: 0.0,
     });
@@ -624,7 +629,8 @@ export class SceneEngine {
     if (this.disposed) return;
     this.rafHandle = requestAnimationFrame(this.tick);
     try {
-      const dt = Math.min(0.05, this.clock.getDelta());
+      this.timer.update();
+      const dt = Math.min(0.05, this.timer.getDelta());
       for (const m of this.mixers) m.update(dt * this.timeScale);
       for (const cb of this.tickListeners) cb(dt);
       if (!this.playDrive) this.controls.update();
@@ -808,6 +814,7 @@ export class SceneEngine {
       (h.material as THREE.Material)?.dispose?.();
     }
     this.boundsHelpers.clear();
+    this.timer.dispose();
     this.controls.dispose();
     this.scene.traverse((node) => {
       const m = node as THREE.Mesh;
