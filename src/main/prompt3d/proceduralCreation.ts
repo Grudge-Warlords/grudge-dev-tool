@@ -2,6 +2,8 @@ import * as THREE from "three";
 import sharp from "sharp";
 import { createHash } from "node:crypto";
 import type { CreationKind, CreationPlan } from "../../shared/creationFlow";
+import { validateCreationComponent, type CreationComponent } from "../../shared/creationFlow";
+import { hasAffirmativePromptMatch } from "../../shared/promptedMotionIntent";
 
 const { Document, NodeIO } = require("@gltf-transform/core");
 const { ALL_EXTENSIONS } = require("@gltf-transform/extensions");
@@ -44,12 +46,31 @@ function author(document: Doc) {
   return {mesh,joint,material};
 }
 
+export function appendCreationComponents(doc: Doc, parent: Node, parts: CreationComponent[], style = "low-poly") {
+  if (!Array.isArray(parts) || !parts.length || parts.length > 64) throw new Error("Add 1–64 components at a time.");
+  const components = parts.map(validateCreationComponent), names = new Set(doc.getRoot().listNodes().map((n: Node) => n.getName().toLowerCase()));
+  for (const c of components) { if (names.has(c.name.toLowerCase())) throw new Error(`Part “${c.name}” already exists.`); names.add(c.name.toLowerCase()); }
+  if (names.size > 512) throw new Error("This edit would exceed 512 scene nodes.");
+  const { mesh, material } = author(doc), sides = style === "low-poly" ? 8 : 20;
+  for (const c of components) {
+    const [x, y, z] = c.size;
+    const shapes: Record<string, () => THREE.BufferGeometry> = {
+      box: () => new THREE.BoxGeometry(x, y, z), sphere: () => new THREE.SphereGeometry(.5, sides, Math.max(6, sides / 2)).scale(x, y, z),
+      cylinder: () => new THREE.CylinderGeometry(.5, .5, 1, sides).scale(x, y, z), cone: () => new THREE.ConeGeometry(.5, 1, sides).scale(x, y, z),
+      plane: () => new THREE.PlaneGeometry(x, z).rotateX(-Math.PI / 2), torus: () => new THREE.TorusGeometry(.35, .15, 8, sides).rotateX(Math.PI / 2).scale(x, y, z),
+    };
+    const role = `component-${doc.getRoot().listMaterials().length}-${c.name}`, color = new THREE.Color(c.color);
+    material(role).setBaseColorFactor([color.r, color.g, color.b, 1]);
+    mesh(parent, c.name, shapes[c.shape](), role, c.position);
+  }
+}
+
 export function createOriginalGeometry(plan: CreationPlan, style: string): Doc {
   const doc = new Document(); doc.createBuffer();
   const scene = doc.createScene("Original creation");
   const root = doc.createNode("GrudgeAssetRoot").setExtras({grudgeCreation:{method:"original-procedural",kind:plan.kind,style,borrowedInputs:[]}});
   scene.addChild(root); doc.getRoot().setDefaultScene(scene);
-  const {mesh,joint} = author(doc);
+  const {mesh,joint,material} = author(doc);
   const sides = style === "low-poly" ? 8 : 20;
   const sphere = (r: number) => new THREE.SphereGeometry(r,sides,Math.max(6,sides/2));
   const box = (x:number,y:number,z:number) => new THREE.BoxGeometry(x,y,z);
@@ -115,7 +136,10 @@ export function createOriginalGeometry(plan: CreationPlan, style: string): Doc {
       mesh(knee,`${tag}Boot`,box(.125,.10,.22),"rubber",[0,-.405, .045]);
     }
   }
-  if (!["sword","game-gun","person"].includes(plan.kind)) {
+  if (plan.kind === "assembly") {
+    appendCreationComponents(doc, root, plan.components ?? [], style);
+    root.setExtras({...root.getExtras(),localWorkingRoot:true,assembly:true});
+  } else if (!["sword","game-gun","person"].includes(plan.kind)) {
     const shapes: Record<string,()=>THREE.BufferGeometry> = {
       box:()=>box(1,1,1), sphere:()=>sphere(.5), cylinder:()=>new THREE.CylinderGeometry(.5,.5,1,sides),
       cone:()=>new THREE.ConeGeometry(.5,1,sides), plane:()=>new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2),
@@ -135,12 +159,15 @@ const palettes: Record<string, [number,number,number,string,number,number]> = {
 };
 
 export async function applyOriginalTextures(doc: Doc, style: string, prompt: string) {
-  const red=/\bred\b/i.test(prompt), blue=/\bblue\b/i.test(prompt), green=/\bgreen\b/i.test(prompt);
+  const colors:Record<string,number[]>={red:[190,39,44],blue:[30,90,185],green:[40,155,88],brown:[139,69,19],grey:[128,128,128],gray:[128,128,128],yellow:[240,210,30],purple:[128,50,180],orange:[230,120,20],white:[240,240,240],black:[20,20,20],gold:[210,160,40],silver:[185,190,200],pink:[230,100,170],cyan:[20,200,210],magenta:[200,30,200]};
+  const named=Object.keys(colors).find(name=>hasAffirmativePromptMatch(prompt,new RegExp(`\\b${name}\\b`,"i")));
+  const hex=prompt.match(/#[0-9a-f]{6}\b/i)?.[0];
+  const requestedColor=hex&&hasAffirmativePromptMatch(prompt,new RegExp(hex,"i"))?[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)):named?colors[named]:undefined;
   for(const material of doc.getRoot().listMaterials()){
     const role=material.getExtras().role ?? material.getName();
     if(role === "projectile")continue;
     const [r,g,b,pattern,metal,rough]=palettes[role] ?? palettes.paint;
-    const color=(!palettes[role]||role==="paint"||role==="fabric") ? (red?[190,39,44]:blue?[30,90,185]:green?[40,155,88]:[r,g,b]):[r,g,b];
+    const color=(!palettes[role]||role==="paint"||role==="fabric") ? (requestedColor??[r,g,b]):[r,g,b];
     const pixels=Buffer.alloc(256*256*4);
     for(let y=0;y<256;y++)for(let x=0;x<256;x++){
       const noise=((x*73856093^y*19349663)>>>0)%17-8;
@@ -154,7 +181,7 @@ export async function applyOriginalTextures(doc: Doc, style: string, prompt: str
   }
 }
 
-function transformMesh(doc:Doc,name:string,scale:[number,number,number],curveDelta=0){
+function transformMesh(doc:Doc,name:string,scale:[number,number,number],curveDelta=0,anchorBase=false){
   const node=doc.getRoot().listNodes().find((n:Node)=>n.getName()===name),mesh=node?.getMesh();
   if(!mesh)throw new Error(`Required authored part ${name} is missing.`);
   for(const primitive of mesh.listPrimitives()){
@@ -163,7 +190,7 @@ function transformMesh(doc:Doc,name:string,scale:[number,number,number],curveDel
     for(let i=1;i<positions.length;i+=3){minY=Math.min(minY,positions[i]);maxY=Math.max(maxY,positions[i]);}
     for(let i=0;i<positions.length;i+=3){
       const y=positions[i+1],t=maxY>minY?(y-minY)/(maxY-minY):0;
-      positions[i]=positions[i]*scale[0]+curveDelta*t*t;positions[i+1]*=scale[1];positions[i+2]*=scale[2];
+      positions[i]=positions[i]*scale[0]+curveDelta*t*t;positions[i+1]=anchorBase?minY+(y-minY)*scale[1]:y*scale[1];positions[i+2]*=scale[2];
     }
     position.setArray(positions);
     const normal=primitive.getAttribute("NORMAL"),normals=normal?.getArray() as Float32Array|undefined;
@@ -177,14 +204,30 @@ function scaleTranslation(doc:Doc,name:string,scale:[number,number,number]){
 }
 
 /** Adds newly authored decorative geometry to the existing original asset. */
+function swordInlayGeometry(doc:Doc):THREE.BufferGeometry{
+  const blade=doc.getRoot().listNodes().find((n:Node)=>n.getName()==="Blade")?.getMesh()?.listPrimitives()[0]?.getAttribute("POSITION");
+  if(!blade)throw new Error("The sword blade is missing.");
+  const points:THREE.Vector3[]=[],p=blade.getArray() as Float32Array;
+  // The authored blade has eight vertices per cross-section and a final tip.
+  // Derive the decoration from its current surface, including earlier edits.
+  const rows=Math.floor((blade.getCount()-1)/8);
+  for(let row=2;row<rows-3;row++){
+    let x=0,y=0,z=-Infinity;
+    for(let i=0;i<8;i++){const offset=(row*8+i)*3;x+=p[offset];y+=p[offset+1];z=Math.max(z,p[offset+2]);}
+    points.push(new THREE.Vector3(x/8,y/8,z+.0008));
+  }
+  if(points.length<2)throw new Error("The sword blade has no usable inlay surface.");
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),40,.0018,6,false);
+}
+
 export function enhanceOriginalGeometry(doc:Doc,plan:CreationPlan){
   const root=doc.getRoot(),nodes=root.listNodes(),find=(name:string)=>{const n=nodes.find((x:Node)=>x.getName()===name);if(!n)throw new Error(`Required authored part ${name} is missing.`);return n;};
   const assetRoot=find("GrudgeAssetRoot"),assetExtras=assetRoot.getExtras(),pass=(assetExtras.cosmeticDetailPasses??0)+1,{mesh}=author(doc);
   const detail=(parent:Node,name:string,geometry:THREE.BufferGeometry,role:string,position:number[]=[0,0,0])=>{const n=mesh(parent,`${name}Detail${pass}`,geometry,role,position);n.setExtras({...n.getExtras(),cosmeticDetail:true,detailPass:pass});n.getMesh().setExtras({...n.getMesh().getExtras(),cosmeticDetail:true,detailPass:pass});return n;};
   const sides=16,box=(x:number,y:number,z:number)=>new THREE.BoxGeometry(x,y,z),sphere=(r:number)=>new THREE.SphereGeometry(r,sides,8);
   if(plan.kind==="sword"){
-    const body=find("SwordBody"),curve=new THREE.CubicBezierCurve3(new THREE.Vector3(.005,.34,.013),new THREE.Vector3(.04,.62,.013),new THREE.Vector3(.20,1.02,.013),new THREE.Vector3(.235,1.22,.013));
-    detail(body,"BladeFullerInlay",new THREE.TubeGeometry(curve,30,.0035,6,false),"brass");
+    const body=find("SwordBody");
+    detail(body,"BladeFullerInlay",swordInlayGeometry(doc),"brass");
     detail(body,"RicassoCollar",box(.115,.025,.028),"brass",[.005,.305,0]);
     for(const side of [-1,1])detail(body,side<0?"GuardCapLeft":"GuardCapRight",sphere(.025).scale(1.3,.75,1),"brass",[side*.158,.28,0]);
     detail(body,"PommelInlay",new THREE.TorusGeometry(.030,.004,6,sides).rotateX(Math.PI/2),"steel",[0,.043,.035]);
@@ -219,7 +262,15 @@ export function adjustOriginalGeometry(doc:Doc,plan:CreationPlan){
     wrapper.setScale(scale); return;
   }
   if(plan.kind==="sword"){
-    transformMesh(doc,"Blade",[a.bladeWidth??1,a.bladeLength??1,1],a.curveDelta??0);
+    transformMesh(doc,"Blade",[a.bladeWidth??1,a.bladeLength??1,1],a.curveDelta??0,true);
+    const root=doc.getRoot(),body=root.listNodes().find((n:Node)=>n.getName()==="SwordBody");
+    for(const inlay of root.listNodes().filter((n:Node)=>/^BladeFullerInlayDetail/.test(n.getName()))){
+      const previous=inlay.getMesh(),replacement=author(doc).mesh(body,"Refitted blade inlay",swordInlayGeometry(doc),"brass");
+      const updated=replacement.getMesh();
+      updated.setExtras(previous.getExtras());
+      updated.listPrimitives()[0].setMaterial(previous.listPrimitives()[0].getMaterial());
+      inlay.setMesh(updated);replacement.dispose();previous.dispose();
+    }
     if(a.guardWidth)transformMesh(doc,"Guard",[a.guardWidth,1,1]);
   }else if(plan.kind==="game-gun"){
     if(a.propLength){for(const name of ["GamePropBody","BarrelShroud","SidePanelLeft","SidePanelRight","TriggerGuardBottom"])transformMesh(doc,name,[1,1,a.propLength]);
@@ -281,7 +332,12 @@ export function validateOriginal(doc: Doc, expectedHash?: string, expectChange=f
     const index=p.getIndices();if(index&&Array.from(index.getArray() as number[]).some(v=>v>=pos.getCount()))throw new Error("Invalid triangle indices.");triangles+=(index?.getCount()??pos.getCount())/3;
     if(!reused&&!p.getMaterial())throw new Error("A generated primitive has no material.");
   }
-  if(!triangles||!root.listScenes().length)throw new Error("The model has no renderable scene geometry.");
+  // Count instances in the active scene, not detached meshes retained in the
+  // resource graph after editing. A shared mesh may be drawn multiple times.
+  triangles=0;
+  const activeScene=root.getDefaultScene()??root.listScenes()[0];
+  activeScene?.traverse((node:Node)=>{const mesh=node.getMesh();if(mesh)for(const primitive of mesh.listPrimitives())triangles+=(primitive.getIndices()?.getCount()??primitive.getAttribute("POSITION")?.getCount()??0)/3;});
+  if(!triangles||!activeScene)throw new Error("The model has no renderable scene geometry.");
   const geometryPreserved=!expectedHash||originalGeometryHash(doc)===expectedHash;
   if(expectChange&&geometryPreserved)throw new Error("The requested geometry adjustment made no measurable alteration; the revision was not accepted.");
   if(!expectChange&&!geometryPreserved)throw new Error("Follow-up changed the original mesh geometry; the revision was not accepted.");

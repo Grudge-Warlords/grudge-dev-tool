@@ -135,7 +135,7 @@ export default function GrudgeStore() {
         CDN: <span className="font-mono text-gold">{cdnBase}</span>
       </p>
 
-      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
+      <div className="asset-tile-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
         {categories.map((c) => (
           <button
             key={c.id}
@@ -192,7 +192,7 @@ export default function GrudgeStore() {
           {groups.map((g) => (
             <div key={g.label} className="mb-4">
               <div className="text-xs font-semibold text-gold mb-2 uppercase tracking-wide">{g.label} ({g.items.length})</div>
-              <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
+              <div className="asset-tile-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
                 {g.items.map((item) => {
                   const thumb = thumbFor(item);
                   const model = item.path && isModelPath(item.path);
@@ -237,7 +237,7 @@ export default function GrudgeStore() {
           {!items.length && prefixEntries.length > 0 && (
             <div>
               <div className="text-xs text-muted mb-2">Objects under <span className="font-mono">{selected.prefix}</span></div>
-              <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
+              <div className="asset-tile-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
                 {prefixEntries.map((ent) => {
                   const isImg = ent.contentType?.startsWith("image/");
                   const isModel = isModelPath(ent.name);

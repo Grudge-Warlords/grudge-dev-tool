@@ -43,6 +43,8 @@ async function boundedText(response: Response, maximum: number): Promise<string>
 }
 
 function selectInstalledModel(preferred: string, names: string[]): string {
+  const grudge = names.find(name => name === "grudge-dev" || name === "grudge-dev:latest");
+  if (grudge) return grudge;
   const exact = names.find((name) => name === preferred || name === `${preferred}:latest`);
   if (exact) return exact;
   const preferredFamilies = ["qwen", "llama", "mistral", "gemma", "phi", "deepseek"];
@@ -52,7 +54,11 @@ function selectInstalledModel(preferred: string, names: string[]): string {
   throw new Error("Ollama is reachable but has no installed local model. This action never pulls one automatically.");
 }
 
-export async function localJsonPlan(system: string, prompt: string, format: unknown = "json"): Promise<{ proposal: unknown; model: string }> {
+export async function localJsonPlan(system: string, prompt: string, format: unknown = "json", maximumTokens = 800): Promise<{ proposal: unknown; model: string }> {
+  const outputTokens = Math.min(4096, Math.max(128, maximumTokens));
+  const estimatedContext = Math.ceil((system.length + prompt.length) / 3) + outputTokens + 512;
+  if (estimatedContext > 32768) throw new Error("The local planning context is too large. Narrow the current screen or shorten the request.");
+  const contextTokens = Math.max(8192, 2 ** Math.ceil(Math.log2(estimatedContext)));
   const base = loopbackBase((await loadPlannerHost()) ?? await getOllamaHost());
   const tagsResponse = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(8_000) }).catch(() => null);
   if (!tagsResponse?.ok) throw new Error("Local Ollama is not running. Prompt-to-3D will not start or modify it automatically.");
@@ -63,7 +69,7 @@ export async function localJsonPlan(system: string, prompt: string, format: unkn
 
   const response = await fetch(`${base}/api/generate`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model, system, prompt, format, stream: false, keep_alive: 0, options: { temperature: 0, num_predict: 800, num_gpu: 0 } }),
+    body: JSON.stringify({ model, system, prompt, format, stream: false, keep_alive: 0, options: { temperature: 0, num_predict: outputTokens, num_ctx: contextTokens, num_gpu: 0 } }),
     signal: AbortSignal.timeout(180_000),
   });
   const responseText = await boundedText(response, MAX_PLAN_RESPONSE);

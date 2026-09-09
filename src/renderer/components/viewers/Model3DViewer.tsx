@@ -385,12 +385,12 @@ export default function Model3DViewer({
     const maxDim = Math.max(size.x, size.y, size.z, 0.05);
     const aspect = Math.max(0.1, view.camera.aspect || 1);
     const fov = THREE.MathUtils.degToRad(view.camera.fov);
-    const [projectedWidth, projectedHeight] = preset === "front" || preset === "back"
-      ? [size.x, size.y]
+    const [projectedWidth, projectedHeight, projectedDepth] = preset === "front" || preset === "back"
+      ? [size.x, size.y, size.z]
       : preset === "right" || preset === "left"
-        ? [size.z, size.y]
-        : [size.x, size.z];
-    const distance = perspectiveFitDistance(projectedWidth, projectedHeight, fov, aspect);
+        ? [size.z, size.y, size.x]
+        : [size.x, size.z, size.y];
+    const distance = perspectiveFitDistance(projectedWidth, projectedHeight, fov, aspect, 1.18, projectedDepth);
     const direction = {
       front: new THREE.Vector3(0, 0, 1),
       right: new THREE.Vector3(1, 0, 0),

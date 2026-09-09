@@ -2,11 +2,12 @@ import { randomUUID } from "node:crypto";
 import { constants, existsSync } from "node:fs";
 import { appendFile, copyFile, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { CREATION_BUILD, type CreationAttempt, type CreationLibraryAsset, type CreationRequest, type CreationSaveResult } from "../../shared/creationFlow";
+import { CREATION_BUILD, type CreationAttempt, type CreationLibraryAsset, type CreationPlan, type CreationRequest, type CreationSaveResult } from "../../shared/creationFlow";
 import { readCreationBase } from "./creationBase";
 import { planCreation } from "./creationPlanner";
 import { addOriginalMotion, adjustOriginalGeometry, applyOriginalTextures, createOriginalGeometry, creationIO, enhanceOriginalGeometry, originalGeometryHash, validateOriginal } from "./proceduralCreation";
 import { readContainedFile, sha256 } from "./conceptReview";
+import { applyCreationEdit, creationEditContext, creationSceneHash } from "./creationEdits";
 
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const running = new Set<string>();
@@ -114,10 +115,10 @@ export async function saveCreationToLibrary(root:string,id:string):Promise<Creat
   return {asset:record,alreadySaved:false,localAssetsRoot:models};
 }
 
-export async function submitCreation(root:string,request:CreationRequest):Promise<CreationAttempt>{
+export async function submitCreation(root:string,request:CreationRequest,compiledPlan?:CreationPlan):Promise<CreationAttempt>{
   if(!request||typeof request.prompt!=="string"||!request.prompt.trim()||request.prompt.length>2000)throw new Error("Enter a prompt of 1–2000 characters.");
   const id=randomUUID(),now=new Date().toISOString();
-  const sourceFiles=[__filename,join(__dirname,"proceduralCreation.js"),join(__dirname,"creationPlanner.js")];
+  const sourceFiles=[__filename,...["proceduralCreation","creationPlanner","creationPrompt","creationEdits","creationLiteralEdits"].map(name=>join(__dirname,`${name}.js`))];
   const sourceRevision=sha256(Buffer.concat(await Promise.all(sourceFiles.filter(existsSync).map(p=>readFile(p)))));
   const attempt:CreationAttempt={version:1,id,assetId:id,createdAt:now,updatedAt:now,request:structuredClone(request),state:"running",method:"original-procedural",build:CREATION_BUILD,sourceRevision,message:"Planning a local original creation operation."};
   running.add(id);await record(root,attempt);
@@ -129,7 +130,7 @@ export async function submitCreation(root:string,request:CreationRequest):Promis
     if(request.parentId)parent=await readAttempt(root,request.parentId);
     const base=request.baseSource?await readCreationBase(request.baseSource):undefined;
     if(base&&request.parentId)throw new Error("Choose either an existing base or a current revision, not both.");
-    attempt.plan=base?{kind:"existing-asset",operation:"reuse",summary:"Retain an independent working copy of the selected Grudge asset.",constraints:["Preserve the original file, embedded identity, skin and clips"],planner:"Exact source copy; no model inference"}:await planCreation(request,parent);
+    attempt.plan=base?{kind:"existing-asset",operation:"reuse",summary:"Retain an independent working copy of the selected Grudge asset.",constraints:["Preserve the original file, embedded identity, skin and clips"],planner:"Exact source copy; no model inference"}:compiledPlan??await planCreation(request,parent);
     const creating=attempt.plan.operation==="create"||attempt.plan.operation==="reuse";
     if(!creating){parent=await reopenCreation(root,request.parentId!);attempt.parentId=parent.id;attempt.parentSha256=parent.sha256;attempt.previousGeometryHash=parent.geometryHash;attempt.assetId=parent.assetId;}
     if(base||(!creating&&parent?.method==="existing-asset")){attempt.method="existing-asset";attempt.sourceAssets=base?[base.record]:parent?.sourceAssets;}
@@ -144,14 +145,16 @@ export async function submitCreation(root:string,request:CreationRequest):Promis
       const children=[...scene.listChildren()],wrapper=doc.createNode(`GrudgeWorkingCopy_${id.replaceAll("-","")}`).setExtras({localWorkingRoot:true});
       for(const child of children){scene.removeChild(child);wrapper.addChild(child);}scene.addChild(wrapper);doc.getRoot().setDefaultScene(scene);
     }
-    if(attempt.plan.operation==="texture"){
+    attempt.previousSceneHash=creating?undefined:creationSceneHash(doc);
+    if(attempt.plan.operation==="edit")attempt.plan.changes=applyCreationEdit(doc,attempt.plan.edit!);
+    else if(attempt.plan.operation==="texture"){
       if(attempt.method==="existing-asset" && doc.getRoot().listMeshes().some((m:any)=>m.listPrimitives().some((p:any)=>!p.getAttribute("TEXCOORD_0")||!p.getMaterial())))throw new Error("This source needs UVs or materials. Use the existing Forge texture tools, which support planar UV preparation.");
       await applyOriginalTextures(doc,request.style,request.prompt);
     }
     else if(attempt.plan.operation==="enhance")enhanceOriginalGeometry(doc,attempt.plan);
     else if(attempt.plan.operation==="adjust")adjustOriginalGeometry(doc,attempt.plan);
     else if(!creating)addOriginalMotion(doc,attempt.plan);
-    const expectsGeometryChange=attempt.plan.operation==="enhance"||attempt.plan.operation==="adjust";
+    const expectsGeometryChange=attempt.plan.operation==="enhance"||attempt.plan.operation==="adjust"||(attempt.plan.operation==="edit"&&originalGeometryHash(doc)!==parent!.geometryHash);
     attempt.validation=validateOriginal(doc,creating?undefined:parent!.geometryHash,expectsGeometryChange,attempt.method==="existing-asset");
     attempt.geometryHash=originalGeometryHash(doc);
     const lineage={version:1,method:attempt.method,build:attempt.build,sourceRevision,assetId:attempt.assetId,attemptId:id,parentId:attempt.parentId,parentSha256:attempt.parentSha256,geometryHash:attempt.geometryHash,request:attempt.request,plan:attempt.plan,sourceAssets:attempt.sourceAssets??[],generationModelUsedForRevision:false,...(attempt.method==="original-procedural"?{trainingModelUsed:false}:{})};
@@ -159,6 +162,8 @@ export async function submitCreation(root:string,request:CreationRequest):Promis
     const rootNode=(doc.getRoot().getDefaultScene()??doc.getRoot().listScenes()[0]).listChildren()[0];rootNode.setExtras({...rootNode.getExtras(),grudgeProvenance:lineage});
     const bytes=await (await creationIO()).writeBinary(doc);
     const reload=await (await creationIO()).readBinary(bytes);validateOriginal(reload,attempt.geometryHash,false,attempt.method==="existing-asset");
+    attempt.sceneHash=creationSceneHash(reload);
+    attempt.partNames=creationEditContext(reload).parts.filter(p=>p.mesh).map(p=>p.name);
     attempt.assetPath=join(directory(root,id),"asset.glb");attempt.sha256=sha256(bytes);
     await writeFile(attempt.assetPath,bytes,{flag:"wx"});
     await writeFile(join(directory(root,id),"provenance.json"),JSON.stringify({...lineage,outputSha256:attempt.sha256},null,2),{flag:"wx"});

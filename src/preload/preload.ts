@@ -1,4 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+import { APP_ACTION_CHANNELS, type AppActionRequest, type AppActionDecision } from "../shared/ipc";
+import { EMBEDDED_ACTION_CHANNELS, type EmbeddedActionAPI, type EmbeddedObserveRequest, type EmbeddedExecuteRequest } from "../shared/ipc";
 import { PROMPT3D_CHANNELS, type AssetSpecV1, type LocalPrompt3DProviderId, type Prompt3DApproveConceptRequest, type Prompt3DInstallRequest, type Prompt3DPlanRequest, type Prompt3DReferenceImageSelection, type Prompt3DRejectConceptRequest, type Prompt3DStartRequest } from "../shared/prompt3d";
 import type { Prompt3DAppRuntime, Prompt3DHistory } from "../shared/prompt3d";
 import {
@@ -26,6 +28,11 @@ import { CREATION_CHANNELS, type CreationRequest, type CreationAttempt, type Cre
 import { UPDATER_CHANNELS, type UpdaterStatus } from "../shared/ipc";
 
 const api = {
+  appActions: { plan: (request: AppActionRequest) => ipcRenderer.invoke(APP_ACTION_CHANNELS.plan, request) as Promise<AppActionDecision> },
+  embeddedActions: {
+    observe: (request: EmbeddedObserveRequest) => ipcRenderer.invoke(EMBEDDED_ACTION_CHANNELS.observe, request),
+    execute: (request: EmbeddedExecuteRequest) => ipcRenderer.invoke(EMBEDDED_ACTION_CHANNELS.execute, request),
+  } satisfies EmbeddedActionAPI,
   creation: {
     submit: (request: CreationRequest) => ipcRenderer.invoke(CREATION_CHANNELS.submit, request) as Promise<CreationAttempt>,
     history: () => ipcRenderer.invoke(CREATION_CHANNELS.history) as Promise<CreationAttempt[]>,

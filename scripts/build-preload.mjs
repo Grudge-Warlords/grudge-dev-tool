@@ -21,3 +21,10 @@ await build({
 });
 
 console.log(`[build-preload] wrote sandbox-safe bundle: ${outfile}`);
+
+await build({
+  entryPoints: [path.join(root, "src/renderer/lib/embeddedActionGuest.ts")],
+  outfile: path.join(root, "dist/embedded/appActionGuest.js"),
+  bundle: true, platform: "browser", format: "iife", globalName: "GrudgeEmbeddedGuest",
+  target: "chrome140", logLevel: "info",
+});

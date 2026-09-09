@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { toast } from "sonner";
+import { validateAppLocalPath } from "../../shared/appLocalPath";
 import {
   Move, RotateCcw, Maximize2, Camera, Download,
   FileBox, Trash2, ChevronRight, ChevronDown, Box,
@@ -115,6 +116,9 @@ export default function Forge3D() {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<SceneEngine | null>(null);
   const [engineReady, setEngineReady] = useState(false);
+  const [localModelPath, setLocalModelPath] = useState("");
+  const [pathOpenBusy, setPathOpenBusy] = useState(false);
+  const pathOpening = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const sceneInputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef(new TransformHistory());
@@ -154,6 +158,7 @@ export default function Forge3D() {
   const [animSettings, setAnimSettings] = useState<ForgeAnimSettings>(DEFAULT_FORGE_ANIM);
   const [hotkeyHelp, setHotkeyHelp] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  const [editorActionStatus, setEditorActionStatus] = useState("");
   const [aiEditOpen, setAiEditOpen] = useState(false);
   const [aiEditPrompt, setAiEditPrompt] = useState("make it gold metal and ground it");
   const [completionOpen, setCompletionOpen] = useState(false);
@@ -326,10 +331,12 @@ export default function Forge3D() {
   const addFile = useCallback(async (file: File, diskPath: string | null = null) => {
     if (!isSupported(file.name)) {
       toast.error(`Unsupported file: ${file.name}`);
+      setEditorActionStatus(`Model load failed: unsupported file ${file.name}`);
       return;
     }
-    if (!engineRef.current) return;
+    if (!engineRef.current) { setEditorActionStatus("Model load failed: the viewport is not ready."); return; }
     setLoading(true);
+    setEditorActionStatus("");
     try {
       let loadFile = file;
       let resolvedDiskPath = diskPath;
@@ -429,6 +436,7 @@ export default function Forge3D() {
       setItems((prev) => [...prev, item]);
       setSelectedId(id);
       setSelectedNodeUuid(null);
+      setEditorActionStatus(diskPath ? `Loaded model from ${diskPath}` : `Loaded model ${loadFile.name}`);
       if (autoFrame) engineRef.current.frame(loaded.object);
       // Soft selection pulse then clear gold emissive so assets don't stay yellow
       engineRef.current.pulseSelect(loaded.object);
@@ -447,6 +455,7 @@ export default function Forge3D() {
     } catch (err: any) {
       console.error("Forge3D load failed", err);
       toast.error(`Failed to load ${file.name}`, { description: err?.message ?? String(err) });
+      setEditorActionStatus(`Model load failed: ${err?.message ?? String(err)}`);
     } finally {
       setLoading(false);
     }
@@ -457,6 +466,21 @@ export default function Forge3D() {
     const arr = Array.from(files);
     arr.forEach((f) => { void addFile(f); });
   }, [addFile]);
+
+  async function openLocalModelPath() {
+    if (pathOpening.current) return;
+    pathOpening.current = true; setPathOpenBusy(true); setEditorActionStatus("");
+    try {
+      const path = validateAppLocalPath(localModelPath);
+      if (!isSupported(path)) throw new Error("Choose a supported 3D model file.");
+      // Read/parse before adding anything. A bad path retains the current scene.
+      const file = await window.grudge.forge.readFile(path);
+      await addFile(new File([file.bytes], file.name, { type: file.mime }), path);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setEditorActionStatus(`Model load failed: ${message.includes("ENOENT") ? `File not found: ${localModelPath}` : message}`);
+    } finally { pathOpening.current = false; setPathOpenBusy(false); }
+  }
 
   // -- Drag-drop -----------------------------------------------------------
   useEffect(() => {
@@ -511,6 +535,15 @@ export default function Forge3D() {
       const pending = sessionStorage.getItem("grudge.forge.pendingLocalPath");
       if (pending) {
         sessionStorage.removeItem("grudge.forge.pendingLocalPath");
+        const handoffText = sessionStorage.getItem("grudge.prompt3d.contextualHandoff");
+        if (handoffText) {
+          sessionStorage.removeItem("grudge.prompt3d.contextualHandoff");
+          const handoff = JSON.parse(handoffText);
+          if (handoff.version === 1 && typeof handoff.prompt === "string" && handoff.prompt.length <= 2000) {
+            if (handoff.route === "scene-completion") { setCompletionGoal(handoff.prompt); setCompletionOpen(true); }
+            else if (handoff.route === "forge-local") { setAiEditPrompt(handoff.prompt); setAiEditOpen(true); }
+          }
+        }
         (window as any).grudge?.forge?.readFile?.(pending).then((res: any) => {
           if (res?.bytes) {
             void addFile(new File([res.bytes], res.name, { type: res.mime }), pending);
@@ -518,6 +551,7 @@ export default function Forge3D() {
           }
         }).catch((err: any) => {
           toast.error("Local Files → Forge failed", { description: err?.message ?? String(err) });
+          setEditorActionStatus(`Model load failed: ${err?.message ?? String(err)}`);
         });
       }
     } catch { /* ignore */ }
@@ -1190,6 +1224,7 @@ export default function Forge3D() {
         object: it.object,
         diskPath: it.diskPath,
         bodyMorph: it.bodyMorph,
+        animations: it.animations,
       })),
       background: engine.getBackgroundColor(),
       showHelpers,
@@ -1207,6 +1242,56 @@ export default function Forge3D() {
     if (!engine) return;
     try {
       const doc = parseSceneJson(await file.text());
+      const loadedItems: SceneItem[] = [];
+      for (const ent of doc.entities) {
+        let loaded: LoadedModel;
+        let byteSize = 0;
+        if (ent.embedded) {
+          const object = await new THREE.ObjectLoader().parseAsync(ent.embedded);
+          const stats = collectSceneMeshStats(object, ent.name);
+          let vertices = 0;
+          object.traverse(n => { const mesh = n as THREE.Mesh; if (mesh.isMesh) vertices += mesh.geometry.getAttribute("position")?.count ?? 0; });
+          loaded = { object, animations: (ent.clips ?? []).map(clip => THREE.AnimationClip.parse(clip)), triangles: stats.triangleEstimate, vertices, bones: stats.boneCount, format: ent.format } as LoadedModel;
+          byteSize = JSON.stringify(ent.embedded).length;
+        } else {
+          if (!ent.diskPath) throw new Error(`Scene entity ${ent.name} has neither retained geometry nor a source file.`);
+          const res = await window.grudge.forge.readFile(ent.diskPath);
+          const f = new File([res.bytes as BlobPart], res.name, { type: res.mime });
+          loaded = await loadModel(f, {diskPath: ent.diskPath, materialPolicy:"preserve-authored"});
+          byteSize = f.size;
+        }
+        applyMatrix(loaded.object, ent.matrix);
+        loaded.object.visible = ent.visible;
+        const id = ent.id || `e${Date.now().toString(36)}`;
+        loaded.object.userData.itemId = id;
+        loadedItems.push({
+          id,
+          name: ent.name,
+          format: ent.format,
+          object: loaded.object,
+          animations: loaded.animations,
+          mixer: null,
+          triangles: loaded.triangles,
+          vertices: loaded.vertices,
+          bones: loaded.bones,
+          inspection: null,
+          bytes: byteSize,
+          rig: inspectSceneRig(loaded.object),
+          bodyMorph: ent.bodyMorph ?? { ...DEFAULT_BODY_MORPH },
+          sourceRest: loaded.bones > 0 ? captureRestPose(loaded.object) : null,
+          diskPath: ent.diskPath ?? null,
+        });
+      }
+      // Prepare every entity successfully before replacing the current scene.
+      for (const it of items) {
+        engine.removeSkeletonHelper(it.object);
+        engine.scene.remove(it.object);
+        if (it.mixer) engine.removeMixer(it.mixer);
+      }
+      for (const it of loadedItems) {
+        engine.scene.add(it.object);
+        it.mixer = engine.buildMixer(it.object, it.animations);
+      }
       setSceneName(doc.name);
       setShowHelpers(doc.settings.showHelpers);
       setAnimSettings(doc.settings.animSettings);
@@ -1217,50 +1302,9 @@ export default function Forge3D() {
       engine.camera.position.fromArray(doc.settings.camera.position);
       engine.controls.target.fromArray(doc.settings.camera.target);
       engine.controls.update();
-
-      for (const it of items) {
-        engine.removeSkeletonHelper(it.object);
-        engine.scene.remove(it.object);
-        if (it.mixer) engine.removeMixer(it.mixer);
-      }
-      setItems([]);
       setSelectedId(null);
       setSelectedNodeUuid(null);
       historyRef.current.clear();
-
-      const loadedItems: SceneItem[] = [];
-      for (const ent of doc.entities) {
-        if (!ent.diskPath) {
-          toast.warning(`Skipped ${ent.name} — no disk path in scene file`);
-          continue;
-        }
-        const res = await window.grudge.forge.readFile(ent.diskPath);
-        const f = new File([res.bytes as BlobPart], res.name, { type: res.mime });
-        const loaded: LoadedModel = await loadModel(f);
-        applyMatrix(loaded.object, ent.matrix);
-        loaded.object.visible = ent.visible;
-        const id = ent.id || `e${Date.now().toString(36)}`;
-        loaded.object.userData.itemId = id;
-        engine.scene.add(loaded.object);
-        const mixer = engine.buildMixer(loaded.object, loaded.animations);
-        loadedItems.push({
-          id,
-          name: ent.name,
-          format: ent.format,
-          object: loaded.object,
-          animations: loaded.animations,
-          mixer,
-          triangles: loaded.triangles,
-          vertices: loaded.vertices,
-          bones: loaded.bones,
-          inspection: null,
-          bytes: f.size,
-          rig: inspectSceneRig(loaded.object),
-          bodyMorph: ent.bodyMorph ?? { ...DEFAULT_BODY_MORPH },
-          sourceRest: loaded.bones > 0 ? captureRestPose(loaded.object) : null,
-          diskPath: ent.diskPath,
-        });
-      }
       setItems(loadedItems);
       if (loadedItems.length) setSelectedId(loadedItems[0].id);
       toast.success(`Loaded scene ${doc.name}`, { description: `${loadedItems.length} entities` });
@@ -1407,16 +1451,19 @@ export default function Forge3D() {
     if (selectedNode) {
       engine.frame(selectedNode);
       engine.pulseSelect(selectedNode);
+      setEditorActionStatus(`Framed node ${selectedNode.name || "selected node"}.`);
       return;
     }
     if (selected) {
       engine.frame(selected.object);
       engine.pulseSelect(selected.object);
+      setEditorActionStatus(`Framed object ${selected.name}.`);
     }
   }
 
   function frameAll() {
     engineRef.current?.frameAll();
+    setEditorActionStatus("Framed the entire scene.");
   }
 
   function cameraHome() {
@@ -1668,7 +1715,9 @@ export default function Forge3D() {
 
   // ----------------------- Render ----------------------------------------
   return (
-    <div className="forge3d" style={{ height: "100%", display: "grid", gridTemplateRows: "auto 1fr", gap: 0 }}>
+    <div data-app-action-busy={loading || pathOpenBusy ? "true" : "false"} className="forge3d" style={{ height: "100%", display: "grid", gridTemplateRows: "auto 1fr", gap: 0 }}>
+      <div>
+      {editorActionStatus && <p role="status" data-app-action-state={editorActionStatus} className="px-3 py-1 text-xs text-muted">{editorActionStatus}</p>}
       <Toolbar
         gizmoMode={gizmoMode} setGizmoMode={setGizmoMode}
         editorTool={editorTool} setTool={setTool}
@@ -1716,6 +1765,14 @@ export default function Forge3D() {
         canExportAll={items.length > 0}
         hasSelection={selected != null}
       />
+      <details className="px-3 pb-2 text-xs">
+        <summary>Open a local path</summary>
+        <div className="flex gap-2 py-2">
+          <input aria-label="Local path" className="min-w-0 flex-1 rounded border border-line bg-bg p-2" value={localModelPath} maxLength={500} onChange={e => setLocalModelPath(e.target.value)} placeholder="Full model path" />
+          <button className="btn text-xs" disabled={!engineReady || loading || pathOpenBusy || !localModelPath} onClick={() => void openLocalModelPath()}>Open model path in Forge</button>
+        </div>
+      </details>
+      </div>
       <input
         ref={sceneInputRef}
         type="file"
@@ -2015,6 +2072,23 @@ export default function Forge3D() {
 
 // ---------------------- Subcomponents ---------------------------------------
 
+const Btn = ({ active, onClick, title, children, disabled }: any) => (
+    <button
+      aria-pressed={typeof active === "boolean" ? active : undefined}
+      onClick={onClick}
+      title={title}
+      disabled={disabled}
+      style={{
+        background: active ? "rgba(255,198,42,0.18)" : "transparent",
+        color: disabled ? "var(--muted)" : active ? "var(--gold)" : "var(--text)",
+        border: "1px solid " + (active ? "var(--gold-deep)" : "var(--line)"),
+        borderRadius: 5, padding: "5px 8px", cursor: disabled ? "not-allowed" : "pointer", fontSize: 12,
+        display: "inline-flex", alignItems: "center", gap: 4, opacity: disabled ? 0.5 : 1,
+      }}>
+      {children}
+    </button>
+  );
+
 function Toolbar(props: {
   gizmoMode: GizmoMode;
   setGizmoMode: (m: GizmoMode) => void;
@@ -2073,21 +2147,6 @@ function Toolbar(props: {
   canExportAll: boolean;
   hasSelection: boolean;
 }) {
-  const Btn = ({ active, onClick, title, children, disabled }: any) => (
-    <button
-      onClick={onClick}
-      title={title}
-      disabled={disabled}
-      style={{
-        background: active ? "rgba(255,198,42,0.18)" : "transparent",
-        color: disabled ? "var(--muted)" : active ? "var(--gold)" : "var(--text)",
-        border: "1px solid " + (active ? "var(--gold-deep)" : "var(--line)"),
-        borderRadius: 5, padding: "5px 8px", cursor: disabled ? "not-allowed" : "pointer", fontSize: 12,
-        display: "inline-flex", alignItems: "center", gap: 4, opacity: disabled ? 0.5 : 1,
-      }}>
-      {children}
-    </button>
-  );
   const hex = `#${props.paintColor.toString(16).padStart(6, "0")}`;
   const paintActive = props.editorTool === "paint" || props.editorTool === "blend-paint";
   const slider: React.CSSProperties = { width: 72, accentColor: "var(--gold)" };
@@ -2247,6 +2306,12 @@ function HierarchyRow({ item, selected, onSelect, onRemove }:
   return (
     <li>
       <div
+        role="button"
+        tabIndex={0}
+        aria-label={`Select object ${item.name}`}
+        aria-pressed={selected}
+        data-app-action-state
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(); } }}
         onClick={onSelect}
         style={{
           display: "flex", alignItems: "center", gap: 4,
@@ -2255,6 +2320,7 @@ function HierarchyRow({ item, selected, onSelect, onRemove }:
           borderLeft: selected ? "2px solid var(--gold)" : "2px solid transparent",
         }}>
         <button
+          aria-label={`${open ? "Collapse" : "Expand"} details for ${item.name}`}
           onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
           style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", padding: 0, display: "flex" }}
         >
@@ -2266,7 +2332,7 @@ function HierarchyRow({ item, selected, onSelect, onRemove }:
         </span>
         <button
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          title="Remove"
+          title={`Remove object ${item.name}`}
           style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", padding: 2 }}
         ><Trash2 size={12} /></button>
       </div>

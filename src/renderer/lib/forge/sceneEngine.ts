@@ -23,7 +23,7 @@ import { createInfiniteGrid } from "./infiniteGrid";
 import { attachBoneNameLabels, disposeBoneLabelGroup } from "./skeletonOverlay";
 import { measureObjectSi, type SiBounds } from "./siMeasure";
 import { bindSceneMeasure } from "./measureScale";
-import { applyViewportNavigation } from "./viewportNavigation";
+import { applyViewportNavigation, perspectiveSphereFitDistance } from "./viewportNavigation";
 
 export type GizmoMode = "translate" | "rotate" | "scale";
 export type StudioView = "persp" | "front" | "right" | "top";
@@ -514,7 +514,7 @@ export class SceneEngine {
     if (this.activeCamera instanceof THREE.OrthographicCamera) {
       const dist = Math.max(2, maxDim * paddingFactor);
       this.activeCamera.position.copy(center).addScaledVector(dir, dist);
-      this.syncOrthoFrustum(maxDim, paddingFactor);
+      this.syncOrthoFrustum(Math.max(.05, size.length()), paddingFactor);
       this.controls.target.copy(center);
       this.controls.minDistance = Math.max(0.01, maxDim * 0.05);
       this.controls.maxDistance = Math.max(50, dist * 8);
@@ -523,9 +523,7 @@ export class SceneEngine {
     }
 
     const fov = THREE.MathUtils.degToRad(this.camera.fov);
-    const fitH = maxDim / (2 * Math.tan(fov / 2));
-    const fitW = maxDim / (2 * Math.tan(fov / 2) * aspect);
-    const dist = Math.max(fitH, fitW) * paddingFactor;
+    const dist = perspectiveSphereFitDistance(size.length() / 2, fov, aspect, Math.max(1.05, paddingFactor / 1.2));
     this.camera.position.copy(center).addScaledVector(dir, dist);
     this.camera.near = Math.max(0.001, maxDim / 500);
     this.camera.far = Math.max(this.camera.near * 100, dist * 20 + maxDim * 10);

@@ -277,6 +277,18 @@ try {
     assert.ok(!value.bodyText.includes("Something went wrong"), "renderer reached the top-level error boundary");
     assert.ok(!value.bodyText.includes("Cannot read properties of undefined"), "renderer repeated the missing preload bridge failure");
 
+    const embeddedBridge = await cdp.send("Runtime.evaluate", { expression: `(async () => {
+      const api = window.grudge.embeddedActions;
+      if (!api?.observe || !api?.execute) return { exposed: false };
+      let invalidGuest = '', invalidReceipt = '';
+      try { await api.observe({ surface: 'forge', webContentsId: -1 }); } catch (e) { invalidGuest = String(e); }
+      try { await api.execute({ token: 'not-an-observation', prompt: 'Change a setting', decision: {} }); } catch (e) { invalidReceipt = String(e); }
+      return { exposed: true, invalidGuest, invalidReceipt };
+    })()`, awaitPromise: true, returnByValue: true });
+    assert.equal(embeddedBridge.result?.value?.exposed, true, "packaged embedded bridge is missing");
+    assert.match(embeddedBridge.result.value.invalidGuest, /does not belong|Invalid embedded/, "packaged embedded bridge accepted an unrelated target");
+    assert.match(embeddedBridge.result.value.invalidReceipt, /expired/, "packaged embedded bridge accepted an invented observation");
+
     const startedNewAsset = await cdp.send("Runtime.evaluate", {
       expression: `(() => {
         const button = Array.from(document.querySelectorAll("button")).find((candidate) => candidate.textContent?.includes("Start new asset"));

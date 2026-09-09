@@ -9,6 +9,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { validateAppLocalPath } from "../../shared/appLocalPath";
 import {
   FolderOpen,
   ChevronRight,
@@ -310,6 +311,8 @@ export default function LocalFiles() {
   const [listing, setListing] = useState<ListDirResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [localPath, setLocalPath] = useState("");
+  const [pathStatus, setPathStatus] = useState("");
   const [filter, setFilter] = useState("");
   /** Kind chip filter for game media packs (audio / video / 3D / …). */
   const [kindFilter, setKindFilter] = useState<
@@ -602,8 +605,26 @@ export default function LocalFiles() {
     }
   }, [selected]);
 
+  async function openLocalPath(kind: "folder" | "model") {
+    setPathStatus("");
+    try {
+      const path = validateAppLocalPath(localPath);
+      if (kind === "folder") {
+        const opened = await loadDir(path);
+        if (!opened) { setPathStatus("Local path failed: the folder could not be opened."); return; }
+        setSelected(null); revokePreview(); setPreview(null);
+        setPathStatus(`Opened folder ${path}`);
+      } else {
+        const { isSupported } = await import("../lib/forge/loaders");
+        if (!isSupported(path)) throw new Error("Choose a supported 3D model file.");
+        sessionStorage.setItem("grudge.forge.pendingLocalPath", path);
+        await window.grudge.app.openRoute("/forge-local");
+      }
+    } catch (e) { setPathStatus(`Local path failed: ${e instanceof Error ? e.message : String(e)}`); }
+  }
+
   return (
-    <div className="h-full min-h-0 flex flex-col">
+    <div data-app-action-busy={loading ? "true" : "false"} className="h-full min-h-0 flex flex-col">
       {/* Header */}
       <div className="shrink-0 px-4 py-3 border-b border-line bg-bg-1 flex flex-col gap-2">
         <div className="flex items-center gap-3 flex-wrap">
@@ -634,6 +655,15 @@ export default function LocalFiles() {
           </button>
         </div>
 
+        <details className="text-xs">
+          <summary>Open a local path</summary>
+          <div className="flex flex-wrap gap-2 py-2">
+            <input aria-label="Local path" className="min-w-64 flex-1 rounded border border-line bg-bg p-2" value={localPath} maxLength={500} onChange={e => { setLocalPath(e.target.value); setPathStatus(""); }} placeholder="Full folder or model path" />
+            <button className="btn text-xs" disabled={loading || !localPath} onClick={() => void openLocalPath("folder")}>Open folder path</button>
+            <button className="btn text-xs" disabled={loading || !localPath} onClick={() => void openLocalPath("model")}>Open model path in Forge</button>
+          </div>
+        </details>
+        {pathStatus && <p role="status" data-app-action-state={pathStatus} className="text-xs">{pathStatus}</p>}
         {cwd && (
           <div className="flex items-center gap-1 text-[11px] flex-wrap min-w-0">
             <button
@@ -739,7 +769,7 @@ export default function LocalFiles() {
               </div>
             )}
             {error && (
-              <div className="p-4 text-danger text-xs">{error}</div>
+              <div role="alert" className="p-4 text-danger text-xs">{error}</div>
             )}
             {loading && (
               <div className="p-4 text-muted text-xs">Listing…</div>

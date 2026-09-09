@@ -26,6 +26,8 @@ type Prompt3DWorkflowExportInvocationResult =
 
 /** Electron contextBridge API exposed at window.grudge by src/preload/preload.ts */
 interface GrudgeElectronAPI {
+    appActions: { plan(request: import("../shared/appActions").AppActionRequest): Promise<import("../shared/appActions").AppActionDecision> };
+    embeddedActions: import("../shared/embeddedActions").EmbeddedActionAPI;
     auth: {
         getSession(): Promise<GrudgeSession>;
         getHandoff?(): Promise<{

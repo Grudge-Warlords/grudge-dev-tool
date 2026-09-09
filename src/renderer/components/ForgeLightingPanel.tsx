@@ -6,11 +6,12 @@ interface Props {
   onChange: (next: StudioLightState) => void;
 }
 
-function hexInput(value: number, onChange: (hex: number) => void) {
+function hexInput(label: string, value: number, onChange: (hex: number) => void) {
   const css = `#${value.toString(16).padStart(6, "0")}`;
   return (
     <input
       type="color"
+      aria-label={label}
       value={css}
       onChange={(e) => onChange(parseInt(e.target.value.slice(1), 16))}
       className="w-8 h-6 p-0 border-0"
@@ -26,9 +27,10 @@ export default function ForgeLightingPanel({ lights, onChange }: Props) {
       <div>
         <div className="text-gold font-semibold mb-1">Key light</div>
         <div className="flex items-center gap-2 mb-1">
-          {hexInput(lights.key.color, (c) => patch({ key: { ...lights.key, color: c } }))}
+          {hexInput("Key light color", lights.key.color, (c) => patch({ key: { ...lights.key, color: c } }))}
           <input
             type="range" min={0} max={3} step={0.05}
+            aria-label="Key light intensity"
             value={lights.key.intensity}
             onChange={(e) => patch({ key: { ...lights.key, intensity: Number(e.target.value) } })}
             className="flex-1"
@@ -39,9 +41,10 @@ export default function ForgeLightingPanel({ lights, onChange }: Props) {
       <div>
         <div className="text-gold font-semibold mb-1">Fill light</div>
         <div className="flex items-center gap-2 mb-1">
-          {hexInput(lights.fill.color, (c) => patch({ fill: { ...lights.fill, color: c } }))}
+          {hexInput("Fill light color", lights.fill.color, (c) => patch({ fill: { ...lights.fill, color: c } }))}
           <input
             type="range" min={0} max={2} step={0.05}
+            aria-label="Fill light intensity"
             value={lights.fill.intensity}
             onChange={(e) => patch({ fill: { ...lights.fill, intensity: Number(e.target.value) } })}
             className="flex-1"
@@ -52,9 +55,10 @@ export default function ForgeLightingPanel({ lights, onChange }: Props) {
       <div>
         <div className="text-gold font-semibold mb-1">Ambient</div>
         <div className="flex items-center gap-2">
-          {hexInput(lights.ambient.color, (c) => patch({ ambient: { ...lights.ambient, color: c } }))}
+          {hexInput("Ambient light color", lights.ambient.color, (c) => patch({ ambient: { ...lights.ambient, color: c } }))}
           <input
             type="range" min={0} max={1} step={0.02}
+            aria-label="Ambient light intensity"
             value={lights.ambient.intensity}
             onChange={(e) => patch({ ambient: { ...lights.ambient, intensity: Number(e.target.value) } })}
             className="flex-1"
@@ -65,6 +69,7 @@ export default function ForgeLightingPanel({ lights, onChange }: Props) {
         <div className="text-gold font-semibold mb-1">Exposure</div>
         <input
           type="range" min={0.2} max={2.5} step={0.05}
+          aria-label="Exposure"
           value={lights.exposure}
           onChange={(e) => patch({ exposure: Number(e.target.value) })}
           className="w-full"

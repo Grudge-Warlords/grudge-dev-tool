@@ -140,6 +140,7 @@ function routeReadiness(route: Prompt3DUnifiedRoute, context: Prompt3DUnifiedCon
 
 function strongestNewRoute(prompt: string, context: Prompt3DUnifiedContext): { strongest: Prompt3DUnifiedRoute; automatic: Prompt3DUnifiedRoute; blocked?: string; next?: Prompt3DUnifiedRoute } {
   if (/\bhunyuan\b/i.test(prompt)) return {strongest:"hunyuan3d-2",automatic:"hunyuan3d-2"};
+  if (/\b(world|blockout|assemble|assembly)\b/i.test(prompt)) return {strongest:"original-procedural",automatic:"original-procedural"};
   if (/\b(box|cube|sphere|cylinder|cone|plane|torus)\b/i.test(prompt)) return {strongest:"original-procedural",automatic:"original-procedural"};
   const candidates: Prompt3DUnifiedRoute[] = context.category === "character"
     ? ["hunyuan3d-2", "original-procedural"]
@@ -215,7 +216,7 @@ function stageFor(route: Prompt3DUnifiedRoute, context: Prompt3DUnifiedContext, 
     case "hy-motion-optional": return { ...base, label: "Animate with optional HY-Motion", method: "Pinned HY-Motion plus local skin binding", resource: "Existing HY-Motion installation and verified GPU profile", revisionEffect: "create-immutable-sibling", approval: "Explicit provider override and full motion review", executor: "prompt3d.finishStart" };
     case "skeleton-studio": return { ...base, label: "Correct skeleton", method: "Contextual Skeleton Studio marker and retarget tools", resource: "Existing Skeleton Studio and local animation libraries", revisionEffect: "review-only", approval: "All 22 canonical markers before returning a correction", executor: "skeleton.contextualReview" };
     case "forge-local": return { ...base, label: "Refine in Forge", method: "Contextual local Forge workbench handoff", resource: "Existing local Forge tools", revisionEffect: "review-only", approval: "Manual review; no automatic replacement of the retained revision", executor: "forge.contextualRefinement" };
-    case "scene-completion": return { ...base, label: "Complete scene", method: "Existing Scene Completion inside local Forge", resource: "Existing Scene Completion service and scene context", revisionEffect: "create-immutable-sibling", approval: "Scene composition and play-test review", executor: "sceneCompletion.existing" };
+    case "scene-completion": return { ...base, label: "Repair selected scene asset", method: "Existing mesh repair and rig preparation inside local Forge", resource: "Existing Scene Completion service and selected model", revisionEffect: "create-immutable-sibling", approval: "Mesh and rig review; this does not construct a world", executor: "sceneCompletion.existing" };
     case "retain-reopen": return { ...base, label: "Retain and reopen", method: "Immutable Prompt-to-3D generation history with exact preview, reveal and Forge handoff", resource: "Existing local generation store", revisionEffect: "save-exact-revision", approval: "Exact geometry visual approval before downstream use", executor: "prompt3d.retainedGeneration" };
     case "validate-save": return { ...base, label: "Validate and save", method: "Existing workflow validation, approval, managed save and portable export", resource: "Local workflow store", revisionEffect: "save-exact-revision", approval: "Exact-revision visual approval remains mandatory", executor: "prompt3d.workflowValidateAndSave" };
   }

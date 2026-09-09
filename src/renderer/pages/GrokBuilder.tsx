@@ -160,6 +160,7 @@ export default function GrokBuilder() {
       </header>
       <div className="relative min-h-0 flex-1">
         {React.createElement("webview", {
+          "data-app-action-embedded": "builder",
           ref: wvRef as unknown as React.RefObject<HTMLElement>,
           src,
           className: "absolute inset-0 w-full h-full",

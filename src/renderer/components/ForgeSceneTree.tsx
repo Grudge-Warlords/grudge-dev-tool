@@ -19,6 +19,8 @@ export default function ForgeSceneTree({ root, selectedUuid, onSelect }: Props) 
           <button
             key={n.uuid}
             type="button"
+            aria-label={`Select node ${n.name}`}
+            aria-pressed={active}
             className={"block w-full text-left truncate py-0.5 px-1 rounded hover:bg-gold/10 " + (active ? "bg-gold/15 text-gold" : "")}
             style={{ paddingLeft: 4 + n.depth * 10 }}
             title={n.type + " · " + n.uuid}

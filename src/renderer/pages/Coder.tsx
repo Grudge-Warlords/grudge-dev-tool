@@ -398,6 +398,7 @@ export default function Coder() {
 
       <div className="flex-1 min-h-0 relative">
         {React.createElement("webview", {
+          "data-app-action-embedded": "coder",
           ref: wvRef as unknown as React.RefObject<HTMLElement>,
           src: coderHandoffUrl(PROD_CODER),
           className: "absolute inset-0 w-full h-full",

@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-09 — local prompt execution and end-to-end repair
+
+- Extend Ask Grudge into Builder, Forge, Coder, ThreeFlow and Preview using fixed isolated control code, owned-guest and origin checks, expiring one-use observations, stale-document protection, semantic ARIA controls and exact text validation. Bound session handoff to supported origins.
+- Correct ThreeFlow's terrain starter covering its live editor. Expose existing tool tabs and catalog drag/drop, recover from a covering command palette, reach scroll-clipped sources and use exposed viewport areas. Confirm placement through hierarchy growth or a changed public selected-object caption; select Camera before repeated same-type placement when needed. Native live placement and palette recovery pass.
+- Expose ThreeFlow's existing property and axis labels. Bind literal field identities even before the panel opens, open Properties for its fields, and reject unrelated inputs/buttons or early completion. Native rename plus Position X now passes from the Material tab. Preserve selected-object context during property edits.
+- Make the existing Builder lab reachable under More tools, wait through guest startup and complete explicit click-once requests without repeating the action. Native Builder +Box passes. Retain normal admin access rules and report the actual session-injection outcome.
+- Bind click-once completion wording to the actual activation, correcting an invented Save result. Support ThreeFlow's explicit selected-object marker and existing palette Close button.
+- Prepare a separate, unapplied upstream ThreeFlow patch after live reload lost lighting. Local build/browser checks pass for restored lighting, immediate hierarchy updates, name/position persistence and clean helper lifecycle; snapshot checks preserve authored particles and pending transforms. Patch and reproduction notes are in `docs/patches/threeflow-embedded-20260909.md`. No upstream deployment is claimed.
+- Add an optional real-editor integration check requiring an explicit loopback build. Installed Grudge completes three separate create, compound-property and click-once prompts through the isolated bridge; fresh-document reload verifies retained name and position. Preserve the first test's reload race and corrected rerun evidence.
+
+- Complete previously blocked native Forge framing, cross-page component save/reopen and numeric editor checks after controller recovery; retain actual model/texture/animation evidence.
+- Preserve the current Forge scene when a prompted path fails; report the actual missing file instead of a generic planner explanation.
+- Add exact local folder/model path actions through existing Local Files and Forge handlers, with visible completion/failure instead of an unhandled picker.
+- Bind every understood literal setting in compound prompts; preserve quoted multiline values and significant spaces, reduce irrelevant planner context, and repair legacy boolean status text. Keep completion tied to observed results.
+
+- Add Ask Grudge across signed-in app routes, with real local control planning, existing-control execution, result checks, retained actions and Stop. Bind basic creation requests to the compound runner and preserve explicit optional-provider selection.
+- Add immutable component addition, duplication, renaming and removal, including exact later-target preflight and animation-preserving copies. Nine real edit-chain cases pass, including two expected rejections.
+- Repair control identity during React updates, closed-panel visibility, select labels, editor field/selection accessibility and invalid-input dispatch. Keep applied actions visible even when subsequent verification fails.
+- Bind current-model Forge handoff, explicit cross-page creation edits and disabled planner recovery; preserve numeric field equivalence and constrain new components to the existing scene. Retain the final native-controller blockage explicitly in the campaign report.
+- Correct renderer-only Grudge package classification so directory builds no longer report missing sibling runtime dependencies. See the campaign report for exact native results and remaining coverage limits.
+- Extend compound prompts to static placement, rotation, exact proportional scaling, named-part colors and removal of animation. Bind literal units, directions, ratios, exact part names and the selected asset kind; retain geometry, skins and unrelated surfaces in separate revisions.
+- Reject missing targets and unresolved requested edits before building, remove invented actions from negated/plain prompts, constrain each model action to its required parameters and allow one recorded planning correction. Keep failures visible in the creation workspace.
+- Repair brown/other named colors and grounded bench/mixed-scene defaults. Thirteen expanded live Grudge cases pass, including two expected rejections; see the campaign report for package and native evidence.
+- Prefer installed Grudge for local action planning and execute compound create, surface, detail, adjustment, supported motion and save requests through existing immutable revision services. Retain actual prompt/model/action receipts and truthful unsupported-action failures.
+- Build basic component/world assemblies with bounded placements, requested part counts and connected default trees/archways. Keep these labelled primitive blockouts.
+- Preserve edited scene objects, materials and clips across Forge scene save/load, including source-less primitives; retain prompt context on editor handoff.
+- Repair merged build fragments, global grid-style collisions, cropped depth/diagonal camera framing and neural preview sizing. Report unavailable Hunyuan Paint hardware before expensive integrity checks.
+- Keep sword blades seated during resizing and refit decorative inlays to the current blade surface; a real replay exposed the previous floating detail.
+- Verify nine representative real Grudge prompt builds, native creation/save/reopen/world scene recovery, a real four-side-inspected Hunyuan crate, focused checks and a Windows directory package. Paint remains blocked by free GPU memory; universal actions and complete neural finishing are not claimed. See `docs/prompt-e2e-20260909.md`.
+
 ## [1.1.1] - 2026-09-07
 
 - Route animal bipeds such as kangaroos through the existing local creature deformation author. Share subject evidence between the CPU binder, HY-Motion capability gate and animation UI; explain incompatible human-only motion before provider work.

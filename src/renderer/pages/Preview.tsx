@@ -439,6 +439,7 @@ export default function Preview() {
 
       <div className="flex-1 min-h-0 relative bg-black">
         {React.createElement("webview", {
+          "data-app-action-embedded": "preview",
           ref: wvRef as unknown as React.RefObject<HTMLElement>,
           src: HOME_URL,
           className: "absolute inset-0 w-full h-full",

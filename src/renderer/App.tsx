@@ -63,6 +63,7 @@ const Prompt3D = React.lazy(() => import("./pages/Prompt3D"));
 
 import Login from "./pages/Login";
 import StatusBar from "./components/StatusBar";
+import AppPrompt from "./components/AppPrompt";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { isAdmin, isOpenMode } from "./lib/admin";
 import { hydrateFromMain, persistRoute, readMirror } from "./lib/workspace";
@@ -127,7 +128,7 @@ const NAV: NavEntry[] = [
   // More (full tools only)
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true },
   { route: "/view", label: "View Mode", Icon: Eye, adminOnly: true },
-  { route: "/builder", label: "Grok Builder (lab)", Icon: Hammer, hidden: true },
+  { route: "/builder", label: "Grok Builder (lab)", Icon: Hammer },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
   { route: "/library", label: "Store", Icon: Store },
   { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
@@ -322,6 +323,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <AppPrompt route={route}/>
       <aside className="sidebar">
         <div className="brand">
           <img src="./logo-256.png" alt="Grudge" width={36} height={36} />
@@ -375,6 +377,7 @@ export default function App() {
                 key={n.route}
                 type="button"
                 className={"nav-item" + (route === n.route ? " active" : "")}
+                aria-current={route === n.route ? "page" : undefined}
                 onClick={() => go(n.route)}
               >
                 <span className="nav-icon flex items-center justify-center">
@@ -420,6 +423,7 @@ export default function App() {
                     key={n.route}
                     type="button"
                     className={"nav-item nav-item--sub" + (route === n.route ? " active" : "")}
+                    aria-current={route === n.route ? "page" : undefined}
                     onClick={() => go(n.route)}
                   >
                     <span className="nav-icon flex items-center justify-center">

@@ -95,7 +95,7 @@ export default function ThreeFlowStudio() {
  }, [src]);
 
  useEffect(() => {
-   if (!terrainCanvasRef.current || mode === "view") return;
+   if (!terrainCanvasRef.current || mode !== "terrain") return;
 
    const canvas = terrainCanvasRef.current;
    THREE.ColorManagement.enabled = true;
@@ -297,8 +297,7 @@ export default function ThreeFlowStudio() {
 
  useEffect(() => {
    if (terrainCanvasRef.current) {
-     const water = terrainCanvasRef.current;
-     water.style.opacity = mode === "view" ? "0" : "1";
+       terrainCanvasRef.current.style.opacity = mode === "terrain" ? "1" : "0";
    }
  }, [mode]);
 
@@ -382,16 +381,17 @@ export default function ThreeFlowStudio() {
        <div className="absolute inset-0 bg-[#0c1321]" />
        {src && mode !== "terrain" ? (
          React.createElement("webview", {
+          "data-app-action-embedded": "threeflow",
            ref: wvRef as unknown as React.RefObject<HTMLElement>,
            src,
            className: "absolute inset-0 w-full h-full",
            partition: "persist:grudge-threeflow",
            allowpopups: "true",
-           webpreferences: "allowRunningInsecureContent, nativeWindowOpen=yes",
+           webpreferences: "contextIsolation=yes, nodeIntegration=no",
          })
        ) : null}
 
-       {(mode === "editor" || mode === "terrain") && (
+       {mode === "terrain" && (
          <div className="absolute inset-0">
            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(122,162,255,0.18),_transparent_55%)]" />
            <canvas ref={terrainCanvasRef} className="absolute inset-0 h-full w-full" />
@@ -420,6 +420,7 @@ export default function ThreeFlowStudio() {
                <strong>{waterLevel.toFixed(1)}</strong>
              </div>
              <input
+               aria-label="Water level"
                type="range"
                min={-1}
                max={3}

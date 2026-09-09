@@ -83,6 +83,9 @@ assert.equal(typeof api.prompt3d?.batchRetry, "function", "Prompt-to-3D batch-re
 assert.equal(typeof api.prompt3d?.batchExport, "function", "Prompt-to-3D batch-export bridge is missing");
 assert.equal(typeof api.prompt3d?.onBatchProgress, "function", "Prompt-to-3D batch-progress bridge is missing");
 assert.equal(typeof api.creation?.submit, "function", "Original creation bridge is missing");
+assert.equal(typeof api.appActions?.plan, "function", "App-wide local action planner bridge is missing");
+assert.equal(typeof api.embeddedActions?.observe, "function", "Embedded observation bridge is missing");
+assert.equal(typeof api.embeddedActions?.execute, "function", "Embedded execution bridge is missing");
 assert.equal(typeof api.creation?.history, "function", "Retained creation history bridge is missing");
 assert.equal(typeof api.creation?.reopen, "function", "Local replay bridge is missing");
 assert.equal(typeof api.forge?.saveExport, "function", "Forge native-save bridge is missing");

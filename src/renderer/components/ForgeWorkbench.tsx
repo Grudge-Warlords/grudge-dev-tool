@@ -283,6 +283,7 @@ export default function ForgeWorkbench(props: Props) {
     <button
       type="button"
       onClick={() => setTab(id)}
+      aria-pressed={tab === id}
       className={`btn ghost text-[10px] py-0 px-2 ${tab === id ? "border-gold text-gold" : ""}`}
     >
       <Icon size={12} /> {label}

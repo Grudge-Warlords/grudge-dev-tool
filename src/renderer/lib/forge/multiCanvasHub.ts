@@ -14,7 +14,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { applyViewportNavigation } from "./viewportNavigation";
+import { applyViewportNavigation, perspectiveSphereFitDistance } from "./viewportNavigation";
 import {
   createPromptMotionTrail,
   disposePromptMotionTrail,
@@ -247,7 +247,11 @@ export class MultiCanvasHub {
     box.getCenter(center);
     const maxDim = Math.max(size.x, size.y, size.z, 0.05);
     const fov = THREE.MathUtils.degToRad(view.camera.fov);
-    const dist = (maxDim / (2 * Math.tan(fov / 2))) * pad;
+    const aspect = Math.max(.1, view.canvas.clientWidth / Math.max(1, view.canvas.clientHeight));
+    view.camera.aspect = aspect;
+    // Fit the full depth and diagonal, including a rotating cube's near corners.
+    const radius = Math.max(size.length() / 2, .025);
+    const dist = perspectiveSphereFitDistance(radius, fov, aspect, Math.max(1.05, pad / 1.2));
     const dir = new THREE.Vector3(1, 0.65, 1).normalize();
     view.camera.position.copy(center).addScaledVector(dir, dist);
     view.camera.near = Math.max(0.001, maxDim / 400);

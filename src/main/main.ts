@@ -1,4 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell, nativeImage, session, crashReporter, dialog } from "electron";
+import { EmbeddedActionBridge } from "./agent/embeddedActionBridge";
+import { EMBEDDED_ACTION_CHANNELS, type EmbeddedObserveRequest, type EmbeddedExecuteRequest } from "../shared/embeddedActions";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
@@ -104,6 +106,9 @@ import {
 import { CREATION_CHANNELS, type CreationRequest } from "../shared/creationFlow";
 import { UPDATER_CHANNELS } from "../shared/ipc";
 import { creationHistory, creationLibrary, reopenCreation, saveCreationToLibrary, submitCreation } from "./prompt3d/creationService";
+import { submitCreationPrompt } from "./prompt3d/creationPrompt";
+import { APP_ACTION_CHANNELS, type AppActionRequest } from "../shared/ipc";
+import { planAppAction } from "./agent/appActionPlanner";
 import { planAssetRefinement, saveAssetRefinement } from "./prompt3d/refinement";
 import { startCpuPlanner, stopOwnedCpuPlanner } from "./prompt3d/plannerRuntime";
 import { recordWorkflowExport, verifyWorkflowArtifact, workflowExportHistory } from "./prompt3d/artifactVerification";
@@ -558,9 +563,13 @@ function registerIpc() {
   ipcMain.handle(PROMPT3D_CHANNELS.rejectConcept, (event, request: Prompt3DRejectConceptRequest) => prompt3d.rejectConcept(prompt3dCapabilityFor(event), request));
   ipcMain.handle(PROMPT3D_CHANNELS.regenerateConcept, (event, id: string) => prompt3d.regenerateConcept(prompt3dCapabilityFor(event), id));
   ipcMain.handle(CREATION_CHANNELS.history, (event) => { assertPrompt3DSender(event); return creationHistory(prompt3d.getRoot()); });
+  ipcMain.handle(APP_ACTION_CHANNELS.plan, (event, request: AppActionRequest) => { assertPrompt3DSender(event); return planAppAction(request); });
+  const embeddedActions = new EmbeddedActionBridge(() => { const status = coder.getStatus(); return status.running ? status.url : null; });
+  ipcMain.handle(EMBEDDED_ACTION_CHANNELS.observe, (event, request: EmbeddedObserveRequest) => { assertPrompt3DSender(event); return embeddedActions.observe(event.sender, request); });
+  ipcMain.handle(EMBEDDED_ACTION_CHANNELS.execute, (event, request: EmbeddedExecuteRequest) => { assertPrompt3DSender(event); return embeddedActions.execute(event.sender, request); });
   ipcMain.handle(PROMPT3D_CHANNELS.inspectDeformation, (event, id: string) => prompt3d.inspectDeformation(prompt3dCapabilityFor(event), id));
   ipcMain.handle(PROMPT3D_CHANNELS.previewDeformation, (event, edit: import("../shared/deformationRegions").DeformationEdit) => prompt3d.previewDeformation(prompt3dCapabilityFor(event), edit));
-  ipcMain.handle(CREATION_CHANNELS.submit, (event, request: CreationRequest) => { prompt3d.assertCapability(prompt3dCapabilityFor(event)); return submitCreation(prompt3d.getRoot(), request); });
+  ipcMain.handle(CREATION_CHANNELS.submit, (event, request: CreationRequest) => { prompt3d.assertCapability(prompt3dCapabilityFor(event)); return submitCreationPrompt(prompt3d.getRoot(), request); });
   ipcMain.handle(CREATION_CHANNELS.reopen, (event, id: string) => { assertPrompt3DSender(event); return reopenCreation(prompt3d.getRoot(), id); });
   ipcMain.handle(CREATION_CHANNELS.library, (event) => { assertPrompt3DSender(event); return creationLibrary(prompt3d.getRoot()); });
   ipcMain.handle(CREATION_CHANNELS.save, async (event, id: string) => {

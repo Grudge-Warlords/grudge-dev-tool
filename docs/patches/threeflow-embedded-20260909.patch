@@ -1,0 +1,706 @@
+diff --git a/package.json b/package.json
+index 1f0ed3d..7eb5880 100644
+--- a/package.json
++++ b/package.json
+@@ -38,7 +38,7 @@
+     "@grudge-studio/engine": "file:vendor/@grudge-studio/engine",
+     "@dimforge/rapier3d-compat": "^0.19.3",
+     "@element-plus/icons-vue": "^2.3.1",
+-    "@vitejs/plugin-vue-jsx": "^3.0.1",
++    "@vitejs/plugin-vue-jsx": "^4.2.0",
+     "element-plus": "^2.9.4",
+     "lodash-es": "^4.17.21",
+     "mitt": "^3.0.1",
+diff --git a/src/config/vfxLab.ts b/src/config/vfxLab.ts
+index 4d4b02c..74b3627 100644
+--- a/src/config/vfxLab.ts
++++ b/src/config/vfxLab.ts
+@@ -56,7 +56,7 @@ export async function loadVfxStudioCatalog(): Promise<WarlordsDragItem[]> {
+           false,
+           {
+             tab: 'vfx',
+-            prefabKind: 'weapon',
++            contentLayer: 'item',
+           }
+         )
+       );
+diff --git a/src/enums/enum.ts b/src/enums/enum.ts
+index 1984111..32a70ab 100644
+--- a/src/enums/enum.ts
++++ b/src/enums/enum.ts
+@@ -206,6 +206,7 @@ export enum MITT_ON_KEY {
+   OPEN_AI_TAB = 'openAiTab',
+   HUD_CHANGED = 'hudChanged',
+   OPEN_WORLD_MAP = 'openWorldMap',
++  OPEN_PALETTE = 'openPalette',
+ }
+ 
+ /**
+diff --git a/src/types/global.d.ts b/src/types/global.d.ts
+index def95f3..302a437 100644
+--- a/src/types/global.d.ts
++++ b/src/types/global.d.ts
+@@ -9,6 +9,7 @@ type Events = {
+   [MITT_ON_KEY.OPEN_AI_TAB]: boolean;
+   [MITT_ON_KEY.HUD_CHANGED]: boolean;
+   [MITT_ON_KEY.OPEN_WORLD_MAP]: boolean;
++  [MITT_ON_KEY.OPEN_PALETTE]: boolean;
+ };
+ 
+ declare module 'vue' {
+diff --git a/src/types/indexDbTypes.ts b/src/types/indexDbTypes.ts
+index 2682b0b..0bfb1cc 100644
+--- a/src/types/indexDbTypes.ts
++++ b/src/types/indexDbTypes.ts
+@@ -2,6 +2,8 @@ import * as THREE from 'three';
+ import type { WeatherOptions } from './renderModelTypes';
+ 
+ export interface IndexDbSceneData {
++  /** Recreate generated lighting; preserve an explicitly disabled environment. */
++  environmentMode?: 'room' | 'none' | 'texture';
+   scene: THREE.Scene;
+   camera: THREE.PerspectiveCamera;
+   weather: WeatherOptions;
+diff --git a/src/types/rightPanelTypes.ts b/src/types/rightPanelTypes.ts
+index 9a8e6b1..6506de3 100644
+--- a/src/types/rightPanelTypes.ts
++++ b/src/types/rightPanelTypes.ts
+@@ -1,4 +1,5 @@
+ export interface MaterialNode {
++  locked?: boolean;
+   label?: string;
+   uuid: string;
+   type?: string;
+diff --git a/src/utils/globalProperties.ts b/src/utils/globalProperties.ts
+index a14097a..33f522a 100644
+--- a/src/utils/globalProperties.ts
++++ b/src/utils/globalProperties.ts
+@@ -10,6 +10,7 @@ type Events = {
+   [MITT_ON_KEY.OPEN_AI_TAB]: boolean;
+   [MITT_ON_KEY.HUD_CHANGED]: boolean;
+   [MITT_ON_KEY.OPEN_WORLD_MAP]: boolean;
++  [MITT_ON_KEY.OPEN_PALETTE]: boolean;
+ };
+ 
+ export const sceneEventBus: Emitter<Events> = mitt<Events>();
+diff --git a/src/utils/measureScale.ts b/src/utils/measureScale.ts
+index e630e37..686d3a9 100644
+--- a/src/utils/measureScale.ts
++++ b/src/utils/measureScale.ts
+@@ -5,6 +5,7 @@
+ import * as THREE from 'three';
+ import { ElMessage } from 'element-plus';
+ import { TransformCommand } from './historyModules/transformCommand';
++import type { Command } from './historyModules/command';
+ 
+ export const SPAN_TARGET_M = 2.0;
+ 
+@@ -15,7 +16,7 @@ export type MeasureHost = {
+   container: HTMLElement | null;
+   controls: { enabled: boolean } | null;
+   getSelectedObject: () => THREE.Object3D | null;
+-  historyModules: { execute: (cmd: unknown) => void };
++  historyModules: { execute: (cmd: Command) => void };
+ };
+ 
+ function ndc(ev: PointerEvent, el: HTMLElement, out: THREE.Vector2) {
+diff --git a/src/utils/renderScene.ts b/src/utils/renderScene.ts
+index fea56df..2cdaba5 100644
+--- a/src/utils/renderScene.ts
++++ b/src/utils/renderScene.ts
+@@ -23,6 +23,7 @@ import LightModules from './sceneModules/lightModules';
+ import HistoryModules from './historyModules';
+ import { TransformCommand } from './historyModules/transformCommand';
+ import { bindMeasureScale } from './measureScale';
++import { removeSavedEditorHelpers } from './sceneSnapshot';
+ import type { Command } from './historyModules/command';
+ import type {
+   CurrentDragModelData,
+@@ -166,6 +167,7 @@ class renderScene {
+   renderer: THREE.WebGLRenderer | null;
+   // Scene
+   scene: THREE.Scene | null;
++  private studioEnvironmentTarget: THREE.WebGLRenderTarget | null = null;
+   // controls
+   controls: OrbitControls | null;
+   // pointer-lock controls
+@@ -386,15 +388,29 @@ class renderScene {
+     ensureHudRoot(this.scene);
+     syncHudToScene(this.scene, loadHud().frames);
+     dedupeSceneLights(this.scene);
+-    if (this.renderer) {
++    this.restoreEnvironment('room');
++    return Promise.resolve();
++  }
++  /** Render-target environment pixels are deliberately omitted by THREE JSON. */
++  getEnvironmentMode(): 'room' | 'none' | 'texture' {
++    if (!this.scene?.environment) return 'none';
++    return this.scene.environment === this.studioEnvironmentTarget?.texture ? 'room' : 'texture';
++  }
++  private restoreEnvironment(mode?: 'room' | 'none' | 'texture'): void {
++    this.studioEnvironmentTarget?.dispose();
++    this.studioEnvironmentTarget = null;
++    if (!this.scene) return;
++    if (mode === 'none') { this.scene.environment = null; return; }
++    // Legacy editor snapshots omit the generated room environment entirely.
++    if (mode === 'room' || mode === undefined && !this.scene.environment) {
++      if (!this.renderer) return;
+       const pmrem = new THREE.PMREMGenerator(this.renderer);
+-      this.scene.environment = pmrem.fromScene(
+-        new RoomEnvironment(),
+-        0.04
+-      ).texture;
+-      pmrem.dispose();
++      const room = new RoomEnvironment();
++      try {
++        this.studioEnvironmentTarget = pmrem.fromScene(room, 0.04);
++        this.scene.environment = this.studioEnvironmentTarget.texture;
++      } finally { room.dispose(); pmrem.dispose(); }
+     }
+-    return Promise.resolve();
+   }
+   /** Camera stays a scene child. Tree reads this graph — never detach on refresh. */
+   ensureCameraInScene(): void {
+@@ -1394,9 +1410,6 @@ class renderScene {
+       // add toScene
+ 
+       this.scene.add(mesh);
+-      // highlight object
+-      this.setObjectHighlight(mesh);
+-
+       const mousePosition = getMousePosition(
+         dragGeometry.clientX,
+         dragGeometry.clientY
+@@ -1413,6 +1426,8 @@ class renderScene {
+         siHeightM: authorH,
+       };
+       setModelPositionSize(mesh, mousePosition, 'mesh');
++      this.setObjectHighlight(mesh);
++      store.setTransformMaterialRandomId();
+     } catch (error) {
+       console.error('Failed to create geometry:', error);
+     }
+@@ -1440,10 +1455,8 @@ class renderScene {
+   ): Promise<boolean> {
+     try {
+       const { camera, scene, controls } = indexDbSceneData;
+-      // 1. dispose oldSceneresource
+-      if (this.scene) {
+-        disposeScene(this.scene);
+-        this.scene.clear();
++      if (!controls || ![controls.x, controls.y, controls.z].every(Number.isFinite)) {
++        throw new Error('Scene has an invalid camera target');
+       }
+       // 2. create loader (cache later)
+       const loader = new ObjectLoader();
+@@ -1454,15 +1467,24 @@ class renderScene {
+         loader.parseAsync(camera),
+       ]);
+ 
+-      // 4. updateScene
+-      this.scene = parseScene as THREE.Scene;
+-      if (this.boxHelper) {
+-        this.boxHelper.visible = false;
+-        this.scene?.add(this.boxHelper);
++      if (!(parseScene instanceof THREE.Scene) || !(parseCamera instanceof THREE.PerspectiveCamera)) {
++        throw new Error('Expected a scene and perspective camera');
+       }
++      removeSavedEditorHelpers(parseScene);
++      const rebindMeasure = Boolean(this.measureUnbind);
++      this.measureUnbind?.();
++      this.measureUnbind = null;
+ 
+-      // dispose oldSceneresource;
+-      disposeScene(parseScene as THREE.Scene);
++      // Replace only after parsing succeeds, and dispose only the old graph.
++      if (this.scene) {
++        disposeScene(this.scene);
++        this.scene.clear();
++      }
++      this.boxHelper = null;
++
++      // 4. updateScene
++      this.scene = parseScene as THREE.Scene;
++      this.restoreEnvironment(indexDbSceneData.environmentMode);
+ 
+       // 5. update camera (avoid an extra clone)
+       if (this.camera) {
+@@ -1490,9 +1512,10 @@ class renderScene {
+       hydrateContentLayers(this.scene);
+       hydrateMapSurfaces(this.scene);
+       // 6. init ground
+-      this.initPlaneGround(indexDbSceneData);
++      await this.initPlaneGround(indexDbSceneData);
+       // 7. create transform controls
+       this.transformControlsModules.createTransformControls();
++      if (rebindMeasure) this.measureUnbind = bindMeasureScale(this);
+       // 8. resize
+       this.onWindowResizes();
+       // 9. drop temps
+@@ -1502,6 +1525,8 @@ class renderScene {
+       restoreHudFromScene(indexDbSceneData.hud);
+       if (this.scene) syncHudToScene(this.scene, loadHud().frames);
+       sceneEventBus.emit(MITT_ON_KEY.HUD_CHANGED, true);
++      store.setCurrentTransformMaterialUuid(null);
++      store.setTransformMaterialRandomId();
+       return Promise.resolve(true);
+     } catch (error) {
+       console.error('Failed to load IndexedDB scene:', error);
+@@ -1872,6 +1897,8 @@ class renderScene {
+    * destroyModels
+    */
+   renderDestroy() {
++    this.studioEnvironmentTarget?.dispose();
++    this.studioEnvironmentTarget = null;
+     this.measureUnbind?.();
+     this.measureUnbind = null;
+     // CancelAnimationloop
+diff --git a/src/utils/sceneModules/lightModules.ts b/src/utils/sceneModules/lightModules.ts
+index 098aa90..a9eae9f 100644
+--- a/src/utils/sceneModules/lightModules.ts
++++ b/src/utils/sceneModules/lightModules.ts
+@@ -17,6 +17,7 @@ class LightModules {
+    * @description init lights
+    */
+   initLight() {
++    this.lightMap.clear();
+     if (!store.sceneApi?.scene) return;
+     store.sceneApi.scene.traverse((child) => {
+       if (child instanceof THREE.Light) {
+@@ -149,6 +150,7 @@ class LightModules {
+ 
+     // keep light + helper
+     this.lightMap.set(light.uuid, light);
++    store.setTransformMaterialRandomId();
+ 
+     // attach transform controls
+     if (store.sceneApi?.transformControlsModules.transformControls) {
+diff --git a/src/utils/sceneModules/transformControlsModules.ts b/src/utils/sceneModules/transformControlsModules.ts
+index 26f4896..f58d315 100644
+--- a/src/utils/sceneModules/transformControlsModules.ts
++++ b/src/utils/sceneModules/transformControlsModules.ts
+@@ -43,6 +43,8 @@ class TransformControlsModules {
+   isMouseDown = false;
+   /** Ctrl+Shift held — snap gizmo translate onto terrain. */
+   ctrlShiftGround = false;
++  private mouseDownHandler = (event: MouseEvent) => this.onMouseDown(event);
++  private mouseUpHandler = () => this.onMouseUp();
+   onModKey: ((event: KeyboardEvent) => void) | null = null;
+   private focusTween: TWEEN.Tween<{ t: number }> | null = null;
+   constructor() {
+@@ -67,6 +69,7 @@ class TransformControlsModules {
+       renderer?.domElement as unknown as HTMLElement
+     );
+     this.transformControlsHelper = this.transformControls.getHelper();
++    this.transformControlsHelper.userData.editorGizmo = true;
+     scene?.add(this.transformControlsHelper);
+ 
+     this.draggingChangedHandler = this.onDraggingChanged();
+@@ -89,8 +92,8 @@ class TransformControlsModules {
+     container?.addEventListener('dblclick', this.onMouseDblClickListener);
+ 
+     // listen for mouse down / up
+-    container?.addEventListener('mousedown', this.onMouseDown.bind(this));
+-    container?.addEventListener('mouseup', this.onMouseUp.bind(this));
++    container?.addEventListener('mousedown', this.mouseDownHandler);
++    container?.addEventListener('mouseup', this.mouseUpHandler);
+ 
+     this.onModKey = (event: KeyboardEvent) => {
+       this.ctrlShiftGround =
+@@ -454,8 +457,8 @@ class TransformControlsModules {
+     }
+ 
+     // remove mouse down / up listeners
+-    container?.removeEventListener('mousedown', this.onMouseDown.bind(this));
+-    container?.removeEventListener('mouseup', this.onMouseUp.bind(this));
++    container?.removeEventListener('mousedown', this.mouseDownHandler);
++    container?.removeEventListener('mouseup', this.mouseUpHandler);
+     if (this.onModKey) {
+       window.removeEventListener('keydown', this.onModKey);
+       window.removeEventListener('keyup', this.onModKey);
+diff --git a/src/utils/utils.ts b/src/utils/utils.ts
+index c738334..cb2175b 100644
+--- a/src/utils/utils.ts
++++ b/src/utils/utils.ts
+@@ -127,7 +127,7 @@ const getLightIconClass = (type: string) =>
+  */
+ export function skipInTree(o: THREE.Object3D): boolean {
+   if (!o) return true;
+-  if (o.userData?.editorGizmo || o.userData?.isHelper || o.userData?.lightHelper)
++  if (o.userData?.editorGizmo || o.userData?.isHelper || o.userData?.lightHelper || o.userData?.measureLine)
+     return true;
+   if (/^__(char|tf|fleet|cdn)/i.test(o.name)) return true;
+   const kind = o.type || '';
+diff --git a/src/views/sceneEdit/index.vue b/src/views/sceneEdit/index.vue
+index be102ac..00e51f1 100644
+--- a/src/views/sceneEdit/index.vue
++++ b/src/views/sceneEdit/index.vue
+@@ -13,9 +13,11 @@
+         <div id="scene-render" @drop="dropModel" @dragover.prevent></div>
+         <HudOverlay />
+         <WorldMapOverlay />
++        <StatusBar @palette="openPalette" />
+       </div>
+       <RightPanelContent :pageLoading="loadingInfo.pageLoading" />
+     </div>
++    <CommandPalette />
+     <!-- loading state -->
+     <Loading
+       :percentage="loadingInfo.percentage"
+@@ -34,6 +36,8 @@ import {
+ import { LeftDragContent, RightPanelContent, SceneHeader } from './layouts';
+ import HudOverlay from './layouts/HudOverlay/index.vue';
+ import WorldMapOverlay from './layouts/WorldMapOverlay/index.vue';
++import StatusBar from './layouts/StatusBar/index.vue';
++import CommandPalette from './layouts/CommandPalette/index.vue';
+ import { clampHudFrame, loadHud, saveHud, type HudFrame } from '@/config/hudKits';
+ import { clientToHudDesign, measureHudHost } from '@/utils/imageLoader';
+ import { Loading } from '@/components/index';
+@@ -52,6 +56,7 @@ import { DRAG_MODEL_TYPE, MITT_ON_KEY } from '@/enums/enum';
+ const store = useSceneStore();
+ const indexDbStore = useIndexDbStore();
+ const { $eventBus } = getCurrentInstance()?.proxy || {};
++const openPalette = () => $eventBus?.emit(MITT_ON_KEY.OPEN_PALETTE, true);
+ 
+ // current drag model
+ const currentDrag = shallowReactive<CurrentDragModelData>({
+diff --git a/src/views/sceneEdit/layouts/LeftDragContent/index.vue b/src/views/sceneEdit/layouts/LeftDragContent/index.vue
+index 3875051..944608c 100644
+--- a/src/views/sceneEdit/layouts/LeftDragContent/index.vue
++++ b/src/views/sceneEdit/layouts/LeftDragContent/index.vue
+@@ -417,7 +417,7 @@ const onClickPlace = async (item: WarlordsDragItem) => {
+     const scene = store.sceneApi?.scene;
+     const uuid = store.currentTransformMaterialUuid;
+     const obj = uuid && scene ? scene.getObjectByProperty('uuid', uuid) : null;
+-    const root = findRaceKitRoot(obj);
++    const root = findRaceKitRoot(obj ?? null);
+     if (!root) {
+       ElMessage.warning('Select a Toon RTS captain, then click a clip');
+       return;
+diff --git a/src/views/sceneEdit/layouts/RightPanelContent/SceneContent/index.vue b/src/views/sceneEdit/layouts/RightPanelContent/SceneContent/index.vue
+index bb0aa9e..d219cb8 100644
+--- a/src/views/sceneEdit/layouts/RightPanelContent/SceneContent/index.vue
++++ b/src/views/sceneEdit/layouts/RightPanelContent/SceneContent/index.vue
+@@ -216,7 +216,7 @@ import {
+ import { hudIdOf, HUD_ROOT_NAME, setHudHierarchyVisible } from '@/utils/hudScene';
+ import { loadHud, saveHud } from '@/config/hudKits';
+ import { runSceneScript } from '@/utils/sceneScript';
+-import type { Node as ElTreeNode } from 'element-plus/es/components/tree/src/model/node';
++import type ElTreeNode from 'element-plus/es/components/tree/src/model/node';
+ 
+ const store = useSceneStore();
+ const { $eventBus } = getCurrentInstance()?.proxy || {};
+@@ -661,7 +661,7 @@ watch(hasRaceKit, (on) => {
+ watch(currentTransformMaterialUuid, async () => {
+   const key = currentTransformMaterialUuid.value;
+   if (key && treeRef.value && typeof (treeRef.value as { setCurrentKey?: (k: string) => void }).setCurrentKey === 'function') {
+-    (treeRef.value as { setCurrentKey: (k: string) => void }).setCurrentKey(key);
++    (treeRef.value as unknown as { setCurrentKey: (k: string) => void }).setCurrentKey(key);
+   }
+   const material = store.sceneApi?.scene?.getObjectByProperty(
+     'uuid',
+diff --git a/src/views/sceneEdit/layouts/RightPanelContent/SceneContent/modules/MeshProperty/index.vue b/src/views/sceneEdit/layouts/RightPanelContent/SceneContent/modules/MeshProperty/index.vue
+index 09e905a..4f62da2 100644
+--- a/src/views/sceneEdit/layouts/RightPanelContent/SceneContent/modules/MeshProperty/index.vue
++++ b/src/views/sceneEdit/layouts/RightPanelContent/SceneContent/modules/MeshProperty/index.vue
+@@ -484,7 +484,7 @@ const updateTransformProperties = (
+       (helper as THREE.DirectionalLightHelper).update();
+     }
+   }
+-  disposeMaterial(material as THREE.Mesh);
++  material.updateMatrixWorld(true);
+ };
+ 
+ // update materialProperties
+@@ -498,6 +498,8 @@ const updateMaterialProperty = (
+       (camera as unknown as Record<string, string | number | boolean>)[
+         propertyKey
+       ] = value;
++      camera.updateProjectionMatrix();
++      store.setTransformMaterialRandomId();
+     }
+     return;
+   }
+@@ -531,6 +533,7 @@ const updateMaterialProperty = (
+     (material as unknown as Record<string, string | boolean | number>)[
+       propertyKey
+     ] = value;
++    store.setTransformMaterialRandomId();
+   }
+ };
+ 
+diff --git a/src/views/sceneEdit/layouts/SceneHeader/index.vue b/src/views/sceneEdit/layouts/SceneHeader/index.vue
+index 143905d..3dfa773 100644
+--- a/src/views/sceneEdit/layouts/SceneHeader/index.vue
++++ b/src/views/sceneEdit/layouts/SceneHeader/index.vue
+@@ -164,8 +164,8 @@
+ import { useSceneStore } from '@/store/sceneEditStore';
+ import { useIndexDbStore } from '@/store/indexDbStore';
+ import { IndexDbStoreName, IndexDbStoreKeyPath } from '@/enums/indexDb';
+-import { debounce, cloneDeep } from 'lodash-es';
+-import { disposeScene } from '@/utils/utils';
++import { debounce } from 'lodash-es';
++import { serializeEditorScene } from '@/utils/sceneSnapshot';
+ import {
+   ref,
+   onMounted,
+@@ -522,28 +522,13 @@ const saveIslandRailway = async () => {
+ const saveSceneIndexDb = async () => {
+   try {
+     const sceneApi = store.sceneApi;
+-    if (!sceneApi) {
++    if (!sceneApi?.scene || !indexDbStore.indexDbUtil) {
+       throw new Error('Scene is not initialized');
+     }
+-    let newScene = cloneDeep(sceneApi?.scene);
+-
+-    const transformControlsRoot = newScene?.getObjectByProperty(
+-      'isTransformControlsRoot',
+-      true
+-    );
+-    const boxHelper = newScene?.getObjectByProperty('type', 'BoxHelper');
+-    const particles = newScene?.getObjectByProperty('type', 'Points');
+-    newScene?.remove(transformControlsRoot as THREE.Object3D);
+-    newScene?.remove(boxHelper as THREE.BoxHelper);
+-    newScene?.remove(particles as THREE.Points);
+-    if (newScene) {
+-      for (const child of [...newScene.children]) {
+-        if ((child as THREE.Camera).isCamera) newScene.remove(child);
+-      }
+-    }
+ 
+     let jsonData = {
+-      scene: newScene?.toJSON(),
++      environmentMode: sceneApi.getEnvironmentMode(),
++      scene: serializeEditorScene(sceneApi.scene),
+       camera: sceneApi.camera?.toJSON(),
+       controls: toRaw(sceneApi.controls?.target),
+       hud: packHudForScene(),
+@@ -567,7 +552,6 @@ const saveSceneIndexDb = async () => {
+     } else {
+       await indexDbStore.indexDbUtil?.add(IndexDbStoreName.scene, sceneInfo);
+     }
+-    disposeScene(newScene as THREE.Scene);
+     return Promise.resolve();
+   } catch (error: unknown) {
+     console.error('Failed to save scene:', error);
+@@ -595,17 +579,11 @@ const debounceExportScene = debounce(async () => {
+   loadingTimeout.value = setTimeout(() => {
+     try {
+       const sceneApi = store.sceneApi;
+-      const newScene = cloneDeep(sceneApi?.scene);
+-      const transformControlsRoot = newScene?.getObjectByProperty(
+-        'isTransformControlsRoot',
+-        true
+-      );
+-      const boxHelper = newScene?.getObjectByProperty('isBoxHelper', true);
+-      newScene?.remove(transformControlsRoot as THREE.Object3D);
+-      if (boxHelper) newScene?.remove(boxHelper as THREE.BoxHelper);
++      if (!sceneApi?.scene) throw new Error('Scene is not initialized');
+ 
+       const jsonData = {
+-        scene: newScene?.toJSON(),
++        environmentMode: sceneApi?.getEnvironmentMode(),
++        scene: serializeEditorScene(sceneApi.scene),
+         camera: sceneApi?.camera?.toJSON(),
+         controls: toRaw(sceneApi?.controls?.target),
+         hud: packHudForScene(),
+diff --git a/src/views/sceneEdit/layouts/StatusBar/index.vue b/src/views/sceneEdit/layouts/StatusBar/index.vue
+index 969c263..b9764f0 100644
+--- a/src/views/sceneEdit/layouts/StatusBar/index.vue
++++ b/src/views/sceneEdit/layouts/StatusBar/index.vue
+@@ -1,7 +1,7 @@
+ <template>
+   <div class="tf-status" v-if="!store.playMode">
+     <span>SI 1 u = 1 m · human 1.8</span>
+-    <span>{{ sel }}</span>
++    <span data-app-action-selected-object>{{ sel }}</span>
+     <span>{{ mode }}</span>
+     <button type="button" class="tf-k" @click="$emit('palette')">Ctrl+K</button>
+   </div>
+@@ -15,6 +15,7 @@ defineEmits<{ palette: [] }>();
+ const store = useSceneStore();
+ 
+ const sel = computed(() => {
++  void store.transformMaterialRandomId;
+   const uuid = store.currentTransformMaterialUuid;
+   if (!uuid) return 'nothing selected';
+   const o = store.sceneApi?.scene?.getObjectByProperty('uuid', uuid);
+diff --git a/vite.config.ts b/vite.config.ts
+index c9f2f10..5f50e16 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -88,17 +88,10 @@ export default defineConfig((mode) => {
+  alias: {
+  '@': resolve(__dirname, 'src'),
+  vue: 'vue/dist/vue.esm-bundler.js',
+- '@grudge-studio/core': resolve(__dirname, 'vendor/@grudge-studio/core/lib/index.js'),
+- '@grudge-studio/asset-resolver': resolve(
+- __dirname,
+- 'vendor/@grudge-studio/asset-resolver/lib/index.js'
+- ),
+- '@grudge-studio/assets': resolve(__dirname, 'vendor/@grudge-studio/assets/lib/index.js'),
+- '@grudge-studio/animator': resolve(__dirname, 'vendor/@grudge-studio/animator/lib/index.js'),
+- '@grudge-studio/engine': resolve(__dirname, 'vendor/@grudge-studio/engine/lib/index.js'),
+  },
+  dedupe: ['three', '@dimforge/rapier3d-compat'],
+  },
++ css: { postcss: { plugins: [] } },
+  server: {
+  host: '0.0.0.0',
+  open: true,
+diff --git a/src/utils/editorShell.ts b/src/utils/editorShell.ts
+new file mode 100644
+--- /dev/null
++++ b/src/utils/editorShell.ts
+@@ -0,0 +1,14 @@
++import { shallowRef } from 'vue';
++
++export interface EditorCommand {
++  id: string;
++  label: string;
++  group: string;
++  keys?: string;
++  run: () => unknown;
++}
++
++export const editorCommands = shallowRef<EditorCommand[]>([]);
++export function setEditorCommands(commands: EditorCommand[]): void {
++  editorCommands.value = [...commands];
++}
+diff --git a/src/utils/sceneSnapshot.ts b/src/utils/sceneSnapshot.ts
+new file mode 100644
+--- /dev/null
++++ b/src/utils/sceneSnapshot.ts
+@@ -0,0 +1,42 @@
++import * as THREE from 'three';
++
++/** Runtime editor aids must not accumulate in saved or imported scene graphs. */
++export function isRuntimeEditorHelper(object: THREE.Object3D): boolean {
++  return Boolean(
++    (object as THREE.Object3D & { isTransformControlsRoot?: boolean }).isTransformControlsRoot ||
++    object.userData?.editorGizmo || object.userData?.measureLine ||
++    object.userData?.lightHelper || object.type === 'BoxHelper'
++  );
++}
++
++export function removeSavedEditorHelpers(scene: THREE.Scene): void {
++  const helpers: THREE.Object3D[] = [];
++  scene.traverse(object => { if (isRuntimeEditorHelper(object)) helpers.push(object); });
++  for (const helper of helpers) helper.removeFromParent();
++}
++
++/** Serialize without mutating or disposing the live scene's shared resources. */
++export function serializeEditorScene(scene: THREE.Scene) {
++  // A save can run before the next render has composed recently edited transforms.
++  scene.updateMatrixWorld(true);
++  const excluded = new Set<string>();
++  scene.traverse(object => {
++    if (isRuntimeEditorHelper(object) || object.parent === scene && (object as THREE.Camera).isCamera) {
++      excluded.add(object.uuid);
++    }
++  });
++  const json = scene.toJSON();
++  const strip = (value: unknown): void => {
++    if (!value || typeof value !== 'object') return;
++    const object = value as { children?: unknown };
++    if (!Array.isArray(object.children)) return;
++    const children = object.children.filter((child: unknown) => {
++      const uuid = typeof child === 'string' ? child : child && typeof child === 'object' && 'uuid' in child ? child.uuid : null;
++      return typeof uuid !== 'string' || !excluded.has(uuid);
++    });
++    object.children = children;
++    children.forEach(strip);
++  };
++  strip(json.object);
++  return json;
++}
+diff --git a/src/views/sceneEdit/layouts/CommandPalette/index.vue b/src/views/sceneEdit/layouts/CommandPalette/index.vue
+new file mode 100644
+--- /dev/null
++++ b/src/views/sceneEdit/layouts/CommandPalette/index.vue
+@@ -0,0 +1,49 @@
++<template>
++  <div v-if="open" class="tf-palette" role="dialog" aria-modal="true" aria-label="Command palette" @click.self="close">
++    <section class="tf-palette-card">
++      <div class="tf-palette-head">
++        <input ref="input" v-model="query" aria-label="Search commands" placeholder="Command… (Esc)" />
++        <button type="button" aria-label="Close command palette" @click="close">Close</button>
++      </div>
++      <button v-for="command in matches" :key="command.id" type="button" class="tf-command" @click="run(command)">
++        <span>{{ command.label }}</span><small>{{ command.keys || command.group }}</small>
++      </button>
++      <p v-if="!matches.length" role="status">No matching commands</p>
++    </section>
++  </div>
++</template>
++<script setup lang="ts">
++import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
++import { ElMessage } from 'element-plus';
++import { editorCommands, type EditorCommand } from '@/utils/editorShell';
++import { sceneEventBus } from '@/utils/globalProperties';
++import { MITT_ON_KEY } from '@/enums/enum';
++
++const open = ref(false), query = ref(''), input = ref<HTMLInputElement | null>(null);
++const matches = computed(() => editorCommands.value.filter(command => `${command.label} ${command.group}`.toLowerCase().includes(query.value.toLowerCase())));
++const close = () => { open.value = false; };
++const show = async (value = true) => {
++  open.value = value;
++  if (value) { query.value = ''; await nextTick(); input.value?.focus(); }
++};
++const run = async (command: EditorCommand) => {
++  close();
++  try { await command.run(); }
++  catch (error) { ElMessage.error(error instanceof Error ? error.message : 'Command did not complete'); }
++};
++const keydown = (event: KeyboardEvent) => {
++  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); void show(!open.value); }
++  else if (event.key === 'Escape' && open.value) { event.preventDefault(); close(); }
++};
++onMounted(() => { sceneEventBus.on(MITT_ON_KEY.OPEN_PALETTE, show); window.addEventListener('keydown', keydown); });
++onUnmounted(() => { sceneEventBus.off(MITT_ON_KEY.OPEN_PALETTE, show); window.removeEventListener('keydown', keydown); });
++</script>
++<style scoped>
++.tf-palette { position: fixed; inset: 0; z-index: 2000; background: #0009; display: flex; justify-content: center; align-items: flex-start; padding-top: 10vh; }
++.tf-palette-card { width: min(520px, 90vw); max-height: 75vh; overflow: auto; background: #11141d; border: 1px solid #6f6030; color: #eee; padding: 10px; }
++.tf-palette-head { display: flex; gap: 8px; margin-bottom: 8px; }
++.tf-palette-head input { min-width: 0; flex: 1; background: #1c2130; color: #eee; padding: 8px; border: 1px solid #777; }
++.tf-palette-head button, .tf-command { background: #1c2130; color: #eee; border: 1px solid #454a58; padding: 8px; cursor: pointer; }
++.tf-command { display: flex; width: 100%; justify-content: space-between; margin-top: 4px; }
++.tf-command:hover, .tf-command:focus-visible { background: #554820; }
++</style>
+diff --git a/scripts/test-scene-snapshot.mjs b/scripts/test-scene-snapshot.mjs
+new file mode 100644
+--- /dev/null
++++ b/scripts/test-scene-snapshot.mjs
+@@ -0,0 +1,30 @@
++import assert from 'node:assert/strict';
++import * as THREE from 'three';
++import { serializeEditorScene, removeSavedEditorHelpers } from '../src/utils/sceneSnapshot.ts';
++
++const scene = new THREE.Scene();
++const box = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
++box.name = 'Restore Check'; box.position.set(3, 1, -1.52);
++const particles = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial());
++particles.name = 'Authored particles';
++const line = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial());
++line.userData.measureLine = true;
++const gizmo = new THREE.Object3D(); gizmo.userData.editorGizmo = true;
++scene.add(box, particles, line, gizmo, new THREE.PerspectiveCamera());
++let disposed = false;
++box.geometry.addEventListener('dispose', () => { disposed = true; });
++box.material.addEventListener('dispose', () => { disposed = true; });
++let snapshot = serializeEditorScene(scene);
++for (let i = 0; i < 3; i++) {
++  const restored = await new THREE.ObjectLoader().parseAsync(snapshot);
++  assert.equal(restored.children.length, 2, 'Only authored mesh and particles survive each round trip');
++  assert.deepEqual(restored.getObjectByName('Restore Check').position.toArray(), [3, 1, -1.52]);
++  assert.equal(restored.getObjectByName('Authored particles').isPoints, true);
++  snapshot = serializeEditorScene(restored);
++}
++assert.equal(disposed, false, 'Saving never disposes live resources');
++assert.equal(scene.children.length, 5, 'Saving never mutates the editor graph');
++removeSavedEditorHelpers(scene);
++assert.equal(scene.children.length, 3, 'Legacy saved measurement and gizmo helpers are removed');
++assert.equal(scene.getObjectByName('Authored particles'), particles);
++console.log('PASS repeated scene round trips preserve authored objects and transforms without helper accumulation or live resource disposal');

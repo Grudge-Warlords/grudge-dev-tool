@@ -3,6 +3,8 @@
 export * from "./prompt3d";
 export * from "./assetRefinement";
 export * from "./creationFlow";
+export * from "./appActions";
+export * from "./embeddedActions";
 
 export const UPDATER_CHANNELS = {
   getStatus: "updater:getStatus",

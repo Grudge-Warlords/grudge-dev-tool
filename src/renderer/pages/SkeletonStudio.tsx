@@ -343,7 +343,6 @@ export default function SkeletonStudio() {
     }
   }
 
-  async function loadFromPath(path: string) {
   async function loadFromPath(path: string, suggestedPlacements?: BonePlacement[], reviewContext?: Prompt3DRigContext) {
     if (!window.grudge?.forge?.readFile) {
       toast.error("Forge IPC missing — restart Dev Tool");
@@ -364,16 +363,6 @@ export default function SkeletonStudio() {
         if (digest !== reviewContext.sourceSha256) throw new Error("The model changed since this skeleton review was requested. Reopen review from its exact retained revision.");
       }
       const file = new File([ab], name);
-      const loaded = await loadModel(file, { diskPath: path });
-      await attachLoaded(loaded, path, true);
-      setExtract(null);
-      setPackDir(null);
-      setTposePath(null);
-      setPlayHostOn(false);
-      setRoleBinds({});
-      setStep("extract");
-      setStatusLine(
-        `Loaded · ${loaded.bones} bones · ${loaded.animations.length} clips · extract next`,
       const loaded = await loadModel(file, { diskPath: path, materialPolicy: "preserve-authored", skipGenericPreview: Boolean(reviewContext) });
       if (engineRef.current) {
         const scene = engineRef.current.scene;
@@ -416,7 +405,8 @@ export default function SkeletonStudio() {
       setExtract(null);
       setPackDir(null);
       setTposePath(null);
-      setSlotOverrides({});
+      setPlayHostOn(false);
+      setRoleBinds({});
       setStep(reviewContext || suggestedPlacements?.length ? "place" : "extract");
       setStatusLine(
         suggestedPlacements?.length

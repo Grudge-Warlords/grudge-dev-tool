@@ -18,13 +18,9 @@ type PreviewLoaded = {
 };
 
 export function isAnimWithoutMesh(loaded: PreviewLoaded): boolean {
-  if (!loaded.animations?.length) return false;
-  let skinned = 0;
-  loaded.object.traverse((n) => {
-    const sm = n as THREE.SkinnedMesh;
-    if (sm.isSkinnedMesh && sm.visible !== false) skinned++;
-  });
-  return skinned === 0 || loaded.triangles < 32;
+  let hasGeometry = false;
+  loaded.object.traverse(n => { const m = n as THREE.Mesh; if (m.isMesh && m.geometry?.getAttribute("position")?.count >= 3) hasGeometry = true; });
+  return loaded.animations.length > 0 && !hasGeometry;
 }
 
 function meshKey(name: string): string {
@@ -257,30 +253,6 @@ export function rematchClipsToHost(
     .filter((c) => c.tracks.length > 0);
 }
 
-/**
- * Bind clip-only / bones-only animation files onto the generic Toon human unarmed kit.
- */
-export async function bindGenericPreviewHost<T extends PreviewLoaded>(loaded: T): Promise<T> {
-  if (!isAnimWithoutMesh(loaded)) return loaded;
-  const host = await loadHostKit("human");
-  const clips = rematchClipsToHost(loaded.animations, host);
-  host.name = GENERIC_GRUDGE_PREVIEW.id;
-  host.userData.genericPreviewHost = {
-    ...GENERIC_GRUDGE_PREVIEW,
-    sourceClips: loaded.animations.map((c) => c.name),
-    rematchedTracks: clips.reduce((n, c) => n + c.tracks.length, 0),
-  };
-  loaded.object = host;
-  loaded.animations = clips.length ? clips : loaded.animations;
-  loaded.format = "glb";
-import type * as THREE from "three";
-
-type PreviewLoaded = { object: THREE.Object3D; animations: THREE.AnimationClip[]; triangles: number; format: string };
-export function isAnimWithoutMesh(loaded: PreviewLoaded): boolean {
-  let hasGeometry = false;
-  loaded.object.traverse(n => { const m = n as THREE.Mesh; if (m.isMesh && m.geometry?.getAttribute("position")?.count >= 3) hasGeometry = true; });
-  return loaded.animations.length > 0 && !hasGeometry;
-}
 /** Compatibility entrypoint: never fetch or substitute a library preview body. */
 export async function bindGenericPreviewHost<T extends PreviewLoaded>(loaded: T): Promise<T> {
   if (isAnimWithoutMesh(loaded)) loaded.object.userData.animationPreviewMessage = "This animation contains no mesh. Select your own created asset; no sample body was loaded.";
