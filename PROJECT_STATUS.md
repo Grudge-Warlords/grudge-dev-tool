@@ -1,5 +1,11 @@
 # Grudge Dev Tool — local status
 
+## Single-prompt workspace — 2026-09-10
+
+One initial prompt, optional Hunyuan 3D/Paint selectors, collapsed original tools and one result panel. Grudge automatically reveals and uses the native utilities. Final v4 real-model replay passes create/animate/library save, Forge handoff, GLB export, orbit, Ctrl+S save and scene reopen; the original asset-base handoff also passes. Selected but unconfigured Hunyuan extras report setup, then a native sphere request succeeds with zero Hunyuan jobs. Final type/build/preload, 15 native checks, 23 embedded checks, app-action checks and packaged smoke pass. All 599 built files match the final ASAR.
+
+Final build: `E:\grudge\grudge-dev-tool\release\simple-prompt-20260910-v4\win-unpacked\Grudge Dev Tool.exe`. Existing branch `Stray-Prompt-to-3D` and installed app preserved; no commit, push or deployment. [Verification and exact scope](docs/simple-prompt-20260910.md).
+
 ## 2026-09-10 — native dialogs and app input repaired
 
 Grudge now operates file/folder/save/text/confirmation dialogs, hidden file inputs, browser exports, keyboard/editor/canvas input, scrolling and owned pop-outs through the existing app utilities. Hunyuan remains optional. The real Grudge export → orbit → Ctrl+S save → reopen workflow passes; the final build also passes selected export and standalone Elite viewer text-dialog acceptance. Source/build/preload, 15 native checks, 23 embedded checks, app-action/viewport checks and packaged smoke pass. All 595 built files match the final ASAR.

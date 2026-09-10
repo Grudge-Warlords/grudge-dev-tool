@@ -1514,7 +1514,7 @@ export default function Prompt3D({ guidedIntent }: { guidedIntent?: Prompt3DGuid
 
       {installOptionsRequired && <section data-panel="install-options" className={`${card} p-4`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><h2 className="font-semibold"><Download className="mr-2 inline text-gold" size={17} />Install Options</h2><p className="mt-1 text-xs text-muted">This section disappears when the explicitly selected local generator and local controls are ready.</p></div>
+          <div><h2 className="font-semibold"><Download className="mr-2 inline text-gold" size={17} />Install Options</h2><p data-app-action-state className="mt-1 text-xs text-muted">{!controlsEnabled?"Enable local controls to use this enhancement.":!requiredProvidersInstalled?"This enhancement needs its local provider installed and verified. Open Install Options to review setup.":"Checking local provider readiness."}</p></div>
           <div className="flex flex-wrap gap-2">
             <label className="flex items-center gap-2 rounded border border-gold/40 bg-gold/5 px-3 py-2 text-xs text-gold"><input type="checkbox" checked={controlsEnabled} disabled={!controlsReady || controlsSaving} onChange={(event) => void changeControls(event.target.checked)} />Enable local controls</label>
             <button className="rounded border border-line px-3 py-2 text-xs" onClick={() => void refresh()}><RefreshCw className="mr-1 inline" size={13} />Recheck</button>

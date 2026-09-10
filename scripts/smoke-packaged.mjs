@@ -218,6 +218,9 @@ try {
     assert.equal(defaultPage?.prompt, true, "default page must expose the automatic Grudge prompt");
     assert.equal(defaultPage?.run, true);
     assert.equal(defaultPage?.neural, false, "pending Hunyuan history must not gate the default workspace");
+    const simple = await cdp.send("Runtime.evaluate", { expression: `({ inputs: [...document.querySelectorAll('[data-testid="simple-grudge-workspace"] textarea')].filter(e => e.getClientRects().length && !e.closest('details:not([open])')).map(e=>e.getAttribute('aria-label')), toolsOpen: document.querySelector('[data-testid="grudge-tools"]').open, extrasOpen: document.querySelector('[data-testid="hunyuan-extras"]').open, extrasSelected: [...document.querySelectorAll('[data-testid="hunyuan-extras"] input')].some(e=>e.checked), result: Boolean(document.querySelector('[data-testid="grudge-result"]')) })`, returnByValue: true });
+    assert.deepEqual(simple.result.value, { inputs: ['Grudge Dev prompt'], toolsOpen: false, extrasOpen: false, extrasSelected: false, result: false }, 'startup must have one prompt and no empty workspace or selected enhancement');
+    await cdp.send("Runtime.evaluate", { expression: `document.querySelector('[data-testid="grudge-tools"] > summary').click()` });
     await cdp.send("Runtime.evaluate", { expression: `[...document.querySelectorAll('button')].find(b => b.textContent === 'Optional Hunyuan enhancement').click()` });
 
     let value;

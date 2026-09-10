@@ -8,12 +8,20 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { appActionStatusText, appControlValueMatches, validateAppActionDecision, validateAppActionRequest, type AppActionRequest } from "../src/shared/appActions";
+import { appNativeIntent } from "../src/shared/appNativeIntent";
 import { applyCreationEdit, creationEditContext, creationSceneHash } from "../src/main/prompt3d/creationEdits";
 import { bindRequestedActions, validateCreationPromptPlan } from "../src/main/prompt3d/creationPrompt";
 import { creationIO } from "../src/main/prompt3d/proceduralCreation";
 import { submitCreation, reopenCreation, saveCreationToLibrary } from "../src/main/prompt3d/creationService";
 
 async function main() {
+  const sceneRequest: AppActionRequest = { prompt: "Orbit the Scene canvas to the left.", history: [], snapshot: { route: "/forge-local", status: [], controls: [
+    { id: "control-1", label: "Scene canvas", kind: "surface", inputType: "canvas", context: "Scene", disabled: false, value: "Camera position: 2, 2, 2; target: 0, 0, 0", hint: "Right drag: orbit" },
+    { id: "control-2", label: "Orientation canvas", kind: "surface", inputType: "canvas", context: "Scene", disabled: false },
+  ] } };
+  assert.equal(appNativeIntent(sceneRequest)?.control.id, "control-1", "The requested scene stays addressable with a helper canvas present");
+  assert.equal(appNativeIntent({ ...sceneRequest, snapshot: { ...sceneRequest.snapshot, controls: sceneRequest.snapshot.controls.map(c => ({ ...c, label: "Scene canvas" })) } })?.control.id, "control-1", "The camera state and original input hint distinguish equally named orientation helpers");
+  assert.equal(appNativeIntent({ ...sceneRequest, snapshot: { ...sceneRequest.snapshot, controls: sceneRequest.snapshot.controls.slice(1) } }), null, "Never redirect a scene request to a helper canvas");
   const handoff = { token: null, grudgeId: "test", username: "test", email: null, puterUuid: null, signedIn: true };
   const sessionGuest = { getAttribute: () => "forge", getURL: () => "https://forge.grudge-studio.com/editor", addEventListener() {}, removeEventListener() {}, executeJavaScript: async () => false };
   assert.equal(await injectSessionIntoWebview(sessionGuest, handoff), false, "A page navigation that rejects session handoff cannot be reported as successful");

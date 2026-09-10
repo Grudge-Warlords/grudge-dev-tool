@@ -14,7 +14,12 @@ export function appNativeIntent(request: AppActionRequest): { control: AppContro
       return { control, action: "pointer", value, completed: Boolean(before && control.value && before !== control.value), saving: false };
     }
   }
-  const canvases = request.snapshot.controls.filter(c => !c.disabled && c.inputType === "canvas");
+  let canvases = request.snapshot.controls.filter(c => !c.disabled && c.inputType === "canvas");
+  // Viewer helpers can have their own canvas. An explicitly named scene
+  // targets the original scene canvas, never the orientation helper.
+  if (/\bscene\s+(?:canvas|viewport)\b/i.test(request.prompt)) canvases = canvases.filter(c => /^scene canvas$/i.test(c.label));
+  const cameras = canvases.filter(c => c.value?.startsWith("Camera position:") && /right drag: orbit/i.test(c.hint ?? ""));
+  if (cameras.length === 1) canvases = cameras;
   if (canvases.length !== 1) return null;
   const control = canvases[0], prompt = request.prompt.trim();
   const shortcut = prompt.match(/^(?:please\s+)?press\s+(?:the\s+)?((?:(?:ctrl|control|shift|alt|meta)\+)*(?:[a-z0-9]|F\d{1,2}|Enter|Escape|Tab|Home|End|Delete|Backspace|Up|Down|Left|Right))(?:\s+key)?(?:\s+in\s+(?:the\s+)?(?:scene\s+)?(?:canvas|viewport))?[.!]?$/i)?.[1];

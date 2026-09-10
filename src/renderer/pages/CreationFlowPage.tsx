@@ -1,14 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CREATION_BUILD, CREATION_CATEGORIES, CREATION_STYLES, type CreationBaseSource, type CreationAttempt, type CreationLibraryAsset } from "../../shared/creationFlow";
 import { PROMPT3D_SPEC_VERSION, type AssetCategory, type AssetSpecV1, type AssetStyle, type Prompt3DAppRuntime, type Prompt3DHistory, type Prompt3DOrchestrationRecord, type Prompt3DOverview } from "../../shared/prompt3d";
 import { compilePrompt3DUnifiedPlan, PROMPT3D_UNIFIED_ROUTE_LABELS, prompt3DOrchestrationRecord, type Prompt3DUnifiedOverride, type Prompt3DUnifiedPlan, type Prompt3DUnifiedRoute } from "../../shared/prompt3dOrchestrator";
 import type { Prompt3DFinishJobStatus } from "../../shared/prompt3dWorkflow";
-import Model3DViewer from "../components/viewers/Model3DViewer";
 import { CREATION_BASE_HANDOFF } from "../lib/creationHandoff";
 import { writeMirror } from "../lib/workspace";
-import NeuralPrompt3D, { type Prompt3DGuidedIntent } from "./NeuralPrompt3D";
+import type { Prompt3DGuidedIntent } from "./NeuralPrompt3D";
 import { AppPromptResult, useAppPrompt } from "../components/AppPrompt";
+
+const Model3DViewer=React.lazy(()=>import("../components/viewers/Model3DViewer"));
+const NeuralPrompt3D=React.lazy(()=>import("./NeuralPrompt3D"));
 
 const DRAFT="grudge:original-creation-session:v1";
 const field="w-full rounded border border-line bg-bg px-3 py-2 text-sm text-fg";
@@ -22,6 +24,21 @@ export default function CreationFlowPage(){
   const [method,setMethod]=useState<"procedural"|"neural">(()=>sessionStorage.getItem("grudge.prompt3d.pendingRigCorrection")?"neural":"procedural");
   const appPrompt=useAppPrompt();
   const [command,setCommand]=useState(()=>localStorage.getItem("grudge:prompt3d-command")??"");
+  const [hunyuanShape,setHunyuanShape]=useState(false),[hunyuanPaint,setHunyuanPaint]=useState(false);
+  const [toolsOpen,setToolsOpen]=useState(fromBase || Boolean(sessionStorage.getItem("grudge.prompt3d.pendingRigCorrection")));
+  const [showResult,setShowResult]=useState(false);
+  const page=useRef<HTMLDivElement>(null);
+  const wasRunning=useRef(false);
+  useEffect(()=>{
+    if(wasRunning.current&&!appPrompt.busy){setToolsOpen(false);setHunyuanShape(false);setHunyuanPaint(false);requestAnimationFrame(()=>page.current?.scrollIntoView({block:"start"}));}
+    wasRunning.current=appPrompt.busy;
+  },[appPrompt.busy]);
+  function submitCommand(){
+    if(busy||appPrompt.busy||!command.trim())return;
+    if(command.length>1800){toast.error("Please shorten your request to 1,800 characters.");return;}
+    const extras=[hunyuanShape?"Use Hunyuan 3D for geometry generation.":"",hunyuanPaint?"Use Hunyuan Paint for textures.":""].filter(Boolean);
+    void appPrompt.run([command.trim(),...extras].join("\n"));
+  }
   const [prompt,setPrompt]=useState<string>(initial.prompt??"");
   const [category,setCategory]=useState<AssetCategory>(CREATION_CATEGORIES.includes(initial.category)?initial.category:"prop");
   const [style,setStyle]=useState<AssetStyle>(CREATION_STYLES.includes(initial.style)?initial.style:"stylized");
@@ -76,19 +93,19 @@ export default function CreationFlowPage(){
     if(busy||!controls||Boolean(baseSource)||!prompt.trim())return;
     setBusy(true);setPromptError("");
     try{const result=await window.grudge.creation.submit({prompt,category,style,usePlanner:planner,parentId:current?.id,...(activeOrchestration?{orchestration:activeOrchestration}:{})});setLast(result);
-      if(result.state==="complete"){setCurrent(result);setReplay(x=>x+1);setPrompt("");toast.success("New revision saved locally");}
+      if(result.state==="complete"){setCurrent(result);setShowResult(true);setReplay(x=>x+1);setPrompt("");toast.success("New revision saved locally");}
       else toast.error("Attempt retained; no replacement asset",{description:result.message});
       await refresh();await refreshLibrary();
     }catch(e){setPromptError(String(e));toast.error("Prompt did not complete",{description:String(e)});}
     finally{await refresh();await refreshLibrary();setBusy(false);}
   }
   async function reopen(row:CreationAttempt){
-    setBusy(true);try{const restored=await window.grudge.creation.reopen(row.id);setCurrent(restored);setCategory(restored.request.category);setStyle(restored.request.style);setReplay(x=>x+1);setLast(restored);toast.success("Reopened saved GLB · no regeneration");}
+    setBusy(true);try{const restored=await window.grudge.creation.reopen(row.id);setCurrent(restored);setShowResult(true);setCategory(restored.request.category);setStyle(restored.request.style);setReplay(x=>x+1);setLast(restored);toast.success("Reopened saved GLB · no regeneration");}
     catch(e){toast.error("Could not reopen saved asset",{description:String(e)});}finally{setBusy(false);}
   }
   async function importBase(){
     if(!baseSource||busy||!controls)return;setBusy(true);
-    try{const result:CreationAttempt=await window.grudge.creation.submit({prompt:"Use selected existing asset as a working copy",category,style,usePlanner:false,baseSource});setLast(result);if(result.state==="complete"){setCurrent(result);setBaseSource(null);setPrompt("");setReplay(x=>x+1);toast.success("Working copy ready; original preserved");}else toast.error(result.message);await refresh();}catch(e){toast.error("Could not use this source",{description:String(e)});}finally{setBusy(false);}
+    try{const result:CreationAttempt=await window.grudge.creation.submit({prompt:"Use selected existing asset as a working copy",category,style,usePlanner:false,baseSource});setLast(result);if(result.state==="complete"){setCurrent(result);setShowResult(true);setToolsOpen(false);setBaseSource(null);setPrompt("");setReplay(x=>x+1);toast.success("Working copy ready; original preserved");}else toast.error(result.message);await refresh();}catch(e){toast.error("Could not use this source",{description:String(e)});}finally{setBusy(false);}
   }
   async function saveCurrent(){
     if(!current||saving)return;setSaving(true);
@@ -146,21 +163,31 @@ export default function CreationFlowPage(){
     setWorkspaceOpen(true);
   }
   const saved=library.find(row=>row.attemptId===current?.id);
-  return <div className="space-y-4 pb-6 text-fg">
+  return <div ref={page} className="mx-auto w-full max-w-5xl space-y-4 pb-6 text-fg" data-testid="simple-grudge-workspace">
     <section data-grudge-command className="rounded-xl border border-gold/40 bg-bg-2 p-4">
       <h1 className="text-xl font-semibold">Prompt to 3D</h1>
-      <p className="mt-1 text-sm text-muted">Describe what you want. Grudge analyses your prompt and uses the Dev Tool’s existing creation, editing, animation, files and app controls.</p>
-      <form className="mt-3" onSubmit={event=>{event.preventDefault();void appPrompt.run(command);}}>
-        <label className="block text-xs">What should Grudge do?<textarea aria-label="Grudge Dev prompt" className={field+" mt-1 min-h-24"} maxLength={2000} value={command} disabled={appPrompt.busy} onChange={event=>setCommand(event.target.value)} onKeyDown={event=>{if(event.key==="Enter"&&(event.ctrlKey||event.metaKey)){event.preventDefault();void appPrompt.run(command);}}} placeholder="Create a blue cube, make it spin, save it, then open it in Forge."/></label>
+      <p className="mt-1 text-sm text-muted">Describe what you want. Grudge chooses and runs the tools for you.</p>
+      <form className="mt-3" onSubmit={event=>{event.preventDefault();submitCommand();}}>
+        <label className="block text-xs">What should Grudge do?<textarea aria-label="Grudge Dev prompt" className={field+" mt-1 min-h-24"} maxLength={1800} value={command} disabled={appPrompt.busy||busy} onChange={event=>setCommand(event.target.value)} onKeyDown={event=>{if(event.key==="Enter"&&(event.ctrlKey||event.metaKey)&&!event.nativeEvent.isComposing){event.preventDefault();submitCommand();}}} placeholder="Create a blue cube, make it spin, save it, then open it in Forge."/></label>
+        <details className="mt-3 text-xs" data-testid="hunyuan-extras"><summary className="w-fit cursor-pointer text-muted">Hunyuan extras{hunyuanShape||hunyuanPaint?` · ${[hunyuanShape?"3D":"",hunyuanPaint?"Paint":""].filter(Boolean).join(" + ")}`:" · optional"}</summary><div className="mt-2 flex flex-wrap gap-x-5 gap-y-2"><label className="flex items-center gap-2"><input aria-label="Use Hunyuan 3D" type="checkbox" checked={hunyuanShape} disabled={appPrompt.busy||busy} onChange={event=>setHunyuanShape(event.target.checked)}/>Hunyuan 3D generation</label><label className="flex items-center gap-2"><input aria-label="Use Hunyuan Paint" type="checkbox" checked={hunyuanPaint} disabled={appPrompt.busy||busy} onChange={event=>setHunyuanPaint(event.target.checked)}/>Hunyuan Paint textures</label></div><p className="mt-2 text-muted">Applies to this request. Grudge uses the existing local tools by default.</p></details>
         <div className="mt-3 flex gap-2"><button type="submit" className="rounded bg-gold px-4 py-2 font-semibold text-black disabled:opacity-40" disabled={appPrompt.busy||busy||!command.trim()}>{appPrompt.busy?"Grudge is working…":"Run with Grudge"}</button>{appPrompt.busy&&<button type="button" className="rounded border border-line px-4 py-2 text-sm" onClick={appPrompt.stop}>Stop</button>}</div>
       </form>
-      <p className="mt-2 text-xs text-muted">Uses the local grudge-dev model automatically on submission. Hunyuan is optional; request it by name or open its enhancement controls below.</p>
       <AppPromptResult/>
     </section>
-    <div className="flex flex-wrap gap-2"><button className="rounded border border-line px-3 py-2 text-sm" onClick={()=>{setMethod("procedural");setWorkspaceOpen(true);}}>Use existing Dev Tool utilities</button><button className="rounded border border-line px-3 py-2 text-sm" onClick={()=>void window.grudge.app.openRoute("/browser")}>Use an existing asset</button><button className="rounded border border-line px-3 py-2 text-sm" onClick={()=>{setMethod("neural");setWorkspaceOpen(true);}}>Optional Hunyuan enhancement</button></div>
-    {!workspaceOpen&&<div className="flex flex-wrap gap-2"><button className="rounded bg-gold px-4 py-2 font-semibold text-black" onClick={()=>{setMethod("procedural");setWorkspaceOpen(true);}}>Basic shapes &amp; local editing</button><button className="rounded border border-line px-4 py-2" onClick={()=>void window.grudge.app.openRoute("/browser")}>Use an existing asset</button><button className="rounded border border-line px-4 py-2" onClick={()=>{setMethod("neural");setWorkspaceOpen(true);}}>Generate from prompt or images</button></div>}
+    {showResult&&current?.assetPath&&<section data-testid="grudge-result" className="rounded-xl border border-line bg-bg-2 p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm"><b>Your model</b>{current&&<div className="flex flex-wrap gap-2"><button className="rounded border border-line px-3 py-1 text-xs" disabled={busy||saving} onClick={()=>{sessionStorage.setItem("grudge.forge.pendingLocalPath",current.assetPath!);void window.grudge.app.openRoute("/forge-local");}}>Edit in Forge</button><button className="rounded border border-line px-3 py-1 text-xs" disabled={busy||saving} onClick={()=>{sessionStorage.setItem("grudge.skeleton.pendingPath",current.assetPath!);void window.grudge.app.openRoute("/skeleton");}}>Skeleton Studio</button><button className="rounded bg-gold px-3 py-1 text-xs font-semibold text-black disabled:opacity-40" disabled={busy||saving} onClick={()=>void saveCurrent()}>{saving?"Saving…":saved?"Saved in Local Files & Assets":"Save to Local Files & Assets"}</button><button className="rounded border border-line px-3 py-1 text-xs disabled:opacity-40" disabled={busy||saving} onClick={()=>void reopen(current)}>Reopen from local storage</button></div>}</div>
+          <div style={{height:"min(38vh,420px)",minHeight:240}} className="overflow-hidden rounded border border-line" aria-label="Created asset viewport">
+            <React.Suspense fallback={<p className="p-4 text-sm text-muted">Opening your model…</p>}><Model3DViewer preserveAuthoredMaterials key={`${current.id}:${replay}`} asset={{name:`${current.plan?.kind??"asset"}.glb`,url:`local://${encodeURIComponent(current.assetPath)}`,localPath:current.assetPath,contentType:"model/gltf-binary",size:0}}/></React.Suspense>
+          </div>
+          {current&&<details className="mt-3 text-xs"><summary className="cursor-pointer text-muted">Model details</summary><div className="mt-2 space-y-1"><p><b>{current.plan?.promptBuild?.prompt??current.request.prompt}</b></p><p>{current.validation?.triangles.toLocaleString()} triangles · {current.validation?.detailNodes??0} detail nodes · {current.validation?.textures} embedded textures · {current.validation?.clips.length} clips · {current.validation?.articulatedNodes} articulated nodes</p>{current.plan?.changes?.length?<p className="text-gold">Applied: {current.plan.changes.join(" · ")}</p>:null}<p className="text-muted">Geometry identity {current.geometryHash?.slice(0,16)} · {current.validation?.geometryChanged?"altered by this request":current.validation?.geometryPreserved?"preserved":"review required"}{current.previousGeometryHash?` · previous ${current.previousGeometryHash.slice(0,16)}`:""}</p><p className="text-muted">Drag to orbit, scroll to zoom. Clips play automatically; Pause/Play is inside the viewport.</p>{saved?<div className="flex flex-wrap items-center gap-2 rounded border border-emerald-500/30 bg-emerald-500/5 p-2"><span className="text-emerald-300">Saved as {saved.name}</span><button className="rounded border border-line px-2 py-1" onClick={()=>{writeMirror({localAssetsRoot:saved.savedPath.replace(/[\\/][^\\/]+$/,"")});void window.grudge.app.openRoute("/local");}}>Open Local Files</button><button className="rounded border border-line px-2 py-1" onClick={()=>void window.grudge.app.openRoute("/browser")}>Open Assets</button></div>:<p className="text-muted">Use the save button to add this exact revision to the managed Local Files and Assets library.</p>}<p className="break-all text-[10px] text-muted">{current.assetPath}</p></div></details>}
+        </section>}
+    {method==="neural"&&workspaceOpen&&<section data-app-action-context="Optional neural generation"><div className="mb-2 flex items-center justify-between"><b className="text-sm">Hunyuan enhancement</b><button type="button" className="rounded border border-line px-3 py-1 text-xs" disabled={appPrompt.busy} onClick={()=>setMethod("procedural")}>Hide enhancement</button></div><React.Suspense fallback={<p data-app-action-busy="true" role="status">Opening Hunyuan controls…</p>}><NeuralPrompt3D guidedIntent={guidedIntent}/></React.Suspense></section>}
+    <details data-testid="grudge-tools" className="text-sm" open={toolsOpen} onToggle={event=>setToolsOpen(event.currentTarget.open)}>
+      <summary className="w-fit cursor-pointer text-muted">Tools &amp; saved work</summary>
+      <div className="mt-3 space-y-3">
+      <div className="flex flex-wrap gap-2"><button className="rounded border border-line px-3 py-2 text-sm" onClick={()=>{setMethod("procedural");setWorkspaceOpen(true);}}>Use existing Dev Tool utilities</button><button className="rounded border border-line px-3 py-2 text-sm" onClick={()=>void window.grudge.app.openRoute("/browser")}>Use an existing asset</button><button className="rounded border border-line px-3 py-2 text-sm" onClick={()=>{setMethod("neural");setWorkspaceOpen(true);}}>Optional Hunyuan enhancement</button>{current?.assetPath&&<button className="rounded border border-line px-3 py-2 text-sm" onClick={()=>{setShowResult(true);setToolsOpen(false);}}>Show current model</button>}</div>
     <details className="rounded-xl border border-line bg-bg-2 p-3" data-testid="prompt3d-route-planner" onToggle={event=>{if(event.currentTarget.open)void refreshRouting();}}><summary className="cursor-pointer text-sm font-semibold">Advanced route planner</summary><section className="p-1 pt-3">
-      <div><h1 className="text-xl font-semibold">Prompt to 3D</h1><p className="mt-1 text-xs text-muted">Describe the outcome once. Grudge uses existing local utilities by default and retains every exact revision. Select a neural provider only when desired.</p></div>
+      <div><h2 className="text-sm font-semibold">Route planning</h2><p className="mt-1 text-xs text-muted">Describe the outcome once. Grudge uses existing local utilities by default and retains every exact revision. Select a neural provider only when desired.</p></div>
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
         <label className="text-xs">What should happen?<textarea aria-label="Unified Prompt-to-3D request" className={field+" mt-1 min-h-24 resize-y"} value={unifiedPrompt} maxLength={2000} onChange={event=>{setUnifiedPrompt(event.target.value);setUnifiedPlan(null);}} placeholder="Create a hand-painted humanoid, texture it, then make it walk in place."/></label>
         <div className="grid grid-cols-1 gap-2">
@@ -177,13 +204,13 @@ export default function CreationFlowPage(){
         <button className="mt-3 rounded bg-gold px-4 py-2 font-semibold text-black disabled:opacity-40" disabled={!enabledStages[unifiedPlan.stages[0].id]||unifiedPlan.stages[0].readiness==="blocked"} onClick={()=>void applyGuided()}>Continue with this explicit route</button>
       </div>}
     </section></details>
-    {workspaceOpen&&<section className="rounded-xl border border-line bg-bg-2/40 p-2"><div className="mb-2 flex items-center justify-between px-2"><b className="text-sm">Creation workspace</b><button className="rounded border border-line px-3 py-1 text-xs" onClick={()=>setWorkspaceOpen(false)}>Choose another start</button></div>{method==="neural"?<div data-app-action-context="Optional neural generation"><NeuralPrompt3D guidedIntent={guidedIntent}/></div>:<>
+    {workspaceOpen&&method==="procedural"&&<section className="rounded-xl border border-line bg-bg-2/40 p-2"><div className="mb-2 flex items-center justify-between px-2"><b className="text-sm">Creation workspace</b><button className="rounded border border-line px-3 py-1 text-xs" onClick={()=>setWorkspaceOpen(false)}>Hide creation controls</button></div>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gold/30 bg-gold/5 p-3 text-xs">
         <p><b>{current?.method==="existing-asset"?"Existing asset · independent working copy":"Local procedural creation"}</b> · Basic shapes and the earlier sword, cosmetic game prop and segmented person templates. Hunyuan is optional.</p>
         <label><input aria-label="Enable local creation controls" type="checkbox" checked={controls} disabled={busy} onChange={e=>void enable(e.target.checked)}/> Enable local controls · remembered</label>
       </div>
       {baseSource&&<div className="my-3 rounded border border-sky-500/40 p-3 text-sm"><b>Selected existing model</b><p className="break-all text-xs text-muted">{baseSource.kind==="local-file"?baseSource.path:baseSource.key}</p><p className="my-2 text-xs">A separate working copy retains the source identity, materials, skin and clips.</p><button disabled={!controls||busy} className="rounded bg-gold px-3 py-2 text-black disabled:opacity-40" onClick={()=>void importBase()}>Use this model as base</button></div>}
-      <div data-app-action-busy={busy?"true":"false"} className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(340px,0.8fr)_minmax(500px,1.5fr)]">
+      <div data-app-action-busy={busy?"true":"false"} className="space-y-3">
         <section className="space-y-3 rounded-xl border border-line bg-bg-2 p-4">
           <details className="rounded border border-line p-2"><summary className="cursor-pointer text-xs">Direct asset creation controls</summary><div className="mt-3 space-y-3">
           <label className="block text-xs">Asset instruction<textarea aria-label="Creation prompt" className={field+" mt-1 min-h-28"} value={prompt} maxLength={2000} disabled={busy} onChange={e=>{setPrompt(e.target.value);setActiveOrchestration(undefined);}} placeholder={current?"Make it wider.":"Create a box."}/></label>
@@ -217,13 +244,7 @@ export default function CreationFlowPage(){
           {promptError&&<div role="alert" className="rounded border border-red-500/40 p-3 text-xs"><b>Prompt did not complete</b><p className="mt-1">{promptError}</p><p className="mt-1 text-muted">The build record and any completed intermediate revisions are retained in local storage.</p></div>}
           <p className="text-[11px] text-muted">Autosave on · all attempts retained · <span data-app-action-state>Grudge planning is {planner?"on":"off"}</span> · {CREATION_BUILD}</p>
         </section>
-        <section className="rounded-xl border border-line bg-bg-2 p-3">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm"><b>Actual saved model · local GLB</b>{current&&<div className="flex flex-wrap gap-2"><button className="rounded border border-line px-3 py-1 text-xs" disabled={busy||saving} onClick={()=>{sessionStorage.setItem("grudge.forge.pendingLocalPath",current.assetPath!);void window.grudge.app.openRoute("/forge-local");}}>Edit in Forge</button><button className="rounded border border-line px-3 py-1 text-xs" disabled={busy||saving} onClick={()=>{sessionStorage.setItem("grudge.skeleton.pendingPath",current.assetPath!);void window.grudge.app.openRoute("/skeleton");}}>Skeleton Studio</button><button className="rounded bg-gold px-3 py-1 text-xs font-semibold text-black disabled:opacity-40" disabled={busy||saving} onClick={()=>void saveCurrent()}>{saving?"Saving…":saved?"Saved in Local Files & Assets":"Save to Local Files & Assets"}</button><button className="rounded border border-line px-3 py-1 text-xs disabled:opacity-40" disabled={busy||saving} onClick={()=>void reopen(current)}>Reopen from local storage</button></div>}</div>
-          <div style={{height:"min(58vh,700px)",minHeight:420}} className="overflow-hidden rounded border border-line" aria-label="Created asset viewport">
-            {current?.assetPath?<Model3DViewer preserveAuthoredMaterials key={`${current.id}:${replay}`} asset={{name:`${current.plan?.kind??"asset"}.glb`,url:`local://${encodeURIComponent(current.assetPath)}`,localPath:current.assetPath,contentType:"model/gltf-binary",size:0}}/>:<div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted">No replacement model is loaded. Create an asset or reopen one of your saved revisions.</div>}
-          </div>
-          {current&&<div className="mt-3 space-y-1 text-xs"><p><b>{current.plan?.promptBuild?.prompt??current.request.prompt}</b></p><p>{current.validation?.triangles.toLocaleString()} triangles · {current.validation?.detailNodes??0} detail nodes · {current.validation?.textures} embedded textures · {current.validation?.clips.length} clips · {current.validation?.articulatedNodes} articulated nodes</p>{current.plan?.changes?.length?<p className="text-gold">Applied: {current.plan.changes.join(" · ")}</p>:null}<p className="text-muted">Geometry identity {current.geometryHash?.slice(0,16)} · {current.validation?.geometryChanged?"altered by this request":current.validation?.geometryPreserved?"preserved":"review required"}{current.previousGeometryHash?` · previous ${current.previousGeometryHash.slice(0,16)}`:""}</p><p className="text-muted">Drag to orbit, scroll to zoom. Clips play automatically; Pause/Play is inside the viewport.</p>{saved?<div className="flex flex-wrap items-center gap-2 rounded border border-emerald-500/30 bg-emerald-500/5 p-2"><span className="text-emerald-300">Saved as {saved.name}</span><button className="rounded border border-line px-2 py-1" onClick={()=>{writeMirror({localAssetsRoot:saved.savedPath.replace(/[\\/][^\\/]+$/,"")});void window.grudge.app.openRoute("/local");}}>Open Local Files</button><button className="rounded border border-line px-2 py-1" onClick={()=>void window.grudge.app.openRoute("/browser")}>Open Assets</button></div>:<p className="text-muted">Use the save button to add this exact revision to the managed Local Files and Assets library.</p>}<p className="break-all text-[10px] text-muted">{current.assetPath}</p></div>}
-        </section>
+
       </div>
       <details className="rounded-xl border border-line bg-bg-2 p-4"><summary className="cursor-pointer text-sm">History and saved revisions ({history.length})</summary>
         <div className="mt-3 mb-2 flex items-center justify-between"><h2 className="font-semibold">All attempts & saved revisions ({history.length})</h2><button className="rounded border border-line px-3 py-1 text-xs" onClick={()=>void refresh()}>Refresh history</button></div>
@@ -234,6 +255,8 @@ export default function CreationFlowPage(){
           <button className="shrink-0 rounded border border-gold/40 px-3 py-2 text-gold disabled:opacity-35" disabled={busy||row.state!=="complete"||!row.assetPath} onClick={()=>void reopen(row)}>{row.assetPath?"Open / replay":"No replayable asset"}</button>
         </article>)}</div>
       </details>
-    </>}</section>}
+    </section>}
+      </div>
+    </details>
   </div>;
 }

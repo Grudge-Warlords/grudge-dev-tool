@@ -108,7 +108,7 @@ export function AppPromptResult() {
   const { receipt, progress } = useAppPrompt();
   return <>
     {progress && <p role="status" className="mt-2 text-xs text-gold">{progress}</p>}
-    {receipt && <div className="mt-3 text-xs"><p role="status">{receipt.state}</p>{receipt.model && <p className="mt-1 text-muted">{receipt.model} · {receipt.history.length} actions</p>}<details className="mt-2 max-h-44 overflow-auto"><summary>Action record</summary>{receipt.history.map((h, i) => <p key={i} className="mt-2 break-words">{i + 1}. {h.result}</p>)}</details></div>}
+    {receipt && <div className="mt-3 text-xs">{receipt.state!=="running"&&<p role="status">{receipt.state}</p>}<details className="mt-2 max-h-44 overflow-auto"><summary className="w-fit cursor-pointer text-muted">Action record{receipt.history.length?` · ${receipt.history.length} steps`:""}</summary>{receipt.model&&<p className="mt-2 text-muted">{receipt.model}</p>}<p className="mt-2 break-words">{receipt.prompt}</p>{receipt.history.map((h, i) => <p key={i} className="mt-2 break-words">{i + 1}. {h.result}</p>)}</details></div>}
   </>;
 }
 

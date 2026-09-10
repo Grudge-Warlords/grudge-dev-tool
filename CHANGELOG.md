@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-10 — single-prompt workspace
+
+- Start with one prompt and Run with Grudge; provide collapsed, opt-in Hunyuan 3D and Paint choices on that same request.
+- Collapse manual utilities, history and route planning under Tools & saved work. Show one result panel after creation and load the viewer/neural interface only when needed.
+- Let Grudge reveal the original tools automatically, restore retained models for editor handoff, fill the native Hunyuan subject prompt and report its provider setup independently.
+- Bind named scene input to the observed scene canvas and enforce the permitted next-action choices after model decoding. Keep the native dialog and original editor transport.
+
 ## 2026-09-10 — native dialogs and complete input transport
 
 - Continue app prompts through file/folder selection, directory creation, multiple files, save/overwrite, confirmations and text prompts. Preserve the original handlers and cancellation results.

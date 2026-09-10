@@ -1,5 +1,13 @@
 # Prompt to 3D
 
+## One prompt, optional extras (2026-09-10)
+
+The opening page has one prompt and **Run with Grudge**. Expand **Hunyuan extras** to select Hunyuan 3D generation or Hunyuan Paint textures for that request. Both start off and reset after the request finishes. Grudge automatically analyses the request using the installed local `grudge-dev` model and operates the existing tools. Selecting an enhancement adds that explicit choice to the same request; it does not create a second required prompt.
+
+**Tools & saved work** keeps manual utilities, history and route planning collapsed. Grudge can open the required controls itself. After a local creation completes, the tools close, the page returns to the prompt and one model panel shows the saved result. Model details and the action record stay collapsed. The model viewer and Hunyuan interface load on demand; a fresh session mounts neither an empty preview nor the neural workflow. Fresh profiles open on Prompt to 3D; existing saved routes and explicit handoffs remain supported.
+
+Missing Hunyuan setup is reported within its optional workflow. It never disables ordinary native creation, editing, animation, saving or app controls. Existing provider installation and visual-review requirements apply when using those extras.
+
 ## Automatic Grudge prompt (2026-09-10)
 
 The primary **Run with Grudge** prompt on `/prompt3d` automatically invokes the installed local `grudge-dev` model, observes the current app, and executes its existing controls. It shares the same controller and action record as **Ask Grudge**, so work continues when a request opens another page. Ctrl+Enter submits; Stop prevents further actions after an in-flight request returns. Typing alone never mutates an asset.

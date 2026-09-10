@@ -189,14 +189,14 @@ const APP_VERSION =
   typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "1.0.1";
 
 function resolveRoute(raw: string | undefined | null): Route {
-  if (!raw) return "/studio";
+  if (!raw) return "/prompt3d";
   // Allow /preview?url=… style deep-links from Forge Play test
   const pathOnly = raw.split("?")[0].split("#")[0] || raw;
   if (ROUTE_ALIASES[pathOnly]) return ROUTE_ALIASES[pathOnly];
   if (VALID_ROUTES.has(pathOnly)) return pathOnly as Route;
   if (ROUTE_ALIASES[raw]) return ROUTE_ALIASES[raw];
   if (VALID_ROUTES.has(raw)) return raw as Route;
-  return "/studio";
+  return "/prompt3d";
 }
 
 /** Persist query params when navigating with ?key= (e.g. Preview play handoff). */
@@ -505,7 +505,7 @@ export default function App() {
             </React.Suspense>
           </ErrorBoundary>
         </div>
-        <StatusBar admin={admin} />
+        <StatusBar admin={admin} compact={route==="/prompt3d"} />
       </main>
     </div></AppPromptProvider>
   );
