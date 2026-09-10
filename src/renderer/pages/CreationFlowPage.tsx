@@ -8,6 +8,7 @@ import Model3DViewer from "../components/viewers/Model3DViewer";
 import { CREATION_BASE_HANDOFF } from "../lib/creationHandoff";
 import { writeMirror } from "../lib/workspace";
 import NeuralPrompt3D, { type Prompt3DGuidedIntent } from "./NeuralPrompt3D";
+import { AppPromptResult, useAppPrompt } from "../components/AppPrompt";
 
 const DRAFT="grudge:original-creation-session:v1";
 const field="w-full rounded border border-line bg-bg px-3 py-2 text-sm text-fg";
@@ -17,9 +18,10 @@ function overviewSpec(prompt:string,category:AssetCategory,style:AssetStyle):Ass
 interface RetainedRoutingRevision{ id:string; sha256?:string; path?:string; updatedAt:string; method:"hunyuan-workflow"|"original-procedural"|"existing-asset"; }
 export default function CreationFlowPage(){
   const [initial]=useState(savedDraft);
-  const [hadSavedMethod]=useState(()=>localStorage.getItem("grudge:creation-method")!==null);
   const [fromBase]=useState(()=>Boolean(sessionStorage.getItem(CREATION_BASE_HANDOFF)));
-  const [method,setMethod]=useState<"procedural"|"neural">(()=>sessionStorage.getItem("grudge.prompt3d.pendingRigCorrection")?"neural":localStorage.getItem("grudge:creation-method")==="neural"?"neural":"procedural");
+  const [method,setMethod]=useState<"procedural"|"neural">(()=>sessionStorage.getItem("grudge.prompt3d.pendingRigCorrection")?"neural":"procedural");
+  const appPrompt=useAppPrompt();
+  const [command,setCommand]=useState(()=>localStorage.getItem("grudge:prompt3d-command")??"");
   const [prompt,setPrompt]=useState<string>(initial.prompt??"");
   const [category,setCategory]=useState<AssetCategory>(CREATION_CATEGORIES.includes(initial.category)?initial.category:"prop");
   const [style,setStyle]=useState<AssetStyle>(CREATION_STYLES.includes(initial.style)?initial.style:"stylized");
@@ -43,7 +45,8 @@ export default function CreationFlowPage(){
   useEffect(()=>{const pending=sessionStorage.getItem(CREATION_BASE_HANDOFF);if(pending){try{setBaseSource(JSON.parse(pending));setMethod("procedural");setWorkspaceOpen(true);setCurrent(null);setPrompt("");}catch{toast.error("The selected asset could not be restored.");}sessionStorage.removeItem(CREATION_BASE_HANDOFF);}},[]);
   const [guidedIntent,setGuidedIntent]=useState<Prompt3DGuidedIntent>();
   const [activeOrchestration,setActiveOrchestration]=useState<Prompt3DOrchestrationRecord>();
-  useEffect(()=>{void window.grudge.appRuntime().then((r:Prompt3DAppRuntime)=>{const enabled=r.localControlsEnabled===true;setControls(enabled);void refreshRouting(enabled);});void refresh(true);void refreshLibrary();},[]);
+  useEffect(()=>{void window.grudge.appRuntime().then((r:Prompt3DAppRuntime)=>setControls(r.localControlsEnabled===true)).catch((e:unknown)=>setPromptError(String(e)));void refresh(true);void refreshLibrary();},[]);
+  useEffect(()=>{localStorage.setItem("grudge:prompt3d-command",command);},[command]);
   useEffect(()=>{localStorage.setItem("grudge:creation-method",method);},[method]);
   useEffect(()=>{localStorage.setItem(DRAFT,JSON.stringify({prompt,category,style,usePlanner:planner,currentId:current?.id}));},[prompt,category,style,planner,current]);
   async function refresh(restore=false){
@@ -65,10 +68,6 @@ export default function CreationFlowPage(){
       const generation=(generationHistory as Prompt3DHistory).previousResult;
       const generatedVariant=generation?.variants[0];
       setNeuralLatest(finish?{id:finish.id,sha256:finish.sha256,path:finish.assetPath,updatedAt:finish.updatedAt,method:"hunyuan-workflow"}:generation&&generatedVariant?{id:generation.id,sha256:generatedVariant.sha256,path:generatedVariant.glbPath,updatedAt:generation.updatedAt,method:"hunyuan-workflow"}:null);
-      if((generationHistory as Prompt3DHistory).latestJob&&!sessionStorage.getItem(CREATION_BASE_HANDOFF)){
-        if(!hadSavedMethod&&!initial.currentId&&!initial.prompt){setMethod("neural");setWorkspaceOpen(true);}
-        else if(localStorage.getItem("grudge:creation-method")!=="procedural")setWorkspaceOpen(true);
-      }
       setLocalAnimationLibraryCount(Array.isArray(animationLibraries)?animationLibraries.length:0);
     }catch{/* The detailed workflow reports provider/history errors in context. */}
   }
@@ -148,26 +147,37 @@ export default function CreationFlowPage(){
   }
   const saved=library.find(row=>row.attemptId===current?.id);
   return <div className="space-y-4 pb-6 text-fg">
+    <section data-grudge-command className="rounded-xl border border-gold/40 bg-bg-2 p-4">
+      <h1 className="text-xl font-semibold">Prompt to 3D</h1>
+      <p className="mt-1 text-sm text-muted">Describe what you want. Grudge analyses your prompt and uses the Dev Tool’s existing creation, editing, animation, files and app controls.</p>
+      <form className="mt-3" onSubmit={event=>{event.preventDefault();void appPrompt.run(command);}}>
+        <label className="block text-xs">What should Grudge do?<textarea aria-label="Grudge Dev prompt" className={field+" mt-1 min-h-24"} maxLength={2000} value={command} disabled={appPrompt.busy} onChange={event=>setCommand(event.target.value)} onKeyDown={event=>{if(event.key==="Enter"&&(event.ctrlKey||event.metaKey)){event.preventDefault();void appPrompt.run(command);}}} placeholder="Create a blue cube, make it spin, save it, then open it in Forge."/></label>
+        <div className="mt-3 flex gap-2"><button type="submit" className="rounded bg-gold px-4 py-2 font-semibold text-black disabled:opacity-40" disabled={appPrompt.busy||busy||!command.trim()}>{appPrompt.busy?"Grudge is working…":"Run with Grudge"}</button>{appPrompt.busy&&<button type="button" className="rounded border border-line px-4 py-2 text-sm" onClick={appPrompt.stop}>Stop</button>}</div>
+      </form>
+      <p className="mt-2 text-xs text-muted">Uses the local grudge-dev model automatically on submission. Hunyuan is optional; request it by name or open its enhancement controls below.</p>
+      <AppPromptResult/>
+    </section>
+    <div className="flex flex-wrap gap-2"><button className="rounded border border-line px-3 py-2 text-sm" onClick={()=>{setMethod("procedural");setWorkspaceOpen(true);}}>Use existing Dev Tool utilities</button><button className="rounded border border-line px-3 py-2 text-sm" onClick={()=>void window.grudge.app.openRoute("/browser")}>Use an existing asset</button><button className="rounded border border-line px-3 py-2 text-sm" onClick={()=>{setMethod("neural");setWorkspaceOpen(true);}}>Optional Hunyuan enhancement</button></div>
     {!workspaceOpen&&<div className="flex flex-wrap gap-2"><button className="rounded bg-gold px-4 py-2 font-semibold text-black" onClick={()=>{setMethod("procedural");setWorkspaceOpen(true);}}>Basic shapes &amp; local editing</button><button className="rounded border border-line px-4 py-2" onClick={()=>void window.grudge.app.openRoute("/browser")}>Use an existing asset</button><button className="rounded border border-line px-4 py-2" onClick={()=>{setMethod("neural");setWorkspaceOpen(true);}}>Generate from prompt or images</button></div>}
-    <details className="rounded-xl border border-line bg-bg-2 p-3" data-testid="prompt3d-route-planner"><summary className="cursor-pointer text-sm font-semibold">Advanced route planner</summary><section className="p-1 pt-3">
-      <div><h1 className="text-xl font-semibold">Prompt to 3D</h1><p className="mt-1 text-xs text-muted">Describe the outcome once. The typed local router recommends the strongest eligible existing path and retains every exact revision.</p></div>
+    <details className="rounded-xl border border-line bg-bg-2 p-3" data-testid="prompt3d-route-planner" onToggle={event=>{if(event.currentTarget.open)void refreshRouting();}}><summary className="cursor-pointer text-sm font-semibold">Advanced route planner</summary><section className="p-1 pt-3">
+      <div><h1 className="text-xl font-semibold">Prompt to 3D</h1><p className="mt-1 text-xs text-muted">Describe the outcome once. Grudge uses existing local utilities by default and retains every exact revision. Select a neural provider only when desired.</p></div>
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
         <label className="text-xs">What should happen?<textarea aria-label="Unified Prompt-to-3D request" className={field+" mt-1 min-h-24 resize-y"} value={unifiedPrompt} maxLength={2000} onChange={event=>{setUnifiedPrompt(event.target.value);setUnifiedPlan(null);}} placeholder="Create a hand-painted humanoid, texture it, then make it walk in place."/></label>
         <div className="grid grid-cols-1 gap-2">
           <label className="text-xs">Asset context<select className={field+" mt-1"} value={unifiedContext} onChange={event=>{const value=event.target.value as typeof unifiedContext;setUnifiedContext(value);setUnifiedPlan(null);}}><option value="new">Create new asset</option><option value="revise-current" disabled={!retainedRevision}>Revise current exact asset</option></select></label>
-          <label className="text-xs">Route override<select aria-label="Route override" className={field+" mt-1"} value={routeOverride} onChange={event=>{const value=event.target.value as Prompt3DUnifiedOverride;setRouteOverride(value);if(unifiedPlan)compileGuided(value);}}><option value="automatic">Automatic · quality first</option>{(Object.keys(PROMPT3D_UNIFIED_ROUTE_LABELS) as Prompt3DUnifiedRoute[]).map(route=><option key={route} value={route}>{PROMPT3D_UNIFIED_ROUTE_LABELS[route]}</option>)}</select></label>
+          <label className="text-xs">Route override<select aria-label="Route override" className={field+" mt-1"} value={routeOverride} onChange={event=>{const value=event.target.value as Prompt3DUnifiedOverride;setRouteOverride(value);if(unifiedPlan)compileGuided(value);}}><option value="automatic">Automatic · existing Dev Tool utilities</option>{(Object.keys(PROMPT3D_UNIFIED_ROUTE_LABELS) as Prompt3DUnifiedRoute[]).map(route=><option key={route} value={route}>{PROMPT3D_UNIFIED_ROUTE_LABELS[route]}</option>)}</select></label>
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2"><button className="rounded bg-gold px-4 py-2 text-sm font-semibold text-black disabled:opacity-40" disabled={!unifiedPrompt.trim()} onClick={()=>compileGuided()}>Plan guided route</button><button className="rounded border border-line px-3 py-2 text-xs" onClick={()=>void refreshRouting()}>Refresh readiness</button><span className="text-[11px] text-muted">Grudge-local typed planning · preferred model grudge-dev only when explicitly invoked in advanced fields · no external contact or fallback</span></div>
+      <div className="mt-3 flex flex-wrap items-center gap-2"><button className="rounded bg-gold px-4 py-2 text-sm font-semibold text-black disabled:opacity-40" disabled={!unifiedPrompt.trim()} onClick={()=>compileGuided()}>Plan guided route</button><button className="rounded border border-line px-3 py-2 text-xs" onClick={()=>void refreshRouting()}>Refresh readiness</button><span className="text-[11px] text-muted">Manual route inspection · the main prompt automatically uses grudge-dev to analyse and execute</span></div>
       {unifiedPlan&&<div className="mt-3 rounded border border-gold/30 bg-gold/5 p-3 text-xs">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><b>{PROMPT3D_UNIFIED_ROUTE_LABELS[unifiedPlan.selectedRoute]}</b><p className="mt-1 text-muted">{unifiedPlan.summary}</p><p className="mt-1 text-[11px] text-muted">Context: {unifiedPlan.exactRevision}</p></div><span className={`rounded border px-2 py-1 text-[10px] ${unifiedPlan.stages[0].readiness==="ready"?"border-emerald-500/40 text-emerald-200":unifiedPlan.stages[0].readiness==="blocked"?"border-red-500/40 text-red-200":"border-amber-500/40 text-amber-200"}`}>{unifiedPlan.stages[0].readiness.replace("-"," ")}</span></div>
         {unifiedPlan.strongestCapabilityBlockedReason&&<p className="mt-2 rounded border border-amber-500/30 bg-amber-500/5 p-2 text-amber-100">Higher-capability route {PROMPT3D_UNIFIED_ROUTE_LABELS[unifiedPlan.strongestCapability]} is blocked: {unifiedPlan.strongestCapabilityBlockedReason}{unifiedPlan.nextBestEligible?` Next eligible: ${PROMPT3D_UNIFIED_ROUTE_LABELS[unifiedPlan.nextBestEligible]}.`:""}</p>}
         {unifiedPlan.stages[0].readiness==="blocked"&&<p className="mt-2 text-red-200">{unifiedPlan.stages[0].readinessReason}</p>}
-        <details className="mt-3 rounded border border-line bg-bg p-3"><summary className="cursor-pointer text-gold">Stages, methods and retained evidence</summary><div className="mt-2 grid gap-2">{unifiedPlan.stages.map(stage=><label key={stage.id} className="flex items-start gap-2 rounded border border-line/70 p-2"><input type="checkbox" checked={Boolean(enabledStages[stage.id])} onChange={event=>setEnabledStages(current=>({...current,[stage.id]:event.target.checked}))}/><span><b>{stage.label}</b> · {stage.method}<span className="mt-1 block text-[11px] text-muted">{stage.resource} · {stage.revisionEffect.replaceAll("-"," ")} · {stage.approval} · {stage.readinessReason}</span></span></label>)}</div><p className="mt-2 text-[11px] text-muted">The temporary layout is intentionally minimal. Final 4K spacing, hierarchy and screen schema remain pending Al's live visual review.</p></details>
+        <details className="mt-3 rounded border border-line bg-bg p-3"><summary className="cursor-pointer text-gold">Stages, methods and retained evidence</summary><div className="mt-2 grid gap-2">{unifiedPlan.stages.map(stage=><label key={stage.id} className="flex items-start gap-2 rounded border border-line/70 p-2"><input type="checkbox" checked={Boolean(enabledStages[stage.id])} onChange={event=>setEnabledStages(current=>({...current,[stage.id]:event.target.checked}))}/><span><b>{stage.label}</b> · {stage.method}<span className="mt-1 block text-[11px] text-muted">{stage.resource} · {stage.revisionEffect.replaceAll("-"," ")} · {stage.approval} · {stage.readinessReason}</span></span></label>)}</div><p className="mt-2 text-[11px] text-muted">Each stage records its source and method. Provider requirements apply only to the selected enhancement.</p></details>
         <button className="mt-3 rounded bg-gold px-4 py-2 font-semibold text-black disabled:opacity-40" disabled={!enabledStages[unifiedPlan.stages[0].id]||unifiedPlan.stages[0].readiness==="blocked"} onClick={()=>void applyGuided()}>Continue with this explicit route</button>
       </div>}
     </section></details>
-    {workspaceOpen&&<section className="rounded-xl border border-line bg-bg-2/40 p-2"><div className="mb-2 flex items-center justify-between px-2"><b className="text-sm">Creation workspace</b><button className="rounded border border-line px-3 py-1 text-xs" onClick={()=>setWorkspaceOpen(false)}>Choose another start</button></div>{method==="neural"?<NeuralPrompt3D guidedIntent={guidedIntent}/>:<>
+    {workspaceOpen&&<section className="rounded-xl border border-line bg-bg-2/40 p-2"><div className="mb-2 flex items-center justify-between px-2"><b className="text-sm">Creation workspace</b><button className="rounded border border-line px-3 py-1 text-xs" onClick={()=>setWorkspaceOpen(false)}>Choose another start</button></div>{method==="neural"?<div data-app-action-context="Optional neural generation"><NeuralPrompt3D guidedIntent={guidedIntent}/></div>:<>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gold/30 bg-gold/5 p-3 text-xs">
         <p><b>{current?.method==="existing-asset"?"Existing asset · independent working copy":"Local procedural creation"}</b> · Basic shapes and the earlier sword, cosmetic game prop and segmented person templates. Hunyuan is optional.</p>
         <label><input aria-label="Enable local creation controls" type="checkbox" checked={controls} disabled={busy} onChange={e=>void enable(e.target.checked)}/> Enable local controls · remembered</label>
@@ -175,7 +185,8 @@ export default function CreationFlowPage(){
       {baseSource&&<div className="my-3 rounded border border-sky-500/40 p-3 text-sm"><b>Selected existing model</b><p className="break-all text-xs text-muted">{baseSource.kind==="local-file"?baseSource.path:baseSource.key}</p><p className="my-2 text-xs">A separate working copy retains the source identity, materials, skin and clips.</p><button disabled={!controls||busy} className="rounded bg-gold px-3 py-2 text-black disabled:opacity-40" onClick={()=>void importBase()}>Use this model as base</button></div>}
       <div data-app-action-busy={busy?"true":"false"} className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(340px,0.8fr)_minmax(500px,1.5fr)]">
         <section className="space-y-3 rounded-xl border border-line bg-bg-2 p-4">
-          <label className="block text-xs">Prompt<textarea aria-label="Creation prompt" className={field+" mt-1 min-h-28"} value={prompt} maxLength={2000} disabled={busy} onChange={e=>{setPrompt(e.target.value);setActiveOrchestration(undefined);}} placeholder={current?"Make it wider.":"Create a box."}/></label>
+          <details className="rounded border border-line p-2"><summary className="cursor-pointer text-xs">Direct asset creation controls</summary><div className="mt-3 space-y-3">
+          <label className="block text-xs">Asset instruction<textarea aria-label="Creation prompt" className={field+" mt-1 min-h-28"} value={prompt} maxLength={2000} disabled={busy} onChange={e=>{setPrompt(e.target.value);setActiveOrchestration(undefined);}} placeholder={current?"Make it wider.":"Create a box."}/></label>
           <details className="rounded border border-line p-2"><summary className="cursor-pointer text-xs">Optional style and planning settings</summary><div className="mt-3 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs">Category<select aria-label="Category" className={field+" mt-1"} value={category} disabled={busy} onChange={e=>setCategory(e.target.value as AssetCategory)}>{CREATION_CATEGORIES.map(c=><option key={c} value={c}>{label(c)}</option>)}</select></label>
@@ -184,6 +195,7 @@ export default function CreationFlowPage(){
           <label className="block text-xs"><input aria-label="Optional local planner" type="checkbox" checked={planner} disabled={busy} onChange={e=>setPlanner(e.target.checked)}/> Use Grudge model to carry out the prompt · local CPU</label>
           </div></details>
           <div className="flex gap-2"><button className="flex-1 rounded bg-gold px-4 py-2 font-semibold text-black disabled:opacity-40" disabled={busy||!controls||Boolean(baseSource)||!prompt.trim()} onClick={()=>void run()}>{busy?"Working locally…":"Run prompt"}</button><button className="rounded border border-line px-3 py-2 text-xs disabled:opacity-40" disabled={busy} onClick={()=>{setCurrent(null);setBaseSource(null);setLast(null);setPrompt("");}}>New asset</button></div>
+          </div></details>
           <div className="rounded border border-line bg-bg p-3 text-xs">
             <b data-app-action-state>Current asset: {current?label(current.plan?.kind??"asset"):"none"}</b>
             <p className="mt-1 text-muted">{current?`“It” refers to asset ${current.assetId.slice(0,8)}. Follow-up prompts create a new revision of this model.`:"A creation prompt makes a new original asset. Follow-ups require a current asset."}</p>

@@ -1,3 +1,4 @@
+import { appDialogs } from "./agent/appDialogs";
 /**
  * Local disk folder browser for the Dev Tool "Local Files" tab.
  *
@@ -5,7 +6,7 @@
  * — not into Forge by default. Forge remains an explicit secondary action.
  */
 
-import { BrowserWindow, clipboard, dialog, shell } from "electron";
+import { BrowserWindow, clipboard, shell } from "electron";
 import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, extname, join, normalize, resolve, sep } from "node:path";
@@ -100,8 +101,8 @@ export async function pickDirectory(
   };
   const r =
     parent && !parent.isDestroyed()
-      ? await dialog.showOpenDialog(parent, opts)
-      : await dialog.showOpenDialog(opts);
+      ? await appDialogs.showOpenDialog(parent, opts)
+      : await appDialogs.showOpenDialog(opts);
   if (r.canceled || !r.filePaths[0]) return null;
   return r.filePaths[0];
 }

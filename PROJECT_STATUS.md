@@ -1,6 +1,20 @@
 # Grudge Dev Tool — local status
 
-Updated: 2026-09-09. Authoritative checkout for this work: `E:\grudge\grudge-dev-tool`, branch `main`.
+## 2026-09-10 — native dialogs and app input repaired
+
+Grudge now operates file/folder/save/text/confirmation dialogs, hidden file inputs, browser exports, keyboard/editor/canvas input, scrolling and owned pop-outs through the existing app utilities. Hunyuan remains optional. The real Grudge export → orbit → Ctrl+S save → reopen workflow passes; the final build also passes selected export and standalone Elite viewer text-dialog acceptance. Source/build/preload, 15 native checks, 23 embedded checks, app-action/viewport checks and packaged smoke pass. All 595 built files match the final ASAR.
+
+Final package: `release/native-controls-20260910-v7/win-unpacked/Grudge Dev Tool.exe`. ASAR SHA-256 `ff2919fbe97a49db35b58fa5ef66899f5aa0a3694d60aa39ae63d68836ec88d5`. See [verification and exact evidence boundaries](docs/native-app-controls-20260910.md). Existing branch/work and installed app were preserved; no commit, push or deployment.
+
+Updated: 2026-09-10. Authoritative checkout for this work: `E:\grudge\grudge-dev-tool`, existing branch `Stray-Prompt-to-3D`. Earlier entries retain their historical branch context.
+
+## Current: automatic Grudge prompt and optional Hunyuan — 2026-09-10
+
+The page's primary prompt now invokes exact local grudge-dev analysis and the existing app controller automatically on submission. It shares execution/progress/Stop with Ask Grudge across navigation. Existing utilities are the default; provider readiness and retained neural history do not gate them. Optional Hunyuan controls remain available explicitly. Manual creation stays accessible when the model is unavailable.
+
+Both typechecks, the production build/icons/preload, three focused suites and final packaged smoke pass. Real grudge-dev created/textured/animated/saved a cube, opened it in Forge, navigated back and doubled its width in a new saved revision. The exact edited revision reopened through history after restart. Two library assets and zero neural jobs were verified; file comparison confirms 1 to 2 metre width, unchanged textures and complete motion data, and matching library hashes. The setting-settle and asynchronous save-receipt defects encountered in the live run were fixed.
+
+Final package: `release/prompt-grudge-default-20260910-v4/win-unpacked/Grudge Dev Tool.exe`; ASAR SHA-256 `b8bcc53f23d932d89ec9a3cddb376ca457aad98f2bf77f05ecc0671ade4f01c5`. Ten bundled files match the current build. Scope, screenshots and limitations: [verification report](docs/prompt-grudge-default-20260910.md). No installed-app replacement or publication. At that stage, native-dialog/canvas/connected access coverage remained open; the native-input repair above supersedes that transport limitation.
 
 ## Current: prompt-to-build end-to-end campaign — 2026-09-09
 

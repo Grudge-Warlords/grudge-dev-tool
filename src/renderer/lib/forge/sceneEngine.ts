@@ -1,3 +1,4 @@
+import { VIEWPORT_NAVIGATION_HELP } from "./viewportNavigation";
 import * as THREE from "three";
 import { DEFAULT_EDITOR_VIEWPORT } from "./viewportColor";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -203,6 +204,14 @@ export class SceneEngine {
     this.controls.dampingFactor = 0.08;
     this.controls.target.set(0, 0.5, 0);
     applyViewportNavigation(this.controls);
+    this.renderer.domElement.setAttribute("aria-label", "Scene canvas");
+    this.renderer.domElement.setAttribute("aria-description", VIEWPORT_NAVIGATION_HELP);
+    const reportCamera = () => {
+      const values = (v: THREE.Vector3) => v.toArray().map(n => Number(n.toFixed(4))).join(", ");
+      this.renderer.domElement.setAttribute("data-app-action-state", `Camera position: ${values(this.controls.object.position)}; target: ${values(this.controls.target)}; zoom: ${Number((this.controls.object as THREE.PerspectiveCamera).zoom.toFixed(4))}`);
+    };
+    this.controls.addEventListener("change", reportCamera);
+    reportCamera();
     this.bindViewHelper();
 
     this.transform = new TransformControls(this.camera, this.renderer.domElement);

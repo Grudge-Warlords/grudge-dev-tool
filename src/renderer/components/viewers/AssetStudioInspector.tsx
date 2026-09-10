@@ -1,3 +1,4 @@
+import { promptApp } from "../../lib/appDialogs";
 /**
  * Elite viewer inspector — Scene / Object / Material / Rig / Anim.
  * Reuses sceneGraph, inspectSceneRig, editorTools, animApply, mixamo25 libraries.
@@ -200,7 +201,7 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
     const target = selected ?? root;
     if (!target) return;
     const suggested = (target.name || asset.name || "mesh").replace(/[^\w.-]+/g, "_");
-    const name = window.prompt("Save this node (and children) as", suggested);
+    const name = await promptApp("Save this node (and children) as", suggested);
     if (!name) return;
     setSaveBusy(true);
     try {

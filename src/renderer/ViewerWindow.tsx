@@ -1,3 +1,4 @@
+import { confirmApp } from "./lib/appDialogs";
 /**
  * ViewerWindow.tsx
  *
@@ -1461,7 +1462,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
     async function reuploadOptimized() {
         if (!optResult?.path || !optResult.objectKey) return;
         const key = optResult.objectKey;
-        if (!confirm(
+        if (!await confirmApp(
             `Overwrite CDN object?\n\n${key}\n\n${formatBytes(optResult.beforeBytes)} → ${formatBytes(optResult.afterBytes)} (${optResult.reductionPct}% smaller)\n\nThis replaces the existing file at the same key.`,
         )) return;
         setReuploading(true);

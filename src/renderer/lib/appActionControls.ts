@@ -1,4 +1,5 @@
 import { appActionStatusText, appControlValueMatches, type AppActionDecision, type AppActionSnapshot, type AppControl } from "../../shared/appActions";
+import { parsePointer } from "../../shared/appNative";
 
 const ids = new WeakMap<Element, string>();
 let sequence = 0;
@@ -28,9 +29,10 @@ function displayed(el: HTMLElement): boolean {
   }
   const style = getComputedStyle(el);
   if (style.visibility === "hidden" || style.display === "none") return false;
-  if (checkOcclusion) {
+  {
     const modal = [...document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')].find(dialog => dialog.getClientRects().length && getComputedStyle(dialog).visibility !== "hidden");
     if (modal && !modal.contains(el)) return false;
+    if (!checkOcclusion) return true;
     const bounds = el.getBoundingClientRect();
     // A catalog item clipped by its own scroll pane remains reachable through
     // normal scrolling. Do not mistake that clipping for a covering dialog.
@@ -55,11 +57,11 @@ function label(el: HTMLElement): string {
   const labelledBy = (el.getAttribute("aria-labelledby") || "").split(/\s+/).map(id => document.getElementById(id)?.textContent || "").join(" ").trim();
   return compact(el.getAttribute("aria-label") || labelledBy || el.getAttribute("title") ||
     labelText ||
-    el.getAttribute("placeholder") || (el instanceof HTMLInputElement ? el.name : el.textContent));
+    el.getAttribute("placeholder") || (el instanceof HTMLCanvasElement ? `${el.closest('[aria-label]')?.getAttribute('aria-label') || el.parentElement?.getAttribute('title') || 'Scene'} canvas` : el.hasAttribute("data-app-action-scroll") ? el.getAttribute("data-app-action-scroll") : el.matches('.xterm') ? 'Terminal' : el.matches('.monaco-editor,.cm-editor,.ace_editor') ? 'Code editor' : el instanceof HTMLInputElement ? el.name || (el.type === 'file' ? 'Choose files' : '') : el.textContent));
 }
 function describe(el: HTMLElement): AppControl | null {
   if (!displayed(el)) return null;
-  if (el instanceof HTMLInputElement && ["password", "hidden", "file"].includes(el.type)) return null;
+  if (el instanceof HTMLInputElement && ["password", "hidden"].includes(el.type)) return null;
   if (/password|secret|token|api.?key|credential/i.test(`${el.getAttribute("name")} ${el.getAttribute("aria-label")} ${el.getAttribute("autocomplete")}`)) return null;
   const name = label(el);
   if (!name) return null;
@@ -67,27 +69,40 @@ function describe(el: HTMLElement): AppControl | null {
   if (!ids.has(el)) ids.set(el, `control-${++sequence}`);
   const select = el instanceof HTMLSelectElement, input = el instanceof HTMLInputElement;
   const ariaToggle = ["switch", "checkbox", "radio", "menuitemcheckbox", "menuitemradio"].includes(el.getAttribute("role") || "");
-  const kind: AppControl["kind"] = el.hasAttribute("data-app-action-drag") ? "drag" : el.hasAttribute("data-app-action-drop") ? "drop" : select ? "select" : ariaToggle || input && ["checkbox", "radio"].includes(el.type) ? "toggle" : el.isContentEditable || el instanceof HTMLTextAreaElement || input && !["button", "submit", "reset"].includes(el.type) ? "text" : "click";
+  const kind: AppControl["kind"] = input && el.type === "file" ? "file" : el.hasAttribute("data-app-action-scroll") || el instanceof HTMLCanvasElement || el.matches('.xterm,.monaco-editor,.cm-editor,.ace_editor,[role="slider"],[role="scrollbar"],[role="application"],div[role="combobox"]') ? "surface" : el.hasAttribute("data-app-action-drag") ? "drag" : el.hasAttribute("data-app-action-drop") ? "drop" : select ? "select" : ariaToggle || input && ["checkbox", "radio"].includes(el.type) ? "toggle" : el.isContentEditable || el instanceof HTMLTextAreaElement || input && !["button", "submit", "reset"].includes(el.type) ? "text" : "click";
   const section = el.closest("section,fieldset,aside,[role=dialog]");
   const selection = el.closest("main") ? [...document.querySelectorAll<HTMLElement>('[aria-pressed="true"][aria-label^="Select object"],[aria-pressed="true"][aria-label^="Select node"]')].filter(n => !excluded(n)).map(n => n.getAttribute("aria-label")).join("; ") : "";
-  const context = compact([section?.querySelector("legend,h1,h2,h3,h4,b")?.textContent || (el.closest("aside") ? "Navigation" : ""), selection, el.closest("[data-app-action-context]")?.getAttribute("data-app-action-context")].filter(Boolean).join(" · "));
+  const context = compact([section?.querySelector("legend,h1,h2,h3,h4,b")?.textContent || (el.closest("aside") ? "Navigation" : ""), selection, el.closest("[data-app-action-context]")?.getAttribute("data-app-action-context"), el.closest("[data-app-action-identity]")?.getAttribute("data-app-action-identity")].filter(Boolean).join(" · "));
   const disabled = el.matches(":disabled") || el.getAttribute("aria-disabled") === "true" || Boolean(el.closest('[aria-busy="true"]')) || (kind === "text" && Boolean((el as HTMLInputElement).readOnly));
   return { id: ids.get(el)!, label: name, kind, context, disabled,
-    ...(input ? { inputType: el.type } : {}),
-    ...(kind === "text" || kind === "select" ? { value: (el.isContentEditable ? el.innerText : (el as HTMLInputElement).value).slice(0, 2200) } : kind === "toggle" ? { value: ariaToggle ? el.getAttribute("aria-checked") ?? "false" : String((el as HTMLInputElement).checked) } : el.hasAttribute("aria-pressed") ? { value: el.getAttribute("aria-pressed")! } : el.hasAttribute("aria-selected") ? { value: el.getAttribute("aria-selected")! } : el.hasAttribute("aria-expanded") ? { value: el.getAttribute("aria-expanded")! } : el.closest("nav") ? { value: String(el.getAttribute("aria-current") === "page") } : el.tagName === "SUMMARY" ? { value: String((el.parentElement as HTMLDetailsElement).open) } : {}),
+    ...(el.getAttribute("aria-description") ? { hint: compact(el.getAttribute("aria-description"), 300) } : {}),
+    ...(input ? { inputType: el.type } : kind === "surface" ? { inputType: el.matches('.xterm,.monaco-editor,.cm-editor,.ace_editor') ? "editor" : el.hasAttribute("data-app-action-scroll") ? "scroll" : el instanceof HTMLCanvasElement ? "canvas" : el.getAttribute("role") ?? "surface" } : {}),
+    ...(el.hasAttribute("data-app-action-scroll") ? { value: `Scroll position: ${Math.round(el.scrollLeft)}, ${Math.round(el.scrollTop)}; maximum: ${el.scrollWidth-el.clientWidth}, ${el.scrollHeight-el.clientHeight}` } : kind === "surface" && el.hasAttribute("data-app-action-state") ? { value: el.getAttribute("data-app-action-state")!.slice(0,2200) } : kind === "file" ? { value: [...(el as HTMLInputElement).files ?? []].map(f => f.name).join(", ").slice(0, 2200) } : kind === "text" || kind === "select" ? { value: (el.isContentEditable ? el.innerText : (el as HTMLInputElement).value).slice(0, 2200) } : kind === "toggle" ? { value: ariaToggle ? el.getAttribute("aria-checked") ?? "false" : String((el as HTMLInputElement).checked) } : el.hasAttribute("aria-pressed") ? { value: el.getAttribute("aria-pressed")! } : el.hasAttribute("aria-selected") ? { value: el.getAttribute("aria-selected")! } : el.hasAttribute("aria-expanded") ? { value: el.getAttribute("aria-expanded")! } : el.closest("nav") ? { value: String(el.getAttribute("aria-current") === "page") } : el.tagName === "SUMMARY" ? { value: String((el.parentElement as HTMLDetailsElement).open) } : {}),
     ...(select ? { options: [...el.options].filter(o => !o.disabled).slice(0, 100).map(o => ({ value: o.value.slice(0, 500), label: compact(o.label) })) } : {}),
   };
 }
 export function captureAppControls(route: string): { snapshot: AppActionSnapshot; elements: Map<string, HTMLElement> } {
+  // Native scroll areas have no button in the accessibility tree. Expose their
+  // actual viewport so long lists, code panes and pages remain navigable.
+  let scrolls = 0;
+  for (const el of document.querySelectorAll<HTMLElement>("html,main,aside,section,div")) {
+    if (scrolls >= 40) break;
+    if (excluded(el) || !el.getClientRects().length || el.scrollHeight <= el.clientHeight + 2 && el.scrollWidth <= el.clientWidth + 2) { el.removeAttribute("data-app-action-scroll"); continue; }
+    const css = getComputedStyle(el);
+    if (el === document.scrollingElement || /auto|scroll/.test(`${css.overflowX} ${css.overflowY}`)) {
+      const name = compact(el.getAttribute("aria-label") || el.querySelector("h1,h2,h3,legend")?.textContent || el.getAttribute("role") || (el === document.scrollingElement ? "page" : "panel"), 150);
+      el.setAttribute("data-app-action-scroll", `Scroll ${name}`); scrolls++;
+    }
+  }
   const elements = new Map<string, HTMLElement>(), controls: AppControl[] = [];
-  for (const el of document.querySelectorAll<HTMLElement>('button,input,textarea,select,summary,a[href],[role="button"],[role="tab"],[role="menuitem"],[role="treeitem"],[role="option"],[role="switch"],[role="checkbox"],[role="radio"],[role="menuitemcheckbox"],[role="menuitemradio"],[contenteditable="true"][role="textbox"],[data-app-action-drag],[data-app-action-drop]')) {
+  for (const el of document.querySelectorAll<HTMLElement>('button,input,textarea,select,summary,a[href],[role="button"],[role="tab"],[role="menuitem"],[role="treeitem"],[role="option"],[role="switch"],[role="checkbox"],[role="radio"],[role="menuitemcheckbox"],[role="menuitemradio"],[contenteditable="true"],canvas,.xterm,.monaco-editor,.cm-editor,.ace_editor,[role="slider"],[role="scrollbar"],[role="combobox"],[role="textbox"],[role="application"],[tabindex="0"],[data-app-action-drag],[data-app-action-drop],[data-app-action-scroll]')) {
     const c = describe(el); if (!c) continue;
     if (controls.length >= 300) break;
     controls.push(c); elements.set(c.id, el);
   }
   const status = [...document.querySelectorAll<HTMLElement>('[role="status"],[role="alert"],[aria-live="polite"],[aria-live="assertive"],[data-app-action-state],h1,h2')]
     .filter(displayed).map(el => appActionStatusText(el.getAttribute("data-app-action-state"), el.innerText)).filter(Boolean).slice(0, 30);
-  if (document.querySelector('[data-app-action-busy="true"]')) status.unshift("An app action is running. Wait for its result; do not start it again.");
+  if (document.querySelector('[data-app-action-busy="true"]') && !document.querySelector('[role="dialog"][aria-modal="true"]')) status.unshift("An app action is running. Wait for its result; do not start it again.");
   return { snapshot: { route, controls, status: status.slice(0, 30) }, elements };
 }
 
@@ -107,6 +122,23 @@ export function executeAppControl(decision: AppActionDecision, observed: ReturnT
   }
   const current = element && describe(element);
   if (!element || !previous || !current || current.disabled || identity(current) !== identity(previous)) throw new AppControlsChangedError(`The ${previous?.label ?? "requested"} control changed while Grudge was planning.`);
+  if (["keys", "type", "pointer", "files"].includes(decision.action)) {
+    element.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const focus = current.inputType === "editor" ? element.querySelector<HTMLElement>('textarea,input:not([type=password]),[contenteditable="true"]') ?? element : element;
+    if (!focus.hasAttribute("tabindex") && current.kind === "surface") focus.tabIndex = 0;
+    focus.focus({ preventScroll: true });
+    const rect = element.getBoundingClientRect();
+    if (decision.action === "pointer") {
+      const p = parsePointer(decision.value);
+      for (const [x, y] of [[p.x, p.y], [p.toX ?? p.x, p.toY ?? p.y]]) {
+        const hit = document.elementFromPoint(rect.x + Math.min(.999, x) * rect.width, rect.y + Math.min(.999, y) * rect.height);
+        if (!hit || !element.contains(hit)) throw new AppControlsChangedError("The pointer position is covered or outside the visible control.");
+      }
+    }
+    const marker = crypto.randomUUID();
+    element.setAttribute("data-grudge-native-target", marker);
+    return JSON.stringify({ native: true, marker, url: location.href, label: current.label, state: current.value ?? "", rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }, file: element instanceof HTMLInputElement && element.type === "file", multiple: (element as HTMLInputElement).multiple ?? false, accept: (element as HTMLInputElement).accept ?? "" });
+  }
   if (decision.action === "drag") {
     const destination = observed.elements.get(decision.value), expected = observed.snapshot.controls.find(c => c.id === decision.value);
     const described = destination && describe(destination);

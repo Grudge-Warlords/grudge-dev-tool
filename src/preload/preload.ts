@@ -1,3 +1,5 @@
+import { installDialogPrompt } from "./dialogPrompt";
+import { APP_NATIVE_CHANNELS, type AppNativeAPI } from "../shared/appNative";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { APP_ACTION_CHANNELS, type AppActionRequest, type AppActionDecision } from "../shared/ipc";
 import { EMBEDDED_ACTION_CHANNELS, type EmbeddedActionAPI, type EmbeddedObserveRequest, type EmbeddedExecuteRequest } from "../shared/ipc";
@@ -28,8 +30,19 @@ import { CREATION_CHANNELS, type CreationRequest, type CreationAttempt, type Cre
 import { UPDATER_CHANNELS, type UpdaterStatus } from "../shared/ipc";
 
 const api = {
+  appNative: {
+    mkdir: (id, path, name) => ipcRenderer.invoke(APP_NATIVE_CHANNELS.mkdir, id, path, name),
+    status: () => ipcRenderer.invoke(APP_NATIVE_CHANNELS.status),
+    begin: () => ipcRenderer.invoke(APP_NATIVE_CHANNELS.begin),
+    end: () => ipcRenderer.invoke(APP_NATIVE_CHANNELS.end),
+    dialog: () => ipcRenderer.invoke(APP_NATIVE_CHANNELS.dialog),
+    browse: (id, path, offset) => ipcRenderer.invoke(APP_NATIVE_CHANNELS.browse, id, path, offset),
+    answer: answer => ipcRenderer.invoke(APP_NATIVE_CHANNELS.answer, answer),
+    request: (kind, message, value) => ipcRenderer.invoke(APP_NATIVE_CHANNELS.request, kind, message, value),
+  } satisfies AppNativeAPI,
   appActions: { plan: (request: AppActionRequest) => ipcRenderer.invoke(APP_ACTION_CHANNELS.plan, request) as Promise<AppActionDecision> },
   embeddedActions: {
+    windows: () => ipcRenderer.invoke(EMBEDDED_ACTION_CHANNELS.windows),
     observe: (request: EmbeddedObserveRequest) => ipcRenderer.invoke(EMBEDDED_ACTION_CHANNELS.observe, request),
     execute: (request: EmbeddedExecuteRequest) => ipcRenderer.invoke(EMBEDDED_ACTION_CHANNELS.execute, request),
   } satisfies EmbeddedActionAPI,
@@ -756,4 +769,5 @@ const api = {
 };
 
 contextBridge.exposeInMainWorld("grudge", api);
+installDialogPrompt();
 export type GrudgeApi = typeof api;

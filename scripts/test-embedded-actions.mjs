@@ -230,6 +230,16 @@ async function runHarness() {
       assert.equal(finish.reason, "Activated Save scene once.", "A click receipt cannot invent scene-save or hierarchy evidence");
       record("Real Grudge click-once request completes without pressing the button twice");
     }
+    const { appDialogs } = require(path.join(root, "dist/main/agent/appDialogs.js"));
+    appDialogs.begin(host.webContents); bridge.native.begin();
+    o = await observe("forge");
+    let nativeField = o.snapshot.controls.find(c => c.label === "Scene name");
+    await bridge.execute(host.webContents, {token:o.token,prompt:"Type the scene name",decision:{action:"keys",target:nativeField.id,value:"Ctrl+A",reason:"Select existing field text",model:"fixture"}});
+    o = await observe("forge"); nativeField = o.snapshot.controls.find(c => c.label === "Scene name");
+    await bridge.execute(host.webContents, {token:o.token,prompt:"Type the scene name",decision:{action:"type",target:nativeField.id,value:"Native guest edit",reason:"Enter field text",model:"fixture"}});
+    assert.equal((await observe("forge")).snapshot.controls.find(c=>c.label==="Scene name").value,"Native guest edit");
+    appDialogs.end(host.webContents); await bridge.native.end();
+    record("Trusted native keyboard and text input remain bound to the owned webview");
     await guest.executeJavaScript("window.__grudgeEmbeddedActions={observe(){throw Error('tampered')}}; true");
     assert.ok((await observe("forge")).snapshot.controls.length); record("Page scripts cannot replace the isolated bridge");
     other = new BrowserWindow({ show: false });

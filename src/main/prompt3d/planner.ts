@@ -2,6 +2,7 @@ import { getOllamaHost, getPreferredModel } from "../ollama";
 import type { AssetSpecV1, Prompt3DPlanResult } from "../../shared/prompt3d";
 import { applyPrompt3DPlanProposal } from "./planning";
 import { loadPlannerHost } from "./controlsPreference";
+import { startCpuPlanner } from "./plannerRuntime";
 
 const MAX_TAG_RESPONSE = 2 * 1024 * 1024;
 const MAX_PLAN_RESPONSE = 128 * 1024;
@@ -54,18 +55,24 @@ function selectInstalledModel(preferred: string, names: string[]): string {
   throw new Error("Ollama is reachable but has no installed local model. This action never pulls one automatically.");
 }
 
-export async function localJsonPlan(system: string, prompt: string, format: unknown = "json", maximumTokens = 800): Promise<{ proposal: unknown; model: string }> {
+export async function localJsonPlan(system: string, prompt: string, format: unknown = "json", maximumTokens = 800, options: { grudgeDev?: boolean; startIfNeeded?: boolean } = {}): Promise<{ proposal: unknown; model: string }> {
   const outputTokens = Math.min(4096, Math.max(128, maximumTokens));
   const estimatedContext = Math.ceil((system.length + prompt.length) / 3) + outputTokens + 512;
   if (estimatedContext > 32768) throw new Error("The local planning context is too large. Narrow the current screen or shorten the request.");
   const contextTokens = Math.max(8192, 2 ** Math.ceil(Math.log2(estimatedContext)));
-  const base = loopbackBase((await loadPlannerHost()) ?? await getOllamaHost());
-  const tagsResponse = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(8_000) }).catch(() => null);
+  let base = loopbackBase((await loadPlannerHost()) ?? await getOllamaHost());
+  let tagsResponse = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(8_000) }).catch(() => null);
+  if (!tagsResponse?.ok && options.startIfNeeded) {
+    base = loopbackBase(await startCpuPlanner());
+    tagsResponse = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(8_000) }).catch(() => null);
+  }
   if (!tagsResponse?.ok) throw new Error("Local Ollama is not running. Prompt-to-3D will not start or modify it automatically.");
   const tagsText = await boundedText(tagsResponse, MAX_TAG_RESPONSE);
   const tags = JSON.parse(tagsText) as { models?: Array<{ name?: unknown }> };
   const names = (tags.models ?? []).map((entry) => entry.name).filter((name): name is string => typeof name === "string" && name.length > 0 && name.length <= 200);
-  const model = selectInstalledModel(await getPreferredModel(), names);
+  const grudge = names.find(name => name === "grudge-dev" || name === "grudge-dev:latest");
+  if (options.grudgeDev && !grudge) throw new Error("The local grudge-dev model is not installed. Existing manual Dev Tool utilities remain available; no model download or substitute was started.");
+  const model = options.grudgeDev ? grudge! : selectInstalledModel(await getPreferredModel(), names);
 
   const response = await fetch(`${base}/api/generate`, {
     method: "POST", headers: { "Content-Type": "application/json" },

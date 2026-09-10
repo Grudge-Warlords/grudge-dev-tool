@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog, net } from "electron";
+import { appDialogs } from "./agent/appDialogs";
+import { app, BrowserWindow, net } from "electron";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, writeFile, readdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -122,7 +123,7 @@ export async function saveExportFile(
     filters: [{ name: "glTF Binary", extensions: ["glb"] }],
     properties: ["createDirectory", "showOverwriteConfirmation"],
   };
-  const result = parent ? await dialog.showSaveDialog(parent, options) : await dialog.showSaveDialog(options);
+  const result = parent ? await appDialogs.showSaveDialog(parent, options) : await appDialogs.showSaveDialog(options);
   if (result.canceled || !result.filePath) return { canceled: true };
   const savedPath = resolve(result.filePath.toLowerCase().endsWith(".glb") ? result.filePath : `${result.filePath}.glb`);
   await writeFile(savedPath, bytes);

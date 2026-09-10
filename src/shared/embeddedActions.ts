@@ -1,7 +1,7 @@
 import { FLEET_URLS } from "./fleet";
 import type { AppActionDecision, AppActionSnapshot } from "./appActions";
 
-export const EMBEDDED_ACTION_CHANNELS = { observe: "appActions:embedded:observe", execute: "appActions:embedded:execute" } as const;
+export const EMBEDDED_ACTION_CHANNELS = { observe: "appActions:embedded:observe", execute: "appActions:embedded:execute", windows: "appActions:windows" } as const;
 export const EMBEDDED_SURFACES = {
   builder: { route: "/builder", name: "Builder", navLabel: "Grok Builder (lab)", origins: [FLEET_URLS.grokBuilder, "http://localhost:5190", "http://127.0.0.1:5190"] },
   forge: { route: "/forge", name: "Forge", origins: [FLEET_URLS.forge] },
@@ -10,10 +10,11 @@ export const EMBEDDED_SURFACES = {
   preview: { route: "/preview", name: "Preview", origins: [FLEET_URLS.open, FLEET_URLS.client, FLEET_URLS.water, FLEET_URLS.grudox, FLEET_URLS.multiverse, FLEET_URLS.warlords, FLEET_URLS.characterFoundry, FLEET_URLS.forge, FLEET_URLS.velocity, FLEET_URLS.avernus, FLEET_URLS.voxelStudio] },
 } as const;
 export type EmbeddedSurface = keyof typeof EMBEDDED_SURFACES;
-export interface EmbeddedObserveRequest { surface: EmbeddedSurface; webContentsId: number }
+export interface EmbeddedObserveRequest { surface: EmbeddedSurface | "app" | "window"; webContentsId: number }
 export interface EmbeddedObservation { token: string; documentId: string; snapshot: AppActionSnapshot }
 export interface EmbeddedExecuteRequest { token: string; prompt: string; decision: AppActionDecision }
 export interface EmbeddedActionAPI {
+  windows(): Promise<Array<{ id: number; title: string }>>;
   observe(request: EmbeddedObserveRequest): Promise<EmbeddedObservation>;
   execute(request: EmbeddedExecuteRequest): Promise<string>;
 }

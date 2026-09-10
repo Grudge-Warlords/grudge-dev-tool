@@ -1,3 +1,4 @@
+import { appDialogs } from "./agent/appDialogs";
 /**
  * Pop-out Asset Viewer windows.
  *
@@ -6,7 +7,7 @@
  * images, audio, text, and Three.js-ready assets with transform + Forge actions.
  */
 
-import { app, BrowserWindow, dialog, nativeImage, net, shell } from "electron";
+import { app, BrowserWindow, nativeImage, net, shell } from "electron";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, copyFile, writeFile, stat } from "node:fs/promises";
@@ -53,6 +54,9 @@ export interface ViewerAssetRef {
 }
 
 const assetStore = new Map<string, ViewerAssetRef>();
+const actionWindows = new Set<BrowserWindow>();
+export function isAppActionWindow(contents: Electron.WebContents) { return [...actionWindows].some(w => !w.isDestroyed() && w.webContents === contents); }
+function registerActionWindow(win: BrowserWindow) { if (actionWindows.has(win)) return; actionWindows.add(win); win.once("closed", () => actionWindows.delete(win)); }
 const openWindows = new Map<string, BrowserWindow>();
 /** One reusable 3D pipeline window — extra double-clicks append into this scene. */
 let pipelineWin: BrowserWindow | null = null;
@@ -187,6 +191,7 @@ export function openThreeFlowEditor(opts: {
       sandbox: true,
     },
   });
+  registerActionWindow(win);
   win.setAlwaysOnTop(true, "screen-saver");
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.once("ready-to-show", () => {
@@ -280,6 +285,7 @@ export function openThreeFlowPipeline(opts: {
   win.webContents.on("did-finish-load", () => {
     log.info("ThreePipe loaded", win.webContents.getURL().slice(0, 160));
   });
+  registerActionWindow(win);
   win.setAlwaysOnTop(true, "screen-saver");
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   pipelineWin = win;
@@ -436,6 +442,7 @@ export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: 
   });
 
   // Highest practical level so the viewer sits above the main app, Forge, and GrudgeLoader.
+  registerActionWindow(win);
   win.setAlwaysOnTop(true, "screen-saver");
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
@@ -727,7 +734,7 @@ export async function saveConvertedFile(
             { name: "glTF JSON", extensions: ["gltf"] },
             { name: "All files", extensions: ["*"] },
           ];
-    const r = await dialog.showSaveDialog(parent && !parent.isDestroyed() ? parent : (undefined as any), {
+    const r = await appDialogs.showSaveDialog(parent && !parent.isDestroyed() ? parent : (undefined as any), {
       title: kind === "image" ? "Save converted image" : "Save converted model",
       defaultPath: args.defaultName || basename(args.path),
       filters,
@@ -910,7 +917,8 @@ export async function readOptimizedBytes(path: string): Promise<
 export function focusAllViewers(): void {
   for (const win of openWindows.values()) {
     if (!win.isDestroyed()) {
-      win.setAlwaysOnTop(true, "screen-saver");
+      registerActionWindow(win);
+  win.setAlwaysOnTop(true, "screen-saver");
       win.show();
       win.focus();
       win.moveTop();

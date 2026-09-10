@@ -1,3 +1,4 @@
+import { confirmApp } from "../lib/appDialogs";
 import Prompt3DNumberInput from "../components/Prompt3DNumberInput";
 import { prompt3DSettingsError, parsePrompt3DOptionalNumber, prompt3DFinishSettingsError } from "../../shared/prompt3dInputValidation";
 import { promptedMotionCapabilityError } from "../../shared/promptedMotionIntent";
@@ -840,7 +841,7 @@ export default function Prompt3D({ guidedIntent }: { guidedIntent?: Prompt3DGuid
     if (!controlsEnabled || !overview) return;
     const row = providers.find((p) => p.manifest.id === providerId)!;
     const target = destination(overview.runtime.root, providerId);
-    if (action === "remove" && !confirm(`Move ${row.manifest.name} provider files and its isolated Linux environment to recoverable .removed storage?`)) return;
+    if (action === "remove" && !await confirmApp(`Move ${row.manifest.name} provider files and its isolated Linux environment to recoverable .removed storage?`)) return;
     setBusy(true);
     try {
       await window.grudge.prompt3d.install({

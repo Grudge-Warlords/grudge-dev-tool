@@ -1,3 +1,4 @@
+import AppDialogPanel from "./components/AppDialogPanel";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -23,7 +24,7 @@ root.render(
   <React.StrictMode>
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <App />
+        <App /><AppDialogPanel />
         <Toaster
           theme="dark"
           position="bottom-right"

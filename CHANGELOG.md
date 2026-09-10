@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-10 — native dialogs and complete input transport
+
+- Continue app prompts through file/folder selection, directory creation, multiple files, save/overwrite, confirmations and text prompts. Preserve the original handlers and cancellation results.
+- Add native keyboard/text/pointer input, code and scroll surfaces, owned pop-out selection, browser file choosers and browser/blob export saving. Observe actual camera and saved-file results.
+- Keep document/element/owner checks and the original permission boundaries. All new transport is independent of Hunyuan.
+- Add real Electron native-dialog/input tests alongside the existing embedded-control and packaged checks. Detailed acceptance: `docs/native-app-controls-20260910.md`.
+
+## 2026-09-10 — automatic Grudge prompt, optional Hunyuan
+
+- Make the primary Prompt to 3D field invoke local grudge-dev analysis and the existing app action controller on submission, with shared progress, stopping and history across navigation. Keep direct manual creation controls available.
+- Default to existing creation/editing/animation/save utilities regardless of provider readiness or retained neural history. Open Hunyuan only by explicit request or its optional enhancement control.
+- Separate compound asset instructions from trailing app handoffs, and retain observed save evidence when continuing in another editor.
+- Start the installed loopback CPU planner when needed without downloading weights, replacing the requested model or contacting an external provider.
+
 ## 2026-09-09 — local prompt execution and end-to-end repair
 
 - Extend Ask Grudge into Builder, Forge, Coder, ThreeFlow and Preview using fixed isolated control code, owned-guest and origin checks, expiring one-use observations, stale-document protection, semantic ARIA controls and exact text validation. Bound session handoff to supported origins.

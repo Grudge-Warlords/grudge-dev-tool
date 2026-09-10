@@ -47,6 +47,7 @@
     "test:local-creation": "tsx scripts/test-local-creation.ts",
     "test:prompt-build": "tsx scripts/test-prompt-build.ts",
     "test:app-actions": "tsx scripts/test-app-actions.ts",
+    "test:native-actions": "npm run build:main && node scripts/test-native-actions.mjs",
     "test:embedded-actions": "npm run build:main && node scripts/test-embedded-actions.mjs",
     "test:prompt3d-approval": "tsx scripts/test-prompt3d-concept-approval.ts",
     "test:prompt3d-reference": "tsx scripts/test-prompt3d-reference-image.ts",

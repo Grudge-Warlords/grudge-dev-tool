@@ -207,6 +207,19 @@ try {
     assert.equal(granted.result?.value?.enabled, true, "packaged local controls could not be enabled for the isolated smoke window");
     await cdp.send("Page.reload", { ignoreCache: true });
 
+    // Even retained pending Hunyuan history must not take over the default page.
+    let defaultPage;
+    for (let i = 0; i < 100; i++) {
+      const observed = await cdp.send("Runtime.evaluate", { expression: `({ prompt: Boolean(document.querySelector('[aria-label="Grudge Dev prompt"]')), neural: Boolean(document.querySelector('[data-app-action-context="Optional neural generation"]')), run: [...document.querySelectorAll('button')].some(b => b.textContent === 'Run with Grudge') })`, returnByValue: true });
+      defaultPage = observed.result?.value;
+      if (defaultPage?.prompt) break;
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    assert.equal(defaultPage?.prompt, true, "default page must expose the automatic Grudge prompt");
+    assert.equal(defaultPage?.run, true);
+    assert.equal(defaultPage?.neural, false, "pending Hunyuan history must not gate the default workspace");
+    await cdp.send("Runtime.evaluate", { expression: `[...document.querySelectorAll('button')].find(b => b.textContent === 'Optional Hunyuan enhancement').click()` });
+
     let value;
     const deadline = Date.now() + 45_000;
     while (Date.now() < deadline) {
@@ -348,7 +361,7 @@ try {
             generatedSourceShown: bodyText.includes("Starting image: Generate with local HunyuanDiT"),
             hasPromptSettings: bodyText.includes("Subject prompt") && Boolean(document.querySelector('[data-testid="prompt3d-optional-settings"]')),
             optionalSettingsCollapsed: document.querySelector('[data-testid="prompt3d-optional-settings"]')?.open === false,
-            primaryInputCount: Array.from(document.querySelectorAll("textarea,input,select")).filter((element) => element.getClientRects().length && !element.closest('details:not([open])') && !element.closest('[data-testid="prompt3d-initial-image-source"]')).filter((element) => element.tagName === "TEXTAREA").length,
+            primaryInputCount: Array.from(document.querySelector('[data-app-action-context="Optional neural generation"]').querySelectorAll("textarea,input,select")).filter((element) => element.getClientRects().length && !element.closest('details:not([open])') && !element.closest('[data-testid="prompt3d-initial-image-source"]')).filter((element) => element.tagName === "TEXTAREA").length,
           };
         })()`,
         returnByValue: true,

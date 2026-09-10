@@ -106,13 +106,6 @@ function provider(context: Prompt3DUnifiedContext, id: Prompt3DProviderReadiness
   return context.providers.find((entry) => entry.id === id) ?? { id, ready: false, reason: "Readiness has not been checked in the existing provider controls." };
 }
 
-function proceduralFit(prompt: string, category: AssetCategory): boolean {
-  if (/\b(box|cube|sphere|cylinder|cone|plane|torus)\b/i.test(prompt)) return true;
-  return category === "prop" || category === "character"
-    ? /\b(sword|blade|gun|firearm|character|person|human|humanoid)\b/i.test(prompt)
-    : false;
-}
-
 function routeReadiness(route: Prompt3DUnifiedRoute, context: Prompt3DUnifiedContext): { readiness: Prompt3DStageReadiness; reason: string } {
   if (!["hunyuan3d-2", "trellis", "original-procedural"].includes(route) && !context.currentRevision) {
     return { readiness: "blocked", reason: "Choose an exact retained revision before using this route." };
@@ -138,31 +131,17 @@ function routeReadiness(route: Prompt3DUnifiedRoute, context: Prompt3DUnifiedCon
   return { readiness: "ready", reason: "Uses an existing in-app service or editor handoff." };
 }
 
-function strongestNewRoute(prompt: string, context: Prompt3DUnifiedContext): { strongest: Prompt3DUnifiedRoute; automatic: Prompt3DUnifiedRoute; blocked?: string; next?: Prompt3DUnifiedRoute } {
-  if (/\bhunyuan\b/i.test(prompt)) return {strongest:"hunyuan3d-2",automatic:"hunyuan3d-2"};
-  if (/\b(world|blockout|assemble|assembly)\b/i.test(prompt)) return {strongest:"original-procedural",automatic:"original-procedural"};
-  if (/\b(box|cube|sphere|cylinder|cone|plane|torus)\b/i.test(prompt)) return {strongest:"original-procedural",automatic:"original-procedural"};
-  const candidates: Prompt3DUnifiedRoute[] = context.category === "character"
-    ? ["hunyuan3d-2", "original-procedural"]
-    : ["hunyuan3d-2", "trellis", "original-procedural"];
-  const supported = candidates.filter((route) => route !== "original-procedural" || proceduralFit(prompt, context.category));
-  const strongest = supported[0] ?? "hunyuan3d-2";
-  const eligible = supported.find((route) => routeReadiness(route, context).readiness === "ready");
-  if (eligible) {
-    const strongestState = routeReadiness(strongest, context);
-    return {
-      strongest,
-      automatic: eligible,
-      ...(eligible !== strongest ? { blocked: strongestState.reason, next: eligible } : {}),
-    };
-  }
-  return { strongest, automatic: strongest, blocked: routeReadiness(strongest, context).reason };
+function strongestNewRoute(prompt: string, _context: Prompt3DUnifiedContext): { strongest: Prompt3DUnifiedRoute; automatic: Prompt3DUnifiedRoute; blocked?: string; next?: Prompt3DUnifiedRoute } {
+  const route: Prompt3DUnifiedRoute = hasAffirmativePromptMatch(prompt, /\bhunyuan\b/i) ? "hunyuan3d-2"
+    : hasAffirmativePromptMatch(prompt, /\btrellis\b/i) ? "trellis" : "original-procedural";
+  return { strongest: route, automatic: route };
 }
 
 function automaticExistingRoute(prompt: string): Prompt3DUnifiedRoute {
   if (/\b(scene|environment|level|populate|assembly|assemble|composition|complete)\b/i.test(prompt)) return "scene-completion";
   if (/\b(skeleton|bone|joint|retarget|marker|rig\s*(?:repair|correct|fix))\b/i.test(prompt)) return "skeleton-studio";
-  if (/\b(textur(?:e|ed|ing)|material|paint|surface|colour|color|roughness|metallic)\b/i.test(prompt)) return "hunyuan-paint-refine";
+  if (hasAffirmativePromptMatch(prompt, /\bhunyuan\b/i)) return "hunyuan-paint-refine";
+  if (/\b(textur(?:e|ed|ing)|material|paint|surface|colour|color|roughness|metallic)\b/i.test(prompt)) return "forge-local";
   if (requestsAnimation(prompt)) return "cpu-rig-animation";
   if (/\b(validate|verify|save|export|reopen|package)\b/i.test(prompt)) return "validate-save";
   return "forge-local";
@@ -262,7 +241,7 @@ export function compilePrompt3DUnifiedPlan(input: {
     if (wantsScene) add("scene-completion");
     add("retain-reopen");
   } else if (existing && selectedRoute!=="original-procedural") {
-    if (wantsTexture) add("hunyuan-paint-refine");
+    if (wantsTexture) add(selectedRoute === "hunyuan-paint-refine" ? "hunyuan-paint-refine" : "forge-local");
     if (wantsSkeletonCorrection) add("skeleton-studio");
     if (wantsAnimation) add(selectedRoute === "hy-motion-optional" ? "hy-motion-optional" : "cpu-rig-animation");
     if (wantsScene) add("scene-completion");
@@ -282,10 +261,7 @@ export function compilePrompt3DUnifiedPlan(input: {
     if (additions.length) stages.splice(Math.max(1, stages.length - 1), 0, ...additions);
   }
   if (selectedRoute === "original-procedural") stages=stages.map(stage=>stage.route==="validate-save"?{...stage,method:"Exact local working revision and managed library copy",executor:"creation.submit",approval:"Visual review of the actual model; no Hunyuan concept or paint gate",readiness:input.context.localControlsEnabled?"ready":"blocked",readinessReason:"Uses the existing local creation store."}:stage);
-  if (selectedRoute === "original-procedural" && !existing && !proceduralFit(prompt, input.context.category)) {
-    stages[0] = { ...stages[0], readiness: "blocked", readinessReason: "The original procedural creator currently supports box, sphere, cylinder, cone, plane, torus, sword, cosmetic game-gun, and segmented person briefs." };
-  }
-  const summary = `${ROUTE_LABELS[selectedRoute]} · ${selectedReadiness.readiness}. ${overrideApplied ? `User override recorded; automatic recommendation was ${ROUTE_LABELS[automaticResult.automatic]}.` : `Automatic quality-first recommendation.`}`;
+  const summary = `${ROUTE_LABELS[selectedRoute]} · ${selectedReadiness.readiness}. ${overrideApplied ? `User override recorded; automatic recommendation was ${ROUTE_LABELS[automaticResult.automatic]}.` : `Automatic existing-tool recommendation; neural enhancement is opt-in.`}`;
   return {
     version: PROMPT3D_ORCHESTRATOR_VERSION,
     prompt,

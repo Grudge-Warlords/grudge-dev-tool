@@ -153,3 +153,5 @@ export interface AppSettings {
   /** True if vault still has auth.grudge or api.grudge as client/ID. */
   deprecatedAuthHost?: boolean;
 }
+
+export * from "./appNative";

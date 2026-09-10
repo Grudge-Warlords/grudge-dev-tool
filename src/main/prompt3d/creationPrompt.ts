@@ -247,7 +247,7 @@ ${parentKind||/\b(move|rotate|twice|half|scale|remove)\b/i.test(request.prompt)?
   let lastError:Error|undefined;
   const planningAttempts:Array<{model:string;error?:string}>=[];
   for(let attempt=0;attempt<2;attempt++){
-    const {proposal,model}=await localJsonPlan(system,JSON.stringify({...input,...(lastError?{correction:`Previous plan was rejected: ${lastError.message}. Resolve this without changing the user's request.`}:{})}),requestSchema,expectedParts&&expectedParts>12?4096:3072);
+    const {proposal,model}=await localJsonPlan(system,JSON.stringify({...input,...(lastError?{correction:`Previous plan was rejected: ${lastError.message}. Resolve this without changing the user's request.`}:{})}),requestSchema,expectedParts&&expectedParts>12?4096:3072,{grudgeDev:true,startIfNeeded:true});
     try{const plan=fitDefaultAssembly(validateCreationPromptPlan(await bindRequestedActions(proposal,request,parentKind,context),parentKind),request.prompt);planningAttempts.push({model});return {...plan,model,planningAttempts};}
     catch(error){planningAttempts.push({model,error:error instanceof Error?error.message:String(error)});lastError=new Error(error instanceof Error?error.message:String(error),{cause:{model,proposal,planningAttempt:attempt+1,planningAttempts}});}
   }

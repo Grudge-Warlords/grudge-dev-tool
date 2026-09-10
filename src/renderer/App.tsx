@@ -1,3 +1,4 @@
+import { confirmApp } from "./lib/appDialogs";
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   FolderTree,
@@ -63,7 +64,7 @@ const Prompt3D = React.lazy(() => import("./pages/Prompt3D"));
 
 import Login from "./pages/Login";
 import StatusBar from "./components/StatusBar";
-import AppPrompt from "./components/AppPrompt";
+import AppPrompt, { AppPromptProvider } from "./components/AppPrompt";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { isAdmin, isOpenMode } from "./lib/admin";
 import { hydrateFromMain, persistRoute, readMirror } from "./lib/workspace";
@@ -265,7 +266,7 @@ export default function App() {
   }, [route]);
 
   async function signOut() {
-    if (!confirm("Sign out of Grudge?")) return;
+    if (!await confirmApp("Sign out of Grudge?")) return;
     try {
       await window.grudge.auth.clearSession();
       clearHandoffCache();
@@ -322,7 +323,7 @@ export default function App() {
   );
 
   return (
-    <div className="app">
+    <AppPromptProvider route={route}><div className="app">
       <AppPrompt route={route}/>
       <aside className="sidebar">
         <div className="brand">
@@ -453,8 +454,8 @@ export default function App() {
             type="button"
             title="Quit Grudge Studio"
             className="text-muted hover:text-danger"
-            onClick={() => {
-              if (confirm("Quit Grudge Studio?")) window.grudge?.app?.quit?.();
+            onClick={async () => {
+              if (await confirmApp("Quit Grudge Studio?")) window.grudge?.app?.quit?.();
             }}
           >
             <Power size={14} />
@@ -506,6 +507,6 @@ export default function App() {
         </div>
         <StatusBar admin={admin} />
       </main>
-    </div>
+    </div></AppPromptProvider>
   );
 }

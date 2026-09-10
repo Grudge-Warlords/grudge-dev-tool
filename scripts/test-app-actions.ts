@@ -1,3 +1,4 @@
+import { appCreationPrompt } from "../src/shared/appCreationPrompt";
 import assert from "node:assert/strict";
 import { appLocalPathRequest, validateAppLocalPath } from "../src/shared/appLocalPath";
 import { literalAppSettings, requestedAppSettingNames } from "../src/shared/appActionSettings";
@@ -132,3 +133,18 @@ async function main() {
   console.log("App control validation and immutable duplicate/rename/remove/save checks passed.");
 }
 void main().catch(error => { console.error(error); process.exitCode = 1; });
+
+assert.deepEqual(appCreationPrompt("Create a blue cube, make it spin, save it, then open it in Forge."), { creation: "Create a blue cube, make it spin, save it", continuation: "Open the current model in Forge." });
+assert.deepEqual(appCreationPrompt("Create a chest with an open lid"), { creation: "Create a chest with an open lid", continuation: "" });
+const neuralRequest: AppActionRequest = { prompt: "Create a cube without Hunyuan", snapshot: { route: "/prompt3d", controls: [{ id: "control-123", kind: "click", label: "Generate Hunyuan concept", context: "Optional neural generation", disabled: false }], status: [] }, history: [] };
+assert.throws(() => validateAppActionDecision({ action: "click", target: "control-123", value: "", reason: "Start enhancement" }, neuralRequest), /explicit provider request/);
+validateAppActionDecision({ action: "click", target: "control-123", value: "", reason: "Start requested enhancement" }, { ...neuralRequest, prompt: "Create a cube with Hunyuan" });
+const handoffReceipt: AppActionRequest = { prompt: "Create a cube and open it in Forge", snapshot: { route: "/forge-local", controls: [], status: ["Loaded model from local saved revision"] }, history: [
+  { action: "set control-1 Create a cube", result: "Set Creation prompt: Create a cube" },
+  { action: "click control-2 ", result: "Activated Run prompt. Saved revision: exact local model." },
+  { action: "click control-3 ", result: "Activated Edit in Forge." },
+] };
+validateAppActionDecision({ action: "done", target: "", value: "", reason: "Saved and opened in Forge" }, handoffReceipt);
+assert.throws(() => validateAppActionDecision({ action: "done", target: "", value: "", reason: "Opened in Forge" }, { ...handoffReceipt, history: handoffReceipt.history.map(h => ({ ...h, result: h.result.replace("Saved revision: exact local model.", "Still working.") })) }), /has not produced a saved revision/);
+const neuralOverride: AppActionRequest = { ...neuralRequest, snapshot: { ...neuralRequest.snapshot, controls: [{ id: "control-123", kind: "select", label: "Route override", context: "Advanced route planner", disabled: false, options: [{ value: "hunyuan3d-2", label: "Hunyuan" }] }] } };
+assert.throws(() => validateAppActionDecision({ action: "set", target: "control-123", value: "hunyuan3d-2", reason: "Choose provider" }, neuralOverride), /explicit provider request/);
