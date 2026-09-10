@@ -1,8 +1,11 @@
 import type { AssetCategory, AssetStyle, Prompt3DOrchestrationRecord } from "./prompt3d";
+import { hasAffirmativePromptMatch } from "./promptedMotionIntent";
+
+export const isNewCreationPrompt=(prompt:string)=>hasAffirmativePromptMatch(prompt,/(?:^|[.;,]|\b(?:and|then)\b)\s*(?:please\s+)?(?:create|craft|build|assemble)\b|^\s*(?:a\s+)?(?:new|original)\s+(?:sword|gun|person|box|cube|sphere|world|model|asset)\b/i);
 
 export const CREATION_CATEGORIES: AssetCategory[] = ["prop", "character", "building", "road-furniture", "environment", "vehicle"];
 export const CREATION_STYLES: AssetStyle[] = ["stylized", "low-poly", "realistic", "hand-painted", "industrial", "custom"];
-export const CREATION_BUILD = "local-flow-2026-09-09.3";
+export const CREATION_BUILD = "local-flow-2026-09-11.1";
 export const CREATION_PRIMITIVES = ["box", "sphere", "cylinder", "cone", "plane", "torus"] as const;
 export type CreationKind = "sword" | "game-gun" | "person" | typeof CREATION_PRIMITIVES[number] | "existing-asset" | "assembly";
 export interface CreationComponent {
@@ -11,12 +14,15 @@ export interface CreationComponent {
   position: [number, number, number];
   size: [number, number, number];
   color: string;
+  /** Local XYZ Euler degrees; omitted for the original axis-aligned components. */
+  rotation?: [number, number, number];
 }
 export function validateCreationComponent(raw: unknown): CreationComponent {
   const c = raw as CreationComponent;
   if (!c || typeof c.name !== "string" || !c.name.trim() || c.name.length > 80 || !CREATION_PRIMITIVES.includes(c.shape) || typeof c.color !== "string" || !/^#[0-9a-f]{6}$/i.test(c.color)) throw new Error("Invalid assembly component.");
   for (const field of ["position", "size"] as const) if (!Array.isArray(c[field]) || c[field].length !== 3 || c[field].some(n => typeof n !== "number" || !Number.isFinite(n) || (field === "size" ? n < .01 || n > 200 : Math.abs(n) > 500))) throw new Error(`Invalid component ${field}.`);
-  return { name: c.name.trim(), shape: c.shape, color: c.color, position: [...c.position], size: [...c.size] };
+  if (c.rotation !== undefined && (!Array.isArray(c.rotation) || c.rotation.length !== 3 || c.rotation.some(n => typeof n !== "number" || !Number.isFinite(n) || Math.abs(n) > 360))) throw new Error("Invalid component rotation.");
+  return { name: c.name.trim(), shape: c.shape, color: c.color, position: [...c.position], size: [...c.size], ...(c.rotation ? { rotation: [...c.rotation] as [number,number,number] } : {}) };
 }
 export type CreationMethod = "original-procedural" | "existing-asset";
 export type CreationBaseSource = { kind: "local-file"; path: string } | { kind: "objectstore"; key: string };
@@ -26,7 +32,7 @@ export interface CreationSourceRecord {
   byteSize: number;
   identity: Record<string, unknown>;
 }
-export type CreationOperation = "create" | "reuse" | "texture" | "enhance" | "adjust" | "swipe" | "projectile" | "dance" | "turntable" | "edit";
+export type CreationOperation = "create" | "reuse" | "texture" | "enhance" | "adjust" | "swipe" | "projectile" | "dance" | "idle" | "turntable" | "edit";
 export interface CreationEdit {
   action: "move" | "rotate" | "scale" | "color" | "clear-animation" | "duplicate" | "rename" | "remove" | "add";
   /** Exact, unique node names, or $asset for the entire scene. */

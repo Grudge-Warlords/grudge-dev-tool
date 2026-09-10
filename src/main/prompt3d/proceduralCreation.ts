@@ -61,7 +61,8 @@ export function appendCreationComponents(doc: Doc, parent: Node, parts: Creation
     };
     const role = `component-${doc.getRoot().listMaterials().length}-${c.name}`, color = new THREE.Color(c.color);
     material(role).setBaseColorFactor([color.r, color.g, color.b, 1]);
-    mesh(parent, c.name, shapes[c.shape](), role, c.position);
+    const node=mesh(parent, c.name, shapes[c.shape](), role, c.position);
+    if(c.rotation)node.setRotation(new THREE.Quaternion().setFromEuler(new THREE.Euler(...c.rotation.map(n=>n*Math.PI/180) as [number,number,number])).toArray());
   }
 }
 
@@ -166,18 +167,33 @@ export async function applyOriginalTextures(doc: Doc, style: string, prompt: str
   for(const material of doc.getRoot().listMaterials()){
     const role=material.getExtras().role ?? material.getName();
     if(role === "projectile")continue;
-    const [r,g,b,pattern,metal,rough]=palettes[role] ?? palettes.paint;
-    const color=(!palettes[role]||role==="paint"||role==="fabric") ? (requestedColor??[r,g,b]):[r,g,b];
+    const component=String(role).startsWith("component-");
+    const retained=material.getExtras().authoredSurfaceColor;
+    const base=new THREE.Color().setRGB(...material.getBaseColorFactor().slice(0,3) as [number,number,number]).convertLinearToSRGB();
+    const componentColor=Array.isArray(retained)&&retained.length===3?retained:[base.r,base.g,base.b].map(n=>Math.round(n*255));
+    let [r,g,b,pattern,metal,rough]=palettes[role] ?? (component?[...componentColor,"grain",0,.8]:palettes.paint) as [number,number,number,string,number,number];
+    const reptile=component&&hasAffirmativePromptMatch(prompt,/\b(alligator|crocodile|reptile|reptilian|lizard|scales|scaled|scaly)\b/i);
+    if(reptile){
+      const part=String(role).toLowerCase();
+      [r,g,b]=/tooth|teeth|claw/.test(part)?[222,218,178]:/eye|pupil|nostril/.test(part)?[30,26,14]:/belly|jaw|chest/.test(part)?[143,157,90]:[71,101,49];
+      pattern=/tooth|teeth|claw|eye|pupil|nostril/.test(part)?"solid":"scales";
+      metal=0;rough=.78;
+    }
+    const globalColor=!component||hasAffirmativePromptMatch(prompt,/\b(?:paint|colou?r|make)\s+(?:it|everything|the\s+(?:whole|entire)\s+(?:model|asset|character))\b/i);
+    const color=(!palettes[role]||role==="paint"||role==="fabric") ? ((globalColor?requestedColor:undefined)??[r,g,b]):[r,g,b];
     const pixels=Buffer.alloc(256*256*4);
     for(let y=0;y<256;y++)for(let x=0;x<256;x++){
       const noise=((x*73856093^y*19349663)>>>0)%17-8;
-      const detail=pattern==="weave"?((x%8<2||y%8<2)?-25:5):pattern==="brushed"?(y%7-3)*3:pattern==="grip"?((x+y)%32<8?-25:8):pattern==="panel"?(x%64<3||y%64<3?-30:8):pattern==="grain"?noise:0;
+      const sx=(x+(Math.floor(y/16)%2)*12)%24,sy=y%16;
+      const scaleEdge=(sx-12)**2/144+(sy-8)**2/64;
+      const detail=pattern==="scales"?(scaleEdge>.78?-29:10*(1-scaleEdge)+noise*.35):pattern==="weave"?((x%8<2||y%8<2)?-25:5):pattern==="brushed"?(y%7-3)*3:pattern==="grip"?((x+y)%32<8?-25:8):pattern==="panel"?(x%64<3||y%64<3?-30:8):pattern==="grain"?noise:0;
       const shade=style==="hand-painted"?detail+18*Math.sin(x/60):detail;
       const i=(y*256+x)*4;for(let c=0;c<3;c++)pixels[i+c]=Math.max(0,Math.min(255,color[c]+shade));pixels[i+3]=255;
     }
     const png=await sharp(pixels,{raw:{width:256,height:256,channels:4}}).png().toBuffer();
     const texture=doc.createTexture(`Original ${role} ${pattern}`).setImage(png).setMimeType("image/png").setExtras({method:"authored-pixel-pattern",pattern,sourceAssets:[]});
     material.setBaseColorTexture(texture).setBaseColorFactor([1,1,1,1]).setMetallicFactor(style==="hand-painted"?metal*.4:metal).setRoughnessFactor(rough);
+    material.setExtras({...material.getExtras(),authoredSurfaceColor:color});
   }
 }
 
@@ -294,7 +310,8 @@ export function adjustOriginalGeometry(doc:Doc,plan:CreationPlan){
 export function addOriginalMotion(doc: Doc, plan: CreationPlan) {
   const nodes=doc.getRoot().listNodes(),find=(name:string)=>{const node=nodes.find((n:Node)=>n.getName()===name);if(!node)throw new Error(`Required authored joint ${name} is missing.`);return node;};
   const buffer=doc.getRoot().listBuffers()[0];
-  const animation=doc.createAnimation(plan.operation==="dance"?"Original articulated dance":plan.operation==="projectile"?"Cosmetic projectile from muzzle":plan.operation==="swipe"?"Sword side-to-side swipe":"Turntable");
+  if(plan.operation==="idle"&&plan.kind==="assembly"&&!nodes.some((n:Node)=>/^(?:torso|chest|body)$/i.test(n.getName())))throw new Error("This assembly has no identifiable torso for a character idle. Name the body parts before animating; no substitute motion was added.");
+  const animation=doc.createAnimation(plan.operation==="idle"?"Original character idle":plan.operation==="dance"?"Original articulated dance":plan.operation==="projectile"?"Cosmetic projectile from muzzle":plan.operation==="swipe"?"Sword side-to-side swipe":"Turntable");
   const duration=plan.operation==="projectile"?2:4;
   const times=Float32Array.from({length:65},(_,i)=>i*duration/64);
   const input=doc.createAccessor().setType("SCALAR").setArray(times).setBuffer(buffer);
@@ -309,6 +326,23 @@ export function addOriginalMotion(doc: Doc, plan: CreationPlan) {
     const values:number[]=[],scales:number[]=[];
     for(let i=0;i<65;i++){const t=i/64;const phase=t<.8?t/.8:0;values.push(position[0],position[1],position[2]+phase*1.2);const visible=t<.78?1:.0001;scales.push(visible,visible,visible);}
     track(effect,"translation",3,values);track(effect,"scale",3,scales);
+  } else if(plan.operation==="idle") {
+    if(plan.kind==="person"){
+      rotation("TorsoJoint",t=>[.012*Math.sin(t*Math.PI*2),0,0]);
+      rotation("HeadJoint",t=>[0,.025*Math.sin(t*Math.PI*2),0]);
+    }else{
+      for(const node of nodes.filter((n:Node)=>n.getMesh()&&/head|torso|chest|body|tail/i.test(n.getName()))){
+        const origin=node.getTranslation(),values:number[]=[];
+        for(let i=0;i<65;i++){const t=i/64;values.push(origin[0],origin[1]+(/head/i.test(node.getName())?.005:.003)*Math.sin(t*Math.PI*2),origin[2]);}
+        track(node,"translation",3,values);
+        if(/tail/i.test(node.getName())){
+          const base=new THREE.Quaternion().fromArray(node.getRotation()),rotations:number[]=[];
+          for(let i=0;i<65;i++){const q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),.045*Math.sin(i/64*Math.PI*2)).multiply(base);rotations.push(...q.toArray());}
+          track(node,"rotation",4,rotations);
+        }
+      }
+    }
+    animation.setExtras({method:"authored-segmented-idle",description:"Subtle in-place body breathing and tail sway; no neural motion or skin deformation"});
   } else if(plan.operation==="dance") {
     rotation("PelvisJoint",t=>[0,.15*Math.sin(t*Math.PI*2),.09*Math.sin(t*Math.PI*4)]);
     rotation("TorsoJoint",t=>[.05*Math.cos(t*Math.PI*4),0,.12*Math.sin(t*Math.PI*2)]);

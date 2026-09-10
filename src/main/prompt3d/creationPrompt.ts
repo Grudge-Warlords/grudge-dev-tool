@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { CREATION_CATEGORIES, CREATION_PRIMITIVES, CREATION_STYLES, type CreationAdjustments, type CreationComponent, type CreationEdit, type CreationKind, type CreationOperation, type CreationPlan, type CreationRequest } from "../../shared/creationFlow";
+import { CREATION_CATEGORIES, CREATION_PRIMITIVES, CREATION_STYLES, isNewCreationPrompt, validateCreationComponent, type CreationAdjustments, type CreationComponent, type CreationEdit, type CreationKind, type CreationOperation, type CreationPlan, type CreationRequest } from "../../shared/creationFlow";
 import { localJsonPlan } from "./planner";
 import { reopenCreation, saveCreationToLibrary, submitCreation } from "./creationService";
 import { hasAffirmativePromptMatch } from "../../shared/promptedMotionIntent";
@@ -9,9 +9,10 @@ import { planCreation } from "./creationPlanner";
 import { CREATION_EDIT_ACTIONS, creationEditContext, validateCreationEdit, applyCreationEdit } from "./creationEdits";
 import { creationIO } from "./proceduralCreation";
 import { bindLiteralCreationEdit, creationEditClauses } from "./creationLiteralEdits";
+import { assemblyLayoutIssues, humanoidLayoutRepair, isHumanoidAssembly } from "./assemblyLayout";
 
 const kinds = ["sword","game-gun","person",...CREATION_PRIMITIVES,"assembly","existing-asset"] as const;
-const operations = ["create","texture","enhance","adjust","swipe","projectile","dance","turntable","edit","save"] as const;
+const operations = ["create","texture","enhance","adjust","swipe","projectile","dance","idle","turntable","edit","save"] as const;
 const numericAdjustments = ["bladeLength","bladeWidth","guardWidth","propLength","propBulk","muzzleSize","personHeight","personWidth","headSize","scaleX","scaleY","scaleZ"] as const;
 const tupleSchema={type:"array",items:{type:"number"},minItems:3,maxItems:3};
 const schema={type:"object",additionalProperties:false,required:["kind","summary","unsupported","steps","components"],properties:{
@@ -27,12 +28,14 @@ const schema={type:"object",additionalProperties:false,required:["kind","summary
       },
     },
   },
-  components:{type:"array",maxItems:64,items:{type:"object",additionalProperties:false,required:["name","shape","position","size","color"],properties:{name:{type:"string"},shape:{type:"string",enum:CREATION_PRIMITIVES},position:tupleSchema,size:tupleSchema,color:{type:"string"}}}},
+  components:{type:"array",maxItems:64,items:{type:"object",additionalProperties:false,required:["name","shape","position","size","color"],properties:{name:{type:"string"},shape:{type:"string",enum:CREATION_PRIMITIVES},position:tupleSchema,size:tupleSchema,rotation:tupleSchema,color:{type:"string"}}}},
 }};
 type PromptStep={operation:CreationOperation|"save";instruction:string;adjustments?:CreationAdjustments;edit?:CreationEdit};
-export interface CreationPromptPlan {kind:CreationKind;summary:string;steps:PromptStep[];components:CreationComponent[];model:string;planningAttempts?:Array<{model:string;error?:string}>}
+interface PlanningAttempt {model:string;phase:"plan"|"layout-repair";proposal:unknown;error?:string;issues?:string[];repair?:unknown}
+export interface CreationPromptPlan {kind:CreationKind;summary:string;steps:PromptStep[];components:CreationComponent[];model:string;planningAttempts?:PlanningAttempt[]}
 const object=(value:unknown):value is Record<string,unknown>=>Boolean(value)&&typeof value==="object"&&!Array.isArray(value);
-const newCreationIntent=(prompt:string)=>hasAffirmativePromptMatch(prompt,/(?:^|[.;,]|\b(?:and|then)\b)\s*(?:please\s+)?(?:create|craft|build|assemble)\b|^\s*(?:a\s+)?(?:new|original)\s+(?:sword|gun|person|box|cube|sphere|world|model|asset)\b/i);
+export const newCreationIntent=isNewCreationPrompt;
+const humanoidRequest=isHumanoidAssembly;
 
 function primitivePartCount(prompt:string):number|undefined {
   const numbers:Record<string,number>={a:1,an:1,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10};
@@ -45,6 +48,7 @@ export async function bindRequestedActions(proposal:unknown,request:CreationRequ
   if(!object(proposal)||!Array.isArray(proposal.steps)||!kinds.includes(proposal.kind as any))return proposal;
   const proposedSteps=proposal.steps;
   const prompt=request.prompt;
+  if(newCreationIntent(prompt)){parentKind=undefined;context=undefined;}
   const match=(pattern:RegExp)=>hasAffirmativePromptMatch(prompt,pattern);
   const assembly=(!parentKind&&proposal.kind==="assembly")||match(/\b(world|blockout|assemble|assembly|archway|bench)\b/i);
   const newAsset=!parentKind||newCreationIntent(prompt);
@@ -64,6 +68,12 @@ export async function bindRequestedActions(proposal:unknown,request:CreationRequ
   if(match(/\b(dance|dancing)\b/i))requested.push("dance");
   const staticRotation=match(/\b(?:rotate|turn|tilt)\b[^.;]{0,100}(?:\bdegrees?\b|°|\bquarter\b|\bhalf\s+(?:a\s+)?turn\b)/i);
   if(match(/\b(turntable|spin|spinning)\b/i)||(!staticRotation&&match(/\b(rotate|rotating)\b/i)))requested.push("turntable");
+  const clearMotion=match(/\b(remove|clear|strip|delete)\b[^.;]{0,30}\b(animation|animations|motion|clips?)\b/i);
+  const genericMotion=!clearMotion&&match(/\b(animate|animated|animation|idle|idling)\b/i);
+  if(genericMotion&&!requested.some(op=>["swipe","projectile","dance","turntable"].includes(op))){
+    if(kind==="person"||(kind==="assembly"&&(humanoidRequest(prompt)||context?.parts.some(p=>/\b(head|torso)\b/i.test(p.name)))))requested.push("idle");
+    else throw new Error("Describe the motion for this asset, such as a turntable. Automatic idle motion needs an articulated person or a character assembly; no motion was substituted.");
+  }
   if(match(/\b(save|export)\b/i))requested.push("save");
   if(match(/\b(walk|walking|run|running|jump|jumping|swim|swimming|fly|flying|physics|collision|script|code|gameplay|bevel|remesh|extrude|subdivide)\b/i))throw new Error("This creation prompt includes an action that is not connected to this runner yet. Use the existing animation or Forge tools; no partial build was started.");
   const editActions:CreationEdit["action"][]=[];
@@ -125,12 +135,17 @@ export async function bindRequestedActions(proposal:unknown,request:CreationRequ
     const index=(s:PromptStep)=>proposedSteps.findIndex(row=>object(row)&&row.operation===s.operation&&(s.operation!=="edit"||(object(row.edit)&&row.edit.action===s.edit?.action)));
     const ai=index(a),bi=index(b);return (ai<0?999:ai)-(bi<0?999:bi);
   });
-  const unsupported=Array.isArray(proposal.unsupported)?proposal.unsupported.filter(entry=>!(typeof entry==="string"&&[...kinds,...operations].includes(entry as any))):proposal.unsupported;
+  const unsupported=Array.isArray(proposal.unsupported)?proposal.unsupported.filter(entry=>!(typeof entry==="string"&&([...kinds,...operations].includes(entry as any)||(requested.includes("idle")&&/^(?:animate|animation|animate appropriately|appropriate animation|idle)$/i.test(entry.trim()))))):proposal.unsupported;
   return {...proposal,kind,unsupported,steps:[...steps.filter(s=>s.operation==="create"),...ordered,...steps.filter(s=>s.operation==="save")],components:parentKind&&!requested.includes("create")?[]:proposal.components};
 }
 
 /** Ground and connect named simple assemblies when the request leaves dimensions open. */
 export function fitDefaultAssembly(plan:Omit<CreationPromptPlan,"model">,prompt:string){
+  if(plan.kind==="assembly"&&plan.steps[0]?.operation==="create"&&humanoidRequest(prompt)){
+    const issues=assemblyLayoutIssues(plan.components,prompt);
+    if(issues.length)throw new Error(`Humanoid structure needs correction: ${issues.join(" ")}`);
+    return plan;
+  }
   if(plan.kind!=="assembly"||plan.steps[0]?.operation!=="create"||/\b\d+(?:\.\d+)?\s*(?:m|cm|metres?|meters?)\b/i.test(prompt))return plan;
   const parts=plan.components.map(part=>({...part,position:[...part.position] as [number,number,number],size:[...part.size] as [number,number,number]}));
   if(/\btrees?\b/i.test(prompt)){
@@ -155,7 +170,7 @@ export function fitDefaultAssembly(plan:Omit<CreationPromptPlan,"model">,prompt:
   }else if(/\b(world|scene|ground)\b/i.test(prompt)&&!/\b(float|floating|above|stack|stacked|under|below|height|position|coordinates)\b/i.test(prompt)){
     for(const part of parts)part.position[1]=part.shape==="plane"?0:part.size[1]/2;
   }
-  return {...plan,components:parts,summary:`Basic primitive assembly with grounded, connected parts. ${plan.summary}`.slice(0,1000)};
+  return {...plan,components:parts,summary:`Basic primitive assembly; inspect its shape, proportions and connections. ${plan.summary}`.slice(0,1000)};
 }
 
 export function validateCreationPromptPlan(value:unknown, parentKind?:CreationKind):Omit<CreationPromptPlan,"model"> {
@@ -173,6 +188,7 @@ export function validateCreationPromptPlan(value:unknown, parentKind?:CreationKi
     if(index===0&&operation!=="create"&&parentKind!==kind)throw new Error("The model tried to change the selected asset kind.");
     if(operation==="save"&&index!==stepCount-1)throw new Error("Save must be the final action.");
     if((operation==="dance"&&kind!=="person")||(operation==="swipe"&&kind!=="sword")||(operation==="projectile"&&kind!=="game-gun"))throw new Error(`The existing ${operation} action is not supported for ${kind}.`);
+    if(operation==="idle"&&kind!=="person"&&kind!=="assembly")throw new Error("Character idle needs a person or a character assembly.");
     if(operation==="enhance"&&!["sword","game-gun","person"].includes(kind))throw new Error("Authored cosmetic details are supported only for sword, game prop and segmented person models. Use Forge for other edits.");
     let adjustments:CreationAdjustments|undefined;
     if(operation==="adjust"){
@@ -189,29 +205,39 @@ export function validateCreationPromptPlan(value:unknown, parentKind?:CreationKi
   const components:CreationComponent[]=value.components.map(raw=>{
     if(!object(raw)||typeof raw.name!=="string"||!raw.name.trim()||raw.name.length>80||!CREATION_PRIMITIVES.includes(raw.shape as any)||typeof raw.color!=="string"||!/^#[0-9a-f]{6}$/i.test(raw.color))throw new Error("Invalid assembly component.");
     for(const field of ["position","size"] as const){const v=raw[field];if(!Array.isArray(v)||v.length!==3||v.some(n=>typeof n!=="number"||!Number.isFinite(n)||(field==="size"?n<.01||n>200:Math.abs(n)>500)))throw new Error(`Invalid component ${field}.`);}
-    return {name:raw.name,shape:raw.shape,position:raw.position,size:raw.size,color:raw.color} as CreationComponent;
+    return validateCreationComponent(raw);
   });
   if(kind==="assembly"&&steps[0].operation==="create"&&!components.length)throw new Error("A world or component assembly needs actual parts.");
   if(kind!=="assembly"&&components.length)throw new Error("Only an assembly can contain component placements.");
+  if(kind==="assembly"&&components.length>1){
+    const placements=components.map(c=>JSON.stringify([c.shape,c.position,c.size,c.rotation??[0,0,0]]));
+    if(new Set(placements).size!==placements.length)throw new Error("Separate body parts occupy identical geometry and positions. Place each named part meaningfully; no collapsed assembly was built.");
+    if(components.length>=3&&new Set(components.map(c=>JSON.stringify(c.position))).size===1)throw new Error("All assembly parts occupy the same point. Supply a connected spatial layout instead of a collapsed model.");
+  }
   if(new Set(components.map(c=>c.name.toLowerCase())).size!==components.length)throw new Error("Assembly part names must be unique.");
   return {kind,summary:value.summary,steps,components};
 }
 
-export async function planCreationPrompt(request:CreationRequest,parentKind?:CreationKind,context?:ReturnType<typeof creationEditContext>):Promise<CreationPromptPlan>{
+export async function planCreationPrompt(request:CreationRequest,parentKind?:CreationKind,context?:ReturnType<typeof creationEditContext>,onAttempt?:(attempts:PlanningAttempt[])=>Promise<void>):Promise<CreationPromptPlan>{
   if(!request||typeof request.prompt!=="string"||!request.prompt.trim()||request.prompt.length>2000||!CREATION_CATEGORIES.includes(request.category)||!CREATION_STYLES.includes(request.style))throw new Error("Enter a valid creation prompt, category and style.");
   if(/\b(hunyuan|trellis|meshy|tripo|hy[- ]motion)\b/i.test(request.prompt))throw new Error("Select the requested local neural provider in Generate from prompt or images. No procedural substitute was made.");
-  const assemblyRequest=!parentKind&&/\b(world|scene|blockout|assembly|assemble|archway|bench|trees?|building)\b/i.test(request.prompt);
+  // A new subject must never inherit the selected model's kind or part names.
+  if(newCreationIntent(request.prompt)){parentKind=undefined;context=undefined;}
+  const characterAssembly=!parentKind&&humanoidRequest(request.prompt);
+  const assemblyRequest=!parentKind&&(characterAssembly||/\b(world|scene|blockout|assembly|assemble|archway|bench|trees?|building)\b/i.test(request.prompt));
   const system=`Translate the USER request into supported local 3D actions, JSON only. Never add actions or objects that the user did not ask for. unsupported is [] for supported requests; otherwise list the actual unavailable request. Do not list general limitations.
 Kinds: sword, game-gun (cosmetic only), person (segmented), box, sphere, cylinder, cone, plane, torus, assembly, existing-asset. Cube means box. ${parentKind?`Keep currentKind ${parentKind}. Edit the selected model; do not create it again unless explicitly asked.`:"Begin a new model with create."}
 Only include requested steps. Preserve requested order. Save is last, only if asked. Do not animate when negated. components is [] unless creating an assembly. A create step builds all components at once.
-Actions: create; texture (paint/texture the whole model); enhance (decorative sword/person/game-gun parts); adjust (template proportions); turntable (continuous spinning animation); swipe (sword swing); dance (person); projectile (cosmetic game-gun effect); edit (static edits); save.
+Actions: create; texture (paint/texture the whole model); enhance (decorative sword/person/game-gun parts); adjust (template proportions); turntable (continuous spinning animation); swipe (sword swing); dance (person); idle (subtle grounded character breathing and sway, including a humanoid assembly); projectile (cosmetic game-gun effect); edit (static edits); save. For a character, animate appropriately means idle unless another motion is explicitly requested. It is supported and must not appear in unsupported.
 Unspecified longer/taller/wider uses adjust multipliers 1.25; smaller/shorter .8. Sword bladeLength/bladeWidth/guardWidth, curvature curveDelta .16. Person personHeight/personWidth/headSize. Game-gun propLength/propBulk/muzzleSize. Other models scaleX/scaleY/scaleZ. Explicit numeric sizes/multipliers use edit scale. Only requested fields.
-${assemblyRequest?`This request creates an assembly of primitives. Use ONE create action and put every requested part in components. No steps to add parts. No separate texture step for colors already specified in components. Each part has a unique name, shape, position [x,y,z], size [width,height,depth] in metres, color #RRGGBB. +Y up, shapes centered at position. Size entries must all be positive (minimum .01). Plane lies horizontally: default size [12,.01,12], position [0,0,0]. Default freestanding box/sphere size [1,1,1], position.y=.5. Space free-standing objects 2 metres apart on X. Put each requested shape on the ground unless floating is requested. Do not add unrequested supports or scenery. Describe the result as a basic primitive blockout.
+${assemblyRequest?`This request creates an assembly of primitives. Use ONE create action and put every requested part in components. No steps to add parts. No separate texture step for colors already specified in components. Each part has a unique name, shape, position [x,y,z], size [width,height,depth] in metres, color #RRGGBB, optional rotation [x,y,z] in degrees. +Y up and +Z forward; shapes centered at position. Size entries must all be positive (minimum .01). Cylinders/cones point along local Y; rotation [90,0,0] points along +Z. Give each part its actual position and dimensions, never all zeros or identical overlapping shapes. Plane lies horizontally: default size [12,.01,12], position [0,0,0]. Ground free-standing objects; body parts connect at their anatomical heights. Do not add unrequested supports or scenery. Describe the result as a basic primitive blockout.
+${characterAssembly?`Create a recognisable upright segmented humanoid silhouette using separately positioned Head, Torso, Hips, LeftArm, RightArm, LeftLeg, RightLeg, LeftFoot, RightFoot. Use TWO arms and TWO legs, never one part called Arms or Legs. Feet touch y=0, legs above them, hips above legs, torso above hips, head above torso. Example human-sized proportions: feet at [+/-.16,.09,.10], legs [+/-.16,.48,0], hips [0,.92,0], torso [0,1.3,0], arms [+/-.4,1.3,0], head [0,1.85,0]. Adjust proportions, primitive shapes, surface colours and additional parts to the requested anatomy. A snout projects forward from the head; a tail grows backward from the hips and must be elongated along Z. Eyes and teeth belong on the head/snout, not at the feet. Preserve these spatial relationships when scaling. Skin colours follow the subject; do not default every part to red. Additional anatomy must be visible and connected. A texture request does not change this geometry plan. Do not use the plain person template for custom anatomy.`:""}
 ${/\btrees?\b/i.test(request.prompt)?"Every tree has exactly two parts: a brown cylinder trunk and a green cone crown. Name them Tree 1 trunk, Tree 1 crown, Tree 2 trunk, etc. Each requested ground plane is one extra part.":""}
 ${/\barchway\b/i.test(request.prompt)?"The archway has exactly two named Pillars and one Lintel, three boxes.":""}
 ${/\bbench\b/i.test(request.prompt)?"The bench has four separate box legs named Leg 1, Leg 2, Leg 3, Leg 4, one Seat and one Backrest. Six brown boxes total. No extra ground.":""}`:""}
 ${parentKind||/\b(move|rotate|twice|half|scale|remove)\b/i.test(request.prompt)?`Edit step: {"operation":"edit","instruction":"requested clause","edit":{"action":"move","targets":["$asset"],"value":[2,0,0]}}. Allowed actions: move, rotate, scale, color, clear-animation, duplicate, rename, remove, add. Targets are exact names from currentAsset.parts or ["$asset"] for the entire model. Never replace a missing part with the whole asset. Static move is relative metres: +X right, +Y up, +Z forward. Static rotation is relative XYZ Euler degrees; 90 degrees around Y => [0,90,0], never turntable. Scale is XYZ multipliers: twice as wide [2,1,1], half as tall [1,.5,1]. Keep unrequested axes unchanged. Color of named parts uses edit color with color:"#ff0000" and no value. Remove animation uses edit clear-animation targets ["$asset"], with neither value nor color. Separate edits into steps in requested order. Duplicate copies exact named parts with their surface and motion, offset two metres right, names each copy "Part copy" (then "Part copy 2"). Use an additional move step for another offset. Add uses targets:["$asset"] and parts:[{name,shape,position,size,color}] with the same primitive component format, world-space positions. New part names must not exist already; preserve existing parts. Only added parts go in edit.parts, and the top-level components stays empty. Rename uses name:"New name" and exactly one target. Remove deletes named parts from this new revision; old revisions remain available. Do not remove the whole asset. Later steps may target newly renamed or duplicated parts. Movement over time, gameplay, and code use other app tools.`:""}`;
   const requestSchema:any=structuredClone(schema);
+  if(assemblyRequest)requestSchema.properties.kind.enum=["assembly"];
   if(parentKind&&!newCreationIntent(request.prompt))requestSchema.properties.kind.enum=[parentKind];
   // Constrain decoding per action: an edit without edit parameters must never
   // be a grammatically valid model output.
@@ -234,7 +260,7 @@ ${parentKind||/\b(move|rotate|twice|half|scale|remove)\b/i.test(request.prompt)?
   const expectedParts=treeCount?2*(numbers[treeCount[1].toLowerCase()]??Number(treeCount[1]))+(/\b(ground|plane)\b/i.test(request.prompt)?1:0):/\barchway\b/i.test(request.prompt)?3:/\bbench\b/i.test(request.prompt)?6:primitivePartCount(request.prompt);
   if(!parentKind&&expectedParts&&expectedParts<=64){
     Object.assign(requestSchema.properties.components,{minItems:expectedParts,maxItems:expectedParts});
-  }else requestSchema.properties.components.maxItems=16;
+  }else requestSchema.properties.components.maxItems=characterAssembly?24:16;
   // Existing single-object templates own their geometry. A model must not
   // invent assembly components for a sword, person, primitive or game prop.
   const direct=request.prompt.match(/\b(?:create|craft|build|make)\s+(?:(?:a|an|new|original|cosmetic|game|segmented|curved|simple|basic|low-poly|red|blue|green|brown|grey|gray)\s+)*(sword|sabre|saber|scimitar|katana|rapier|gun|blaster|pistol|rifle|person|character|human|dancer|cube|box|sphere|cylinder|cone|plane|torus)\b/i)?.[1].toLowerCase();
@@ -245,11 +271,41 @@ ${parentKind||/\b(move|rotate|twice|half|scale|remove)\b/i.test(request.prompt)?
   if((parentKind&&!newCreationIntent(request.prompt))||requestSchema.properties.components.maxItems===0)requestSchema.properties.components={type:"array",enum:[[]]};
   const input={prompt:request.prompt,category:request.category,style:request.style,currentKind:parentKind??null,currentAsset:context??null,requiredSteps:Array.isArray(requestSchema.properties.steps.items)?requestSchema.properties.steps.items.map((step:any)=>({operation:step.properties.operation.enum[0],action:step.properties.edit?.properties.action.enum[0]})):undefined};
   let lastError:Error|undefined;
-  const planningAttempts:Array<{model:string;error?:string}>=[];
-  for(let attempt=0;attempt<2;attempt++){
-    const {proposal,model}=await localJsonPlan(system,JSON.stringify({...input,...(lastError?{correction:`Previous plan was rejected: ${lastError.message}. Resolve this without changing the user's request.`}:{})}),requestSchema,expectedParts&&expectedParts>12?4096:3072,{grudgeDev:true,startIfNeeded:true});
-    try{const plan=fitDefaultAssembly(validateCreationPromptPlan(await bindRequestedActions(proposal,request,parentKind,context),parentKind),request.prompt);planningAttempts.push({model});return {...plan,model,planningAttempts};}
-    catch(error){planningAttempts.push({model,error:error instanceof Error?error.message:String(error)});lastError=new Error(error instanceof Error?error.message:String(error),{cause:{model,proposal,planningAttempt:attempt+1,planningAttempts}});}
+  const planningAttempts:PlanningAttempt[]=[];
+  let correction:unknown;
+  for(let attempt=0;attempt<(characterAssembly?3:2);attempt++){
+    const {proposal,model}=await localJsonPlan(system,JSON.stringify({...input,...(correction?{correction}:{})}),requestSchema,characterAssembly||(expectedParts&&expectedParts>12)?4096:3072,{grudgeDev:true,startIfNeeded:true});
+    let bound:unknown=proposal;
+    try{
+      bound=await bindRequestedActions(proposal,request,parentKind,context);
+      const plan=fitDefaultAssembly(validateCreationPromptPlan(bound,parentKind),request.prompt);
+      planningAttempts.push({model,phase:"plan",proposal});await onAttempt?.(planningAttempts);
+      return {...plan,model,planningAttempts};
+    }catch(error){
+      const message=error instanceof Error?error.message:String(error);
+      const validParts:CreationComponent[]=[];
+      if(object(bound)&&Array.isArray(bound.components))for(const p of bound.components){try{validParts.push(validateCreationComponent(p));}catch{/* original fields remain in feedback */}}
+      const issues=assemblyLayoutIssues(validParts,request.prompt);
+      planningAttempts.push({model,phase:"plan",proposal,error:message,issues});await onAttempt?.(planningAttempts);
+      correction={instruction:"Correct the rejected plan, preserving the original subject and requested actions. These are planning errors, not missing user selections.",error:message,issues,rejectedPlan:bound};
+      // The local procedural author supplies bounded anatomical constraints; Grudge
+      // receives both the rejected geometry and candidate correction before accepting it.
+      if(characterAssembly&&object(bound)&&Array.isArray(bound.components)&&issues.length){
+        const parts=humanoidLayoutRepair(request.prompt,bound.components);
+        if(parts){
+          let repaired:Omit<CreationPromptPlan,"model">|undefined;
+          try{repaired=fitDefaultAssembly(validateCreationPromptPlan({...bound,components:parts},parentKind),request.prompt);}catch{/* Do not bypass unsupported actions or explicit geometry requirements. */}
+          if(repaired){
+            const review=await localJsonPlan("Review a proposed procedural humanoid layout correction against the original user request. The failed geometry and precise diagnostics are supplied. The corrected layout uses +Y up, +Z forward, two arms, two legs, feet on the ground, and named requested anatomy. Accept if it preserves the requested subject and actions. Do not ask the user to select parts: this is automatic structural correction. Return JSON {accept:boolean,reason:string}. This is a basic segmented blockout, not final visual quality approval.",JSON.stringify({...input,correction,proposedRepair:repaired}),{type:"object",additionalProperties:false,required:["accept","reason"],properties:{accept:{type:"boolean"},reason:{type:"string",maxLength:400}}},500,{grudgeDev:true,startIfNeeded:true});
+            const accepted=object(review.proposal)&&review.proposal.accept===true;
+            planningAttempts.push({model:review.model,phase:"layout-repair",proposal:review.proposal,repair:repaired,...(!accepted?{error:"Grudge did not accept the proposed structure correction."}:{})});await onAttempt?.(planningAttempts);
+            if(accepted)return {...repaired,summary:`Basic segmented humanoid; anatomical layout corrected after validation. Inspect the shape and connections.`,model:review.model,planningAttempts};
+            correction={...correction as object,repairReview:review.proposal,proposedRepair:repaired};
+          }
+        }
+      }
+      lastError=new Error(message,{cause:{model,proposal,planningAttempt:attempt+1,planningAttempts}});
+    }
   }
   throw lastError;
 
@@ -267,7 +323,7 @@ export async function submitCreationPrompt(root:string,request:CreationRequest){
     await mkdir(folder,{recursive:true});await record();
     let current=request.parentId?await reopenCreation(root,request.parentId):undefined;
     const context=current?.assetPath?creationEditContext(await(await creationIO()).readBinary(await readFile(current.assetPath))):undefined;
-    const plan=await planCreationPrompt(request,current?.plan?.kind,context);receipt.plan=plan;
+    const plan=await planCreationPrompt(request,current?.plan?.kind,context,async attempts=>{receipt.planningAttempts=attempts;await record();});receipt.plan=plan;
     // Resolve sequential names and topology against a disposable copy BEFORE
     // committing any step. A missing later target cannot produce a partial edit.
     if(current?.assetPath&&plan.steps.every(step=>step.operation==="edit"||step.operation==="save")){

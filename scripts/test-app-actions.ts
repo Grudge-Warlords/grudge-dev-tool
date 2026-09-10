@@ -1,4 +1,4 @@
-import { appCreationPrompt } from "../src/shared/appCreationPrompt";
+import { appCreationPrompt, creationFailureReason, isSkeletonModelRevision, skeletonRevisionContinuation } from "../src/shared/appCreationPrompt";
 import assert from "node:assert/strict";
 import { appLocalPathRequest, validateAppLocalPath } from "../src/shared/appLocalPath";
 import { literalAppSettings, requestedAppSettingNames } from "../src/shared/appActionSettings";
@@ -15,6 +15,20 @@ import { creationIO } from "../src/main/prompt3d/proceduralCreation";
 import { submitCreation, reopenCreation, saveCreationToLibrary } from "../src/main/prompt3d/creationService";
 
 async function main() {
+  const bodyPrompt="create a humanoid character with an alligator body. Ensure no overlapping body parts. Ensure bipedal humanoid base shape with elongated nose and tail";
+  assert.deepEqual(appCreationPrompt(bodyPrompt+". move character to skeleton studio once completed"), {creation:bodyPrompt,continuation:"Open the current model in Skeleton Studio"});
+  assert.deepEqual(appCreationPrompt("Create a cube, move it two metres right"),{creation:"Create a cube, move it two metres right",continuation:""},"Spatial edits stay inside the creation runner");
+  assert.deepEqual(appCreationPrompt("Create a humanoid with a tail. Do not move character to Skeleton Studio"),{creation:"Create a humanoid with a tail. Do not move character to Skeleton Studio",continuation:""});
+  const failure="Prompt did not complete Error: The humanoid layout is collapsed or inverted.";
+  assert.equal(creationFailureReason(["Current asset: Assembly",failure]),failure,"The app reports the observed validation failure rather than a fabricated input request");
+  assert.equal(creationFailureReason(["Saved revision created locally"]),undefined);
+  assert(isSkeletonModelRevision("Paint it blue"));
+  assert(isSkeletonModelRevision("Make the Snout twice as long"));
+  assert(!isSkeletonModelRevision("Move the left shoulder bone"),"Rig changes stay with Skeleton Studio controls");
+  assert(!isSkeletonModelRevision("Make a T-pose"));
+  assert(!isSkeletonModelRevision("Do not paint it blue"));
+  assert.deepEqual(appCreationPrompt(skeletonRevisionContinuation("Paint it blue")),{creation:"Paint it blue",continuation:"open the current model in Skeleton Studio"});
+  assert.equal(skeletonRevisionContinuation("Paint it blue, then open it in Forge"),"Open Prompt to 3D, Paint it blue, then open it in Forge","An explicit destination overrides the return to Skeleton Studio");
   const sceneRequest: AppActionRequest = { prompt: "Orbit the Scene canvas to the left.", history: [], snapshot: { route: "/forge-local", status: [], controls: [
     { id: "control-1", label: "Scene canvas", kind: "surface", inputType: "canvas", context: "Scene", disabled: false, value: "Camera position: 2, 2, 2; target: 0, 0, 0", hint: "Right drag: orbit" },
     { id: "control-2", label: "Orientation canvas", kind: "surface", inputType: "canvas", context: "Scene", disabled: false },

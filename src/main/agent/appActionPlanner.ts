@@ -1,6 +1,6 @@
 import { localJsonPlan } from "../prompt3d/planner";
 import { appNativeIntent } from "../../shared/appNativeIntent";
-import { appCreationPrompt } from "../../shared/appCreationPrompt";
+import { appCreationPrompt, creationFailureReason, isSkeletonModelRevision, skeletonRevisionContinuation } from "../../shared/appCreationPrompt";
 import { EMBEDDED_SURFACES, embeddedPromptScope, embeddedPlacementPrompt, embeddedPlacementConfirmed, embeddedSelectedObject, embeddedSelectionMatches } from "../../shared/embeddedActions";
 import { appLocalPathRequest } from "../../shared/appLocalPath";
 import { appPromptClauses, literalAppSettings, requestedAppSettingNames, appSettingLabelMatches } from "../../shared/appActionSettings";
@@ -9,6 +9,7 @@ import { appControlValueMatches, validateAppActionDecision, validateAppActionReq
 
 export async function planAppAction(input: AppActionRequest): Promise<AppActionDecision> {
   validateAppActionRequest(input);
+  if (isSkeletonModelRevision(input.prompt) && input.history.some(h => h.result.startsWith("Activated Revise model with prompt."))) return planCurrentControls({...input,prompt:skeletonRevisionContinuation(input.prompt)});
   const scope = embeddedPromptScope(input.prompt);
   if (scope && !input.snapshot.controls.some(c => c.context.includes("App dialog")) && !input.snapshot.controls.some(c => c.id.startsWith("window-"))) {
     const target = EMBEDDED_SURFACES[scope.surface];
@@ -45,6 +46,10 @@ async function planCurrentControls(input: AppActionRequest): Promise<AppActionDe
     ...["wait", "done", "blocked"].map(action => branch(action, [""], empty)),
   ]};
   if (!controls.length) schema.anyOf = [branch(request.snapshot.status.some(s => /embedded tool is loading/i.test(s)) ? "wait" : "blocked", [""], empty)];
+  if (request.snapshot.route === "/skeleton" && isSkeletonModelRevision(request.prompt)) {
+    const revise = controls.find(c => c.label === "Revise model with prompt");
+    schema.anyOf = [revise ? branch("click", [revise.id], empty) : branch("blocked", [""], empty)];
+  }
   // Literal control requests should not turn into unrelated navigation. Grudge
   // still supplies the decision, decoded against only the requested control.
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -72,6 +77,20 @@ async function planCurrentControls(input: AppActionRequest): Promise<AppActionDe
     if (completed) schema.anyOf = [branch("done", [""], empty)];
   }
   const forgeHandoff = /^(?:please )?(?:open|edit) (?:the )?(?:current|selected|this) (?:model|asset) (?:in|with) forge(?: and (?:frame|focus) (?:it|the model))?$/.test(prompt);
+  const skeletonHandoff = /^(?:please )?(?:open|edit) (?:the )?(?:current|selected|this) (?:model|asset|character) (?:in|with) skeleton studio$/.test(prompt);
+  if (skeletonHandoff) {
+    const handoff = controls.find(c => c.label === "Skeleton Studio" && c.context !== "Navigation");
+    if (request.snapshot.route === "/prompt3d") {
+      const reveal = controls.find(c => c.label === "Show current model") ?? controls.find(c => c.label === "Tools & saved work" && c.value === "false");
+      const target = handoff ?? reveal;
+      schema.anyOf = [target ? branch("click", [target.id], empty) : branch("blocked", [""], empty)];
+    } else if (request.snapshot.route === "/skeleton") {
+      const opened = request.history.some(h => h.result.startsWith("Activated Skeleton Studio."));
+      const loaded = request.snapshot.status.some(s => s.startsWith("Skeleton model loaded:"));
+      const failed = request.snapshot.status.some(s => s.startsWith("Skeleton model load failed:"));
+      schema.anyOf = [branch(failed ? "blocked" : opened && loaded ? "done" : "wait", [""], empty)];
+    }
+  }
   const frameOnly = /^(?:please )?(?:frame|focus) (?:the )?(?:current |selected )?(?:model|asset|selection|it)$/.test(prompt);
   if (forgeHandoff || frameOnly && request.snapshot.route === "/forge-local") {
     const handoff = controls.find(c => c.label === "Edit in Forge");
@@ -94,7 +113,7 @@ async function planCurrentControls(input: AppActionRequest): Promise<AppActionDe
   const explicitlyRoutedCreation = creationRoutePrefix.test(request.prompt);
   const { creation: creationText, continuation } = appCreationPrompt(request.prompt);
   const creationIntent = /^(?:please\s+)?(?:create|build|craft|assemble)\b/i.test(creationText);
-  const editIntent = (request.snapshot.route === "/prompt3d" || explicitlyRoutedCreation) && /^(?:add|insert|place|duplicate|rename|move|rotate|scale|resize|paint|make|remove|clear)\b/i.test(creationText);
+  const editIntent = (request.snapshot.route === "/prompt3d" || explicitlyRoutedCreation) && /^(?:add|insert|place|duplicate|rename|move|rotate|scale|resize|paint|textur\w*|retexture|colou?r|make|remove|clear)\b/i.test(creationText);
   if ((creationIntent || editIntent) && !neuralRequested && !controls.some(c => /^(?:embedded|window)-/.test(c.id)) && !controls.some(c => c.context.includes("App dialog"))) {
     const field = controls.find(c => c.label === "Creation prompt" && c.kind === "text");
     const enable = controls.find(c => c.label === "Enable local creation controls" && c.kind === "toggle");
@@ -107,12 +126,14 @@ async function planCurrentControls(input: AppActionRequest): Promise<AppActionDe
     const directControls = controls.find(c => c.label === "Direct asset creation controls" && c.value === "false");
     const localWorkspace = controls.find(c => c.label === "Use existing Dev Tool utilities");
     const tools = controls.find(c => c.label === "Tools & saved work" && c.value === "false");
+    const importBase = controls.find(c => c.label === "Use this model as base");
     if (started) {
       const failed = request.snapshot.status.some(s => /Prompt did not complete|Attempt failed/i.test(s));
       const saved = request.snapshot.status.some(s => /Saved revision/.test(s)) || request.history.some(h => /Saved revision/.test(h.result));
       if (!failed && saved && continuation) return planCurrentControls({ ...request, prompt: continuation });
       schema.anyOf = [branch(failed ? "blocked" : saved ? "done" : "wait", [""], empty)];
-    } else if (!field && directControls) schema.anyOf = [branch("click", [directControls.id], empty)];
+    } else if (importBase) schema.anyOf = [branch("click", [importBase.id], empty)];
+    else if (!field && directControls) schema.anyOf = [branch("click", [directControls.id], empty)];
     else if (!field && localWorkspace) schema.anyOf = [branch("click", [localWorkspace.id], empty)];
     else if (!field && tools) schema.anyOf = [branch("click", [tools.id], empty)];
     else if (!field && nav) schema.anyOf = [branch("click", [nav.id], empty)];
@@ -261,6 +282,9 @@ For creating or editing basic models, use Prompt to 3D, set Creation prompt to t
       if (decision.action === "done" && request.history.some(h => h.result.startsWith("Activated Run prompt")) && request.snapshot.status.some(s => /Saved revision/.test(s))) decision.reason = "The creation was saved as a new revision.";
       if (decision.action === "done" && localPath) decision.reason = `${localPath.kind === "folder" ? "Opened folder" : "Loaded model from"} ${localPath.path}`;
       if (decision.action === "blocked" && localPath) decision.reason = request.snapshot.status.find(s => /Local path failed:|Model load failed:/.test(s)) ?? decision.reason;
+      if (decision.action === "blocked" && request.history.some(h => h.result.startsWith("Activated Run prompt"))) decision.reason = creationFailureReason(request.snapshot.status) ?? decision.reason;
+      if (skeletonHandoff && decision.action === "done") decision.reason = "The saved model is loaded in Skeleton Studio.";
+      if (skeletonHandoff && decision.action === "blocked") decision.reason = request.snapshot.status.find(s => s.startsWith("Skeleton model load failed:"))?.slice(0,600) ?? "The current model's Skeleton Studio handoff is not available.";
       if (decision.action === "done" && settings) decision.reason = settings.map(s => `${s.control.label}: ${s.control.value}`).join("; ").slice(0, 600);
       if (decision.action === "blocked" && placementBlockedReason) decision.reason = placementBlockedReason;
       if (decision.action === "blocked" && settingsBlockedReason) decision.reason = settingsBlockedReason;

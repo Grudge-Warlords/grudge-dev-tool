@@ -115,16 +115,15 @@ export function AppPromptResult() {
 export default function AppPrompt({ route }: { route: string }) {
   const [open, setOpen] = useState(false), [prompt, setPrompt] = useState("");
   const { busy, run, stop, progress } = useAppPrompt();
-  useEffect(() => { if (busy && route !== "/prompt3d") setOpen(true); }, [busy, route]);
+  useEffect(() => { if (route === "/skeleton" || busy && route !== "/prompt3d") setOpen(true); }, [busy, route]);
   // The page and floating prompt share one runner which survives navigation.
   if (route === "/prompt3d") return null;
-  if (busy) return <div data-grudge-command className="fixed bottom-10 left-3 z-[100] flex max-w-[min(420px,90vw)] items-center gap-3 rounded-lg border border-gold/40 bg-bg-2 px-3 py-2 text-xs shadow-lg"><Bot size={16} className="shrink-0 text-gold"/><span role="status" className="truncate">{progress || "Grudge is working…"}</span><button className="shrink-0 rounded border border-line px-2 py-1" onClick={stop}>Stop</button></div>;
   return <div data-grudge-command className="fixed bottom-10 left-3 z-[100]">
     {!open ? <button aria-label="Ask Grudge to act in the app" className="flex items-center gap-2 rounded-lg border border-gold/40 bg-bg-2 px-3 py-2 text-sm text-gold shadow-lg" onClick={() => setOpen(true)}><Bot size={16}/>Ask Grudge</button> :
       <section aria-label="App-wide prompt" className="w-[min(450px,calc(100vw-24px))] rounded-xl border border-gold/40 bg-bg-2 p-4 text-fg shadow-2xl">
-        <div className="flex items-center justify-between"><b>Ask Grudge</b><button aria-label="Collapse app prompt" onClick={() => setOpen(false)}><X size={16}/></button></div>
-        <p className="my-2 text-xs text-muted">Describe what to do in this app. Grudge uses the current screen and its existing controls.</p>
-        <textarea aria-label="App action prompt" className="min-h-24 w-full rounded border border-line bg-bg p-2 text-sm" maxLength={2000} disabled={busy} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Open Prompt to 3D, create a blue cube, make it spin, and save it."/>
+        <div className="flex items-center justify-between"><b>{route === "/skeleton" ? "Continue with this model" : "Ask Grudge"}</b><button aria-label="Collapse app prompt" disabled={busy} onClick={() => setOpen(false)}><X size={16}/></button></div>
+        <p className="my-2 text-xs text-muted">{route === "/skeleton" ? "Describe changes to the model open here. Model revisions return to Skeleton Studio; skeleton actions use its current controls." : "Describe what to do in this app. Grudge uses the current screen and its existing controls."}</p>
+        <textarea aria-label="App action prompt" className="min-h-24 w-full rounded border border-line bg-bg p-2 text-sm" maxLength={1800} disabled={busy} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder={route === "/skeleton" ? "Make the Snout twice as long, or paint it blue." : "Describe the next change or app action."}/>
         <div className="mt-2 flex gap-2"><button className="flex-1 rounded bg-gold px-3 py-2 text-sm font-semibold text-black disabled:opacity-40" disabled={busy || !prompt.trim()} onClick={() => void run(prompt)}>{busy ? "Working…" : "Run in app"}</button>{busy && <button className="rounded border border-line px-3 text-sm" onClick={stop}>Stop</button>}</div>
         <AppPromptResult/>
       </section>}

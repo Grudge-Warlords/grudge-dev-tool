@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-09-11 — structural correction feedback
+
+- Feed rejected geometry and measured anatomical faults back into bounded planning retries; retain proposals and correction decisions locally. Propose and revalidate a procedural humanoid layout when default proportions fail.
+- Report observed creation errors instead of invented body-part selection requests; hide prior-model examples for new creations.
+- Separate completed-model handoffs to Skeleton Studio from geometry instructions, load the exact saved file, and require a confirmed model load before completion.
+- Keep the prompt panel expanded in Skeleton Studio and bind follow-up model revisions to the loaded source, returning the revised model to the studio.
+
+## 2026-09-10 — manual-testing character repairs
+
+- Isolate new creation requests from the selected asset, reject collapsed primitive assemblies, and validate basic humanoid placement with bounded component rotations.
+- Preserve component colours during texturing; add authored reptile scale patterns and a modest segmented character idle for appropriate-animation requests.
+- Clear previous errors/results for new requests and distinguish new-model intent from the retained prior selection. Build and focused checks pass; the new local package is open for manual acceptance.
+
 ## 2026-09-10 — single-prompt workspace
 
 - Start with one prompt and Run with Grudge; provide collapsed, opt-in Hunyuan 3D and Paint choices on that same request.

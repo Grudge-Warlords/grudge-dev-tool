@@ -10,10 +10,31 @@ import { serializeScene, parseSceneJson } from '../src/renderer/lib/forge/sceneS
 import { DEFAULT_BODY_MORPH } from '../src/renderer/lib/forge/boneAliases';
 import { DEFAULT_FORGE_ANIM } from '../src/renderer/lib/forge/forgeAnimation';
 import { applyCreationEdit, creationSceneHash, validateCreationEdit } from '../src/main/prompt3d/creationEdits';
-import { addOriginalMotion, originalGeometryHash } from '../src/main/prompt3d/proceduralCreation';
+import { addOriginalMotion, originalGeometryHash, applyOriginalTextures } from '../src/main/prompt3d/proceduralCreation';
 import { bindLiteralCreationEdit } from '../src/main/prompt3d/creationLiteralEdits';
+import { assemblyLayoutIssues, humanoidLayoutRepair } from '../src/main/prompt3d/assemblyLayout';
 
 async function main(){
+  const reptilePrompt='create a humanoid character with an alligator body. Ensure no overlapping body parts. Ensure bipedal humanoid base shape with elongated nose and tail';
+  const invertedParts=['Head','Torso','Hips','LeftArm','RightArm','LeftLeg','RightLeg','LeftFoot','RightFoot','Tail','Snout'].map((name,i)=>({name,shape:'cylinder' as const,position:[0,(i+1)*.1,(i+2)*.1] as [number,number,number],size:[.1,.1,.1] as [number,number,number],color:'#ff0000'}));
+  const faults=assemblyLayoutIssues(invertedParts,reptilePrompt);
+  assert(faults.some(s=>s.includes('Inverted head')&&s.includes('Head at')&&s.includes('Torso at')),'Feedback names both parts and their measured positions');
+  assert(faults.some(s=>s.includes('Laterality')));
+  const repairedParts=humanoidLayoutRepair(reptilePrompt,invertedParts)!;
+  assert.deepEqual(assemblyLayoutIssues(repairedParts,reptilePrompt),[],'The bounded correction must independently pass structural validation');
+  const repairedPlan={kind:'assembly' as const,steps:[{operation:'create' as const,instruction:reptilePrompt}],summary:'fixture',components:repairedParts};
+  assert.throws(()=>fitDefaultAssembly({...repairedPlan,components:invertedParts},reptilePrompt+' 2 metres tall'),/Inverted head/,'Explicit dimensions cannot bypass humanoid validation');
+  assert.equal(fitDefaultAssembly(repairedPlan,reptilePrompt).components.length,repairedParts.length);
+  assert.equal(humanoidLayoutRepair(reptilePrompt+' with a tail 3 metres long',invertedParts),undefined,'Do not replace explicit component measurements with defaults');
+  const tall=humanoidLayoutRepair(reptilePrompt+' 4 metres tall',invertedParts)!;
+  assert.equal(tall.find(p=>p.name==='Head')!.position[1],3.69);
+  assert.deepEqual(assemblyLayoutIssues(tall,reptilePrompt+' 4 metres tall'),[]);
+  const noTail=humanoidLayoutRepair('Create a humanoid alligator without a tail',[])!;
+  assert(!noTail.some(p=>p.name==='Tail'));
+  const buried=structuredClone(repairedParts);buried.find(p=>p.name==='Head')!.position=[0,1.285,0];
+  assert(assemblyLayoutIssues(buried,reptilePrompt).some(s=>s.includes('Buried part')));
+  const detached=structuredClone(repairedParts);detached.find(p=>p.name==='LeftArm')!.position[0]=-8;
+  assert(assemblyLayoutIssues(detached,reptilePrompt).some(s=>s.includes('Disconnected LeftArm')));
   const request={prompt:'Create a blue cube, spin it, and save it',category:'prop' as const,style:'low-poly' as const,usePlanner:true};
   const incomplete={kind:'box',summary:'Fixture proposal',unsupported:[],steps:[{operation:'create',instruction:'Create a box'}],components:[]};
   const bound=validateCreationPromptPlan(await bindRequestedActions(incomplete,request));
@@ -24,6 +45,37 @@ async function main(){
   assert.ok(!negated.steps.some(s=>s.operation==='turntable'),'Unrequested model motion is removed');
   const plain=validateCreationPromptPlan(await bindRequestedActions({...incomplete,steps:[...incomplete.steps,{operation:'texture',instruction:'Paint black'},{operation:'save',instruction:'Save'}]}, {...request,prompt:'Create a cube. Do not spin it.'}));
   assert.deepEqual(plain.steps.map(s=>s.operation),['create'],'Plain creation cannot invent surface or save steps');
+  const characterParts=[
+    {name:'Torso',shape:'cylinder',position:[0,1.2,0],size:[.5,.7,.3],color:'#456632'},
+    {name:'Head',shape:'sphere',position:[0,1.8,0],size:[.35,.4,.35],color:'#456632'},
+    {name:'Tail',shape:'cone',position:[0,.9,-.6],size:[.22,1,.22],rotation:[-90,0,0],color:'#456632'},
+    {name:'Teeth',shape:'cone',position:[0,1.7,.3],size:[.04,.08,.04],color:'#eeeecc'},
+  ];
+  const characterProposal={...incomplete,kind:'assembly',components:characterParts,unsupported:['animate']};
+  const characterRequest={...request,prompt:'create a humanoid character with an alligator body. texture and animate appropriately',category:'character' as const};
+  const characterPlan=validateCreationPromptPlan(await bindRequestedActions(characterProposal,characterRequest,'sword',{parts:[{name:'Blade',mesh:true}],clips:[]} as any));
+  assert.equal(characterPlan.kind,'assembly','A new subject cannot inherit the selected sword');
+  assert.deepEqual(characterPlan.steps.map(s=>s.operation),['create','texture','idle']);
+  assert.deepEqual(characterPlan.components[2].rotation,[-90,0,0],'Part orientation survives validation');
+  const collapsed=characterParts.map((c,index)=>({...c,name:`Part ${index}`,position:[0,0,0]}));
+  assert.throws(()=>validateCreationPromptPlan({...characterProposal,unsupported:[],components:collapsed}),/same point/);
+  assert.throws(()=>validateCreationPromptPlan({...characterProposal,unsupported:[],components:[characterParts[0],{...characterParts[0],name:'Duplicate torso'}]}),/identical geometry/);
+  const characterDoc=createOriginalGeometry({...characterPlan,operation:'create',constraints:[],planner:'fixture'},'low-poly');
+  const characterGeometry=originalGeometryHash(characterDoc);
+  await applyOriginalTextures(characterDoc,'low-poly',characterRequest.prompt);
+  const skinMaterial=characterDoc.getRoot().listMaterials().find((m:any)=>m.getName().endsWith('Torso'));
+  const toothMaterial=characterDoc.getRoot().listMaterials().find((m:any)=>m.getName().endsWith('Teeth'));
+  assert.equal(skinMaterial.getBaseColorTexture().getExtras().pattern,'scales');
+  assert.notDeepEqual(skinMaterial.getBaseColorTexture().getImage(),toothMaterial.getBaseColorTexture().getImage(),'Skin and teeth cannot receive the same surface');
+  addOriginalMotion(characterDoc,{...characterPlan,operation:'idle',constraints:[],planner:'fixture'});
+  assert.equal(originalGeometryHash(characterDoc),characterGeometry,'Texturing and idle preserve geometry');
+  assert.ok(characterDoc.getRoot().listAnimations()[0].listChannels().length>=3,'Character idle has actual body channels');
+  const preservedColorDoc=createOriginalGeometry({...characterPlan,operation:'create',constraints:[],planner:'fixture'},'low-poly');
+  await applyOriginalTextures(preservedColorDoc,'low-poly','Texture appropriately');
+  const colorOnce=preservedColorDoc.getRoot().listMaterials()[0].getExtras().authoredSurfaceColor;
+  assert.ok(colorOnce[1]>colorOnce[0]&&colorOnce[1]>colorOnce[2],'Unknown component material preserves its green colour instead of becoming blue');
+  await applyOriginalTextures(preservedColorDoc,'low-poly','Texture appropriately');
+  assert.deepEqual(preservedColorDoc.getRoot().listMaterials()[0].getExtras().authoredSurfaceColor,colorOnce,'A second texture pass retains the same base colour');
   const editProposal={...incomplete,steps:[{operation:'edit',instruction:'Rotate it 90 degrees around Y',edit:{action:'rotate',targets:['$asset'],value:[0,90,0]}},{operation:'save',instruction:'Save'}]};
   const rotation=validateCreationPromptPlan(await bindRequestedActions(editProposal,{...request,prompt:'Rotate it 90 degrees around Y and save it.'},'box'),'box');
   assert.deepEqual(rotation.steps.map(s=>s.operation),['edit','save']);

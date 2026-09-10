@@ -1,5 +1,9 @@
 # Grudge Dev Tool — local status
 
+## Manual-testing patches — 2026-09-10
+
+New-subject context isolation, collapsed assembly rejection, humanoid layout guidance/validation, bounded component orientation, component colour preservation, authored reptile scale patterns, basic character idle and fresh per-request feedback are patched. Typechecks, production builds/preload, prompt-build regressions and app-action checks pass. Package `release/manual-patches-20260910-v1/win-unpacked/Grudge Dev Tool.exe` has been launched for Al's manual testing. Real-model replay was stopped at Al's request; alligator visual/motion acceptance remains open. [Scope and verification](docs/manual-testing-patches-20260910.md).
+
 ## Single-prompt workspace — 2026-09-10
 
 One initial prompt, optional Hunyuan 3D/Paint selectors, collapsed original tools and one result panel. Grudge automatically reveals and uses the native utilities. Final v4 real-model replay passes create/animate/library save, Forge handoff, GLB export, orbit, Ctrl+S save and scene reopen; the original asset-base handoff also passes. Selected but unconfigured Hunyuan extras report setup, then a native sphere request succeeds with zero Hunyuan jobs. Final type/build/preload, 15 native checks, 23 embedded checks, app-action checks and packaged smoke pass. All 599 built files match the final ASAR.

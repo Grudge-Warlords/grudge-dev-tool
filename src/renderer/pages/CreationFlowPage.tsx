@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CREATION_BUILD, CREATION_CATEGORIES, CREATION_STYLES, type CreationBaseSource, type CreationAttempt, type CreationLibraryAsset } from "../../shared/creationFlow";
+import { CREATION_BUILD, CREATION_CATEGORIES, CREATION_STYLES, isNewCreationPrompt, type CreationBaseSource, type CreationAttempt, type CreationLibraryAsset } from "../../shared/creationFlow";
 import { PROMPT3D_SPEC_VERSION, type AssetCategory, type AssetSpecV1, type AssetStyle, type Prompt3DAppRuntime, type Prompt3DHistory, type Prompt3DOrchestrationRecord, type Prompt3DOverview } from "../../shared/prompt3d";
 import { compilePrompt3DUnifiedPlan, PROMPT3D_UNIFIED_ROUTE_LABELS, prompt3DOrchestrationRecord, type Prompt3DUnifiedOverride, type Prompt3DUnifiedPlan, type Prompt3DUnifiedRoute } from "../../shared/prompt3dOrchestrator";
 import type { Prompt3DFinishJobStatus } from "../../shared/prompt3dWorkflow";
-import { CREATION_BASE_HANDOFF } from "../lib/creationHandoff";
+import { CREATION_BASE_HANDOFF, CREATION_REVISION_HANDOFF } from "../lib/creationHandoff";
 import { writeMirror } from "../lib/workspace";
 import type { Prompt3DGuidedIntent } from "./NeuralPrompt3D";
 import { AppPromptResult, useAppPrompt } from "../components/AppPrompt";
@@ -20,6 +20,7 @@ function overviewSpec(prompt:string,category:AssetCategory,style:AssetStyle):Ass
 interface RetainedRoutingRevision{ id:string; sha256?:string; path?:string; updatedAt:string; method:"hunyuan-workflow"|"original-procedural"|"existing-asset"; }
 export default function CreationFlowPage(){
   const [initial]=useState(savedDraft);
+  const [revisionHandoff]=useState(()=>{const pending=sessionStorage.getItem(CREATION_REVISION_HANDOFF);sessionStorage.removeItem(CREATION_REVISION_HANDOFF);return pending?JSON.parse(pending) as {id:string;path:string}:null;});
   const [fromBase]=useState(()=>Boolean(sessionStorage.getItem(CREATION_BASE_HANDOFF)));
   const [method,setMethod]=useState<"procedural"|"neural">(()=>sessionStorage.getItem("grudge.prompt3d.pendingRigCorrection")?"neural":"procedural");
   const appPrompt=useAppPrompt();
@@ -36,6 +37,7 @@ export default function CreationFlowPage(){
   function submitCommand(){
     if(busy||appPrompt.busy||!command.trim())return;
     if(command.length>1800){toast.error("Please shorten your request to 1,800 characters.");return;}
+    setPromptError("");setLast(null);
     const extras=[hunyuanShape?"Use Hunyuan 3D for geometry generation.":"",hunyuanPaint?"Use Hunyuan Paint for textures.":""].filter(Boolean);
     void appPrompt.run([command.trim(),...extras].join("\n"));
   }
@@ -68,8 +70,12 @@ export default function CreationFlowPage(){
   useEffect(()=>{localStorage.setItem(DRAFT,JSON.stringify({prompt,category,style,usePlanner:planner,currentId:current?.id}));},[prompt,category,style,planner,current]);
   async function refresh(restore=false){
     try{const rows:CreationAttempt[]=await window.grudge.creation.history();setHistory(rows);setHistoryError("");
-      if(restore&&!fromBase){const row=rows.find(a=>a.id===initial.currentId&&a.state==="complete")??rows.find(a=>a.state==="complete");if(row){setCurrent(row);setCategory(row.request.category);setStyle(row.request.style);}}
-    }catch(e){setHistoryError(String(e));}
+      if(restore&&!fromBase){
+        const row=revisionHandoff?rows.find(a=>a.id===revisionHandoff.id&&a.assetPath===revisionHandoff.path&&a.state==="complete"):rows.find(a=>a.id===initial.currentId&&a.state==="complete")??rows.find(a=>a.state==="complete");
+        if(revisionHandoff&&!row)throw new Error("The model selected in Skeleton Studio could not be restored. Reopen that saved revision before editing.");
+        if(row){const restored=revisionHandoff?await window.grudge.creation.reopen(row.id):row;setCurrent(restored);setCategory(restored.request.category);setStyle(restored.request.style);}
+      }
+    }catch(e){setHistoryError(String(e));if(revisionHandoff)setPromptError(String(e));}
   }
   async function refreshLibrary(){try{setLibrary(await window.grudge.creation.library());}catch{/* The exact save action reports any catalog error. */}}
   async function refreshRouting(enabled=controls){
@@ -91,7 +97,7 @@ export default function CreationFlowPage(){
   async function enable(value:boolean){try{const r=await(value?window.grudge.prompt3d.grant():window.grudge.prompt3d.revoke());setControls(r.enabled);}catch(e){toast.error(String(e));}}
   async function run(){
     if(busy||!controls||Boolean(baseSource)||!prompt.trim())return;
-    setBusy(true);setPromptError("");
+    setBusy(true);setPromptError("");setLast(null);
     try{const result=await window.grudge.creation.submit({prompt,category,style,usePlanner:planner,parentId:current?.id,...(activeOrchestration?{orchestration:activeOrchestration}:{})});setLast(result);
       if(result.state==="complete"){setCurrent(result);setShowResult(true);setReplay(x=>x+1);setPrompt("");toast.success("New revision saved locally");}
       else toast.error("Attempt retained; no replacement asset",{description:result.message});
@@ -213,7 +219,7 @@ export default function CreationFlowPage(){
       <div data-app-action-busy={busy?"true":"false"} className="space-y-3">
         <section className="space-y-3 rounded-xl border border-line bg-bg-2 p-4">
           <details className="rounded border border-line p-2"><summary className="cursor-pointer text-xs">Direct asset creation controls</summary><div className="mt-3 space-y-3">
-          <label className="block text-xs">Asset instruction<textarea aria-label="Creation prompt" className={field+" mt-1 min-h-28"} value={prompt} maxLength={2000} disabled={busy} onChange={e=>{setPrompt(e.target.value);setActiveOrchestration(undefined);}} placeholder={current?"Make it wider.":"Create a box."}/></label>
+          <label className="block text-xs">Asset instruction<textarea aria-label="Creation prompt" className={field+" mt-1 min-h-28"} value={prompt} maxLength={2000} disabled={busy} onChange={e=>{setPrompt(e.target.value);setPromptError("");setLast(null);setActiveOrchestration(undefined);}} placeholder={current?"Make it wider.":"Create a box."}/></label>
           <details className="rounded border border-line p-2"><summary className="cursor-pointer text-xs">Optional style and planning settings</summary><div className="mt-3 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs">Category<select aria-label="Category" className={field+" mt-1"} value={category} disabled={busy} onChange={e=>setCategory(e.target.value as AssetCategory)}>{CREATION_CATEGORIES.map(c=><option key={c} value={c}>{label(c)}</option>)}</select></label>
@@ -224,9 +230,9 @@ export default function CreationFlowPage(){
           <div className="flex gap-2"><button className="flex-1 rounded bg-gold px-4 py-2 font-semibold text-black disabled:opacity-40" disabled={busy||!controls||Boolean(baseSource)||!prompt.trim()} onClick={()=>void run()}>{busy?"Working locally…":"Run prompt"}</button><button className="rounded border border-line px-3 py-2 text-xs disabled:opacity-40" disabled={busy} onClick={()=>{setCurrent(null);setBaseSource(null);setLast(null);setPrompt("");}}>New asset</button></div>
           </div></details>
           <div className="rounded border border-line bg-bg p-3 text-xs">
-            <b data-app-action-state>Current asset: {current?label(current.plan?.kind??"asset"):"none"}</b>
-            <p className="mt-1 text-muted">{current?`“It” refers to asset ${current.assetId.slice(0,8)}. Follow-up prompts create a new revision of this model.`:"A creation prompt makes a new original asset. Follow-ups require a current asset."}</p>
-            <details className="mt-2 rounded border border-line/70 p-2 text-muted"><summary className="cursor-pointer text-fg">Examples for this model</summary><div className="mt-2 space-y-1">
+            <b data-app-action-state>{isNewCreationPrompt(prompt)?"New model requested; previous model retained separately":`Current asset: ${current?label(current.plan?.kind??"asset"):"none"}`}</b>
+            <p className="mt-1 text-muted">{current&&!isNewCreationPrompt(prompt)?`“It” refers to asset ${current.assetId.slice(0,8)}. Follow-up prompts create a new revision of this model.`:"A creation prompt makes a new original asset. Grudge resolves its body parts and structure automatically."}</p>
+            {!isNewCreationPrompt(prompt)&&<details className="mt-2 rounded border border-line/70 p-2 text-muted"><summary className="cursor-pointer text-fg">Examples for this model</summary><div className="mt-2 space-y-1">
               <p>Create: “Create a blue box, make it spin, and save it”, sphere, cylinder, cone, plane or torus.</p>
               <p>Assemble: “Build a simple world with a ground plane and three trees”. Grudge places basic parts; open the result in Forge to edit.</p>
               <p>Resize: “Make it twice as wide and save it”.</p>
@@ -238,7 +244,7 @@ export default function CreationFlowPage(){
               {current?.partNames?.length?<p>Parts: {current.partNames.join(", ")}</p>:null}
               <p>Motion: “Add a turntable”, or “Remove the animation and save it”.</p>
               {current&&["sword","game-gun","person"].includes(current.plan?.kind??"")&&<><p>Detail: “Add detailed cosmetic additions to it”.</p><p>{current.plan?.kind==="sword"?"Shape: “Make its blade longer and more curved”. Motion: “Animate it swiping side to side”.":current.plan?.kind==="person"?"Shape: “Make the character taller with a larger head”. Motion: “Animate it doing a simple dance”.":"Shape: “Make it bulkier with a larger muzzle”. Motion: “Animate a visible projectile shooting from it”."}</p></>}
-            </div></details>
+            </div></details>}
           </div>
           {last&&<div role="status" className={"rounded border p-3 text-xs "+(last.state==="complete"?"border-emerald-500/40":"border-red-500/40")}><b>{last.state==="complete"?"Saved revision":"Attempt failed — retained"}</b><p className="mt-1">{last.message}</p>{last.plan&&<p className="mt-1 text-muted">{last.plan.planner}</p>}</div>}
           {promptError&&<div role="alert" className="rounded border border-red-500/40 p-3 text-xs"><b>Prompt did not complete</b><p className="mt-1">{promptError}</p><p className="mt-1 text-muted">The build record and any completed intermediate revisions are retained in local storage.</p></div>}

@@ -28,6 +28,8 @@ import { SceneEngine } from "../lib/forge/sceneEngine";
 import { loadModel, type LoadedModel } from "../lib/forge/loaders";
 import { makeBoneLabel } from "../lib/forge/skeletonOverlay";
 import type { Prompt3DAnimationOverrides } from "../../shared/prompt3dWorkflow";
+import { CREATION_BASE_HANDOFF, CREATION_REVISION_HANDOFF } from "../lib/creationHandoff";
+import type { CreationAttempt } from "../../shared/creationFlow";
 
 interface Prompt3DRigContext {
   sourcePath: string;
@@ -343,7 +345,7 @@ export default function SkeletonStudio() {
     }
   }
 
-  async function loadFromPath(path: string, suggestedPlacements?: BonePlacement[], reviewContext?: Prompt3DRigContext) {
+  async function loadFromPath(path: string, suggestedPlacements?: BonePlacement[], reviewContext?: Prompt3DRigContext, exactSource = false) {
     if (!window.grudge?.forge?.readFile) {
       toast.error("Forge IPC missing — restart Dev Tool");
       return;
@@ -363,7 +365,8 @@ export default function SkeletonStudio() {
         if (digest !== reviewContext.sourceSha256) throw new Error("The model changed since this skeleton review was requested. Reopen review from its exact retained revision.");
       }
       const file = new File([ab], name);
-      const loaded = await loadModel(file, { diskPath: path, materialPolicy: "preserve-authored", skipGenericPreview: Boolean(reviewContext) });
+      const loaded = await loadModel(file, { diskPath: path, materialPolicy: "preserve-authored", skipGenericPreview: exactSource || Boolean(reviewContext) });
+      if (!engineRef.current) throw new Error("The Skeleton Studio viewport is not ready. Reopen the model when it is ready.");
       if (engineRef.current) {
         const scene = engineRef.current.scene;
         const toRemove: THREE.Object3D[] = [];
@@ -436,7 +439,7 @@ export default function SkeletonStudio() {
         sessionStorage.removeItem("grudge.skeleton.pendingPath");
         const matchedContext = context?.sourcePath === pending && context.finishJobId && context.instruction ? context : undefined;
         sessionStorage.removeItem("grudge.skeleton.prompt3dContext");
-        void loadFromPath(pending, matchedContext?.suggestedPlacements, matchedContext);
+        void loadFromPath(pending, matchedContext?.suggestedPlacements, matchedContext, true);
       }
     } catch {
       /* ignore */
@@ -1099,8 +1102,24 @@ export default function SkeletonStudio() {
     }
   };
 
+  async function reviseModelWithPrompt() {
+    if (!diskPath || busy) return;
+    setBusy(true);
+    try {
+      const revision = (await window.grudge.creation.history() as CreationAttempt[]).find(row => row.state === "complete" && row.assetPath === diskPath);
+      sessionStorage.removeItem(CREATION_BASE_HANDOFF);
+      sessionStorage.removeItem(CREATION_REVISION_HANDOFF);
+      if (revision) sessionStorage.setItem(CREATION_REVISION_HANDOFF, JSON.stringify({id:revision.id,path:diskPath}));
+      else sessionStorage.setItem(CREATION_BASE_HANDOFF, JSON.stringify({kind:"local-file",path:diskPath}));
+      await window.grudge.app.openRoute("/prompt3d");
+    } catch (error) {
+      setStatusLine(`Load failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally { setBusy(false); }
+  }
+
   return (
     <div
+      data-app-action-busy={busy ? "true" : "false"}
       className="flex h-full min-h-0 flex-col bg-[#070a12] text-slate-100"
       onDragOver={(e) => {
         e.preventDefault();
@@ -1156,6 +1175,7 @@ export default function SkeletonStudio() {
             </select>
           </label>
           <div className="ml-auto flex flex-wrap gap-1">
+            <button type="button" className="rounded border border-gold/50 px-2 py-1 text-[10px] text-gold" disabled={!model || !diskPath || busy} onClick={() => void reviseModelWithPrompt()}>Revise model with prompt</button>
             <button
               type="button"
               className="rounded border border-cyan-700/50 bg-cyan-950/40 px-2 py-1 text-[10px] hover:border-cyan-500"
@@ -1208,7 +1228,7 @@ export default function SkeletonStudio() {
           })}
         </nav>
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 truncate border-t border-white/5 px-3 py-1 font-mono text-[10px] text-slate-400">
-          <span>
+          <span data-app-action-state={busy ? "Skeleton model loading" : statusLine.startsWith("Load failed:") ? `Skeleton model load failed: ${statusLine.slice(12)}` : model && diskPath ? `Skeleton model loaded: ${diskPath}` : "Skeleton Studio: no model loaded"}>
             {busy ? "Working…" : statusLine}
             {diskPath ? ` · ${diskPath.split(/[/\\]/).pop()}` : ""}
           </span>
