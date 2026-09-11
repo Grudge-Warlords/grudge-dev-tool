@@ -196,36 +196,54 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
     toast.success("Removed node", { description: selected.name || selected.type });
   }, [root, selected, engine, onTransformTick]);
 
+  const persistGlb = useCallback(async (result: Awaited<ReturnType<typeof exportToGlb>>) => {
+    const bytes = result.bytes instanceof ArrayBuffer
+      ? new Uint8Array(result.bytes)
+      : new Uint8Array(result.bytes);
+    const saved = await G()?.viewer?.saveExportedBytes?.({
+      bytes,
+      defaultName: result.filename,
+    });
+    if (saved?.canceled) return null;
+    if (saved?.ok && saved.savedPath) return saved.savedPath as string;
+    // Fallback: browser download if IPC missing (dev without rebuild).
+    downloadBlob(result.blob, result.filename);
+    if (saved && "error" in saved && saved.error) throw new Error(saved.error);
+    return result.filename;
+  }, []);
+
   const saveSelectedAs = useCallback(async () => {
     const target = selected ?? root;
     if (!target) return;
     const suggested = (target.name || asset.name || "mesh").replace(/[^\w.-]+/g, "_");
-    const name = window.prompt("Save this node (and children) as", suggested);
+    const name = window.prompt("Save this node (and children) as new asset", suggested);
     if (!name) return;
     setSaveBusy(true);
     try {
       const base = name.replace(/\.[^.]+$/, "");
       const result = await exportToGlb(target, target === root ? clips : [], base);
-      downloadBlob(result.blob, result.filename);
-      toast.success(`Saved ${result.filename}`, {
-        description: `${result.triangles} tris · pulled ${target.name || target.type}`,
+      const path = await persistGlb(result);
+      if (!path) return;
+      toast.success(`Saved new asset`, {
+        description: `${path.split(/[\\/]/).pop()} · ${result.triangles} tris · ${target.name || target.type}`,
       });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaveBusy(false);
     }
-  }, [selected, root, clips, asset.name]);
+  }, [selected, root, clips, asset.name, persistGlb]);
 
   const saveGlb = useCallback(async () => {
     if (!root) return;
     setSaveBusy(true);
     try {
       const base = (asset.name || "asset").replace(/\.[^.]+$/, "");
-      const result = await exportToGlb(root, clips, base);
-      downloadBlob(result.blob, result.filename);
+      const result = await exportToGlb(root, clips, `${base}-edited`);
+      const path = await persistGlb(result);
+      if (!path) return;
       if (asset.localPath && rig?.hasSkinnedMesh) {
-        const mapPath = asset.localPath.replace(/\.[^.]+$/, "") + ".skeleton-mapping.json";
+        const mapPath = (path.endsWith(".glb") ? path : asset.localPath).replace(/\.[^.]+$/, "") + ".skeleton-mapping.json";
         const mapping = {
           source: asset.localPath,
           fingerprint: rig.fingerprint,
@@ -236,19 +254,21 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
         };
         try {
           await G()?.skeleton?.saveMapping?.({ path: mapPath, mapping });
-          toast.success("Saved GLB + mapping", { description: mapPath.split(/[\\/]/).pop() });
+          toast.success("Saved GLB + mapping", { description: path.split(/[\\/]/).pop() });
         } catch {
-          toast.success("Saved GLB (mapping write skipped)");
+          toast.success("Saved as new asset", { description: path.split(/[\\/]/).pop() });
         }
       } else {
-        toast.success(`Saved ${result.filename}`, { description: `${result.triangles} tris` });
+        toast.success("Saved as new asset", {
+          description: `${path.split(/[\\/]/).pop()} · ${result.triangles} tris`,
+        });
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaveBusy(false);
     }
-  }, [root, clips, asset, rig]);
+  }, [root, clips, asset, rig, persistGlb]);
 
   const openSkeletonStudio = useCallback(async () => {
     const path = asset.localPath;

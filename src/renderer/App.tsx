@@ -29,6 +29,7 @@ import {
   Box,
   MonitorPlay,
   WandSparkles,
+  LayoutTemplate,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -60,6 +61,7 @@ const LocalFiles = React.lazy(() => import("./pages/LocalFiles"));
 const AssetLibrary = React.lazy(() => import("./pages/AssetLibrary"));
 const StudioHub = React.lazy(() => import("./pages/StudioHub"));
 const Prompt3D = React.lazy(() => import("./pages/Prompt3D"));
+const UiStudio = React.lazy(() => import("./pages/UiStudio"));
 
 import Login from "./pages/Login";
 import StatusBar from "./components/StatusBar";
@@ -93,7 +95,8 @@ type Route =
   | "/preview"
   | "/play"
   | "/docs"
-  | "/settings";
+  | "/settings"
+  | "/ui";
 
 interface NavEntry {
   route: Route;
@@ -115,6 +118,7 @@ const NAV: NavEntry[] = [
   { route: "/studio", label: "Home", Icon: HomeIcon, primary: true },
   { route: "/local", label: "Local Files", Icon: FolderSearch, primary: true },
   { route: "/threeflow", label: "ThreeFlow", Icon: Box, primary: true },
+  { route: "/ui", label: "UI Studio", Icon: LayoutTemplate, primary: true },
   { route: "/prompt3d", label: "Prompt to 3D", Icon: WandSparkles, primary: true },
   { route: "/browser", label: "Assets", Icon: FolderTree, primary: true },
   { route: "/skeleton", label: "Skeleton", Icon: Bone, primary: true },
@@ -127,17 +131,18 @@ const NAV: NavEntry[] = [
   // More (full tools only)
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true },
   { route: "/view", label: "View Mode", Icon: Eye, adminOnly: true },
-  { route: "/builder", label: "Grok Builder (lab)", Icon: Hammer, hidden: true },
+  { route: "/forge-local", label: "Local Forge", Icon: Hammer, adminOnly: true },
+  { route: "/builder", label: "Grok Builder", Icon: Hammer },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
   { route: "/library", label: "Store", Icon: Store },
   { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
+  { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true },
   { route: "/docs", label: "Docs", Icon: BookOpen },
   { route: "/accounts", label: "Account", Icon: User },
   // Alias-only pages (still in VALID_ROUTES + lazy mounts; not listed in sidebar)
   { route: "/search", label: "Search", Icon: SearchIcon, hidden: true },
   { route: "/request", label: "Request URL", Icon: Link2, adminOnly: true, hidden: true },
   { route: "/uuid", label: "UUID", Icon: Fingerprint, hidden: true },
-  { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true, hidden: true },
 ];
 
 interface Session {
@@ -171,6 +176,7 @@ const FULL_HEIGHT_ROUTES = new Set<string>([
   "/view",
   "/local",
   "/threeflow",
+  "/ui",
   "/forge",
   "/forge-local",
   "/skeleton",
@@ -222,6 +228,10 @@ export default function App() {
 
   const refreshSession = useCallback(async () => {
     try {
+      if (!window.grudge?.auth?.getSession) {
+        setSession({ signedIn: false, grudgeId: null, puterUser: null, hasToken: false });
+        return;
+      }
       const s: Session = await window.grudge.auth.getSession();
       setSession(s);
     } catch (err: unknown) {
@@ -234,23 +244,28 @@ export default function App() {
 
   useEffect(() => {
     void refreshSession();
-    void window.grudge.appRuntime?.().then((runtime: { offlineLocalTest?: boolean }) => {
-      if (runtime?.offlineLocalTest) setRoute("/prompt3d");
-      else void hydrateFromMain().then((snap) => { if (snap?.route) setRoute(resolveRoute(snap.route)); });
-    });
+    // Preload may be missing on a broken package — never throw on window.grudge.
+    void window.grudge?.appRuntime?.()
+      .then((runtime: { offlineLocalTest?: boolean }) => {
+        if (runtime?.offlineLocalTest) setRoute("/prompt3d");
+        else void hydrateFromMain().then((snap) => { if (snap?.route) setRoute(resolveRoute(snap.route)); });
+      })
+      .catch(() => {
+        void hydrateFromMain().then((snap) => { if (snap?.route) setRoute(resolveRoute(snap.route)); });
+      });
     const off = window.grudge?.onNav?.((r: string) => {
       stashRouteQuery(r);
       setRoute(resolveRoute(r));
     });
     void (async () => {
       try {
-        const runtime = await window.grudge.appRuntime?.();
+        const runtime = await window.grudge?.appRuntime?.();
         if (runtime?.offlineLocalTest) return;
-        const s = await window.grudge.auth.getSession();
+        const s = await window.grudge?.auth?.getSession?.();
         if (s?.signedIn && isAdmin(s)) {
-          await window.grudge.ollama?.ensure?.({ agentic: true, reason: "renderer-admin-session" });
+          await window.grudge?.ollama?.ensure?.({ agentic: true, reason: "renderer-admin-session" });
         } else {
-          await window.grudge.ollama?.ensure?.({ agentic: false, reason: "renderer-open" });
+          await window.grudge?.ollama?.ensure?.({ agentic: false, reason: "renderer-open" });
         }
       } catch {
         /* main process also ensures on open */
@@ -292,6 +307,22 @@ export default function App() {
       <div className="flex flex-col items-center justify-center h-screen text-muted gap-3">
         <Loader2 size={28} className="animate-spin text-gold" />
         <span className="text-xs">Checking session…</span>
+      </div>
+    );
+  }
+
+  if (typeof window !== "undefined" && !window.grudge) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen p-6 gap-3 text-center">
+        <div className="card max-w-lg">
+          <h1 className="page-title">Preload bridge missing</h1>
+          <p className="text-muted text-sm mb-3">
+            `window.grudge` did not load. Reinstall from GitHub Releases (v1.1.2+) or run a local rebuild (`npm run package`).
+          </p>
+          <pre className="text-xs status-bad text-left whitespace-pre-wrap break-words mb-3">
+            Cannot read properties of undefined (reading &apos;appRuntime&apos;) — preload failed
+          </pre>
+        </div>
       </div>
     );
   }
@@ -488,6 +519,7 @@ export default function App() {
               {route === "/games" && <FleetLauncher admin={admin} />}
               {route === "/view" && <ViewMode />}
               {route === "/threeflow" && <ThreeFlowStudio />}
+              {route === "/ui" && <UiStudio />}
               {route === "/prompt3d" && <Prompt3D />}
               {route === "/local" && <LocalFiles />}
               {route === "/ai" && <AIWorkspace />}

@@ -243,6 +243,11 @@ const api = {
       ipcRenderer.invoke("viewer:saveConvertedFile", args) as Promise<
         { ok: true; savedPath: string } | { ok: false; error: string } | { canceled: true }
       >,
+    /** Save exported GLB bytes via native Save dialog (delete-parts → save as new). */
+    saveExportedBytes: (args: { bytes: Uint8Array | ArrayBuffer; defaultName: string }) =>
+      ipcRenderer.invoke("viewer:saveExportedBytes", args) as Promise<
+        { ok: true; savedPath: string } | { ok: false; error: string } | { canceled: true }
+      >,
     /** grudge-web-v1 gltf-transform optimize — returns before/after sizes + temp .web.glb path. */
     optimizeForWeb: (args: {
       url: string;

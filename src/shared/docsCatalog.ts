@@ -61,6 +61,15 @@ export const DOCS_CATALOG: DocEntry[] = [
     primary: true,
   },
   {
+    id: "cloudpilot",
+    title: "CloudPilot AI Studio",
+    file: "cloudpilot-ai-studio.md",
+    pagesPath: "/cloudpilot-ai-studio.html",
+    description: "GrudgeOS / Monaco / AI / Arena / deploy APIs on coder.grudge-studio.com.",
+    group: "ai",
+    primary: true,
+  },
+  {
     id: "vercel-fleet",
     title: "Vercel fleet SSOT",
     file: "VERCEL_FLEET_SSOT.md",

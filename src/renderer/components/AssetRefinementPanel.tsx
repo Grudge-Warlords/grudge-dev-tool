@@ -13,7 +13,7 @@ export default function AssetRefinementPanel({ object, name, animations, engine,
   const [busy,setBusy] = useState(false), [showBefore,setShowBefore] = useState(false), [paused,setPaused] = useState(false);
   const [time,setTime] = useState(0), [message,setMessage] = useState("");
   const [plannerHost,setPlannerHost] = useState("http://127.0.0.1:11434");
-  useEffect(()=>{void window.grudge.appRuntime().then((r: Prompt3DAppRuntime)=>{if(r.plannerHost)setPlannerHost(r.plannerHost);});},[]);
+  useEffect(()=>{void window.grudge?.appRuntime?.().then((r: Prompt3DAppRuntime)=>{if(r?.plannerHost)setPlannerHost(r.plannerHost);}).catch(()=>{});},[]);
   const preview = useRef<ReturnType<typeof buildAssetRefinement> | null>(null);
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const committed = useRef(false);

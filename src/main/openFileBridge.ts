@@ -1,9 +1,9 @@
 /**
  * Local file open system for Grudge Dev Tool.
  *
- * 3D meshes / scenes → Elite viewer (gltfProdLoader, diskPath, textures).
+ * 3D meshes / scenes → Elite multi-asset studio (append / edit / save-as).
  * Images / audio / video / text / PDF → Elite media viewer.
- * Vue ThreeFlow `/editor` and ThreePipe `/view` are explicit actions.
+ * Explicit ThreeFlow `/editor` remains a button action.
  */
 
 import { BrowserWindow } from "electron";

@@ -344,8 +344,18 @@ if (!gotLock) {
         ),
       )
       .catch((err) => log.warn("seedDefaultSecrets failed", err));
-    // Cold-start: Explorer double-click → elite Asset Viewer + Local Files tab
+    // Cold-start: Explorer double-click → Elite Three Pipeline (+ Local Files tab)
+    const hadColdOpen = openFileBridge.getPendingPaths().length > 0;
     if (mainWindow) openFileBridge.flushPendingTo(mainWindow);
+    // No pending file open → surface GrudgeLoader in the bottom-right so the
+    // notification-area (▲) icon is discoverable (v1.1.0 tray UX).
+    if (!OFFLINE_LOCAL_TEST && !hadColdOpen) {
+      try {
+        showLoader();
+      } catch {
+        /* ignore */
+      }
+    }
     // Window-scoped shortcuts (registered while the main window has focus).
     // We don't use globalShortcut here on purpose — those would steal Ctrl+R
     // from any other app system-wide.
@@ -451,14 +461,18 @@ function registerIpc() {
     controlsQueue = result.catch(() => undefined);
     return result;
   };
+  /** Soft gate: main shell only. Do not block on brittle file:// casing (broke tray/shell after 1.1.2). */
+  const assertMainShellSender = (event: Electron.IpcMainInvokeEvent) => {
+    if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
+      throw new Error("IPC sender is not the main application window.");
+    }
+    if (event.senderFrame && event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("IPC is restricted to the top-level application frame.");
+    }
+  };
+  /** Prompt-to-3D mutations only — reads use assertMainShellSender. */
   const assertPrompt3DSender = (event: Electron.IpcMainInvokeEvent) => {
-    if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error("Prompt-to-3D IPC sender is not the main application window.");
-    if (event.senderFrame !== event.sender.mainFrame) throw new Error("Prompt-to-3D IPC is restricted to the top-level application frame.");
-    const frameUrl = event.senderFrame?.url ?? "";
-    const allowed = app.isPackaged
-      ? frameUrl.split("#", 1)[0] === pathToFileURL(RENDERER_PROD_INDEX).href
-      : (() => { try { return new URL(frameUrl).origin === new URL(RENDERER_DEV_URL).origin; } catch { return false; } })();
-    if (!allowed) throw new Error("Prompt-to-3D IPC origin is not authorized.");
+    assertMainShellSender(event);
   };
   const prompt3dCapabilityFor = (event: Electron.IpcMainInvokeEvent) => {
     assertPrompt3DSender(event);
@@ -483,19 +497,19 @@ function registerIpc() {
   prompt3d.on("finish-progress", (payload) => mainWindow?.webContents.send(PROMPT3D_WORKFLOW_CHANNELS.finishProgress, payload));
   prompt3d.on("batch-progress", (payload) => mainWindow?.webContents.send(PROMPT3D_WORKFLOW_CHANNELS.batchProgress, payload));
   ipcMain.handle(PROMPT3D_CHANNELS.runtime, (event) => serializeControls(async () => {
-    assertPrompt3DSender(event);
+    assertMainShellSender(event);
     const enabled = await localControlsEnabled();
     if (enabled) enablePrompt3DForWindow(event);
     return { offlineLocalTest: OFFLINE_LOCAL_TEST, prompt3dRoot: prompt3d.getRoot(), localControlsEnabled: enabled, plannerHost: await loadPlannerHost() };
   }));
-  ipcMain.handle(PROMPT3D_CHANNELS.overview, (event, spec) => { assertPrompt3DSender(event); return prompt3d.overview(spec); });
-  ipcMain.handle(PROMPT3D_CHANNELS.history, (event) => { assertPrompt3DSender(event); return prompt3d.history(); });
+  ipcMain.handle(PROMPT3D_CHANNELS.overview, (event, spec) => { assertMainShellSender(event); return prompt3d.overview(spec); });
+  ipcMain.handle(PROMPT3D_CHANNELS.history, (event) => { assertMainShellSender(event); return prompt3d.history(); });
   ipcMain.handle(PROMPT3D_CHANNELS.draft, async (event) => {
-    assertPrompt3DSender(event);
+    assertMainShellSender(event);
     return await loadPrompt3DDraft() ?? (await prompt3d.history()).latestJob?.spec ?? null;
   });
   ipcMain.handle(PROMPT3D_CHANNELS.saveDraft, async (event, spec) => {
-    assertPrompt3DSender(event);
+    assertMainShellSender(event);
     await savePrompt3DDraft(spec);
     return { saved: true };
   });
@@ -905,6 +919,10 @@ function registerIpc() {
     const parent = BrowserWindow.fromWebContents(_e.sender);
     return viewer.saveConvertedFile(args, parent && !parent.isDestroyed() ? parent : mainWindow);
   });
+  ipcMain.handle("viewer:saveExportedBytes", (_e, args: { bytes: Uint8Array | ArrayBuffer; defaultName: string }) => {
+    const parent = BrowserWindow.fromWebContents(_e.sender);
+    return viewer.saveExportedBytes(args, parent && !parent.isDestroyed() ? parent : mainWindow);
+  });
   ipcMain.handle("viewer:optimizeForWeb", (_e, args: { url: string; name: string; opts?: any }) =>
     viewer.optimizeForWeb(args));
   ipcMain.handle("viewer:reuploadOptimized", (_e, args: { localPath: string; objectKey: string; contentType?: string }) =>
@@ -916,10 +934,11 @@ function registerIpc() {
   ipcMain.handle("connectivity:get", () => getConnectivity());
 
   // Updater
-  ipcMain.handle(UPDATER_CHANNELS.getStatus, (event) => { assertPrompt3DSender(event); return getUpdaterStatus(); });
-  ipcMain.handle(UPDATER_CHANNELS.check, (event) => { assertPrompt3DSender(event); return checkForUpdatesNow(); });
-  ipcMain.handle(UPDATER_CHANNELS.download, (event) => { assertPrompt3DSender(event); return downloadUpdateNow(); });
-  ipcMain.handle(UPDATER_CHANNELS.install, (event) => { assertPrompt3DSender(event); quitAndInstall(); });
+  // Updater is shell chrome — do not gate on Prompt-to-3D sender checks.
+  ipcMain.handle(UPDATER_CHANNELS.getStatus, () => getUpdaterStatus());
+  ipcMain.handle(UPDATER_CHANNELS.check, () => checkForUpdatesNow());
+  ipcMain.handle(UPDATER_CHANNELS.download, () => downloadUpdateNow());
+  ipcMain.handle(UPDATER_CHANNELS.install, () => { quitAndInstall(); });
 
   // Auto-launch on Windows startup
   ipcMain.handle("settings:getAutoLaunch", () => app.getLoginItemSettings().openAtLogin);
@@ -1026,7 +1045,7 @@ function registerIpc() {
   );
   ipcMain.handle(
     "viewer:openThreePipe",
-    async (_e, args: { name: string; cdnUrl?: string; localPath?: string }) => {
+    async (_e, args: { name: string; cdnUrl?: string; localPath?: string; mode?: "view" | "editor" }) => {
       if (args?.localPath) {
         await startPluginHost({
           showMain: () => {
@@ -1037,7 +1056,7 @@ function registerIpc() {
           },
         }).catch((err) => log.warn("[viewer] plugin host", err));
       }
-      return viewer.openThreeFlowPipeline({ ...args, mode: "view" });
+      return viewer.openThreeFlowPipeline({ ...args, mode: args?.mode || "editor" });
     },
   );
   ipcMain.handle("viewer:openLocal", (_e, args: { path: string; contentType?: string; size?: number }) => {
