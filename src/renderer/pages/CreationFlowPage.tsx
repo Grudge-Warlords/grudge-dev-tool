@@ -41,7 +41,7 @@ export default function CreationFlowPage(){
   useEffect(()=>{const pending=sessionStorage.getItem(CREATION_BASE_HANDOFF);if(pending){try{setBaseSource(JSON.parse(pending));setMethod("procedural");setWorkspaceOpen(true);setCurrent(null);setPrompt("");}catch{toast.error("The selected asset could not be restored.");}sessionStorage.removeItem(CREATION_BASE_HANDOFF);}},[]);
   const [guidedIntent,setGuidedIntent]=useState<Prompt3DGuidedIntent>();
   const [activeOrchestration,setActiveOrchestration]=useState<Prompt3DOrchestrationRecord>();
-  useEffect(()=>{void window.grudge.appRuntime().then((r:Prompt3DAppRuntime)=>{const enabled=r.localControlsEnabled===true;setControls(enabled);void refreshRouting(enabled);});void refresh(true);void refreshLibrary();},[]);
+  useEffect(()=>{void window.grudge?.appRuntime?.().then((r:Prompt3DAppRuntime)=>{const enabled=r?.localControlsEnabled===true;setControls(enabled);void refreshRouting(enabled);}).catch(()=>{setControls(false);});void refresh(true);void refreshLibrary();},[]);
   useEffect(()=>{localStorage.setItem("grudge:creation-method",method);},[method]);
   useEffect(()=>{localStorage.setItem(DRAFT,JSON.stringify({prompt,category,style,usePlanner:planner,currentId:current?.id}));},[prompt,category,style,planner,current]);
   async function refresh(restore=false){

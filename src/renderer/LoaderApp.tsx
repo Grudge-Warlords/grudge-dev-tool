@@ -136,6 +136,7 @@ export default function LoaderApp() {
       setNextCursor(null);
     }
     try {
+      if (!window.grudge?.os?.list) throw new Error("Preload bridge missing (os.list)");
       const res = await window.grudge.os.list({
         prefix: p,
         delimiter: "/",

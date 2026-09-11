@@ -322,8 +322,8 @@ export default function Prompt3D({ guidedIntent }: { guidedIntent?: Prompt3DGuid
     }).catch((error: unknown) => {
       if (active) setAutosaveError(`Could not restore saved brief: ${String(error)}`);
     }).finally(() => { if (active) setDraftReady(true); });
-    void window.grudge.appRuntime().then((runtime: Prompt3DAppRuntime) => {
-      if (active) setControlsEnabled(runtime.localControlsEnabled === true);
+    void window.grudge?.appRuntime?.().then((runtime: Prompt3DAppRuntime) => {
+      if (active) setControlsEnabled(runtime?.localControlsEnabled === true);
     }).catch((error: unknown) => {
       if (active) toast.error("Could not restore local controls", { description: String(error) });
     }).finally(() => { if (active) setControlsReady(true); });

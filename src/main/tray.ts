@@ -1,72 +1,95 @@
 import { Tray, Menu, nativeImage, BrowserWindow, app } from "electron";
 import { join } from "node:path";
-import { showLoader, hideLoader, toggleLoader, getLoaderWindow } from "./loader";
+import { existsSync } from "node:fs";
+import { showLoader, hideLoader, toggleLoader } from "./loader";
 import { focusAllViewers } from "./viewer";
 
 let tray: Tray | null = null;
 
 function trayIconPath(): string {
-  // Resolved relative to the running main process (dist/main during prod).
   const candidates = [
     join(process.resourcesPath ?? "", "tray.png"),
     join(__dirname, "..", "..", "resources", "tray.png"),
     join(__dirname, "..", "..", "..", "resources", "tray.png"),
   ];
   for (const p of candidates) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      if (require("node:fs").existsSync(p)) return p;
-    } catch { /* ignore */ }
+    if (existsSync(p)) return p;
   }
   return candidates[candidates.length - 1];
 }
 
+/**
+ * Notification-area (▲ overflow) icon.
+ * Left-click → GrudgeLoader bottom-right popup (v1.x UX).
+ * Double-click → main admin shell.
+ * Right-click → full surface menu.
+ */
 export function createTray(getWindow: () => BrowserWindow | null): Tray {
   const img = nativeImage.createFromPath(trayIconPath());
   if (img.isEmpty()) {
-    console.warn("[tray] icon not found, falling back to default. Run `npm run build:icons` first.");
+    console.warn("[tray] icon not found — run `npm run build:icons`. Tray may be invisible.");
   }
-  tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
-  tray.setToolTip("Grudge Dev Tool");
+  tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img.resize({ width: 16, height: 16 }));
+  tray.setToolTip("Grudge Dev Tool — click for Loader");
 
   const showWindow = (route?: string) => {
     const w = getWindow();
-    if (!w) return;
+    if (!w || w.isDestroyed()) return;
     if (!w.isVisible()) w.show();
+    if (w.isMinimized()) w.restore();
     w.focus();
-    if (route) {
-      w.webContents.send("nav", route);
-    }
+    if (route) w.webContents.send("nav", route);
   };
 
   const menu = Menu.buildFromTemplate([
     { label: "Grudge Dev Tool", enabled: false },
     { type: "separator" },
-    { label: "GrudgeLoader (always-on-top)", click: () => toggleLoader() },
+    {
+      label: "GrudgeLoader (bottom-right)",
+      click: () => toggleLoader(),
+    },
+    { label: "Hide GrudgeLoader", click: () => hideLoader() },
     { label: "Bring asset viewers to front", click: () => focusAllViewers() },
-    { label: "Hide GrudgeLoader",            click: () => hideLoader() },
+    { label: "Open main window", click: () => showWindow() },
     { type: "separator" },
-    { label: "Show Browser",       click: () => showWindow("/browser") },
-    { label: "Search\u2026",        click: () => showWindow("/search") },
-    { label: "Quick Upload\u2026",  click: () => showWindow("/upload") },
-    { label: "Generate UUID\u2026", click: () => showWindow("/uuid") },
-    { label: "Grudge Store",     click: () => showWindow("/library") },
-    { label: "Forge 3D",         click: () => showWindow("/forge") },
-    { label: "BlenderKit Search", click: () => showWindow("/blenderkit") },
-    { label: "Fleet Games",      click: () => showWindow("/games") },
-    { label: "Account",          click: () => showWindow("/accounts") },
-    { label: "Dev Portal",       click: () => showWindow("/ai") },
+    { label: "Home", click: () => showWindow("/studio") },
+    { label: "Local Files", click: () => showWindow("/local") },
+    { label: "Assets (CDN / ObjectStore)", click: () => showWindow("/browser") },
+    { label: "ThreeFlow", click: () => showWindow("/threeflow") },
+    { label: "Skeleton / Anim", click: () => showWindow("/skeleton") },
+    { label: "Forge (live)", click: () => showWindow("/forge") },
+    { label: "Local Forge / Pipeline", click: () => showWindow("/forge-local") },
+    { label: "Preview playtests", click: () => showWindow("/preview") },
+    { label: "Play", click: () => showWindow("/play") },
+    { label: "Games", click: () => showWindow("/games") },
     { type: "separator" },
-    { label: "Open Docs",      click: () => showWindow("/docs") },
-    { label: "Settings",       click: () => showWindow("/settings") },
+    { label: "Agent AI / Dev Portal", click: () => showWindow("/ai") },
+    { label: "Legion Chat", click: () => showWindow("/legion") },
+    { label: "Prompt to 3D", click: () => showWindow("/prompt3d") },
+    { label: "Coder", click: () => showWindow("/coder") },
+    { label: "Upload", click: () => showWindow("/upload") },
+    { label: "BlenderKit", click: () => showWindow("/blenderkit") },
+    { label: "Store", click: () => showWindow("/library") },
+    { label: "Account", click: () => showWindow("/accounts") },
     { type: "separator" },
-    { label: "Quit",           click: () => { app.quit(); } },
+    { label: "Docs", click: () => showWindow("/docs") },
+    { label: "Settings / ONE TRUTH", click: () => showWindow("/settings") },
+    { type: "separator" },
+    { label: "Quit", click: () => { app.quit(); } },
   ]);
   tray.setContextMenu(menu);
-  // Left-click / double-click open the main window (primary UX).
-  // GrudgeLoader remains available from the tray menu.
-  tray.on("click", () => showWindow());
-  tray.on("double-click", () => showWindow());
+
+  // Windows notification overflow (▲): left-click must open the Loader popup.
+  tray.on("click", () => {
+    toggleLoader();
+  });
+  tray.on("double-click", () => {
+    showWindow();
+  });
+  tray.on("right-click", () => {
+    tray?.popUpContextMenu(menu);
+  });
+
   return tray;
 }
 
