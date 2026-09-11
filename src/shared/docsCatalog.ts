@@ -70,6 +70,15 @@ export const DOCS_CATALOG: DocEntry[] = [
     primary: true,
   },
   {
+    id: "fleet-agents",
+    title: "Fleet agents & sub-agents",
+    file: "fleet-agents-api.md",
+    pagesPath: "/fleet-agents-api.html",
+    description: "Legion /api/chat + bestSubAgentFor for pages, apps, sites, Dev Tool.",
+    group: "ai",
+    primary: true,
+  },
+  {
     id: "vercel-fleet",
     title: "Vercel fleet SSOT",
     file: "VERCEL_FLEET_SSOT.md",

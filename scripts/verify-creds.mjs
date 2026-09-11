@@ -42,6 +42,10 @@ const REQUIRED = [
   ["Legion hub URL",    "legion.hubUrl",        false],
   ["GRUDA Agent URL",   "legion.grudaAgentUrl", false],
   ["Fleet AI key",      "legion.fleetApiKey",   false],
+  // Deploy platform tokens (Settings → Fleet connections)
+  ["Vercel token",      "fleet.vercelToken",    false],
+  ["Railway token",     "fleet.railwayToken",   false],
+  ["CF API token",      "fleet.cfApiToken",     false],
 ];
 
 async function main() {

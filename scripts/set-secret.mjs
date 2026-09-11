@@ -46,6 +46,12 @@ const KEY_TO_ACCOUNT = {
   GRUDGE_AI_KEY:          "legion.fleetApiKey",
   GRUDGE_LEGION_HUB:      "legion.hubUrl",
   GRUDGE_GRUDA_AGENT:     "legion.grudaAgentUrl",
+  VERCEL_TOKEN:           "fleet.vercelToken",
+  RAILWAY_TOKEN:          "fleet.railwayToken",
+  CF_API_TOKEN:           "fleet.cfApiToken",
+  CLOUDFLARE_API_TOKEN:   "fleet.cfApiToken",
+  PUTER_AUTH_TOKEN:       "puter-token",
+  PUTER_TOKEN:            "puter-token",
 };
 
 async function main() {

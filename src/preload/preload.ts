@@ -99,6 +99,19 @@ const api = {
     clearBlenderKitKey: () => ipcRenderer.invoke("settings:clearBlenderKitKey"),
     toolchain: () => ipcRenderer.invoke("settings:toolchain"),
   },
+  /** Vercel / Railway / Cloudflare / Puter deploy tokens + redeploy */
+  fleetDeploy: {
+    tokens: () => ipcRenderer.invoke("fleetDeploy:tokens"),
+    saveToken: (kind: string, value: string) => ipcRenderer.invoke("fleetDeploy:saveToken", kind, value),
+    clearToken: (kind: string) => ipcRenderer.invoke("fleetDeploy:clearToken", kind),
+    whoami: (kind: string) => ipcRenderer.invoke("fleetDeploy:whoami", kind),
+    targets: () => ipcRenderer.invoke("fleetDeploy:targets"),
+    redeploy: (targetId: string) => ipcRenderer.invoke("fleetDeploy:redeploy", targetId),
+  },
+  fleetAgent: {
+    bestSubagent: (surface: string, intent?: string) =>
+      ipcRenderer.invoke("fleetAgent:bestSubagent", surface, intent),
+  },
   // Object storage + D1/registry seed
   os: {
     list: (req: any) => ipcRenderer.invoke("os:list", req),

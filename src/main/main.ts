@@ -49,6 +49,8 @@ import { FLEET_GAMES, STORE_CATEGORIES } from "../shared/fleetGames";
 import { GAME_DEPLOYMENT_DEFINITIONS } from "../shared/gameDeployments";
 import { mergeFleetGames } from "../shared/fleetMerge";
 import { FLEET_ENDPOINTS } from "../shared/fleetConnections";
+import * as fleetDeploy from "./fleetDeploy";
+import { bestSubAgentFor, type FleetAgentSurface } from "../shared/fleetAgents";
 import * as workspaceStore from "./workspaceStore";
 import * as puterAuth from "./auth/puterSession";
 import { puterLoginAuto, puterLoginViaExternalBrowser, resolvePuterUserFromToken } from "./auth/puterLogin";
@@ -1150,6 +1152,25 @@ function registerIpc() {
   ipcMain.handle("cf:aiHealth", () => aiGatewayHealth());
   ipcMain.handle("cf:getBackendMode", () => api.getBackendMode());
   ipcMain.handle("cf:setBackendMode", (_e, mode: any) => api.setBackendMode(mode));
+
+  // Fleet deploy platforms (Vercel / Railway / CF Wrangler / Puter session)
+  ipcMain.handle("fleetDeploy:tokens", () => fleetDeploy.tokenStatus());
+  ipcMain.handle("fleetDeploy:saveToken", (_e, kind: string, value: string) =>
+    fleetDeploy.saveToken(kind as import("../shared/fleetConnections").FleetTokenKind, value),
+  );
+  ipcMain.handle("fleetDeploy:clearToken", (_e, kind: string) =>
+    fleetDeploy.clearToken(kind as import("../shared/fleetConnections").FleetTokenKind),
+  );
+  ipcMain.handle("fleetDeploy:whoami", (_e, kind: string) => {
+    if (kind === "puter") return fleetDeploy.puterStatus();
+    return fleetDeploy.whoami(kind as "vercel" | "railway" | "cloudflare");
+  });
+  ipcMain.handle("fleetDeploy:targets", () => fleetDeploy.listTargets());
+  ipcMain.handle("fleetDeploy:redeploy", (_e, targetId: string) => fleetDeploy.redeploy(targetId));
+  ipcMain.handle(
+    "fleetAgent:bestSubagent",
+    (_e, surface: FleetAgentSurface, intent?: string) => bestSubAgentFor(surface, intent),
+  );
 
   // Direct R2 ops used by Forge3D (signed PUT/GET, list, head, public URL).
   ipcMain.handle("cf:r2SignedUpload", async (_e, args: { key: string; contentType?: string; ttlSeconds?: number }) => {

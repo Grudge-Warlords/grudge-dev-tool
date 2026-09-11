@@ -151,6 +151,9 @@ export async function legionChat(opts: {
   role?: string;
   model?: string;
   injectFleetTruth?: boolean;
+  /** Sub-agent hint for hub routing (see shared/fleetAgents.ts) */
+  subagent?: string;
+  surface?: string;
 }): Promise<{ response: string; source: string }> {
   const messages = await messagesWithFleetTruth(opts);
   const errors: string[] = [];
@@ -165,6 +168,8 @@ export async function legionChat(opts: {
         messages,
         role: opts.role ?? "dev",
         model: opts.model,
+        subagent: opts.subagent,
+        surface: opts.surface ?? "dev-tool",
       }),
       signal: AbortSignal.timeout(60_000),
     });

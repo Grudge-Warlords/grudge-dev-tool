@@ -207,11 +207,18 @@ export default function AIWorkspace() {
     setBusy(true);
     try {
       void ensureLocalAgent();
-      const res = await runAgent(task, selectedId ?? undefined);
+      let subHint = "";
+      try {
+        const sub = await (window as any).grudge?.fleetAgent?.bestSubagent?.("dev-tool", task);
+        if (sub) subHint = `\n[subagent=${sub}]`;
+      } catch {
+        /* optional until rebuild */
+      }
+      const res = await runAgent(`${task}${subHint}`, selectedId ?? undefined);
       setAgentOut(
         [
           res.response,
-          res.source ? `\n\n— via ${res.source}` : "",
+          res.source ? `\n\n— via ${res.source}${subHint ? ` · ${subHint.trim()}` : ""}` : "",
         ].join(""),
       );
       toast.success("Agent run complete", {
@@ -513,8 +520,11 @@ export default function AIWorkspace() {
               <li>ObjectStore · {FLEET_URLS.objectStore}</li>
               <li>Warlords · {FLEET_URLS.warlords}</li>
               <li>Forge · {FLEET_URLS.forge}</li>
+              <li>UI Studio · {FLEET_URLS.uiStudio || `${FLEET_URLS.ui}/studio`}</li>
+              <li>UI Assets · {FLEET_URLS.uiAssets || `${FLEET_URLS.ui}/assets`}</li>
+              <li>Prefab · {FLEET_URLS.characterPrefabWarlords || `${FLEET_URLS.characterFoundry}/prefab?era=warlords`}</li>
               <li>Client · {FLEET_URLS.client}</li>
-              <li>AI · {FLEET_URLS.ai}</li>
+              <li>AI agents · {FLEET_URLS.ai}/api/chat</li>
             </ul>
             <p className="text-muted">
               Workspace: <span className="font-mono text-ink">{workspaceDir || "—"}</span>

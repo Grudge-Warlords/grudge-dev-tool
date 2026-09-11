@@ -53,6 +53,9 @@ const ENV_TO_KEYTAR: Array<{ env: string | string[]; account: string; cf?: CfAcc
   { env: ["POLY_PIZZA_API", "POLYPIZZA_API", "POLY_PIZZA_API_KEY"], account: "assets.polypizza" },
   { env: ["PUTER_AUTH_TOKEN", "PUTER_TOKEN", "PUTER_API_TOKEN"], account: "puter-token" },
   { env: "ALE_AI", account: "llm.ale" },
+  { env: "VERCEL_TOKEN", account: "fleet.vercelToken" },
+  { env: "RAILWAY_TOKEN", account: "fleet.railwayToken" },
+  { env: ["CF_API_TOKEN", "CLOUDFLARE_API_TOKEN"], account: "fleet.cfApiToken" },
 ];
 
 function firstEnv(keys: string | string[]): string | undefined {

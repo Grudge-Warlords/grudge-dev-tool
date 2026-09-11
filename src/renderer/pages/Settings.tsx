@@ -41,6 +41,28 @@ export default function Settings() {
     packaged: boolean;
   } | null>(null);
   const [defaultsBusy, setDefaultsBusy] = useState(false);
+  const [fleetTokens, setFleetTokens] = useState<
+    Array<{ kind: string; stored: boolean; chars: number }>
+  >([]);
+  const [fleetTargets, setFleetTargets] = useState<
+    Array<{ id: string; label: string; platform: string; url: string; cwd?: string }>
+  >([]);
+  const [fleetWhoami, setFleetWhoami] = useState<Record<string, string>>({});
+  const [fleetTokenDraft, setFleetTokenDraft] = useState<Record<string, string>>({});
+  const [redeployBusy, setRedeployBusy] = useState<string | null>(null);
+  const [redeployLog, setRedeployLog] = useState("");
+
+  async function reloadFleetDeploy() {
+    try {
+      const fd = (window as any).grudge?.fleetDeploy;
+      if (!fd) return;
+      const [tokens, targets] = await Promise.all([fd.tokens(), fd.targets()]);
+      setFleetTokens(tokens || []);
+      setFleetTargets(targets || []);
+    } catch {
+      /* optional until rebuild */
+    }
+  }
 
   async function reload() {
     const d = await window.grudge.settings.get();
@@ -56,6 +78,7 @@ export default function Settings() {
     try { setSession(await window.grudge.auth?.getSession?.()); } catch { /* */ }
     try { setLegionHub(await window.grudge.legion?.getHubUrl?.() ?? ""); } catch { /* */ }
     try { setHasFleetKey(!!(await window.grudge.legion?.getFleetKey?.())); } catch { /* */ }
+    void reloadFleetDeploy();
     setAdminOverrideState(getAdminOverride());
     try {
       const st = await window.grudge.fileDefaults?.status?.();
@@ -771,6 +794,138 @@ export default function Settings() {
           <div className="row" style={{ marginTop: 4 }}>
             <input type="password" placeholder={hasFleetKey ? "Fleet key stored (paste to replace)" : "GRUDGE_AI_KEY / fleet bearer"} value={fleetKey} onChange={(e) => setFleetKey(e.target.value)} className="flex-1" />
             <button className="btn ghost" onClick={saveFleetKey}>Save key</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 className="flex items-center gap-2" style={{ margin: "0 0 8px" }}>
+          <Cloud size={16} className="text-gold" /> Fleet connections · Vercel / Railway / CF / Puter
+        </h3>
+        <p className="muted text-xs mb-3">
+          Tokens in Windows Credential Vault (<span className="kbd">fleet.vercelToken</span> ·{" "}
+          <span className="kbd">fleet.railwayToken</span> · <span className="kbd">fleet.cfApiToken</span> ·{" "}
+          <span className="kbd">puter-token</span>). Redeploy uses local CLIs. Agent/sub-agent API:{" "}
+          <span className="kbd">ai.grudge-studio.com/api/chat</span> (see <span className="kbd">fleetAgents.ts</span>).
+        </p>
+        <table>
+          <tbody>
+            {(["vercel", "railway", "cloudflare", "puter"] as const).map((kind) => {
+              const row = fleetTokens.find((t) => t.kind === kind);
+              return (
+                <tr key={kind}>
+                  <td className="muted capitalize">{kind}</td>
+                  <td>
+                    {row?.stored ? (
+                      <span className="status-ok">stored · {row.chars} chars</span>
+                    ) : (
+                      <span className="status-bad">missing</span>
+                    )}
+                    {fleetWhoami[kind] ? (
+                      <div className="muted text-[10px] mt-0.5 font-mono">{fleetWhoami[kind]}</div>
+                    ) : null}
+                  </td>
+                  <td>
+                    <div className="flex gap-1 items-center">
+                      {kind !== "puter" && (
+                        <input
+                          type="password"
+                          className="text-xs flex-1 min-w-[120px]"
+                          placeholder={`${kind} token`}
+                          value={fleetTokenDraft[kind] || ""}
+                          onChange={(e) =>
+                            setFleetTokenDraft((d) => ({ ...d, [kind]: e.target.value }))
+                          }
+                        />
+                      )}
+                      {kind !== "puter" && (
+                        <button
+                          type="button"
+                          className="btn ghost text-[10px]"
+                          onClick={async () => {
+                            const v = fleetTokenDraft[kind]?.trim();
+                            if (!v) {
+                              toast.error("Paste a token first");
+                              return;
+                            }
+                            try {
+                              await (window as any).grudge.fleetDeploy.saveToken(kind, v);
+                              setFleetTokenDraft((d) => ({ ...d, [kind]: "" }));
+                              toast.success(`Saved ${kind} token`);
+                              void reloadFleetDeploy();
+                            } catch (e: unknown) {
+                              toast.error(e instanceof Error ? e.message : String(e));
+                            }
+                          }}
+                        >
+                          <Save size={12} /> Save
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn ghost text-[10px]"
+                        onClick={async () => {
+                          try {
+                            const r = await (window as any).grudge.fleetDeploy.whoami(kind);
+                            setFleetWhoami((w) => ({
+                              ...w,
+                              [kind]: r?.ok ? `✓ ${r.detail}` : `✗ ${r?.detail || "fail"}`,
+                            }));
+                          } catch (e: unknown) {
+                            setFleetWhoami((w) => ({
+                              ...w,
+                              [kind]: e instanceof Error ? e.message : String(e),
+                            }));
+                          }
+                        }}
+                      >
+                        Whoami
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <div className="mt-3 pt-3 border-t border-line">
+          <div className="muted text-xs mb-2">Redeploy curated targets (cwd when linked on disk)</div>
+          <div className="flex flex-wrap gap-1.5">
+            {fleetTargets.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className="btn ghost text-[10px]"
+                disabled={!!redeployBusy}
+                title={`${t.platform} · ${t.url}${t.cwd ? ` · ${t.cwd}` : ""}`}
+                onClick={async () => {
+                  setRedeployBusy(t.id);
+                  setRedeployLog("");
+                  try {
+                    const r = await (window as any).grudge.fleetDeploy.redeploy(t.id);
+                    setRedeployLog(r?.log || r?.detail || "");
+                    if (r?.ok) toast.success(`Redeploy ${t.label}`, { description: r.detail });
+                    else toast.error(`Redeploy ${t.label}`, { description: r?.detail || "failed" });
+                  } catch (e: unknown) {
+                    toast.error(e instanceof Error ? e.message : String(e));
+                  } finally {
+                    setRedeployBusy(null);
+                  }
+                }}
+              >
+                {redeployBusy === t.id ? "…" : t.label}
+              </button>
+            ))}
+          </div>
+          {redeployLog ? (
+            <pre className="text-[10px] mt-2 max-h-32 overflow-auto border border-line rounded p-2 bg-bg-2 whitespace-pre-wrap">
+              {redeployLog}
+            </pre>
+          ) : null}
+          <div className="muted text-[10px] mt-2">
+            CLI: <span className="kbd">npm run secret:set</span> with{" "}
+            <span className="kbd">VERCEL_TOKEN</span> / <span className="kbd">RAILWAY_TOKEN</span> /{" "}
+            <span className="kbd">CF_API_TOKEN</span>
           </div>
         </div>
       </div>
