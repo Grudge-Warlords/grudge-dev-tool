@@ -55,6 +55,29 @@ export function createTray(getWindow: () => BrowserWindow | null): Tray {
     { label: "Home", click: () => showWindow("/studio") },
     { label: "Local Files", click: () => showWindow("/local") },
     { label: "Assets (CDN / ObjectStore)", click: () => showWindow("/browser") },
+    { label: "UI Studio (HYDRA)", click: () => showWindow("/ui") },
+    {
+      label: "UI Assets browser",
+      click: async () => {
+        try {
+          const { shell } = await import("electron");
+          await shell.openExternal("https://ui.grudge-studio.com/assets?from=grudge-dev-tool");
+        } catch {
+          showWindow("/ui");
+        }
+      },
+    },
+    {
+      label: "Character prefab (Warlords)",
+      click: async () => {
+        try {
+          const { shell } = await import("electron");
+          await shell.openExternal("https://character.grudge-studio.com/prefab?era=warlords&from=grudge-dev-tool");
+        } catch {
+          showWindow("/preview");
+        }
+      },
+    },
     { label: "ThreeFlow", click: () => showWindow("/threeflow") },
     { label: "Skeleton / Anim", click: () => showWindow("/skeleton") },
     { label: "Forge (live)", click: () => showWindow("/forge") },
@@ -66,7 +89,18 @@ export function createTray(getWindow: () => BrowserWindow | null): Tray {
     { label: "Agent AI / Dev Portal", click: () => showWindow("/ai") },
     { label: "Legion Chat", click: () => showWindow("/legion") },
     { label: "Prompt to 3D", click: () => showWindow("/prompt3d") },
-    { label: "Coder", click: () => showWindow("/coder") },
+    { label: "Coder / CloudPilot", click: () => showWindow("/coder") },
+    {
+      label: "CloudPilot AI Studio (browser)",
+      click: async () => {
+        try {
+          const { shell } = await import("electron");
+          await shell.openExternal("https://coder.grudge-studio.com/cloudpilot?from=grudge-dev-tool");
+        } catch {
+          showWindow("/coder");
+        }
+      },
+    },
     { label: "Upload", click: () => showWindow("/upload") },
     { label: "BlenderKit", click: () => showWindow("/blenderkit") },
     { label: "Store", click: () => showWindow("/library") },

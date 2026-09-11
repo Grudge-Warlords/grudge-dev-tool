@@ -123,12 +123,12 @@ export const ADMIN_SURFACES: AdminSurface[] = [
   {
     id: "coder",
     route: "/coder",
-    label: "Coder",
+    label: "Coder / CloudPilot",
     kind: "hybrid",
     prodUrl: FLEET_URLS.coder,
-    apis: [FLEET_URLS.coder, FLEET_URLS.ai, FLEET_URLS.client],
+    apis: [FLEET_URLS.coder, FLEET_URLS.cloudpilot, FLEET_URLS.ai, FLEET_URLS.client],
     description:
-      "GrudgeChain Vibe IDE — production embed (coder.grudge-studio.com) + optional local PTY server for full FS/agent power.",
+      "CloudPilot AI Studio + GrudgeOS (Monaco/AI/Arena) on coder.grudge-studio.com · optional local GrudachainCode PTY.",
     adminOnly: true,
   },
   {
@@ -220,10 +220,18 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     route: "/ui",
     label: "Create UI",
     kind: "embed-prod",
-    prodUrl: FLEET_URLS.ui,
-    apis: [FLEET_URLS.ui, FLEET_URLS.assets, FLEET_URLS.open, FLEET_URLS.forge],
+    prodUrl: FLEET_URLS.uiStudio,
+    apis: [
+      FLEET_URLS.ui,
+      FLEET_URLS.uiStudio,
+      FLEET_URLS.uiAssets,
+      FLEET_URLS.assets,
+      FLEET_URLS.characterPrefabWarlords,
+      FLEET_URLS.open,
+      FLEET_URLS.forge,
+    ],
     description:
-      "ui.grudge-studio.com — HUD/menus/settings packs. Open hosts GRUDOX; Forge deploys 3D; UI is shared chrome.",
+      "HYDRA studio + /assets CraftPix browser + character prefab?era=warlords — HUD/anim/UI SSOT with ObjectStore APIs.",
   },
 ];
 

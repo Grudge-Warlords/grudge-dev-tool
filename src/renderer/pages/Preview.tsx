@@ -77,6 +77,24 @@ const PLAY_PRESETS: Array<{
     hint: "Bermuda MP · Railway /api/mv",
   },
   {
+    id: "ui-studio",
+    label: "UI Studio",
+    url: FLEET_URLS.uiStudio || `${FLEET_URLS.ui}/studio`,
+    hint: "HYDRA · CraftPix HUD / action bars",
+  },
+  {
+    id: "ui-assets",
+    label: "UI Assets",
+    url: FLEET_URLS.uiAssets || `${FLEET_URLS.ui}/assets`,
+    hint: "3D + CraftPix pack browser",
+  },
+  {
+    id: "char-prefab",
+    label: "Warlords Prefab",
+    url: FLEET_URLS.characterPrefabWarlords || `${FLEET_URLS.characterFoundry}/prefab?era=warlords`,
+    hint: "character.grudge-studio.com prefab",
+  },
+  {
     id: "warlords",
     label: "Warlords",
     url: FLEET_URLS.warlords,

@@ -29,6 +29,7 @@ import {
   Box,
   MonitorPlay,
   WandSparkles,
+  LayoutTemplate,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -60,6 +61,7 @@ const LocalFiles = React.lazy(() => import("./pages/LocalFiles"));
 const AssetLibrary = React.lazy(() => import("./pages/AssetLibrary"));
 const StudioHub = React.lazy(() => import("./pages/StudioHub"));
 const Prompt3D = React.lazy(() => import("./pages/Prompt3D"));
+const UiStudio = React.lazy(() => import("./pages/UiStudio"));
 
 import Login from "./pages/Login";
 import StatusBar from "./components/StatusBar";
@@ -93,7 +95,8 @@ type Route =
   | "/preview"
   | "/play"
   | "/docs"
-  | "/settings";
+  | "/settings"
+  | "/ui";
 
 interface NavEntry {
   route: Route;
@@ -115,6 +118,7 @@ const NAV: NavEntry[] = [
   { route: "/studio", label: "Home", Icon: HomeIcon, primary: true },
   { route: "/local", label: "Local Files", Icon: FolderSearch, primary: true },
   { route: "/threeflow", label: "ThreeFlow", Icon: Box, primary: true },
+  { route: "/ui", label: "UI Studio", Icon: LayoutTemplate, primary: true },
   { route: "/prompt3d", label: "Prompt to 3D", Icon: WandSparkles, primary: true },
   { route: "/browser", label: "Assets", Icon: FolderTree, primary: true },
   { route: "/skeleton", label: "Skeleton", Icon: Bone, primary: true },
@@ -172,6 +176,7 @@ const FULL_HEIGHT_ROUTES = new Set<string>([
   "/view",
   "/local",
   "/threeflow",
+  "/ui",
   "/forge",
   "/forge-local",
   "/skeleton",
@@ -514,6 +519,7 @@ export default function App() {
               {route === "/games" && <FleetLauncher admin={admin} />}
               {route === "/view" && <ViewMode />}
               {route === "/threeflow" && <ThreeFlowStudio />}
+              {route === "/ui" && <UiStudio />}
               {route === "/prompt3d" && <Prompt3D />}
               {route === "/local" && <LocalFiles />}
               {route === "/ai" && <AIWorkspace />}

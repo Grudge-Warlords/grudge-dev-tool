@@ -164,6 +164,19 @@ export default function Coder() {
     })();
   }, [loadUrl]);
 
+  const openCloudPilotShell = useCallback((path: "cloudpilot" | "grudge-studio" | "") => {
+    setMode("cloud");
+    void (async () => {
+      const base =
+        path === "cloudpilot"
+          ? FLEET_URLS.cloudpilot || `${PROD_CODER}/cloudpilot`
+          : path === "grudge-studio"
+            ? FLEET_URLS.grudgeStudioIde || `${PROD_CODER}/grudge-studio`
+            : PROD_CODER;
+      loadUrl(await embedUrlWithSession(coderHandoffUrl(base)));
+    })();
+  }, [loadUrl]);
+
   const switchLocal = useCallback(() => {
     setMode("local");
     setPanelOpen(true);
@@ -235,7 +248,7 @@ export default function Coder() {
           </span>
           <span className="text-[10px] text-muted truncate">
             {mode === "cloud"
-              ? "coder.grudge-studio.com · production SPA"
+              ? "CloudPilot / GrudgeOS / Arena on coder.grudge-studio.com"
               : "Local PTY + FS · GrudachainCode"}
           </span>
         </div>
@@ -258,6 +271,25 @@ export default function Coder() {
             onClick={switchLocal}
           >
             <HardDrive size={11} /> Local
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1 ml-1 rounded border border-white/10 p-0.5 bg-black/30">
+          <button
+            type="button"
+            className="px-2 py-1 text-[10px] rounded text-muted hover:text-gold"
+            title="CloudPilot AI Studio shell"
+            onClick={() => openCloudPilotShell("cloudpilot")}
+          >
+            CloudPilot
+          </button>
+          <button
+            type="button"
+            className="px-2 py-1 text-[10px] rounded text-muted hover:text-gold"
+            title="GrudgeStudio IDE (Monaco + GrudgeOS)"
+            onClick={() => openCloudPilotShell("grudge-studio")}
+          >
+            GrudgeStudio
           </button>
         </div>
 

@@ -62,6 +62,12 @@ export const FLEET_URLS = {
    * Open hosts GRUDOX as voxel launcher; UI is shared chrome SSOT.
    */
   ui: "https://ui.grudge-studio.com",
+  /** HYDRA layout editor */
+  uiStudio: "https://ui.grudge-studio.com/studio",
+  /** 3D / CraftPix asset browser on UI host */
+  uiAssets: "https://ui.grudge-studio.com/assets",
+  /** Warlords Foundry prefab / create handoff */
+  characterPrefabWarlords: "https://character.grudge-studio.com/prefab?era=warlords",
   /**
    * Grok Builder — agentic Three.js + Rapier editor (Open + Dev Tool primary builder).
    * Prod: Vercel project `grok-builder` (grudgenexus). Local: http://localhost:5190.
@@ -75,6 +81,13 @@ export const FLEET_URLS = {
   pipeline: "https://grudge-pipeline.vercel.app",
   /** GrudgeChain Vibe IDE (CF Pages) + AI workers */
   coder: "https://coder.grudge-studio.com",
+  /**
+   * CloudPilot AI Studio shell (same Coder deploy — GrudgeOS / Monaco / AI / Arena).
+   * Docs: docs/cloudpilot-ai-studio.md — do not invent a second IDE host.
+   */
+  cloudpilot: "https://coder.grudge-studio.com/cloudpilot",
+  /** GrudgeStudio IDE path on Coder */
+  grudgeStudioIde: "https://coder.grudge-studio.com/grudge-studio",
   /** Coder alias */
   grudachain: "https://grudachain.grudge-studio.com",
   /** Browser studio editor */
