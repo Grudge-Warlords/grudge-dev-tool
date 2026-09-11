@@ -649,9 +649,10 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
           return loadConvertedGlb(conv.outputPath);
         }
         try {
-          const fbx = new FBXLoader(manager).parse(buf, "");
-          return finishModel(
-          const fbx = new FBXLoader(manager).parse(buf, resourceDir ? resourceDir.replace(/\\/g, "/") + "/" : "");
+          const fbx = new FBXLoader(manager).parse(
+            buf,
+            resourceDir ? resourceDir.replace(/\\/g, "/") + "/" : "",
+          );
           return finishLoaded(
             fbx,
             (fbx as any).animations ?? [],
