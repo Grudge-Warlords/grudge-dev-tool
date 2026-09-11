@@ -48,24 +48,40 @@ export async function unifyCharacterSurface(document:Document):Promise<{landmark
   if(!scene)throw new Error("The current character has no scene.");
   const meshNodes=root.listNodes().filter(n=>n.getMesh()&&!n.getExtras().effect);
   const existing=meshNodes.find(n=>n.getExtras().unifiedCharacterSurface);
-  if(existing)throw new Error("This character already has a unified surface. Adjust its shape or skeleton rather than rebuilding it from vanished blockout parts.");
-  const find=(name:string)=>meshNodes.find(n=>normalizedName(n.getName())===name);
+  if(existing){
+    // Gentle Taubin relaxation keeps the retained topology, UVs, joints and weights.
+    // Alternating shrink/expand passes remove voxel bumps without shrinking the silhouette.
+    let triangles=0;
+    for(const primitive of existing.getMesh()!.listPrimitives()){
+      const position=primitive.getAttribute("POSITION")!,array=new Float32Array(position.getArray()!),index=primitive.getIndices()!.getArray()!;
+      const neighbors=Array.from({length:array.length/3},()=>new Set<number>());
+      for(let i=0;i<index.length;i+=3)for(let j=0;j<3;j++){const a=Number(index[i+j]),b=Number(index[i+(j+1)%3]);neighbors[a].add(b);neighbors[b].add(a);}
+      for(let pass=0;pass<8;pass++){const next=new Float32Array(array),factor=pass%2?-.53:.5;neighbors.forEach((edges,v)=>{if(!edges.size)return;for(let axis=0;axis<3;axis++){let sum=0;for(const other of edges)sum+=array[other*3+axis];next[v*3+axis]+=factor*(sum/edges.size-array[v*3+axis]);}});array.set(next);}
+      position.setArray(array);
+      const geometry=new THREE.BufferGeometry().setAttribute("position",new THREE.BufferAttribute(array,3)).setIndex(Array.from(index));geometry.computeVertexNormals();
+      primitive.getAttribute("NORMAL")!.setArray(new Float32Array(geometry.getAttribute("normal").array));geometry.dispose();triangles+=index.length/3;
+      if(surfaceConnectivity(array,index).components!==1)throw new Error("Surface smoothing broke the connected skin.");
+    }
+    return {landmarks:root.getExtras().characterLandmarks as CharacterLandmarks,triangles,components:1};
+  }
+  const partName=(node:GltfNode)=>String(node.getExtras().characterPartName??node.getName());
+  const find=(name:string)=>meshNodes.find(n=>normalizedName(partName(n))===name);
   if(!find("head")||!(find("torso")||find("body"))||!find("leftleg")||!find("rightleg"))throw new Error("Surface unification needs a retained humanoid with named head, torso and separate legs.");
-  if(root.listSkins().length)throw new Error("Unify the body surface before binding its skeleton; the rigged revision remains saved.");
+  const retainedRig=root.listSkins().length>0;
+  if(retainedRig&&(root.getExtras().authoredCharacterRig as {profile?:string})?.profile!=="grudge-authored-character-rig-v1")throw new Error("The imported skin needs its existing surface tools. Its binding was not replaced.");
   const sourceBounds=new THREE.Box3();meshNodes.forEach(n=>sourceBounds.union(meshBounds(n)));
   const height=sourceBounds.getSize(new THREE.Vector3()).y,unit=height/2;
   if(height<.2||height>40)throw new Error("Character height is outside the bounded surface workflow.");
   const parts:FieldPart[]=[],landmarks:CharacterLandmarks={};
   const add=(name:string,center:V3,radius:V3,roundBox=false,rotation=0)=>{parts.push({name,center,radius,roundBox,...(rotation?{inverse:new THREE.Matrix4().makeRotationZ(-rotation)}:{})});landmarks[name]=center;};
-  const bodyNodes=meshNodes.filter(n=>!detailPart(n.getName()));
+  const bodyNodes=meshNodes.filter(n=>!detailPart(partName(n)));
   for(const node of bodyNodes){
-    const box=meshBounds(node),center=box.getCenter(new THREE.Vector3()).toArray() as V3,radius=box.getSize(new THREE.Vector3()).multiplyScalar(.5).toArray() as V3,name=node.getName(),key=normalizedName(name);
+    const box=meshBounds(node),center=box.getCenter(new THREE.Vector3()).toArray() as V3,radius=box.getSize(new THREE.Vector3()).multiplyScalar(.5).toArray() as V3,name=partName(node),key=normalizedName(name);
     if(key==="tail")continue;
     if(/^(?:left|right)(?:arm|hand)$/.test(key)){
       const sign=key.startsWith("left")?-1:1;
-      center[0]+=sign*.09*unit;
-      if(key.endsWith("hand")){center[0]+=sign*.095*unit;center[1]-=.02*unit;}
-      add(name,center,radius,false,key.endsWith("arm")?sign*.40:0);continue;
+      if(!retainedRig){center[0]+=sign*.09*unit;if(key.endsWith("hand")){center[0]+=sign*.095*unit;center[1]-=.02*unit;}}
+      add(name,center,radius,false,!retainedRig&&key.endsWith("arm")?sign*.40:0);continue;
     }
     if(key==="torso"||key==="body"){
       add("Torso",center,[radius[0]*.92,radius[1],radius[2]]);
@@ -142,6 +158,7 @@ export async function unifyCharacterSurface(document:Document):Promise<{landmark
   for(const node of bodyNodes){const mesh=node.getMesh();node.dispose();if(mesh&&!root.listNodes().some(n=>n.getMesh()===mesh))mesh.dispose();}
   for(const mesh of root.listMeshes())if(!root.listNodes().some(n=>n.getMesh()===mesh))mesh.dispose();
   document.getRoot().setExtras({...root.getExtras(),characterLandmarks:landmarks,unifiedCharacterSurface:true,retainedCharacterIdle:retainedIdle});
+  if(retainedRig)require("./characterRig").bindCharacterRig(document,"Rebind the retained skeleton after surface unification");
   marching.geometry.dispose();marching.material.dispose();geometry.dispose();welded.dispose();
   return {landmarks,triangles:count/3,components:connectivity.components};
 }

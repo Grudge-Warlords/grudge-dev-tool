@@ -1,5 +1,11 @@
 # Grudge Dev Tool — local status
 
+## Prompt-only character refinement — 2026-09-11
+
+The four reported alligator prompts now pass in the packaged Dev Tool. Follow-up prompts in Skeleton Studio produce a single connected body, bind a 26-bone skeleton, add a jaw bone, move Tail2 down 5 cm, smooth the bound skin, apply scales, and add/play skeletal idle. The body is visibly continuous, with separate eyes and teeth. All model changes in this campaign are performed through app prompts; externally authored preview files are excluded. Read-only viewport sampling confirms moving skin/tail and stationary feet.
+
+Final build: `release/character-refinement-20260911-v4/win-unpacked/Grudge Dev Tool.exe`. Type/build/preload and prompt-intent checks pass; all 607 built files match its package. The v4 pass confirms the finer spatial scale pattern, repainting, and a further bone edit with animation retained. It is relaunched in the retained local test profile, PID 71320 (start 2026-09-11 01:34:45 +08:00), with the final character playing in Skeleton Studio and the prompt panel open. Passive monitoring is active. [Exact evidence and runtime](docs/character-refinement-20260911.md). This is a stylized local procedural character, not photorealistic or neural finishing.
+
 ## Manual-testing patches — 2026-09-10
 
 New-subject context isolation, collapsed assembly rejection, humanoid layout guidance/validation, bounded component orientation, component colour preservation, authored reptile scale patterns, basic character idle and fresh per-request feedback are patched. Typechecks, production builds/preload, prompt-build regressions and app-action checks pass. Package `release/manual-patches-20260910-v1/win-unpacked/Grudge Dev Tool.exe` has been launched for Al's manual testing. Real-model replay was stopped at Al's request; alligator visual/motion acceptance remains open. [Scope and verification](docs/manual-testing-patches-20260910.md).

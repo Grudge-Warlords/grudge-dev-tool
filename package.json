@@ -32,7 +32,7 @@
     "prebuild": "npm run build:icons",
     "build": "npm run build:renderer && npm run build:main",
     "build:renderer": "vite build",
-    "build:main": "tsc -p tsconfig.main.json && npm run build:preload",
+    "build:main": "tsc -p tsconfig.main.json && node scripts/build-character-author.mjs && npm run build:preload",
     "build:preload": "node scripts/build-preload.mjs && npm run test:preload",
     "package": "npm run build && electron-builder --win nsis",
     "package:ci": "npm run build && electron-builder --win nsis --publish never",

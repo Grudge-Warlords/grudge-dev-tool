@@ -49,6 +49,7 @@ export function bindCharacterRig(document:Document,instruction:string,editing=fa
   const root=document.getRoot(),existing=root.getExtras().authoredCharacterRig as {profile:string;joints:Joint[]}|undefined;
   if(root.listSkins().length&&existing?.profile!==PROFILE)throw new Error("This character has an imported skin. Use its existing Skeleton Studio rig controls; its binding was not replaced.");
   let joints:Joint[]=existing?structuredClone(existing.joints):fittedJoints(document,/\bjaw\b/i.test(instruction));
+  if(/\b(?:add|insert)\b[^.;]*\bbone\b/i.test(instruction)&&!/\bjaw\b/i.test(instruction))throw new Error("The prompt author can add a jaw bone or fit the humanoid and tail skeleton. For another new bone, use Skeleton Studio's placement controls.");
   if(/\b(?:add|insert)\b.*\bjaw\b/i.test(instruction)&&!joints.some(j=>j.name==="Jaw"))joints.push(fittedJoints(document,true).find(j=>j.name==="Jaw")!);
   if(editing){
     const names=joints.map(j=>j.name).sort((a,b)=>b.length-a.length);
@@ -64,7 +65,8 @@ export function bindCharacterRig(document:Document,instruction:string,editing=fa
   for(const j of joints){if(j.parent&&!names.has(j.parent))throw new Error(`Missing parent for ${j.name}.`);if(j.world.some(n=>!Number.isFinite(n)||Math.abs(n)>500))throw new Error("Invalid rig placement.");const parent=joints.find(p=>p.name===j.parent);if(parent&&Math.hypot(...j.world.map((n,i)=>n-parent.world[i]))<.005)throw new Error(`Bone ${j.name} collapses onto its parent.`);}
   const oldBones=new Set(root.listSkins().flatMap(s=>s.listJoints()));
   const hadIdle=root.listAnimations().some(a=>/character idle|skin idle/i.test(a.getName()))||root.getExtras().retainedCharacterIdle===true;
-  for(const a of [...root.listAnimations()])if(a.listChannels().some(c=>oldBones.has(c.getTargetNode()!))||/character idle|skin idle/i.test(a.getName()))a.dispose();
+  for(const a of [...root.listAnimations()])if(/character idle|skin idle/i.test(a.getName()))a.dispose();
+  const retainedChannels=root.listAnimations().flatMap(a=>a.listChannels()).filter(c=>oldBones.has(c.getTargetNode()!)).map(channel=>({channel,name:channel.getTargetNode()!.getName(),rest:channel.getTargetNode()!.getTranslation()}));
   for(const node of root.listNodes())if(node.getSkin())node.setSkin(null);
   for(const skin of [...root.listSkins()])skin.dispose();
   for(const bone of oldBones)bone.dispose();
@@ -72,9 +74,18 @@ export function bindCharacterRig(document:Document,instruction:string,editing=fa
   const parentMatrix=wrapper?new THREE.Matrix4().fromArray(wrapper.getWorldMatrix()):new THREE.Matrix4(),inverse=parentMatrix.clone().invert();
   const local=joints.map(j=>new THREE.Vector3(...j.world).applyMatrix4(inverse));
   const parents=joints.map(j=>joints.findIndex(p=>p.name===j.parent));
-  for(const node of root.listNodes())if(node.getMesh()&&names.has(node.getName()))node.setName(`${node.getName()}Surface`);
+  for(const node of root.listNodes())if(node.getMesh()&&names.has(node.getName()))node.setExtras({...node.getExtras(),characterPartName:node.getName()}).setName(`${node.getName()}Surface`);
   const bones=joints.map((j,i)=>document.createNode(j.name).setTranslation((parents[i]<0?local[i]:local[i].clone().sub(local[parents[i]])).toArray()).setExtras({articulated:true,authoredCharacterBone:true}));
   bones.forEach((bone,i)=>{if(parents[i]<0)parent.addChild(bone);else bones[parents[i]].addChild(bone);});
+  for(const retained of retainedChannels){
+    const bone=bones.find(n=>n.getName()===retained.name);if(!bone)throw new Error(`The retained animation needs bone ${retained.name}.`);
+    retained.channel.setTargetNode(bone);
+    if(retained.channel.getTargetPath()==="translation"){
+      const sampler=retained.channel.getSampler()!,output=sampler.getOutput()!,values=new Float32Array(output.getArray()!);
+      const rest=bone.getTranslation();for(let i=0;i<values.length;i++)values[i]+=rest[i%3]-retained.rest[i%3];
+      sampler.setOutput(output.clone().setArray(values));
+    }
+  }
   const buffer=root.listBuffers()[0]??document.createBuffer(),world=joints.map(j=>j.world),jawIndex=joints.findIndex(j=>j.name==="Jaw");
   const withoutJaw=joints.map((_,i)=>i).filter(i=>i!==jawIndex);
   for(const node of root.listNodes().filter(n=>n.getMesh())){
@@ -109,6 +120,7 @@ export function authorCharacterSkinIdle(document:Document){
     const node=bones.get(name);if(!node)continue;
     const values=new Float32Array(20);[0,1,0,-1,0].forEach((s,i)=>values.set(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,axis==="y"?1:0,axis==="z"?1:0),s*amplitude).toArray(),i*4));
     const sampler=document.createAnimationSampler().setInput(times).setOutput(document.createAccessor(`${name} idle rotation`).setType("VEC4").setArray(values).setBuffer(buffer)).setInterpolation("LINEAR");
+    animation.addSampler(sampler);
     animation.addChannel(document.createAnimationChannel().setTargetNode(node).setTargetPath("rotation").setSampler(sampler));
   }
   animation.setExtras({method:"authored-skinned-character-idle",loop:true});return animation;

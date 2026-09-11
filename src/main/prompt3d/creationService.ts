@@ -6,6 +6,8 @@ import { CREATION_BUILD, type CreationAttempt, type CreationLibraryAsset, type C
 import { readCreationBase } from "./creationBase";
 import { planCreation } from "./creationPlanner";
 import { addOriginalMotion, adjustOriginalGeometry, applyOriginalTextures, createOriginalGeometry, creationIO, enhanceOriginalGeometry, originalGeometryHash, validateOriginal } from "./proceduralCreation";
+import { unifyCharacterSurface } from "./characterSurface";
+import { bindCharacterRig } from "./characterRig";
 import { readContainedFile, sha256 } from "./conceptReview";
 import { applyCreationEdit, creationEditContext, creationSceneHash } from "./creationEdits";
 
@@ -118,7 +120,7 @@ export async function saveCreationToLibrary(root:string,id:string):Promise<Creat
 export async function submitCreation(root:string,request:CreationRequest,compiledPlan?:CreationPlan):Promise<CreationAttempt>{
   if(!request||typeof request.prompt!=="string"||!request.prompt.trim()||request.prompt.length>2000)throw new Error("Enter a prompt of 1–2000 characters.");
   const id=randomUUID(),now=new Date().toISOString();
-  const sourceFiles=[__filename,...["proceduralCreation","creationPlanner","creationPrompt","creationEdits","creationLiteralEdits"].map(name=>join(__dirname,`${name}.js`))];
+  const sourceFiles=[__filename,...["proceduralCreation","creationPlanner","creationPrompt","creationEdits","creationLiteralEdits","characterSurface","characterRig","assemblyLayout"].map(name=>join(__dirname,`${name}.js`))];
   const sourceRevision=sha256(Buffer.concat(await Promise.all(sourceFiles.filter(existsSync).map(p=>readFile(p)))));
   const attempt:CreationAttempt={version:1,id,assetId:id,createdAt:now,updatedAt:now,request:structuredClone(request),state:"running",method:"original-procedural",build:CREATION_BUILD,sourceRevision,message:"Planning a local original creation operation."};
   running.add(id);await record(root,attempt);
@@ -153,8 +155,10 @@ export async function submitCreation(root:string,request:CreationRequest,compile
     }
     else if(attempt.plan.operation==="enhance")enhanceOriginalGeometry(doc,attempt.plan);
     else if(attempt.plan.operation==="adjust")adjustOriginalGeometry(doc,attempt.plan);
+    else if(attempt.plan.operation==="unify")await unifyCharacterSurface(doc);
+    else if(attempt.plan.operation==="rig"||attempt.plan.operation==="rig-edit")bindCharacterRig(doc,request.prompt,attempt.plan.operation==="rig-edit");
     else if(!creating)addOriginalMotion(doc,attempt.plan);
-    const expectsGeometryChange=attempt.plan.operation==="enhance"||attempt.plan.operation==="adjust"||(attempt.plan.operation==="edit"&&originalGeometryHash(doc)!==parent!.geometryHash);
+    const expectsGeometryChange=attempt.plan.operation==="unify"||attempt.plan.operation==="enhance"||attempt.plan.operation==="adjust"||(attempt.plan.operation==="edit"&&originalGeometryHash(doc)!==parent!.geometryHash);
     attempt.validation=validateOriginal(doc,creating?undefined:parent!.geometryHash,expectsGeometryChange,attempt.method==="existing-asset");
     attempt.geometryHash=originalGeometryHash(doc);
     const lineage={version:1,method:attempt.method,build:attempt.build,sourceRevision,assetId:attempt.assetId,attemptId:id,parentId:attempt.parentId,parentSha256:attempt.parentSha256,geometryHash:attempt.geometryHash,request:attempt.request,plan:attempt.plan,sourceAssets:attempt.sourceAssets??[],generationModelUsedForRevision:false,...(attempt.method==="original-procedural"?{trainingModelUsed:false}:{})};

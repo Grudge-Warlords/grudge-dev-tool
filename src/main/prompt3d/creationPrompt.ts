@@ -10,9 +10,10 @@ import { CREATION_EDIT_ACTIONS, creationEditContext, validateCreationEdit, apply
 import { creationIO } from "./proceduralCreation";
 import { bindLiteralCreationEdit, creationEditClauses } from "./creationLiteralEdits";
 import { assemblyLayoutIssues, humanoidLayoutRepair, isHumanoidAssembly } from "./assemblyLayout";
+import { characterRefinementActions } from "../../shared/characterRefinement";
 
 const kinds = ["sword","game-gun","person",...CREATION_PRIMITIVES,"assembly","existing-asset"] as const;
-const operations = ["create","texture","enhance","adjust","swipe","projectile","dance","idle","turntable","edit","save"] as const;
+const operations = ["create","texture","enhance","adjust","swipe","projectile","dance","idle","turntable","edit","unify","rig","rig-edit","save"] as const;
 const numericAdjustments = ["bladeLength","bladeWidth","guardWidth","propLength","propBulk","muzzleSize","personHeight","personWidth","headSize","scaleX","scaleY","scaleZ"] as const;
 const tupleSchema={type:"array",items:{type:"number"},minItems:3,maxItems:3};
 const schema={type:"object",additionalProperties:false,required:["kind","summary","unsupported","steps","components"],properties:{
@@ -48,6 +49,7 @@ export async function bindRequestedActions(proposal:unknown,request:CreationRequ
   if(!object(proposal)||!Array.isArray(proposal.steps)||!kinds.includes(proposal.kind as any))return proposal;
   const proposedSteps=proposal.steps;
   const prompt=request.prompt;
+  const refinement=characterRefinementActions(prompt);
   if(newCreationIntent(prompt)){parentKind=undefined;context=undefined;}
   const match=(pattern:RegExp)=>hasAffirmativePromptMatch(prompt,pattern);
   const assembly=(!parentKind&&proposal.kind==="assembly")||match(/\b(world|blockout|assemble|assembly|archway|bench)\b/i);
@@ -55,6 +57,9 @@ export async function bindRequestedActions(proposal:unknown,request:CreationRequ
   const kind=!newAsset?parentKind!:assembly?"assembly":proposal.kind as CreationKind;
   const requested:PromptStep["operation"][]=[];
   if(newAsset)requested.push("create");
+  if(refinement.unify)requested.push("unify");
+  if(refinement.rig)requested.push("rig");
+  if(refinement.rigEdit)requested.push("rig-edit");
   const namedPart=Boolean(parentKind)&&(/\bonly\b/i.test(prompt)||Boolean(context?.parts.some(p=>p.mesh&&prompt.toLowerCase().includes(p.name.toLowerCase()))));
   const surfacePrompt=prompt.replace(/\b(?:keep|preserve|retain|maintain|leave)\b[^.;,]*?(?=\band\b|\bbut\b|[.;,]|$)/gi,"");
   const adding=Boolean(parentKind)&&match(/\b(add|insert|place)\b[^.;]{0,100}\b(box|cube|sphere|cylinder|cone|plane|torus|tree|trees|component|components)\b/i);
@@ -71,13 +76,13 @@ export async function bindRequestedActions(proposal:unknown,request:CreationRequ
   const clearMotion=match(/\b(remove|clear|strip|delete)\b[^.;]{0,30}\b(animation|animations|motion|clips?)\b/i);
   const genericMotion=!clearMotion&&match(/\b(animate|animated|animation|idle|idling)\b/i);
   if(genericMotion&&!requested.some(op=>["swipe","projectile","dance","turntable"].includes(op))){
-    if(kind==="person"||(kind==="assembly"&&(humanoidRequest(prompt)||context?.parts.some(p=>/\b(head|torso)\b/i.test(p.name)))))requested.push("idle");
+    if(kind==="person"||(["assembly","existing-asset"].includes(kind)&&(humanoidRequest(prompt)||context?.parts.some(p=>/\b(head|torso|body)\b/i.test(p.name)))))requested.push("idle");
     else throw new Error("Describe the motion for this asset, such as a turntable. Automatic idle motion needs an articulated person or a character assembly; no motion was substituted.");
   }
   if(match(/\b(save|export)\b/i))requested.push("save");
-  if(match(/\b(walk|walking|run|running|jump|jumping|swim|swimming|fly|flying|physics|collision|script|code|gameplay|bevel|remesh|extrude|subdivide)\b/i))throw new Error("This creation prompt includes an action that is not connected to this runner yet. Use the existing animation or Forge tools; no partial build was started.");
+  if(match(/\b(walk|walking|run|running|jump|jumping|swim|swimming|fly|flying|physics|collision|script|code|gameplay|bevel|extrude|subdivide)\b/i))throw new Error("This creation prompt includes an action that is not connected to this runner yet. Use the existing animation or Forge tools; no partial build was started.");
   const editActions:CreationEdit["action"][]=[];
-  if(match(/\b(move|translate|shift|reposition)\b/i))editActions.push("move");
+  if(!refinement.rigEdit&&match(/\b(move|translate|shift|reposition)\b/i))editActions.push("move");
   if(staticRotation)editActions.push("rotate");
   if(preciseScale||(namedPart&&match(/\b(wider|taller|smaller|larger|longer|shorter|narrower)\b/i)))editActions.push("scale");
   if(namedPart&&colorRequest&&(!adding||match(/\b(make|paint|colou?r)\b/i)))editActions.push("color");
@@ -125,7 +130,7 @@ export async function bindRequestedActions(proposal:unknown,request:CreationRequ
       const deterministic=await planCreation({...request,usePlanner:false,prompt:`Make it ${adjustmentText}`},parent);
       if(deterministic.operation==="adjust")adjustments=deterministic.adjustments;
     }
-    const instruction=operation==="texture"?prompt:proposed?.instruction||prompt;
+    const instruction=["texture","unify","rig","rig-edit"].includes(operation)?prompt:proposed?.instruction||prompt;
     steps.push({operation,instruction,...(adjustments?{adjustments}:{})});
   }
   // Keep the model's order for explicit edits. Creation precedes edits; library
@@ -188,7 +193,7 @@ export function validateCreationPromptPlan(value:unknown, parentKind?:CreationKi
     if(index===0&&operation!=="create"&&parentKind!==kind)throw new Error("The model tried to change the selected asset kind.");
     if(operation==="save"&&index!==stepCount-1)throw new Error("Save must be the final action.");
     if((operation==="dance"&&kind!=="person")||(operation==="swipe"&&kind!=="sword")||(operation==="projectile"&&kind!=="game-gun"))throw new Error(`The existing ${operation} action is not supported for ${kind}.`);
-    if(operation==="idle"&&kind!=="person"&&kind!=="assembly")throw new Error("Character idle needs a person or a character assembly.");
+    if(operation==="idle"&&kind!=="person"&&kind!=="assembly"&&kind!=="existing-asset")throw new Error("Character idle needs a person or a character assembly.");
     if(operation==="enhance"&&!["sword","game-gun","person"].includes(kind))throw new Error("Authored cosmetic details are supported only for sword, game prop and segmented person models. Use Forge for other edits.");
     let adjustments:CreationAdjustments|undefined;
     if(operation==="adjust"){
@@ -228,7 +233,7 @@ export async function planCreationPrompt(request:CreationRequest,parentKind?:Cre
   const system=`Translate the USER request into supported local 3D actions, JSON only. Never add actions or objects that the user did not ask for. unsupported is [] for supported requests; otherwise list the actual unavailable request. Do not list general limitations.
 Kinds: sword, game-gun (cosmetic only), person (segmented), box, sphere, cylinder, cone, plane, torus, assembly, existing-asset. Cube means box. ${parentKind?`Keep currentKind ${parentKind}. Edit the selected model; do not create it again unless explicitly asked.`:"Begin a new model with create."}
 Only include requested steps. Preserve requested order. Save is last, only if asked. Do not animate when negated. components is [] unless creating an assembly. A create step builds all components at once.
-Actions: create; texture (paint/texture the whole model); enhance (decorative sword/person/game-gun parts); adjust (template proportions); turntable (continuous spinning animation); swipe (sword swing); dance (person); idle (subtle grounded character breathing and sway, including a humanoid assembly); projectile (cosmetic game-gun effect); edit (static edits); save. For a character, animate appropriately means idle unless another motion is explicitly requested. It is supported and must not appear in unsupported.
+Actions: create; texture (paint/texture the whole model); unify (smooth or fuse an existing humanoid into one connected skin, or further smooth its existing skin); rig (add or fit a skeleton and bind all skin vertices; add a jaw bone to the existing rig); rig-edit (move an existing named bone by a stated distance and direction, rebind skin while preserving surface shape); enhance (decorative sword/person/game-gun parts); adjust (template proportions); turntable (continuous spinning animation); swipe (sword swing); dance (person); idle (subtle grounded character breathing and sway, including a humanoid assembly or skinned character); projectile (cosmetic game-gun effect); edit (static mesh edits); save. Skeleton, smooth skin, binding, jaw bone and named bone shifts are supported. Do not confuse bones with primitive component additions or mesh moves. When requested together use unify before rig, and rig before idle. For a character, animate appropriately means idle unless another motion is explicitly requested. These supported actions must not appear in unsupported.
 Unspecified longer/taller/wider uses adjust multipliers 1.25; smaller/shorter .8. Sword bladeLength/bladeWidth/guardWidth, curvature curveDelta .16. Person personHeight/personWidth/headSize. Game-gun propLength/propBulk/muzzleSize. Other models scaleX/scaleY/scaleZ. Explicit numeric sizes/multipliers use edit scale. Only requested fields.
 ${assemblyRequest?`This request creates an assembly of primitives. Use ONE create action and put every requested part in components. No steps to add parts. No separate texture step for colors already specified in components. Each part has a unique name, shape, position [x,y,z], size [width,height,depth] in metres, color #RRGGBB, optional rotation [x,y,z] in degrees. +Y up and +Z forward; shapes centered at position. Size entries must all be positive (minimum .01). Cylinders/cones point along local Y; rotation [90,0,0] points along +Z. Give each part its actual position and dimensions, never all zeros or identical overlapping shapes. Plane lies horizontally: default size [12,.01,12], position [0,0,0]. Ground free-standing objects; body parts connect at their anatomical heights. Do not add unrequested supports or scenery. Describe the result as a basic primitive blockout.
 ${characterAssembly?`Create a recognisable upright segmented humanoid silhouette using separately positioned Head, Torso, Hips, LeftArm, RightArm, LeftLeg, RightLeg, LeftFoot, RightFoot. Use TWO arms and TWO legs, never one part called Arms or Legs. Feet touch y=0, legs above them, hips above legs, torso above hips, head above torso. Example human-sized proportions: feet at [+/-.16,.09,.10], legs [+/-.16,.48,0], hips [0,.92,0], torso [0,1.3,0], arms [+/-.4,1.3,0], head [0,1.85,0]. Adjust proportions, primitive shapes, surface colours and additional parts to the requested anatomy. A snout projects forward from the head; a tail grows backward from the hips and must be elongated along Z. Eyes and teeth belong on the head/snout, not at the feet. Preserve these spatial relationships when scaling. Skin colours follow the subject; do not default every part to red. Additional anatomy must be visible and connected. A texture request does not change this geometry plan. Do not use the plain person template for custom anatomy.`:""}
@@ -245,7 +250,7 @@ ${parentKind||/\b(move|rotate|twice|half|scale|remove)\b/i.test(request.prompt)?
   const editSchema=stepSchema.properties.edit;
   stepSchema.properties.edit={anyOf:CREATION_EDIT_ACTIONS.map(action=>({type:"object",additionalProperties:false,required:["action","targets",...(["move","rotate","scale"].includes(action)?["value"]:action==="color"?["color"]:action==="rename"?["name"]:action==="add"?["parts"]:[])],properties:{action:{type:"string",enum:[action]},targets:action==="add"||action==="clear-animation"?{type:"array",minItems:1,maxItems:1,items:{type:"string",enum:["$asset"]}}:action==="rename"?{...editSchema.properties.targets,minItems:1,maxItems:1}:editSchema.properties.targets,...(["move","rotate","scale"].includes(action)?{value:tupleSchema}:action==="color"?{color:{type:"string"}}:action==="rename"?{name:{type:"string",maxLength:80}}:action==="add"?{parts:{...schema.properties.components,minItems:1}}:{})}}))};
   requestSchema.properties.steps.items={anyOf:operations.map(operation=>({...stepSchema,required:["operation","instruction",...(operation==="edit"?["edit"]:operation==="adjust"?["adjustments"]:[])],properties:{operation:{type:"string",enum:[operation]},instruction:{type:"string",maxLength:1000},...(operation==="edit"?{edit:stepSchema.properties.edit}:operation==="adjust"?{adjustments:stepSchema.properties.adjustments}:{})}}))};
-  if(parentKind&&hasAffirmativePromptMatch(request.prompt,/\b(rename|duplicate|clone|remove|delete|add|insert|place)\b/i)){
+  if(parentKind&&!Object.values(characterRefinementActions(request.prompt)).some(Boolean)&&hasAffirmativePromptMatch(request.prompt,/\b(rename|duplicate|clone|remove|delete|add|insert|place)\b/i)){
     const sequence=CREATION_EDIT_ACTIONS.flatMap(action=>creationEditClauses(request.prompt,action).filter(clause=>hasAffirmativePromptMatch(clause,action==="add"?/\b(add|insert|place)\b/i:action==="duplicate"?/^\s*(?:then\s+)?(?:duplicate|copy|clone)\b/i:action==="rename"?/\brename\b/i:action==="remove"?/\b(remove|delete)\b/i:action==="clear-animation"?/\b(remove|clear|strip|delete)\b[^.;]{0,30}\b(animation|animations|motion|clips?)\b/i:action==="color"?/\b(make|paint|colou?r)\b/i:action==="move"?/\b(move|shift|translate|reposition)\b/i:action==="rotate"?/\b(rotate|turn|tilt)\b/i:/\b(twice|double|half|halve|triple|scale|resize|wider|taller|longer|shorter|smaller|larger|narrower)\b/i)).filter(clause=>action!=="remove"||!/\b(animation|animations|motion|clips?)\b/i.test(clause)).map(clause=>({action,clause,index:request.prompt.indexOf(clause)}))).sort((a,b)=>a.index-b.index);
     if(sequence.length){
       const editStep=requestSchema.properties.steps.items.anyOf.find((step:any)=>step.properties.operation.enum[0]==="edit");

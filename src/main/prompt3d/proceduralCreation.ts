@@ -164,7 +164,8 @@ export async function applyOriginalTextures(doc: Doc, style: string, prompt: str
   const named=Object.keys(colors).find(name=>hasAffirmativePromptMatch(prompt,new RegExp(`\\b${name}\\b`,"i")));
   const hex=prompt.match(/#[0-9a-f]{6}\b/i)?.[0];
   const requestedColor=hex&&hasAffirmativePromptMatch(prompt,new RegExp(hex,"i"))?[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)):named?colors[named]:undefined;
-  for(const material of doc.getRoot().listMaterials()){
+  const usedMaterials=new Set(doc.getRoot().listNodes().flatMap((n:any)=>n.getMesh()?.listPrimitives().map((p:any)=>p.getMaterial()).filter(Boolean)??[]));
+  for(const material of doc.getRoot().listMaterials().filter((m:any)=>usedMaterials.has(m))){
     const role=material.getExtras().role ?? material.getName();
     if(role === "projectile")continue;
     const component=String(role).startsWith("component-");
@@ -172,15 +173,43 @@ export async function applyOriginalTextures(doc: Doc, style: string, prompt: str
     const base=new THREE.Color().setRGB(...material.getBaseColorFactor().slice(0,3) as [number,number,number]).convertLinearToSRGB();
     const componentColor=Array.isArray(retained)&&retained.length===3?retained:[base.r,base.g,base.b].map(n=>Math.round(n*255));
     let [r,g,b,pattern,metal,rough]=palettes[role] ?? (component?[...componentColor,"grain",0,.8]:palettes.paint) as [number,number,number,string,number,number];
-    const reptile=component&&hasAffirmativePromptMatch(prompt,/\b(alligator|crocodile|reptile|reptilian|lizard|scales|scaled|scaly)\b/i);
+    const reptile=component&&(hasAffirmativePromptMatch(prompt,/\b(alligator|crocodile|reptile|reptilian|lizard|scales|scaled|scaly)\b/i)||material.getExtras().authoredSurfacePattern==="spatial-scales");
     if(reptile){
       const part=String(role).toLowerCase();
-      [r,g,b]=/tooth|teeth|claw/.test(part)?[222,218,178]:/eye|pupil|nostril/.test(part)?[30,26,14]:/belly|jaw|chest/.test(part)?[143,157,90]:[71,101,49];
+      [r,g,b]=/tooth|teeth|claw/.test(part)?[222,218,178]:/pupil|nostril/.test(part)?[30,26,14]:/eye/.test(part)?[184,170,80]:/belly|jaw|chest/.test(part)?[143,157,90]:[71,101,49];
       pattern=/tooth|teeth|claw|eye|pupil|nostril/.test(part)?"solid":"scales";
       metal=0;rough=.78;
     }
     const globalColor=!component||hasAffirmativePromptMatch(prompt,/\b(?:paint|colou?r|make)\s+(?:it|everything|the\s+(?:whole|entire)\s+(?:model|asset|character))\b/i);
     const color=(!palettes[role]||role==="paint"||role==="fabric") ? ((globalColor?requestedColor:undefined)??[r,g,b]):[r,g,b];
+    if(material.getExtras().unifiedCharacterSurface&&reptile){
+      // A cylindrical atlas stretches around fused limbs. Sample a spatial
+      // cell pattern into the existing vertices instead; positions, UVs,
+      // topology and skin weights remain exactly as authored.
+      const body=doc.getRoot().listNodes().find((n:any)=>n.getExtras().unifiedCharacterSurface);
+      const landmarks=doc.getRoot().getExtras().characterLandmarks as Record<string,number[]>;
+      const unit=(landmarks.Head[1]-landmarks.Hips[1])/.97,cell=.055*unit;
+      const hash=(x:number,y:number,z:number,seed=0)=>(((Math.imul(x+seed,73856093)^Math.imul(y-seed,19349663)^Math.imul(z+seed*3,83492791))>>>0)%65521)/65521;
+      for(const primitive of body.getMesh().listPrimitives()){
+        const positions=primitive.getAttribute("POSITION").getArray(),paint=new Float32Array(positions.length),rgb=new THREE.Color();
+        for(let i=0;i<positions.length;i+=3){
+          const x=positions[i]/unit,y=positions[i+1]/unit,z=positions[i+2]/unit,px=positions[i]/cell,py=positions[i+1]/cell,pz=positions[i+2]/cell;
+          const ix=Math.floor(px),iy=Math.floor(py),iz=Math.floor(pz);let first=Infinity,second=Infinity,tone=.5;
+          for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)for(let c=-1;c<=1;c++){
+            const gx=ix+a,gy=iy+b,gz=iz+c,noise=hash(gx,gy,gz),distance=(px-gx-.2-.6*noise)**2+(py-gy-.2-.6*hash(gx,gy,gz,7))**2+(pz-gz-.2-.6*hash(gx,gy,gz,19))**2;
+            if(distance<first){second=first;first=distance;tone=noise;}else if(distance<second)second=distance;
+          }
+          const edge=second-first<.045?.80:1,shade=(.77+.19*tone)*edge;
+          const belly=!requestedColor&&z>.07&&y>.85&&y<1.57?Math.max(0,1-Math.abs(x)/.20)*Math.min(1,(z-.07)*12):0;
+          const jaw=!requestedColor&&z>.22&&y>1.60&&y<1.755?.65:0,light=Math.max(belly*.65,jaw);
+          const channels=color.map((v:number,c:number)=>((v*(1-light)+[143,151,92][c]*light)*shade)/255);
+          rgb.setRGB(channels[0],channels[1],channels[2]).convertSRGBToLinear();paint.set(rgb.toArray(),i);
+        }
+        primitive.setAttribute("COLOR_0",doc.createAccessor("Spatial reptile scales").setType("VEC3").setArray(paint).setBuffer(doc.getRoot().listBuffers()[0]));
+      }
+      material.setBaseColorTexture(null).setBaseColorFactor([1,1,1,1]).setMetallicFactor(0).setRoughnessFactor(.83).setExtras({...material.getExtras(),authoredSurfaceColor:color,authoredSurfacePattern:"spatial-scales",surfaceMethod:"world-space cellular vertex paint"});
+      continue;
+    }
     const pixels=Buffer.alloc(256*256*4);
     for(let y=0;y<256;y++)for(let x=0;x<256;x++){
       const noise=((x*73856093^y*19349663)>>>0)%17-8;
@@ -195,6 +224,8 @@ export async function applyOriginalTextures(doc: Doc, style: string, prompt: str
     material.setBaseColorTexture(texture).setBaseColorFactor([1,1,1,1]).setMetallicFactor(style==="hand-painted"?metal*.4:metal).setRoughnessFactor(rough);
     material.setExtras({...material.getExtras(),authoredSurfaceColor:color});
   }
+  for(const material of [...doc.getRoot().listMaterials()])if(!usedMaterials.has(material))material.dispose();
+  for(const texture of [...doc.getRoot().listTextures()])if(texture.listParents().every((p:any)=>p.propertyType==="Root"))texture.dispose();
 }
 
 function transformMesh(doc:Doc,name:string,scale:[number,number,number],curveDelta=0,anchorBase=false){
@@ -308,6 +339,7 @@ export function adjustOriginalGeometry(doc:Doc,plan:CreationPlan){
 }
 
 export function addOriginalMotion(doc: Doc, plan: CreationPlan) {
+  if(plan.operation==="idle"&&doc.getRoot().listSkins().length){require("./characterRig").authorCharacterSkinIdle(doc);return;}
   const nodes=doc.getRoot().listNodes(),find=(name:string)=>{const node=nodes.find((n:Node)=>n.getName()===name);if(!node)throw new Error(`Required authored joint ${name} is missing.`);return node;};
   const buffer=doc.getRoot().listBuffers()[0];
   if(plan.operation==="idle"&&plan.kind==="assembly"&&!nodes.some((n:Node)=>/^(?:torso|chest|body)$/i.test(n.getName())))throw new Error("This assembly has no identifiable torso for a character idle. Name the body parts before animating; no substitute motion was added.");

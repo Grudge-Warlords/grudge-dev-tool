@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-11 — prompt-only character refinement
+
+- Add connected skin unification and repeat smoothing to the immutable prompt runner; expose skeleton fitting, skin binding, jaw-bone insertion and bounded named-bone shifts in Skeleton Studio.
+- Keep follow-up prompts tied to the exact loaded revision. Confirm saved-model reloads and named clip playback; give the viewport more room alongside the studio panels.
+- Preserve skin geometry during rig changes, retained animation during rebinding, and rig attributes during smoothing. Use spatial surface colour for fine reptile patterns on fused limbs, avoiding a stretched cylindrical texture.
+- Bundle the CPU surface author's Three utilities into the packaged main process. The prompt-only campaign found the missing runtime dependency and verified its repair in the app.
+- Four original prompts and the complete seven-edit refinement sequence pass in packaged runs. Read-only viewport samples verify skin deformation and stationary feet. The final appearance/repaint replay is recorded in `docs/character-refinement-20260911.md`.
+
 ## 2026-09-11 — structural correction feedback
 
 - Feed rejected geometry and measured anatomical faults back into bounded planning retries; retain proposals and correction decisions locally. Propose and revalidate a procedural humanoid layout when default proportions fail.

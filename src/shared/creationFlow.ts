@@ -1,11 +1,11 @@
 import type { AssetCategory, AssetStyle, Prompt3DOrchestrationRecord } from "./prompt3d";
 import { hasAffirmativePromptMatch } from "./promptedMotionIntent";
 
-export const isNewCreationPrompt=(prompt:string)=>hasAffirmativePromptMatch(prompt,/(?:^|[.;,]|\b(?:and|then)\b)\s*(?:please\s+)?(?:create|craft|build|assemble)\b|^\s*(?:a\s+)?(?:new|original)\s+(?:sword|gun|person|box|cube|sphere|world|model|asset)\b/i);
+export const isNewCreationPrompt=(prompt:string)=>!/^\s*(?:please\s+)?(?:create|build)\s+(?:(?:a|an|the|appropriate|humanoid|new|fitted|suitable)\s+)*(?:skeleton|rig)\b/i.test(prompt)&&hasAffirmativePromptMatch(prompt,/(?:^|[.;,]|\b(?:and|then)\b)\s*(?:please\s+)?(?:create|craft|build|assemble)\b|^\s*(?:a\s+)?(?:new|original)\s+(?:sword|gun|person|box|cube|sphere|world|model|asset)\b/i);
 
 export const CREATION_CATEGORIES: AssetCategory[] = ["prop", "character", "building", "road-furniture", "environment", "vehicle"];
 export const CREATION_STYLES: AssetStyle[] = ["stylized", "low-poly", "realistic", "hand-painted", "industrial", "custom"];
-export const CREATION_BUILD = "local-flow-2026-09-11.1";
+export const CREATION_BUILD = "local-flow-2026-09-11.2";
 export const CREATION_PRIMITIVES = ["box", "sphere", "cylinder", "cone", "plane", "torus"] as const;
 export type CreationKind = "sword" | "game-gun" | "person" | typeof CREATION_PRIMITIVES[number] | "existing-asset" | "assembly";
 export interface CreationComponent {
@@ -32,7 +32,7 @@ export interface CreationSourceRecord {
   byteSize: number;
   identity: Record<string, unknown>;
 }
-export type CreationOperation = "create" | "reuse" | "texture" | "enhance" | "adjust" | "swipe" | "projectile" | "dance" | "idle" | "turntable" | "edit";
+export type CreationOperation = "create" | "reuse" | "texture" | "enhance" | "adjust" | "swipe" | "projectile" | "dance" | "idle" | "turntable" | "edit" | "unify" | "rig" | "rig-edit";
 export interface CreationEdit {
   action: "move" | "rotate" | "scale" | "color" | "clear-animation" | "duplicate" | "rename" | "remove" | "add";
   /** Exact, unique node names, or $asset for the entire scene. */

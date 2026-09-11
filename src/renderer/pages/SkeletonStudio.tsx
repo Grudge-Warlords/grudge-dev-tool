@@ -145,7 +145,11 @@ export default function SkeletonStudio() {
   const [step, setStep] = useState<Step>("load");
   const [diskPath, setDiskPath] = useState<string | null>(null);
   const [model, setModel] = useState<LoadedModel | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [operationBusy, setBusy] = useState(false);
+  const [refinementBusy, setRefinementBusy] = useState(false);
+  const busy=operationBusy||refinementBusy;
+  const [refinementPrompt, setRefinementPrompt] = useState("");
+  const [refinementStatus, setRefinementStatus] = useState("");
   const [statusLine, setStatusLine] = useState("Open a skinned FBX/GLB — Mixamo author, Toon Bip001 play.");
   const [extract, setExtract] = useState<any>(null);
   const [activeBone, setActiveBone] = useState<Mixamo25Bone>("Hips");
@@ -348,7 +352,7 @@ export default function SkeletonStudio() {
   async function loadFromPath(path: string, suggestedPlacements?: BonePlacement[], reviewContext?: Prompt3DRigContext, exactSource = false) {
     if (!window.grudge?.forge?.readFile) {
       toast.error("Forge IPC missing — restart Dev Tool");
-      return;
+      return false;
     }
     setBusy(true);
     setStatusLine(`Loading ${path}…`);
@@ -421,10 +425,12 @@ export default function SkeletonStudio() {
       toast.success("Character loaded", {
         description: `${loaded.bones} bones · ${loaded.animations.length} clips`,
       });
+      return true;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setStatusLine(`Load failed: ${msg}`);
       toast.error("Load failed", { description: msg });
+      return false;
     } finally {
       setBusy(false);
     }
@@ -1117,9 +1123,32 @@ export default function SkeletonStudio() {
     } finally { setBusy(false); }
   }
 
+  async function applyCharacterChanges() {
+    if (!diskPath || busy || refinementBusy || !refinementPrompt.trim()) return;
+    setRefinementBusy(true);
+    setRefinementStatus("Applying character changes…");
+    try {
+      let revision = (await window.grudge.creation.history() as CreationAttempt[]).find(row => row.state === "complete" && row.assetPath === diskPath);
+      if (!revision) {
+        revision = await window.grudge.creation.submit({prompt:"Use selected existing asset as a working copy",category:"character",style:"stylized",usePlanner:false,baseSource:{kind:"local-file",path:diskPath}});
+        if (revision?.state !== "complete") throw new Error(revision?.message || "Could not retain the current model.");
+      }
+      const result: CreationAttempt = await window.grudge.creation.submit({prompt:refinementPrompt.trim(),category:"character",style:revision.request.style,usePlanner:true,parentId:revision.id});
+      if (result.state !== "complete" || !result.assetPath) throw new Error(result.message);
+      if (!await loadFromPath(result.assetPath, undefined, undefined, true)) throw new Error("The revision was saved but could not be loaded in Skeleton Studio.");
+      const draftKey="grudge:original-creation-session:v1";
+      let draft: Record<string,unknown>={};
+      try { draft=JSON.parse(localStorage.getItem(draftKey)||"{}"); } catch { /* Restore the current revision even when an old draft is invalid. */ }
+      localStorage.setItem(draftKey,JSON.stringify({...draft,currentId:result.id}));
+      setRefinementStatus(`Character changes saved: ${result.message}`);
+    } catch (error) {
+      setRefinementStatus(`Character changes failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally { setRefinementBusy(false); }
+  }
+
   return (
     <div
-      data-app-action-busy={busy ? "true" : "false"}
+      data-app-action-busy={busy || refinementBusy ? "true" : "false"}
       className="flex h-full min-h-0 flex-col bg-[#070a12] text-slate-100"
       onDragOver={(e) => {
         e.preventDefault();
@@ -1196,6 +1225,15 @@ export default function SkeletonStudio() {
             </button>
           </div>
         </div>
+        <details className="mx-3 mb-2 rounded border border-white/10 px-2 py-1" data-app-action-context="Character refinement">
+          <summary className="cursor-pointer text-xs text-slate-300">Character refinement controls</summary>
+          <label className="block text-xs text-slate-300">Changes to this character
+            <textarea aria-label="Character refinement prompt" value={refinementPrompt} maxLength={1800} disabled={!model || busy || refinementBusy} onChange={e=>{setRefinementPrompt(e.target.value);setRefinementStatus("");}} className="my-2 block w-full rounded border border-slate-700 bg-black/40 p-2" placeholder="Smooth and unify the body, add a skeleton, or move Tail2 bone 5 cm down." />
+          </label>
+          <button type="button" disabled={!model || busy || refinementBusy || !refinementPrompt.trim()} onClick={()=>void applyCharacterChanges()} className="rounded bg-gold px-3 py-1 text-xs font-semibold text-black">Apply character changes</button>
+        </details>
+        {refinementStatus && <p className="mx-3 mb-2 text-xs text-slate-300" role="status" data-app-action-state={refinementStatus}>{refinementStatus}</p>}
+        {activeAction && <p className="mx-3 mb-2 text-xs text-slate-300" data-app-action-state={`Playing clip: ${activeAction.getClip().name}`}>Playing: {activeAction.getClip().name}</p>}
         <nav className="flex flex-wrap gap-1 px-2 pb-2">
           {STEPS.map((s, i) => {
             const done = stepDone[s.id];
@@ -1261,7 +1299,7 @@ export default function SkeletonStudio() {
 
       <div className="flex min-h-0 flex-1">
         {/* LEFT — actions (or Mixamo-25 bones on Place) */}
-        <aside className="flex w-[16.5rem] shrink-0 flex-col border-r border-white/10 bg-black/35">
+        <aside className="flex w-[clamp(9rem,15vw,14rem)] shrink-0 flex-col border-r border-white/10 bg-black/35">
           <div className="flex items-center justify-between border-b border-white/5 px-2 py-1.5">
             <h2 className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               {step === "place" ? "Mixamo-25 bones" : "Actions"}
@@ -1378,7 +1416,7 @@ export default function SkeletonStudio() {
         </div>
 
         {/* RIGHT — clips + step tools */}
-        <aside className="flex w-[22rem] shrink-0 flex-col border-l border-white/10 bg-black/30">
+        <aside className="flex w-[clamp(13rem,20vw,18rem)] shrink-0 flex-col border-l border-white/10 bg-black/30">
           <div className="flex-1 space-y-3 overflow-y-auto p-3 text-xs">
             {model && (
               <section className="space-y-1.5 rounded border border-white/10 bg-black/40 p-2">
@@ -1422,6 +1460,7 @@ export default function SkeletonStudio() {
                   return (
                     <button
                       key={c.name}
+                      aria-label={`Play clip ${c.name}`}
                       type="button"
                       onClick={() => {
                         if (selRole) bindRoleToClip(selRole, c.name);

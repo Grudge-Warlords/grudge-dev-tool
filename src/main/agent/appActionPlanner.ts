@@ -5,6 +5,8 @@ import { EMBEDDED_SURFACES, embeddedPromptScope, embeddedPlacementPrompt, embedd
 import { appLocalPathRequest } from "../../shared/appLocalPath";
 import { appPromptClauses, literalAppSettings, requestedAppSettingNames, appSettingLabelMatches } from "../../shared/appActionSettings";
 import { hasAffirmativePromptMatch } from "../../shared/promptedMotionIntent";
+import { isCharacterRefinementPrompt } from "../../shared/characterRefinement";
+import { isNewCreationPrompt } from "../../shared/creationFlow";
 import { appControlValueMatches, validateAppActionDecision, validateAppActionRequest, type AppActionDecision, type AppActionRequest } from "../../shared/appActions";
 
 export async function planAppAction(input: AppActionRequest): Promise<AppActionDecision> {
@@ -113,7 +115,7 @@ async function planCurrentControls(input: AppActionRequest): Promise<AppActionDe
   const explicitlyRoutedCreation = creationRoutePrefix.test(request.prompt);
   const { creation: creationText, continuation } = appCreationPrompt(request.prompt);
   const creationIntent = /^(?:please\s+)?(?:create|build|craft|assemble)\b/i.test(creationText);
-  const editIntent = (request.snapshot.route === "/prompt3d" || explicitlyRoutedCreation) && /^(?:add|insert|place|duplicate|rename|move|rotate|scale|resize|paint|textur\w*|retexture|colou?r|make|remove|clear)\b/i.test(creationText);
+  const editIntent = (request.snapshot.route === "/prompt3d" || explicitlyRoutedCreation) && (/^(?:add|insert|place|duplicate|rename|move|rotate|scale|resize|paint|textur\w*|retexture|colou?r|make|remove|clear)\b/i.test(creationText)||isCharacterRefinementPrompt(creationText));
   if ((creationIntent || editIntent) && !neuralRequested && !controls.some(c => /^(?:embedded|window)-/.test(c.id)) && !controls.some(c => c.context.includes("App dialog"))) {
     const field = controls.find(c => c.label === "Creation prompt" && c.kind === "text");
     const enable = controls.find(c => c.label === "Enable local creation controls" && c.kind === "toggle");
@@ -264,6 +266,26 @@ For creating or editing basic models, use Prompt to 3D, set Creation prompt to t
     request.snapshot.status.some(s => s.startsWith("File input selected:") && s.includes(requestedFile)) &&
     [...request.snapshot.status, ...request.history.slice(-2).map(h => h.result)].some(s => /Loaded scene\b/.test(s));
   if (sceneOpened) schema.anyOf = [branch("done", [""], empty)];
+  const characterRefinement = request.snapshot.route === "/skeleton" && isCharacterRefinementPrompt(request.prompt) && !isNewCreationPrompt(request.prompt);
+  if(characterRefinement){
+    const started=request.history.some(h=>h.result.startsWith("Activated Apply character changes"));
+    const field=controls.find(c=>c.label==="Character refinement prompt"&&c.kind==="text");
+    const panel=controls.find(c=>c.label==="Character refinement controls"&&c.value==="false");
+    const run=controls.find(c=>c.label==="Apply character changes");
+    if(started){
+      const saved=request.snapshot.status.some(s=>s.startsWith("Character changes saved:"));
+      const failed=request.snapshot.status.some(s=>s.startsWith("Character changes failed:"));
+      schema.anyOf=[branch(failed?"blocked":saved?"done":"wait",[""],empty)];
+    }else if(!field&&panel)schema.anyOf=[branch("click",[panel.id],empty)];
+    else if(field&&field.value!==request.prompt)schema.anyOf=[branch("set",[field.id],{type:"string",enum:[request.prompt]})];
+    else schema.anyOf=[run?branch("click",[run.id],empty):branch("blocked",[""],empty)];
+  }
+  const playClipName=request.snapshot.route==="/skeleton"?request.prompt.trim().match(/^play\s+(?:the\s+)?(.+?)(?:\s+(?:clip|animation))?[.!]?$/i)?.[1]:undefined;
+  const playClip=playClipName?controls.find(c=>c.kind==="click"&&normalize(c.label)===`play clip ${normalize(playClipName)}`):undefined;
+  if(playClip){
+    const playing=request.snapshot.status.some(s=>normalize(s)===`playing clip ${normalize(playClipName!)}`);
+    schema.anyOf=[branch(playing?"done":"click",playing?[""]:[playClip.id],empty)];
+  }
   let error: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     // Literal workflows cannot choose unrelated controls. Keep result evidence
@@ -284,6 +306,9 @@ For creating or editing basic models, use Prompt to 3D, set Creation prompt to t
       if (decision.action === "blocked" && localPath) decision.reason = request.snapshot.status.find(s => /Local path failed:|Model load failed:/.test(s)) ?? decision.reason;
       if (decision.action === "blocked" && request.history.some(h => h.result.startsWith("Activated Run prompt"))) decision.reason = creationFailureReason(request.snapshot.status) ?? decision.reason;
       if (skeletonHandoff && decision.action === "done") decision.reason = "The saved model is loaded in Skeleton Studio.";
+      if(characterRefinement&&decision.action==="done")decision.reason="The character changes were saved and loaded in Skeleton Studio.";
+      if(playClip&&decision.action==="done")decision.reason=`Playing ${playClipName} on the current character.`;
+      if(characterRefinement&&decision.action==="blocked")decision.reason=request.snapshot.status.find(s=>s.startsWith("Character changes failed:"))?.slice(0,600)??"Load a character before applying changes in Skeleton Studio.";
       if (skeletonHandoff && decision.action === "blocked") decision.reason = request.snapshot.status.find(s => s.startsWith("Skeleton model load failed:"))?.slice(0,600) ?? "The current model's Skeleton Studio handoff is not available.";
       if (decision.action === "done" && settings) decision.reason = settings.map(s => `${s.control.label}: ${s.control.value}`).join("; ").slice(0, 600);
       if (decision.action === "blocked" && placementBlockedReason) decision.reason = placementBlockedReason;
