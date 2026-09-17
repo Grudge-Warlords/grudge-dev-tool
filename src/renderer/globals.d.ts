@@ -28,6 +28,7 @@ type Prompt3DWorkflowExportInvocationResult =
 interface GrudgeElectronAPI {
     auth: {
         getSession(): Promise<GrudgeSession>;
+        continueDesktop?(): Promise<GrudgeSession>;
         getHandoff?(): Promise<{
             token: string | null;
             grudgeId: string | null;

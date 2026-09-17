@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.3] - 2026-09-17
+
+- Show the main window on every launch. Explorer "Open with" GLB used to hide the shell (tray-only), so the app looked like it never opened.
+- Start the plugin host before file-open so local 3D can serve from `127.0.0.1:17380`.
+- Tray left-click opens the main shell. Session check times out instead of spinning forever.
+- Continue on this desktop without Puter OAuth. Puter remains optional User-Pays AI; Grudge ID is product login.
+- Restore `@grudge-studio/*` file deps (animator / assets / core / engine) and pack keytar/sharp out of asar.
+- GitHub Actions workers on Agent AI + Settings `GH_TOKEN` (`fleet.githubToken`): repos, workflows, recent runs.
+- Seed `GH_TOKEN` / `GITHUB_TOKEN` / Vercel / Railway / CF tokens from env. Add `.env.example`.
+- Logs live at `%APPDATA%\grudge-dev-tool\logs\main.log` (package name, not product name).
+
 ## [1.1.1] - 2026-09-07
 
 - Route animal bipeds such as kangaroos through the existing local creature deformation author. Share subject evidence between the CPU binder, HY-Motion capability gate and animation UI; explain incompatible human-only motion before provider work.

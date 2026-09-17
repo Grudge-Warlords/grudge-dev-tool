@@ -14,6 +14,22 @@ export default function Login({ onSignedIn }: Props) {
   const [manualUuid, setManualUuid] = useState("");
   const [manualUsername, setManualUsername] = useState("");
 
+  async function continueDesktop() {
+    setBusy("signin"); setErr(null);
+    try {
+      const s = await (window.grudge.auth as { continueDesktop?: () => Promise<unknown> }).continueDesktop?.();
+      if (!s) throw new Error("Desktop session is unavailable in this build.");
+      toast.success("Opened Grudge Dev Tool on this machine");
+      onSignedIn();
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      setErr(msg);
+      toast.error("Desktop continue failed", { description: msg });
+    } finally {
+      setBusy("idle");
+    }
+  }
+
   async function signIn() {
     setBusy("signin"); setErr(null);
     try {
@@ -105,11 +121,21 @@ export default function Login({ onSignedIn }: Props) {
         />
         <h1 className="page-title" style={{ marginBottom: 4 }}>Sign in to Grudge Studio</h1>
         <p className="muted text-sm" style={{ marginBottom: 18 }}>
-          Click sign in and complete authentication in the Puter window. Your Grudge ID is derived from your Puter account UUID; save data, ships, characters, and uploads sync to your Puter cloud.
+          Product login is Grudge ID. Puter is optional User-Pays AI, not a gate on the desktop shell.
+          Continue on this machine to open Home, Assets, Agent AI, and GitHub workers immediately.
         </p>
 
         <button
           className="btn flex items-center justify-center gap-2 w-full"
+          onClick={continueDesktop}
+          disabled={busy !== "idle"}
+        >
+          {busy === "signin" ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+          {busy === "signin" ? "Opening\u2026" : "Continue on this desktop"}
+        </button>
+
+        <button
+          className="btn ghost flex items-center justify-center gap-2 w-full mt-2"
           onClick={signIn}
           disabled={busy !== "idle"}
         >

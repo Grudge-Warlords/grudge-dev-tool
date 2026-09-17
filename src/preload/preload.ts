@@ -107,6 +107,9 @@ const api = {
     whoami: (kind: string) => ipcRenderer.invoke("fleetDeploy:whoami", kind),
     targets: () => ipcRenderer.invoke("fleetDeploy:targets"),
     redeploy: (targetId: string) => ipcRenderer.invoke("fleetDeploy:redeploy", targetId),
+    githubRepos: () => ipcRenderer.invoke("fleetDeploy:githubRepos"),
+    githubWorkflows: (repo: string) => ipcRenderer.invoke("fleetDeploy:githubWorkflows", repo),
+    githubRuns: (repo: string) => ipcRenderer.invoke("fleetDeploy:githubRuns", repo),
   },
   fleetAgent: {
     bestSubagent: (surface: string, intent?: string) =>
@@ -461,6 +464,7 @@ const api = {
   // Auth (Puter ↔ Grudge ID)
   auth: {
     getSession: () => ipcRenderer.invoke("auth:getSession"),
+    continueDesktop: () => ipcRenderer.invoke("auth:continueDesktop"),
     setSession: (token: string, user: any) => ipcRenderer.invoke("auth:setSession", token, user),
     clearSession: () => ipcRenderer.invoke("auth:clearSession"),
     wipeIdentity: () => ipcRenderer.invoke("auth:wipeIdentity"),

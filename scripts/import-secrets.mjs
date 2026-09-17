@@ -67,6 +67,13 @@ const KEY_TO_ACCOUNT = {
   HF_TOKEN:                     "llm.huggingface",
   PUTER_AUTH_TOKEN:             "puter-token",
   PUTER_TOKEN:                  "puter-token",
+  VERCEL_TOKEN:                 "fleet.vercelToken",
+  RAILWAY_TOKEN:                "fleet.railwayToken",
+  CF_API_TOKEN:                 "fleet.cfApiToken",
+  CLOUDFLARE_API_TOKEN:         "fleet.cfApiToken",
+  GH_TOKEN:                     "fleet.githubToken",
+  GITHUB_TOKEN:                 "fleet.githubToken",
+  GITHUB_PAT:                   "fleet.githubToken",
 };
 
 /** Reject values that would break production (Worker URL as R2 S3, deprecated auth host). */

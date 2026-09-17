@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Bot, FolderGit2, Lock, Globe, Users, Plus, Sparkles,
-  Terminal, Boxes, Code2, Hammer, Play, RefreshCw, ChevronRight, Cpu,
+  Terminal, Boxes, Code2, Hammer, Play, RefreshCw, ChevronRight, Cpu, Github,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -25,7 +25,7 @@ import { executeOrchestratorStep } from "../lib/devPortalExec";
 import type { LocalPod } from "../../shared/devPortal";
 import { FLEET_URLS } from "../../shared/fleet";
 
-type Tab = "projects" | "orchestrator" | "terminal" | "pods" | "deploy";
+type Tab = "projects" | "orchestrator" | "terminal" | "pods" | "deploy" | "github";
 
 const VIS_ICON: Record<string, React.ReactNode> = {
   private: <Lock size={12} />,
@@ -118,6 +118,11 @@ export default function AIWorkspace() {
     token?: string;
     port?: number;
   } | null>(null);
+  const [ghRepos, setGhRepos] = useState<Array<{ fullName: string; htmlUrl: string; private: boolean }>>([]);
+  const [ghRepo, setGhRepo] = useState("Grudge-Warlords/grudge-dev-tool");
+  const [ghWorkflows, setGhWorkflows] = useState<Array<{ name: string; state: string; htmlUrl: string }>>([]);
+  const [ghRuns, setGhRuns] = useState<Array<{ name: string; status: string; conclusion: string | null; htmlUrl: string; headBranch: string }>>([]);
+  const [ghDetail, setGhDetail] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -167,10 +172,37 @@ export default function AIWorkspace() {
     }
   }, []);
 
+  const refreshGithub = useCallback(async (repo?: string) => {
+    const fd = (window as any).grudge?.fleetDeploy;
+    if (!fd?.githubRepos) {
+      setGhDetail("Rebuild required — GitHub IPC missing");
+      return;
+    }
+    setBusy(true);
+    try {
+      const who = await fd.whoami("github");
+      setGhDetail(who?.ok ? `✓ ${who.detail}` : `✗ ${who?.detail || "not signed in"}`);
+      const repos = await fd.githubRepos();
+      setGhRepos(repos?.repos || []);
+      const target = (repo || ghRepo).trim();
+      if (target) {
+        const [wf, runs] = await Promise.all([fd.githubWorkflows(target), fd.githubRuns(target)]);
+        setGhWorkflows(wf?.workflows || []);
+        setGhRuns(runs?.runs || []);
+        if (!wf?.ok) setGhDetail((d) => `${d} · workflows: ${wf?.detail || "fail"}`);
+      }
+    } catch (e: unknown) {
+      setGhDetail(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [ghRepo]);
+
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
     if (tab === "pods") void refreshPods();
-  }, [tab, refreshPods]);
+    if (tab === "github") void refreshGithub();
+  }, [tab, refreshPods, refreshGithub]);
 
   async function onCreate() {
     const name = newName.trim();
@@ -333,6 +365,7 @@ export default function AIWorkspace() {
     { id: "terminal", label: "Terminal", Icon: Terminal },
     { id: "pods", label: "Pods", Icon: Boxes },
     { id: "projects", label: "Projects", Icon: FolderGit2 },
+    { id: "github", label: "GitHub workers", Icon: Github },
   ];
 
   return (
@@ -785,6 +818,83 @@ export default function AIWorkspace() {
                 </li>
               ))}
             </ul>
+          )}
+        </div>
+      )}
+
+      {tab === "github" && (
+        <div className="card space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-gold">GitHub Actions workers</h2>
+              <p className="text-xs text-muted">
+                Same Settings token as Vercel/Railway (`GH_TOKEN` → fleet.githubToken). Lists repos, workflows, and recent runs.
+              </p>
+              {ghDetail && <p className="text-[11px] font-mono mt-1">{ghDetail}</p>}
+            </div>
+            <button type="button" className="btn ghost text-xs" disabled={busy} onClick={() => void refreshGithub()}>
+              <RefreshCw size={12} /> Refresh
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <input
+              className="text-xs flex-1 min-w-[220px]"
+              value={ghRepo}
+              onChange={(e) => setGhRepo(e.target.value)}
+              placeholder="owner/repo"
+            />
+            <button type="button" className="btn text-xs" disabled={busy} onClick={() => void refreshGithub(ghRepo)}>
+              Load workers
+            </button>
+          </div>
+          {ghRepos.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {ghRepos.slice(0, 16).map((r) => (
+                <button
+                  key={r.fullName}
+                  type="button"
+                  className={`btn ghost text-[10px] ${ghRepo === r.fullName ? "border-gold text-gold" : ""}`}
+                  onClick={() => {
+                    setGhRepo(r.fullName);
+                    void refreshGithub(r.fullName);
+                  }}
+                >
+                  {r.fullName}
+                </button>
+              ))}
+            </div>
+          )}
+          {ghWorkflows.length > 0 && (
+            <div>
+              <div className="text-[11px] text-muted mb-1">Workflows</div>
+              <ul className="text-xs space-y-1">
+                {ghWorkflows.map((w) => (
+                  <li key={w.htmlUrl} className="flex justify-between gap-2">
+                    <span>{w.name}</span>
+                    <span className="font-mono text-muted">{w.state}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {ghRuns.length > 0 && (
+            <div>
+              <div className="text-[11px] text-muted mb-1">Recent runs</div>
+              <ul className="text-xs space-y-1">
+                {ghRuns.map((run) => (
+                  <li key={run.htmlUrl} className="flex justify-between gap-2">
+                    <button
+                      type="button"
+                      className="text-left text-gold"
+                      onClick={() => void window.grudge?.os?.openExternal?.(run.htmlUrl)}
+                    >
+                      {run.name} · {run.headBranch}
+                    </button>
+                    <span className="font-mono text-muted">{run.conclusion || run.status}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}

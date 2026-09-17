@@ -95,7 +95,159 @@ export async function clearToken(kind: FleetTokenKind): Promise<{ ok: true }> {
   return { ok: true };
 }
 
+async function githubToken(): Promise<string | null> {
+  const stored = await getSecret(FLEET_TOKEN_ACCOUNTS.github);
+  const env = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || process.env.GITHUB_PAT;
+  const v = (stored || env || "").trim();
+  return v || null;
+}
+
+async function githubApi<T>(path: string): Promise<{ ok: boolean; status: number; body: T | null; detail: string }> {
+  const token = await githubToken();
+  if (!token) {
+    return { ok: false, status: 0, body: null, detail: "GH_TOKEN / fleet.githubToken missing — save in Settings" };
+  }
+  try {
+    const res = await fetch(`https://api.github.com${path}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "grudge-dev-tool",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      signal: AbortSignal.timeout(20_000),
+    });
+    const text = await res.text();
+    let body: T | null = null;
+    try {
+      body = text ? (JSON.parse(text) as T) : null;
+    } catch {
+      body = null;
+    }
+    if (!res.ok) {
+      const msg =
+        body && typeof body === "object" && body && "message" in body
+          ? String((body as { message?: string }).message)
+          : text.slice(0, 200);
+      return { ok: false, status: res.status, body, detail: `GitHub ${res.status}: ${msg}` };
+    }
+    return { ok: true, status: res.status, body, detail: "ok" };
+  } catch (err) {
+    return { ok: false, status: 0, body: null, detail: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export type GithubRepoRow = {
+  fullName: string;
+  private: boolean;
+  htmlUrl: string;
+  defaultBranch: string;
+  pushedAt: string | null;
+};
+
+export type GithubWorkflowRow = {
+  id: number;
+  name: string;
+  state: string;
+  path: string;
+  htmlUrl: string;
+};
+
+export type GithubRunRow = {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  htmlUrl: string;
+  headBranch: string;
+  updatedAt: string;
+};
+
+export async function githubWhoami(): Promise<CliWhoami> {
+  const r = await githubApi<{ login?: string; name?: string }>("/user");
+  if (!r.ok) return { ok: false, detail: r.detail };
+  const login = r.body?.login || "unknown";
+  return { ok: true, detail: `${login}${r.body?.name ? ` · ${r.body.name}` : ""}` };
+}
+
+export async function githubListRepos(): Promise<{ ok: boolean; detail: string; repos: GithubRepoRow[] }> {
+  const r = await githubApi<Array<{
+    full_name: string;
+    private: boolean;
+    html_url: string;
+    default_branch: string;
+    pushed_at: string | null;
+  }>>("/user/repos?per_page=40&sort=pushed&affiliation=owner,organization_member");
+  if (!r.ok || !Array.isArray(r.body)) return { ok: false, detail: r.detail, repos: [] };
+  return {
+    ok: true,
+    detail: `${r.body.length} repos`,
+    repos: r.body.map((row) => ({
+      fullName: row.full_name,
+      private: row.private,
+      htmlUrl: row.html_url,
+      defaultBranch: row.default_branch,
+      pushedAt: row.pushed_at,
+    })),
+  };
+}
+
+export async function githubListWorkflows(
+  repo: string,
+): Promise<{ ok: boolean; detail: string; workflows: GithubWorkflowRow[] }> {
+  const slug = repo.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/, "");
+  const r = await githubApi<{ workflows?: Array<{ id: number; name: string; state: string; path: string; html_url: string }> }>(
+    `/repos/${slug}/actions/workflows`,
+  );
+  if (!r.ok) return { ok: false, detail: r.detail, workflows: [] };
+  const list = r.body?.workflows ?? [];
+  return {
+    ok: true,
+    detail: `${list.length} workflows`,
+    workflows: list.map((w) => ({
+      id: w.id,
+      name: w.name,
+      state: w.state,
+      path: w.path,
+      htmlUrl: w.html_url,
+    })),
+  };
+}
+
+export async function githubListRuns(
+  repo: string,
+): Promise<{ ok: boolean; detail: string; runs: GithubRunRow[] }> {
+  const slug = repo.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/, "");
+  const r = await githubApi<{
+    workflow_runs?: Array<{
+      id: number;
+      name: string;
+      status: string;
+      conclusion: string | null;
+      html_url: string;
+      head_branch: string;
+      updated_at: string;
+    }>;
+  }>(`/repos/${slug}/actions/runs?per_page=12`);
+  if (!r.ok) return { ok: false, detail: r.detail, runs: [] };
+  const list = r.body?.workflow_runs ?? [];
+  return {
+    ok: true,
+    detail: `${list.length} runs`,
+    runs: list.map((run) => ({
+      id: run.id,
+      name: run.name,
+      status: run.status,
+      conclusion: run.conclusion,
+      htmlUrl: run.html_url,
+      headBranch: run.head_branch,
+      updatedAt: run.updated_at,
+    })),
+  };
+}
+
 export async function whoami(kind: Exclude<FleetTokenKind, "puter">): Promise<CliWhoami> {
+  if (kind === "github") return githubWhoami();
   const token = await getSecret(FLEET_TOKEN_ACCOUNTS[kind]);
   if (kind === "vercel") {
     const env = token ? { VERCEL_TOKEN: token } : {};

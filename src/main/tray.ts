@@ -113,9 +113,10 @@ export function createTray(getWindow: () => BrowserWindow | null): Tray {
   ]);
   tray.setContextMenu(menu);
 
-  // Windows notification overflow (▲): left-click must open the Loader popup.
+  // Left-click opens the main shell (v1.1.3: hidden-window launches looked like a crash).
+  // Loader stays available from the menu / second click via toggleLoader.
   tray.on("click", () => {
-    toggleLoader();
+    showWindow();
   });
   tray.on("double-click", () => {
     showWindow();

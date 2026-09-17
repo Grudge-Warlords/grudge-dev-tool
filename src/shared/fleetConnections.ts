@@ -77,6 +77,7 @@ export const FLEET_TOKEN_ACCOUNTS = {
   vercel: "fleet.vercelToken",
   railway: "fleet.railwayToken",
   cloudflare: "fleet.cfApiToken",
+  github: "fleet.githubToken",
   puter: "puter-token",
 } as const;
 

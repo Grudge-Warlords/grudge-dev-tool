@@ -27,6 +27,14 @@ export default defineConfig(({ mode }) => {
     "grudgedev@gmail.com,jonbemmons@gmail.com";
 
   return {
+    resolve: {
+      alias: {
+        "@grudge-studio/animator": resolve(__dirname, "../GrudgeStudioNPM/packages/animator/src/index.ts"),
+        "@grudge-studio/assets": resolve(__dirname, "../GrudgeStudioNPM/packages/assets/src/index.ts"),
+        "@grudge-studio/engine": resolve(__dirname, "../GrudgeStudioNPM/packages/engine/src/index.ts"),
+        "@grudge-studio/core": resolve(__dirname, "../GrudgeStudioNPM/packages/core/src/index.ts"),
+      },
+    },
     plugins: [react()],
     root: resolve(__dirname, "src/renderer"),
     envDir: resolve(__dirname),

@@ -58,6 +58,7 @@ Be concrete and actionable. Prefer ONE TRUTH:
 - Legion chat = https://ai.grudge-studio.com — not ObjectStore workers/ai.
 Forge tools live in this desktop app (not a second editor).
 VS Code / standalone attach to this same host (127.0.0.1:17380).
+GitHub Actions workers use the Settings GH_TOKEN (fleet.githubToken) — list repos/workflows/runs from Agent AI → GitHub workers. Do not invent a second GitHub client.
 When listing steps, use short numbered actions.
 
 ${pluginAgentPracticesPrompt()}`;

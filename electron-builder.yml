@@ -2,14 +2,19 @@ appId: com.grudgestudio.devtool
 productName: Grudge Dev Tool
 copyright: Copyright © 2026 Grudge Studio
 asar: true
+npmRebuild: false
+nodeGypRebuild: false
 directories:
   output: release
   buildResources: resources
 files:
   - dist/**/*
   - package.json
+  - node_modules/**/*
   - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
   - "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
+  - "!**/node_modules/@grudge-studio/*/src/**"
+  - "!**/node_modules/@grudge-studio/*/*.map"
 # @heyputer/puter.js uses readFileSync + vm.runInNewContext on its bundled
 # dist/puter.cjs and the `open` package may need to spawn platform binaries.
 # Both fail under asar packing, so we unpack them.
@@ -17,6 +22,9 @@ asarUnpack:
   - "node_modules/@heyputer/puter.js/**"
   - "node_modules/open/**"
   - "node_modules/@gltf-transform/**"
+  - "node_modules/keytar/**"
+  - "node_modules/sharp/**"
+  - "node_modules/@grudge-studio/**"
 extraResources:
   - from: resources
     to: .

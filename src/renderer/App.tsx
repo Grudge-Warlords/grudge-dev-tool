@@ -232,7 +232,12 @@ export default function App() {
         setSession({ signedIn: false, grudgeId: null, puterUser: null, hasToken: false });
         return;
       }
-      const s: Session = await window.grudge.auth.getSession();
+      const s: Session = await Promise.race([
+        window.grudge.auth.getSession(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("session timeout")), 4000),
+        ),
+      ]);
       setSession(s);
     } catch (err: unknown) {
       console.error("auth.getSession failed", err);

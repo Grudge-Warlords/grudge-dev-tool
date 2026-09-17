@@ -120,14 +120,49 @@ export async function getSession(): Promise<GrudgeSession> {
   const token = await getSecret(ACCOUNT_TOKEN);
   const userRaw = await getSecret(ACCOUNT_USER);
   const gidRaw  = await getSecret(ACCOUNT_GID);
-  if (!token || !userRaw) {
+  if (!userRaw) {
     return { signedIn: false, grudgeId: null, puterUser: null, hasToken: false };
   }
   let puterUser: PuterUser | null = null;
   try { puterUser = JSON.parse(userRaw); } catch { /* ignore */ }
+  if (!puterUser?.username) {
+    return { signedIn: false, grudgeId: null, puterUser: null, hasToken: Boolean(token) };
+  }
   let grudgeId: string | null = null;
   try { grudgeId = gidRaw ? (JSON.parse(gidRaw) as { grudgeId: string }).grudgeId : null; } catch { grudgeId = null; }
-  return { signedIn: true, grudgeId, puterUser, hasToken: true };
+  return { signedIn: true, grudgeId, puterUser, hasToken: Boolean(token) };
+}
+
+/**
+ * Open the desktop shell without Puter. Used when the owner is already on this
+ * machine and Puter OAuth is blocking first paint. Does not invent a second
+ * identity store — reuses ACCOUNT_USER / ACCOUNT_GID.
+ */
+export async function continueDesktopSession(): Promise<GrudgeSession> {
+  const existing = await getSession();
+  if (existing.signedIn) return existing;
+
+  const username =
+    process.env.GRUDGE_DESKTOP_USER?.trim() ||
+    process.env.USERNAME?.trim() ||
+    "grudachain";
+  const uuid = `desktop-${username.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  const user: PuterUser = { uuid, username };
+  const existingGid = await getSecret(ACCOUNT_GID);
+  let grudgeId: string;
+  if (existingGid) {
+    try {
+      grudgeId = (JSON.parse(existingGid) as { grudgeId: string }).grudgeId;
+    } catch {
+      grudgeId = deriveGrudgeId(uuid, Date.now());
+    }
+  } else {
+    grudgeId = deriveGrudgeId(uuid, Date.now());
+    await setSecret(ACCOUNT_GID, JSON.stringify({ grudgeId, puterUuid: uuid, firstSeenAt: Date.now() }));
+  }
+  await setSecret(ACCOUNT_USER, JSON.stringify(user));
+  log.info(`[auth] desktop session username=${username} grudgeId=${grudgeId}`);
+  return { signedIn: true, grudgeId, puterUser: user, hasToken: false };
 }
 
 export async function getPuterToken(): Promise<string | null> {

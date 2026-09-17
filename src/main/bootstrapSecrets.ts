@@ -56,6 +56,7 @@ const ENV_TO_KEYTAR: Array<{ env: string | string[]; account: string; cf?: CfAcc
   { env: "VERCEL_TOKEN", account: "fleet.vercelToken" },
   { env: "RAILWAY_TOKEN", account: "fleet.railwayToken" },
   { env: ["CF_API_TOKEN", "CLOUDFLARE_API_TOKEN"], account: "fleet.cfApiToken" },
+  { env: ["GH_TOKEN", "GITHUB_TOKEN", "GITHUB_PAT"], account: "fleet.githubToken" },
 ];
 
 function firstEnv(keys: string | string[]): string | undefined {

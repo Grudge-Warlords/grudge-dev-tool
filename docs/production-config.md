@@ -52,6 +52,10 @@ Host map: [Systems & APIs](systems-api.md) · [ONE TRUTH](one-truth.md).
 | `GRUDGE_ID_BASE` | `fleet.idBase` | `https://id.grudge-studio.com` |
 | `GRUDGE_LEGION_HUB` | — | `https://ai.grudge-studio.com` |
 | `GRUDGE_AI_KEY` | — | Legion / hub key |
+| `VERCEL_TOKEN` | `fleet.vercelToken` | Vercel CLI / redeploy |
+| `RAILWAY_TOKEN` | `fleet.railwayToken` | Railway CLI |
+| `CF_API_TOKEN` | `fleet.cfApiToken` | Wrangler |
+| `GH_TOKEN` / `GITHUB_TOKEN` | `fleet.githubToken` | GitHub Actions workers (Agent AI tab) |
 | `OLLAMA_HOST` | electron-store | `http://localhost:11434` |
 
 ### Cloudflare AI (optional)

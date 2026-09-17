@@ -409,7 +409,6 @@ export default function SkeletonStudio() {
       setExtract(null);
       setPackDir(null);
       setTposePath(null);
-      setSlotOverrides({});
       setStep(reviewContext || suggestedPlacements?.length ? "place" : "extract");
       setStatusLine(
         suggestedPlacements?.length

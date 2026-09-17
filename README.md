@@ -24,7 +24,7 @@
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **Desktop app** | **v1.1.0** | Windows tray · 3D double-click → ThreePipe editor · Elite media · Forge live · auto-update |
+| **Desktop app** | **v1.1.3** | Windows tray · main window always opens · Elite 3D · GitHub Actions workers · Forge live · auto-update |
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  

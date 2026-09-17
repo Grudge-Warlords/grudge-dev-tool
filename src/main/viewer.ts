@@ -427,6 +427,7 @@ export function openViewer(raw: unknown, _parent?: BrowserWindow | null): { ok: 
     isPipelineAsset(asset) &&
     pipelineWin &&
     !pipelineWin.isDestroyed() &&
+    pipelineWin.isVisible() &&
     /viewer\.html/i.test(pipelineWin.webContents.getURL() || "")
   ) {
     try {

@@ -44,7 +44,7 @@ A running list of every error we've seen and the exact fix. Cross-referenced fro
 1. Right-click the notification-area arrow (`^`) → enable showing all tray icons.
 2. Reinstall from <https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest> if your installed version is < 0.1.0.
 ### Window doesn't open after install
-By design. The window starts hidden. Left-click the tray icon to toggle the **GrudgeLoader** mini-overlay; double-click to open the main window. Right-click for the full menu.
+**v1.1.3+** shows the main window on launch (including Explorer double-click of a GLB). If an older build is installed, left-click the tray icon — that now opens the main shell. Right-click for the full menu. Logs: `%APPDATA%\grudge-dev-tool\logs\main.log`. Reinstall from [latest release](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest).
 ### "DOCTYPE not valid" warning in DevTools
 **Cause.** Lowercase `<!doctype html>` in renderer HTML; some validators flag this even though HTML5 spec allows it.
 **Fix.** Resolved in **v0.1.2** by switching to canonical uppercase `<!DOCTYPE html>` in both `index.html` and `loader.html`.
@@ -117,6 +117,6 @@ Blender 4.x with the new gltf exporter occasionally stalls on Eevee Next preview
 ---
 ## Where to get help
 1. **Docs site** — <https://grudge-warlords.github.io/grudge-dev-tool/> (live once Actions deploys it).
-2. **Logs** — `%APPDATA%\Grudge Dev Tool\logs\main.log`. The bottom-bar **"logs"** link in the app opens that folder.
+2. **Logs** — `%APPDATA%\grudge-dev-tool\logs\main.log` (Electron userData uses the package name). The bottom-bar **"logs"** link in the app opens that folder.
 3. **Issue tracker** — <https://github.com/Grudge-Warlords/grudge-dev-tool/issues>.
 4. **CHANGELOG** — <https://github.com/Grudge-Warlords/grudge-dev-tool/blob/main/CHANGELOG.md>.

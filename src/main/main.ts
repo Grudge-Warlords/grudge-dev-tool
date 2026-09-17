@@ -49,8 +49,9 @@ import { FLEET_GAMES, STORE_CATEGORIES } from "../shared/fleetGames";
 import { GAME_DEPLOYMENT_DEFINITIONS } from "../shared/gameDeployments";
 import { mergeFleetGames } from "../shared/fleetMerge";
 import { FLEET_ENDPOINTS } from "../shared/fleetConnections";
-import * as fleetDeploy from "./fleetDeploy";
-import { bestSubAgentFor, type FleetAgentSurface } from "../shared/fleetAgents";
+import type { FleetTokenKind } from "../shared/fleetConnections";
+import type { FleetAgentSurface } from "../shared/fleetAgents";
+import { bestSubAgentFor } from "../shared/fleetAgents";
 import * as workspaceStore from "./workspaceStore";
 import * as puterAuth from "./auth/puterSession";
 import { puterLoginAuto, puterLoginViaExternalBrowser, resolvePuterUserFromToken } from "./auth/puterLogin";
@@ -177,7 +178,7 @@ async function createMainWindow() {
     minHeight: 540,
     // Start hidden; show on ready-to-show so first paint isn't a white flash.
     // Tray remains for minimize-to-tray; double-click tray also shows.
-    show: false,
+    show: true,
     backgroundColor: "#0a0e1a",
     icon: nativeImage.createFromPath(windowIconPath()),
     autoHideMenuBar: true,
@@ -198,21 +199,36 @@ async function createMainWindow() {
   if (state.maximized) mainWindow.maximize();
   windowState.track(mainWindow);
 
-  // Always surface the main window once the shell is ready (dev + packaged).
+  // Always surface the main window. File-association cold starts used to hide
+  // the shell (tray-only) so the owner thought the app did not open.
   mainWindow.once("ready-to-show", () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.show();
     mainWindow.focus();
     log.info("[window] ready-to-show → shown");
   });
-  // Fallback if ready-to-show races (slow vite / cold start)
+  mainWindow.webContents.on("did-fail-load", (_e, code, desc, url, isMain) => {
+    if (!isMain || code === -3) return;
+    log.error(`[window] did-fail-load ${code} ${desc} ${url}`);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+  mainWindow.webContents.on("did-finish-load", () => {
+    log.info("[window] did-finish-load");
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
   setTimeout(() => {
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
       mainWindow.show();
       mainWindow.focus();
       log.info("[window] fallback show after timeout");
     }
-  }, 4000);
+  }, 1500);
 
   // ---------------- Security hardening ----------------
   // Refuse navigation to anything outside the app shell, OAuth domains, and
@@ -336,9 +352,26 @@ if (!gotLock) {
     }
     // Show UI first — never block window creation on Blender/ffmpeg probes.
     // Secrets seed runs in parallel so vault warm-up doesn't delay first paint.
-    await createMainWindow();
     if (!OFFLINE_LOCAL_TEST) createTray(() => mainWindow);
     registerIpc();
+    if (!OFFLINE_LOCAL_TEST) {
+      try {
+        await startPluginHost({
+          showMain: () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return;
+            mainWindow.show();
+            mainWindow.focus();
+          },
+        });
+      } catch (err) {
+        log.warn("[pluginHost] start failed", err);
+      }
+    }
+    await createMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
     if (!OFFLINE_LOCAL_TEST) void seedDefaultSecrets()
       .then((seed) =>
         log.info(
@@ -346,12 +379,9 @@ if (!gotLock) {
         ),
       )
       .catch((err) => log.warn("seedDefaultSecrets failed", err));
-    // Cold-start: Explorer double-click → Elite Three Pipeline (+ Local Files tab)
-    const hadColdOpen = openFileBridge.getPendingPaths().length > 0;
+    // Cold-start: Explorer double-click → Elite viewer, AND keep the main shell visible.
     if (mainWindow) openFileBridge.flushPendingTo(mainWindow);
-    // No pending file open → surface GrudgeLoader in the bottom-right so the
-    // notification-area (▲) icon is discoverable (v1.1.0 tray UX).
-    if (!OFFLINE_LOCAL_TEST && !hadColdOpen) {
+    if (!OFFLINE_LOCAL_TEST) {
       try {
         showLoader();
       } catch {
@@ -395,14 +425,8 @@ if (!gotLock) {
     // Auto-update (no-op in dev).
     if (!OFFLINE_LOCAL_TEST) setupAutoUpdater(() => mainWindow);
 
-    // Loopback plugin host — VS Code / standalone / CLI attach here.
-    if (!OFFLINE_LOCAL_TEST) void startPluginHost({
-      showMain: () => {
-        if (!mainWindow || mainWindow.isDestroyed()) return;
-        mainWindow.show();
-        mainWindow.focus();
-      },
-    }).catch((err) => log.warn("[pluginHost] start failed", err));
+    // Plugin host is started before createMainWindow so Explorer double-click
+    // can serve local meshes immediately. Do not start it twice.
 
     if (!OFFLINE_LOCAL_TEST) void fileDefaults.ensureFileDefaultsOnLaunch().catch((err) =>
       log.warn("[fileDefaults] launch ensure failed", err),
@@ -1093,6 +1117,11 @@ function registerIpc() {
 
   // Puter auth + Grudge identity
   ipcMain.handle("auth:getSession", () => OFFLINE_LOCAL_TEST ? { signedIn: true, grudgeId: "local-test", puterUser: { uuid: "local-test", username: "Local Prompt-to-3D", email: undefined }, hasToken: false } : puterAuth.getSession());
+  ipcMain.handle("auth:continueDesktop", () =>
+    OFFLINE_LOCAL_TEST
+      ? { signedIn: true, grudgeId: "local-test", puterUser: { uuid: "local-test", username: "Local Prompt-to-3D" }, hasToken: false }
+      : puterAuth.continueDesktopSession(),
+  );
   ipcMain.handle("auth:setSession", (_e, token: string, user: any) => puterAuth.setSession(token, user));
   ipcMain.handle("auth:clearSession", () => puterAuth.clearSession());
   ipcMain.handle("auth:wipeIdentity", () => puterAuth.wipeIdentity());
@@ -1153,20 +1182,31 @@ function registerIpc() {
   ipcMain.handle("cf:getBackendMode", () => api.getBackendMode());
   ipcMain.handle("cf:setBackendMode", (_e, mode: any) => api.setBackendMode(mode));
 
-  // Fleet deploy platforms (Vercel / Railway / CF Wrangler / Puter session)
-  ipcMain.handle("fleetDeploy:tokens", () => fleetDeploy.tokenStatus());
-  ipcMain.handle("fleetDeploy:saveToken", (_e, kind: string, value: string) =>
-    fleetDeploy.saveToken(kind as import("../shared/fleetConnections").FleetTokenKind, value),
+  // Fleet deploy platforms — lazy-load so keytar/CLI modules cannot block boot
+  const loadFleetDeploy = () => import("./fleetDeploy");
+  ipcMain.handle("fleetDeploy:tokens", async () => (await loadFleetDeploy()).tokenStatus());
+  ipcMain.handle("fleetDeploy:saveToken", async (_e, kind: string, value: string) =>
+    (await loadFleetDeploy()).saveToken(kind as FleetTokenKind, value),
   );
-  ipcMain.handle("fleetDeploy:clearToken", (_e, kind: string) =>
-    fleetDeploy.clearToken(kind as import("../shared/fleetConnections").FleetTokenKind),
+  ipcMain.handle("fleetDeploy:clearToken", async (_e, kind: string) =>
+    (await loadFleetDeploy()).clearToken(kind as FleetTokenKind),
   );
-  ipcMain.handle("fleetDeploy:whoami", (_e, kind: string) => {
-    if (kind === "puter") return fleetDeploy.puterStatus();
-    return fleetDeploy.whoami(kind as "vercel" | "railway" | "cloudflare");
+  ipcMain.handle("fleetDeploy:whoami", async (_e, kind: string) => {
+    const fd = await loadFleetDeploy();
+    if (kind === "puter") return fd.puterStatus();
+    return fd.whoami(kind as "vercel" | "railway" | "cloudflare");
   });
-  ipcMain.handle("fleetDeploy:targets", () => fleetDeploy.listTargets());
-  ipcMain.handle("fleetDeploy:redeploy", (_e, targetId: string) => fleetDeploy.redeploy(targetId));
+  ipcMain.handle("fleetDeploy:targets", async () => (await loadFleetDeploy()).listTargets());
+  ipcMain.handle("fleetDeploy:redeploy", async (_e, targetId: string) =>
+    (await loadFleetDeploy()).redeploy(targetId),
+  );
+  ipcMain.handle("fleetDeploy:githubRepos", async () => (await loadFleetDeploy()).githubListRepos());
+  ipcMain.handle("fleetDeploy:githubWorkflows", async (_e, repo: string) =>
+    (await loadFleetDeploy()).githubListWorkflows(String(repo || "")),
+  );
+  ipcMain.handle("fleetDeploy:githubRuns", async (_e, repo: string) =>
+    (await loadFleetDeploy()).githubListRuns(String(repo || "")),
+  );
   ipcMain.handle(
     "fleetAgent:bestSubagent",
     (_e, surface: FleetAgentSurface, intent?: string) => bestSubAgentFor(surface, intent),
