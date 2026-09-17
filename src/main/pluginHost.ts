@@ -333,6 +333,20 @@ export async function startPluginHost(opts: { showMain: () => void }): Promise<P
           return;
         }
 
+        if (req.method === "POST" && url.pathname === "/v1/ingest/convert") {
+          if (!requireToken(req, res)) return;
+          const body = await readJson(req);
+          const disk = typeof body.path === "string" ? pathResolve(normalize(body.path.trim())) : "";
+          if (!disk || !existsSync(disk) || !statSync(disk).isFile()) {
+            send(res, req, 400, { ok: false, error: "path_required" });
+            return;
+          }
+          const { convertFile, verifyFile } = await import("./ingestion");
+          const verify = await verifyFile(disk);
+          send(res, req, 200, await convertFile(disk, verify));
+          return;
+        }
+
         if (req.method === "POST" && url.pathname === "/v1/open") {
           if (!requireToken(req, res)) return;
           const body = (await readJson(req)) as unknown as PluginOpenRequest;

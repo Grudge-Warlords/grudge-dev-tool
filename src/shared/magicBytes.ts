@@ -38,29 +38,12 @@ export interface FbxVersionProbe {
   detail: string;
 }
 
-/**
- * Read FBX FileVersion from binary header or ASCII `FBXVersion: 6100`.
- * Binary: "Kaydara FBX Binary  \\0" + 0x1A 0x00 + uint32 LE at offset 23.
- */
-export function parseFbxVersion(input: ArrayBuffer | Uint8Array): FbxVersionProbe {
-  const b = u8(input);
-  const n = b.length;
-  if (n < 27) {
-    return { format: "unknown", version: null, threeSupported: false, detail: "FBX too small to read version" };
-  }
-  const head = ascii(b, 0, Math.min(n, 96));
-  if (head.startsWith("Kaydara FBX Binary")) {
-    const version = b[23] | (b[24] << 8) | (b[25] << 16) | (b[26] << 24);
-    const threeSupported = version >= THREE_FBX_MIN_BINARY;
-    return {
-      format: "binary",
-      version,
-      threeSupported,
-      detail: `FBX binary FileVersion ${version}${threeSupported ? "" : " — THREE needs ≥6400; convert via Blender"}`,
-    };
-  }
-  const sample = ascii(b, 0, Math.min(n, 64 * 1024));
-  const m = sample.match(/FBXVersion:\s*(\d+)/i) || sample.match(/FileVersion:\s*(\d+)/i);
+function parseFbxText(sample: string): FbxVersionProbe | null {
+  const m =
+    sample.match(/FBXVersion:\s*(\d+)/i) ||
+    sample.match(/FileVersion:\s*(\d+)/i) ||
+    sample.match(/<FBXVersion>\s*(\d+)/i) ||
+    sample.match(/FBXVersion[^0-9]{0,32}(\d{4})/i);
   if (m) {
     const version = Number(m[1]);
     const threeSupported = version >= THREE_FBX_MIN_ASCII;
@@ -78,6 +61,70 @@ export function parseFbxVersion(input: ArrayBuffer | Uint8Array): FbxVersionProb
       threeSupported: false,
       detail: "FBX ascii, version not found — convert via Blender",
     };
+  }
+  if (/<\?xml/i.test(sample.trimStart().slice(0, 40)) && /FBX/i.test(sample.slice(0, 4000))) {
+    return {
+      format: "ascii",
+      version: null,
+      threeSupported: false,
+      detail: "FBX XML — convert via Blender",
+    };
+  }
+  return null;
+}
+
+/** Old Autodesk ASCII FBX is often UTF-16 LE (`;\\0 \\0F\\0B\\0X\\0`). */
+function utf16BytesToAscii(b: Uint8Array): string | null {
+  const n = b.length;
+  if (n < 8) return null;
+  let start = 0;
+  let le = true;
+  if (b[0] === 0xff && b[1] === 0xfe) {
+    start = 2;
+    le = true;
+  } else if (b[0] === 0xfe && b[1] === 0xff) {
+    start = 2;
+    le = false;
+  } else if (!(b[0] !== 0 && b[1] === 0 && b[2] !== 0 && b[3] === 0)) {
+    return null;
+  }
+  const end = Math.min(n, start + 64 * 1024);
+  let s = "";
+  for (let i = start; i + 1 < end; i += 2) {
+    const c = le ? b[i] | (b[i + 1] << 8) : (b[i] << 8) | b[i + 1];
+    if (c === 0) continue;
+    s += c < 128 ? String.fromCharCode(c) : " ";
+  }
+  return s.length >= 4 ? s : null;
+}
+
+/**
+ * Read FBX FileVersion from binary header or ASCII `FBXVersion: 6100`.
+ * Binary: "Kaydara FBX Binary  \\0" + 0x1A 0x00 + uint32 LE at offset 23.
+ */
+export function parseFbxVersion(input: ArrayBuffer | Uint8Array): FbxVersionProbe {
+  const b = u8(input);
+  const n = b.length;
+  if (n < 8) {
+    return { format: "unknown", version: null, threeSupported: false, detail: "FBX too small to read version" };
+  }
+  const head = ascii(b, 0, Math.min(n, 96));
+  if (n >= 27 && head.startsWith("Kaydara FBX Binary")) {
+    const version = b[23] | (b[24] << 8) | (b[25] << 16) | (b[26] << 24);
+    const threeSupported = version >= THREE_FBX_MIN_BINARY;
+    return {
+      format: "binary",
+      version,
+      threeSupported,
+      detail: `FBX binary FileVersion ${version}${threeSupported ? "" : " — THREE needs ≥6400; convert via Blender"}`,
+    };
+  }
+  const fromText = parseFbxText(ascii(b, 0, Math.min(n, 64 * 1024)));
+  if (fromText) return fromText;
+  const utf16 = utf16BytesToAscii(b);
+  if (utf16) {
+    const fromUtf16 = parseFbxText(utf16);
+    if (fromUtf16) return fromUtf16;
   }
   return { format: "unknown", version: null, threeSupported: false, detail: "not an FBX header" };
 }
@@ -170,14 +217,17 @@ export function probeMagic(input: ArrayBuffer | Uint8Array): MagicProbe {
   const head = sample.slice(0, 96);
   const trimmed = trimTextStart(sample);
 
-  // HTML / XML error pages (CDN 404, Cloudflare, auth walls)
+  // HTML / XML error pages (CDN 404, Cloudflare, auth walls).
+  // Do not treat Autodesk XML FBX (`<?xml` + FBX) as an error page.
+  const xmlFbx = /^<\?xml/i.test(trimmed.slice(0, 64)) && /FBX/i.test(sample.slice(0, 4000));
   if (
-    /^(?:<!DOCTYPE\s+html|<html\b|<\?xml)/i.test(trimmed.slice(0, 64)) ||
-    /<!DOCTYPE\s+html|<html[\s>]/i.test(head) ||
-    (/<body[\s>]/i.test(sample.slice(0, 2000)) &&
-      /(?:Error\s+\d{3}|Access Denied|Cloudflare|Just a moment|nginx|Bad Gateway)/i.test(
-        sample.slice(0, 4000),
-      ))
+    !xmlFbx &&
+    (/^(?:<!DOCTYPE\s+html|<html\b|<\?xml)/i.test(trimmed.slice(0, 64)) ||
+      /<!DOCTYPE\s+html|<html[\s>]/i.test(head) ||
+      (/<body[\s>]/i.test(sample.slice(0, 2000)) &&
+        /(?:Error\s+\d{3}|Access Denied|Cloudflare|Just a moment|nginx|Bad Gateway)/i.test(
+          sample.slice(0, 4000),
+        )))
   ) {
     return {
       kind: "html",
@@ -199,16 +249,24 @@ export function probeMagic(input: ArrayBuffer | Uint8Array): MagicProbe {
       bytes: n,
     };
   }
-  // ASCII FBX
-  if (/^; FBX/i.test(trimmed.slice(0, 32)) || /^FBX/i.test(trimmed.slice(0, 8))) {
+  // ASCII / UTF-16 / XML FBX
+  if (
+    /^; FBX/i.test(trimmed.slice(0, 32)) ||
+    /^FBX/i.test(trimmed.slice(0, 8)) ||
+    xmlFbx ||
+    (b[0] === 0xff && b[1] === 0xfe) ||
+    (b[0] !== 0 && b[1] === 0 && b[2] !== 0 && b[3] === 0)
+  ) {
     const fv = parseFbxVersion(b);
-    return {
-      kind: "fbx",
-      okForMesh: true,
-      okForTexture: false,
-      detail: fv.detail,
-      bytes: n,
-    };
+    if (fv.format !== "unknown" || xmlFbx) {
+      return {
+        kind: "fbx",
+        okForMesh: true,
+        okForTexture: false,
+        detail: fv.detail,
+        bytes: n,
+      };
+    }
   }
 
   // JSON-like (includes glTF, API errors, empty stubs)

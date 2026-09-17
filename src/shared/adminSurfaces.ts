@@ -74,7 +74,7 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     prodUrl: FLEET_URLS.threeflow,
     apis: [FLEET_URLS.threeflow, FLEET_URLS.assets, FLEET_URLS.ai],
     description:
-      "ThreeFlow in-app: Vue /editor via explicit Edit in ThreeFlow. Explorer double-click 3D opens Elite viewer.",
+      "ThreeFlow tab embeds https://threeflow.vercel.app/editor (Vue Warlords scene). Terrain = /editor?tab=terrain. Not a local THREE playground. Explorer double-click 3D opens Elite viewer.",
   },
   {
     id: "forge",

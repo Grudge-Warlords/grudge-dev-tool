@@ -63,13 +63,13 @@ export function threeflowViewUrl(cdnUrl: string, extra?: Record<string, string>)
   return u.toString();
 }
 
-/** Double-click / Open with → ThreePipe editor (default `/view`) or Vue `/editor`. */
+/** Scene handoff → Vue `/editor`. `/view` is ThreePipe inspect (live rewrite; not the tab default). */
 export function threeflowPipelineUrl(
   cdnUrl: string,
-  mode: "view" | "editor" = "view",
+  mode: "view" | "editor" = "editor",
   extra?: Record<string, string>,
 ): string {
-  return mode === "editor" ? threeflowAssetUrl(cdnUrl, extra) : threeflowViewUrl(cdnUrl, extra);
+  return mode === "view" ? threeflowViewUrl(cdnUrl, extra) : threeflowAssetUrl(cdnUrl, extra);
 }
 
 /** Production Forge — R3F + Rapier + .gfscene deploy. */

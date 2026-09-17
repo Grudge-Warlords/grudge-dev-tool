@@ -63,6 +63,19 @@ const ascii61 = Buffer.from("; FBX 6.1.0 project file\nFBXHeaderExtension:  {\n\
 const v61 = parseFbxVersion(ascii61);
 ok("ascii 6100 detected", v61.format === "ascii" && v61.version === 6100 && !v61.threeSupported, v61.detail);
 
+function utf16le(s) {
+  const buf = Buffer.alloc(s.length * 2);
+  for (let i = 0; i < s.length; i++) buf.writeUInt16LE(s.charCodeAt(i), i * 2);
+  return buf;
+}
+const vUtf16 = parseFbxVersion(utf16le("; FBX 6.1.0 project\nFBXVersion: 6100\n"));
+ok("utf16 6100 detected", vUtf16.format === "ascii" && vUtf16.version === 6100 && !vUtf16.threeSupported, vUtf16.detail);
+
+const xmlFbx = Buffer.from('<?xml version="1.0" encoding="utf-8"?>\n<FBX>\n  <FBXHeaderExtension><FBXVersion>6100</FBXVersion></FBXHeaderExtension>\n</FBX>\n');
+const vXml = parseFbxVersion(xmlFbx);
+ok("xml 6100 detected", vXml.format === "ascii" && vXml.version === 6100 && !vXml.threeSupported, vXml.detail);
+ok("xml fbx not html", probeMagic(xmlFbx).kind === "fbx" && probeMagic(xmlFbx).okForMesh, probeMagic(xmlFbx).detail);
+
 const binHdr = Buffer.alloc(32);
 Buffer.from("Kaydara FBX Binary  \u0000").copy(binHdr, 0);
 binHdr[21] = 0x1a;

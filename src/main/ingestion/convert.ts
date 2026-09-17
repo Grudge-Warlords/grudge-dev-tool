@@ -215,8 +215,14 @@ export async function convertFile(
     } catch {
       /* still try convert */
     }
-    const skipFbx2gltf = fbxVer != null && fbxVer < 7000;
-    const fbx2gltf = skipFbx2gltf ? { available: false, path: null as string | null, reason: `FBX ${fbxVer} needs Blender` } : await detectFbx2gltf();
+    const skipFbx2gltf = fbxVer == null || fbxVer < 7000;
+    const fbx2gltf = skipFbx2gltf
+      ? {
+          available: false,
+          path: null as string | null,
+          reason: fbxVer != null ? `FBX ${fbxVer} needs Blender` : "legacy/unknown FBX needs Blender",
+        }
+      : await detectFbx2gltf();
     const outBase = join(outDir, basename(absPath, ext));
     const outPath = `${outBase}.glb`;
     if (fbx2gltf.available && fbx2gltf.path) {
@@ -246,6 +252,12 @@ export async function convertFile(
   if (MODEL_EXTS.has(ext) && ![".glb", ".gltf"].includes(ext)) {
     const blender = await detectBlender();
     if (!blender.available) {
+      const msg = `Blender unavailable — cannot convert ${ext} (${blender.reason}). Set path in Accounts → Toolchain.`;
+      if (ext === ".fbx") {
+        result.ok = false;
+        result.errors.push(msg);
+        return result;
+      }
       result.warnings.push(`Blender unavailable — uploading raw ${ext} (${blender.reason}).`);
       return result;
     }

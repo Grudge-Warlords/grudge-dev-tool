@@ -21,7 +21,7 @@
 // Exits non-zero on any failure. Safe to re-run after fixing whatever broke
 // (the version bump and changelog steps are idempotent).
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, copyFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -223,6 +223,18 @@ function main() {
       process.exit(1);
     }
   }
+  // Auto-update feed uses hyphenated names (spaces → GitHub dots otherwise 404).
+  const hyphenExe = join(rel, `Grudge-Dev-Tool-Setup-${next}.exe`);
+  const hyphenBlockmap = `${hyphenExe}.blockmap`;
+  copyFileSync(exe, hyphenExe);
+  copyFileSync(blockmap, hyphenBlockmap);
+  let yml = readFileSync(latest, "utf8");
+  const spacedName = `${PRODUCT}-Setup-${next}.exe`;
+  const dottedName = `Grudge.Dev.Tool-Setup-${next}.exe`;
+  const hyphenName = `Grudge-Dev-Tool-Setup-${next}.exe`;
+  yml = yml.split(spacedName).join(hyphenName).split(dottedName).join(hyphenName);
+  writeFileSync(latest, yml, "utf8");
+  console.log(`[publish-manual] auto-update alias ${hyphenName}`);
 
   // 7. Commit + tag + push (with one rebase retry on race)
   run("git", ["add", "package.json", "CHANGELOG.md", "package-lock.json"], { allowFail: true });
@@ -245,7 +257,7 @@ function main() {
     "-R", REPO,
     "--title", `v${next}`,
     "--notes", releaseNotes,
-    exe, blockmap, latest,
+    exe, blockmap, hyphenExe, hyphenBlockmap, latest,
   ]);
 
   console.log(`\n[publish-manual] ✅ v${next} published.`);

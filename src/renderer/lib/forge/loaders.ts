@@ -223,6 +223,59 @@ export function localFileUrl(absolutePath: string): string {
   return absolutePath;
 }
 
+type IngestConvertResult = {
+  ok?: boolean;
+  converted?: boolean;
+  outputPath?: string;
+  errors?: string[];
+  warnings?: string[];
+};
+
+function grudgeBridge(): {
+  ingest?: { convert?: (path: string) => Promise<IngestConvertResult> };
+  forge?: { writeTempFile?: (args: { name: string; bytes: Uint8Array }) => Promise<string> };
+} | null {
+  return typeof window !== "undefined" ? (window as Window).grudge : null;
+}
+
+/**
+ * FBX 6.1 / FileVersion 6100 is not THREE.FBXLoader.
+ * Same ingest.convert as Forge3D (Blender first for <7000) — write a temp file
+ * when Elite/CDN/drop did not pass diskPath.
+ */
+async function convertFbxViaIngest(
+  buf: ArrayBuffer,
+  fileName: string,
+  diskPath: string | null | undefined,
+  ver: ReturnType<typeof parseFbxVersion>,
+): Promise<string> {
+  const g = grudgeBridge();
+  if (!g?.ingest?.convert) {
+    throw new Error(
+      `${ver.detail}. Dev Tool ingest.convert is not loaded — restart so Blender can convert FBX 6.1 (6100) → GLB. THREE.FBXLoader cannot parse FileVersion 6100.`,
+    );
+  }
+  let sourcePath = diskPath || "";
+  if (!sourcePath) {
+    if (!g.forge?.writeTempFile) {
+      throw new Error(
+        `${ver.detail}. Open the file from Local Files so Dev Tool can convert FBX 6.1 (6100) with Blender → GLB. THREE.FBXLoader cannot parse FileVersion 6100.`,
+      );
+    }
+    const name = /\.fbx$/i.test(fileName) ? fileName : `${fileName}.fbx`;
+    sourcePath = await g.forge.writeTempFile({
+      name,
+      bytes: new Uint8Array(buf),
+    });
+  }
+  const conv = await g.ingest.convert(sourcePath);
+  if (!conv?.ok || !conv.converted || !conv.outputPath) {
+    const err = (conv?.errors || []).join("; ") || conv?.warnings?.join("; ") || "unknown";
+    throw new Error(`FBX ${ver.version ?? "legacy"} convert failed: ${err}`);
+  }
+  return conv.outputPath;
+}
+
 /** Join model dir + relative texture path (Windows / posix safe). */
 function resolveAgainstDir(baseDir: string, rel: string): string {
   const base = baseDir.replace(/\\/g, "/").replace(/\/?$/, "/");
@@ -611,8 +664,13 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
       }
       case "fbx": {
         const buf = await (await fetch(urlToUse)).arrayBuffer();
+        const magic = probeMagic(buf);
+        if (magic.kind === "html" || magic.kind === "json-stub") {
+          throw new Error(
+            `${file.name}: ${magic.detail} — not an FBX mesh (CDN/auth stub).`,
+          );
+        }
         const ver = parseFbxVersion(buf);
-        const grudge = typeof window !== "undefined" ? (window as any).grudge : null;
         const needConvert =
           !ver.threeSupported ||
           (ver.version != null && ver.version < 7000);
@@ -636,17 +694,8 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
           });
         };
         if (needConvert) {
-          if (!opts.diskPath || !grudge?.ingest?.convert) {
-            throw new Error(
-              `${ver.detail}. Open the file from Local Files so Dev Tool can convert FBX 6.1 (6100) with Blender → GLB. THREE.FBXLoader cannot parse FileVersion 6100.`,
-            );
-          }
-          const conv = await grudge.ingest.convert(opts.diskPath);
-          if (!conv?.ok || !conv.converted || !conv.outputPath) {
-            const err = (conv?.errors || []).join("; ") || conv?.warnings?.join("; ") || "unknown";
-            throw new Error(`FBX ${ver.version ?? "legacy"} convert failed: ${err}`);
-          }
-          return loadConvertedGlb(conv.outputPath);
+          const glbPath = await convertFbxViaIngest(buf, file.name, opts.diskPath, ver);
+          return loadConvertedGlb(glbPath);
         }
         try {
           const fbx = new FBXLoader(manager).parse(
@@ -662,11 +711,9 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
           );
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          if (/version not supported|FileVersion/i.test(msg) && opts.diskPath && grudge?.ingest?.convert) {
-            const conv = await grudge.ingest.convert(opts.diskPath);
-            if (conv?.ok && conv.converted && conv.outputPath) {
-              return loadConvertedGlb(conv.outputPath);
-            }
+          if (/version not supported|FileVersion|FBXLoader/i.test(msg)) {
+            const glbPath = await convertFbxViaIngest(buf, file.name, opts.diskPath, ver);
+            return loadConvertedGlb(glbPath);
           }
           throw e;
         }
@@ -886,6 +933,10 @@ export async function loadModelFromUrl(
           : opts.skipMagicBytes,
       });
     } catch (diskErr) {
+      const msg = diskErr instanceof Error ? diskErr.message : String(diskErr);
+      if (/FBX|convert failed|FileVersion|Blender|ingest\.convert/i.test(msg)) {
+        throw diskErr;
+      }
       console.warn("[loadModelFromUrl] disk path failed", diskErr);
       /* fall through to URL fetch */
     }

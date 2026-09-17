@@ -54,6 +54,13 @@ const EXTRA: PluginPractice[] = [
     rule: "Local PTY + bootstrap: ?workspace=&project=&bootstrap=1&from=grudge-dev-tool. Public host is CF Pages + api.vibe; self-host is Docker. Two AI names: Legion (fleet chat) ≠ Coder workers/ai-hub (job ingest).",
   },
   {
+    id: "fbx-6100-convert",
+    title: "FBX 6.1 converts via Blender, not THREE.FBXLoader",
+    source: "devtools",
+    category: "assets",
+    rule: "FileVersion 6100 / ASCII FBX 6.1 is not THREE.FBXLoader (ASCII ≥7000, binary ≥6400). Elite, Forge, plugin, and Agent AI use ingest.convert (Blender → GLB). POST /v1/ingest/convert { path }. Do not invent a second loader.",
+  },
+  {
     id: "legion-one-brain",
     title: "Legion is the one public brain",
     source: "legion",

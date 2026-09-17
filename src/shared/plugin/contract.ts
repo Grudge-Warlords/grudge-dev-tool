@@ -121,6 +121,7 @@ export function pluginManifest(port = DEFAULT_PLUGIN_PORT): PluginManifest {
       agentChat: "/v1/agent/chat",
       agentRun: "/v1/agent/run",
       viewerOpen: "/v1/viewer/open",
+      ingestConvert: "/v1/ingest/convert",
       open: "/v1/open",
       standalone: "/",
     },

@@ -58,6 +58,7 @@ Be concrete and actionable. Prefer ONE TRUTH:
 - Legion chat = https://ai.grudge-studio.com — not ObjectStore workers/ai.
 Forge tools live in this desktop app (not a second editor).
 VS Code / standalone attach to this same host (127.0.0.1:17380).
+FBX 6.1 / FileVersion 6100 is not THREE.FBXLoader. Convert with ingest.convert (Blender → GLB) or POST /v1/ingest/convert { path }. Do not invent a second FBX loader.
 GitHub Actions workers use the Settings GH_TOKEN (fleet.githubToken) — list repos/workflows/runs from Agent AI → GitHub workers. Do not invent a second GitHub client.
 When listing steps, use short numbered actions.
 
@@ -83,7 +84,8 @@ Rules:
 - 3–8 steps max
 - Prefer local desktop tools (npm, forge, terminal) over opening browsers
 - auto=true only for safe local commands (npm run *, grudge-dev doctor)
-- worker ids: local, forge, npm, fleet, ollama, upload`;
+- worker ids: local, forge, npm, fleet, ollama, upload, convert
+- FBX 6.1/6100: convert worker → ingest.convert (Blender → GLB), never THREE.FBXLoader`;
 
 function extractJson(text: string): unknown {
   const t = text.trim();
@@ -231,6 +233,7 @@ export async function runLocalOrchestrator(opts: {
     { id: "fleet", label: "ONE TRUTH fleet", caps: ["health", "r2", "objectstore"] },
     { id: "ollama", label: "Local Ollama", caps: ["chat", "agentic"] },
     { id: "upload", label: "Upload pipeline", caps: ["ingest", "r2"] },
+    { id: "convert", label: "Asset convert", caps: ["fbx", "blender", "glb"] },
   ];
 
   let plan: LocalOrchestratorStep[] = [];

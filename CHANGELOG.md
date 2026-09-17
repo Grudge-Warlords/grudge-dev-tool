@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4] - 2026-09-17
+
+- Elite / CDN / drop FBX 6.1 (FileVersion 6100) converts via existing `ingest.convert` (Blender → GLB). Write a temp file when `diskPath` is missing. Do not throw “Open from Local Files” instead of converting. THREE.FBXLoader still cannot parse 6100.
+- Detect UTF-16 and XML FBX 6.1 headers (no longer “not an FBX header”). Skip FBX2glTF for legacy/unknown FBX; fail closed if Blender is missing.
+- Plugin host `POST /v1/ingest/convert` `{ path }` so Agent AI uses the same convert path.
+- ThreeFlow tab embeds live `https://threeflow.vercel.app/editor` (Terrain = `/editor?tab=terrain`). Removed the local THREE capsule/hills overlay that covered our editor. Dropped the tab’s `/view` button (live 404).
+
 ## [1.1.3] - 2026-09-17
 
 - Show the main window on every launch. Explorer "Open with" GLB used to hide the shell (tray-only), so the app looked like it never opened.
