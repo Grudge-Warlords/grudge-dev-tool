@@ -1,5 +1,7 @@
 node_modules/
 dist/
+!vendor/@grudge-studio/**/dist/
+!vendor/@grudge-studio/**/dist/**
 release/
 .vite/
 .cache/
