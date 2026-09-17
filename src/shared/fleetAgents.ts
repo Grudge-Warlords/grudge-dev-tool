@@ -36,6 +36,7 @@ export const FLEET_AGENT_MODEL_PREFERENCE = [
   "ollama",
   "workers-ai",
   "puter",
+  "vps-hermes",
 ] as const;
 
 export type FleetAgentSurface =

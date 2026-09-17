@@ -185,7 +185,27 @@ export const ADMIN_SURFACES: AdminSurface[] = [
     kind: "local-tool",
     apis: [FLEET_URLS.ai, FLEET_URLS.ollama, FLEET_URLS.assets, FLEET_URLS.forge],
     description:
-      "Make & deploy orchestrator + GRUDACHAIN Ollama. Uses same convert/CDN/Forge contracts as production.",
+      "Make & deploy orchestrator + GRUDACHAIN Ollama. Uses same convert/CDN/Forge contracts as production. VPS: n8n workflows + Hermes ALE executor.",
+  },
+  {
+    id: "vps-n8n",
+    route: "/ai",
+    label: "GRUDA n8n",
+    kind: "embed-prod",
+    prodUrl: FLEET_URLS.vpsN8n,
+    apis: [FLEET_URLS.vpsN8n, FLEET_URLS.ai, FLEET_URLS.gameData],
+    description: "IONOS n8n — package/env/deploy workflows. Not a second API host.",
+    adminOnly: true,
+  },
+  {
+    id: "vps-hermes",
+    route: "/ai",
+    label: "ALE Hermes",
+    kind: "embed-prod",
+    prodUrl: FLEET_URLS.vpsHermes,
+    apis: [FLEET_URLS.vpsHermes, FLEET_URLS.ai],
+    description: "IONOS Hermes Agent branded as ALE / GRUDA executor (24/7).",
+    adminOnly: true,
   },
   {
     id: "docs",

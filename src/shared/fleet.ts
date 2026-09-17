@@ -109,8 +109,18 @@ export const FLEET_URLS = {
   observatory: "https://obs.grudge-studio.com",
   /** Puter User-Pays SDK */
   puterSdk: "https://js.puter.com/v2/",
-  /** Local Ollama default (desktop autonomous AI) */
+  /** Local Ollama default (desktop autonomous AI / GPU) */
   ollama: "http://localhost:11434",
+  /**
+   * IONOS VPS workflow bus (n8n) — GRUDA deploy/env/package automation.
+   * Not player SSOT. Not R2/D1. Not Legion.
+   */
+  vpsN8n: "https://n8n.0umigil.cserverhost.cloud",
+  /**
+   * IONOS VPS Hermes Agent dashboard — branded GRUDA/ALE executor UI.
+   * Same agent roles as Dev Tool; not a second hub.
+   */
+  vpsHermes: "https://hermes-agent.0umigil.cserverhost.cloud",
   /** Velocity / Grudge City (arcade racer SPA) */
   velocity: "https://drive.grudge-studio.com",
   /** Avernus Arena — Rec0deD portal route (The-ENGINE) */

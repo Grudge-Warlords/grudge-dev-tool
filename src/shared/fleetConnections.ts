@@ -64,6 +64,8 @@ export const FLEET_ENDPOINTS: FleetEndpoint[] = [
   { id: "threeflow", label: "ThreeFlow", url: FLEET_URLS.threeflow, role: "frontend", adminCritical: true },
   { id: "warlord-genesis", label: "Warlord Genesis", url: FLEET_URLS.warlordGenesis, role: "frontend" },
   { id: "observatory", label: "Observatory", url: FLEET_URLS.observatory, role: "ops" },
+  { id: "vps-n8n", label: "VPS n8n (GRUDA workflows)", url: FLEET_URLS.vpsN8n, role: "ops" },
+  { id: "vps-hermes", label: "VPS Hermes (ALE / GRUDA executor)", url: FLEET_URLS.vpsHermes, role: "ai" },
 ];
 
 /** Admin Dev Tool: endpoints that should appear on Home / Preview chips. */

@@ -378,7 +378,8 @@ export default function AIWorkspace() {
           <p className="page-sub">
             Free agentic cascade <strong className="text-gold">inside this app</strong>:
             Ollama → Puter (User-Pays) → env OpenAI/Anthropic/Gemini → Workers AI → Legion.
-            Sign in with Puter for free AI. Secrets load from your environment automatically.
+            24/7 VPS: <strong className="text-gold">n8n = GRUDA workflows</strong>,{" "}
+            <strong className="text-gold">Hermes = ALE executor</strong> — not a second Legion.
             Admins: grudachain, molochdadev, straynger (auto-plugs Ollama).
           </p>
           {aiStatus && (
@@ -396,6 +397,22 @@ export default function AIWorkspace() {
             title="Fleet Legion chat (ai.grudge-studio.com)"
           >
             Legion chat
+          </button>
+          <button
+            type="button"
+            className="btn ghost text-xs"
+            onClick={() => void window.grudge?.os?.openExternal?.(FLEET_URLS.vpsN8n)}
+            title="IONOS n8n — GRUDA package/env/deploy workflows"
+          >
+            GRUDA n8n
+          </button>
+          <button
+            type="button"
+            className="btn ghost text-xs"
+            onClick={() => void window.grudge?.os?.openExternal?.(FLEET_URLS.vpsHermes)}
+            title="IONOS Hermes — ALE / GRUDA executor"
+          >
+            ALE Hermes
           </button>
           <button type="button" className="btn" onClick={() => openGrudaAgentWorkspace(selected?.slug)}>
             <Bot size={14} /> Focus Agent panel

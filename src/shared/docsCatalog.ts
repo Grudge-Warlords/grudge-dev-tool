@@ -167,6 +167,15 @@ export const DOCS_CATALOG: DocEntry[] = [
     primary: true,
   },
   {
+    id: "vps-ionos-ai",
+    title: "IONOS VPS · n8n · Hermes",
+    file: "vps-ionos-ai.md",
+    pagesPath: "/vps-ionos-ai.html",
+    description: "Self-hosted GRUDA workflows + ALE executor. Not Legion, not player SSOT.",
+    group: "ai",
+    primary: true,
+  },
+  {
     id: "scene-completion",
     title: "Scene Completion AI worker",
     file: "scene-completion-ai-worker.md",
