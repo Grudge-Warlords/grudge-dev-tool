@@ -87,6 +87,15 @@ var PHYS_LAYERS = {
 };
 
 // src/physics.ts
+var COLLIDER_CLASSES = [
+  "cct",
+  "heightfield",
+  "convex",
+  "trimesh",
+  "followConvex",
+  "sensor",
+  "hurtbox"
+];
 var HUMAN_CCT = {
   /** SI metres — Open PLAYER_CAPSULE / Island3D addCharacterCapsule */
   radius: 0.35,
@@ -244,16 +253,55 @@ var PLAYTEST_WITH_CONTROLLER = [
     walk: "kinematic-preview",
     controller: "PlayRuntime (SceneEngine, no Rapier)",
     notes: "Desktop preview. Not production CCT."
+  },
+  {
+    id: "grok-builder",
+    label: "Grok Builder world",
+    url: "https://grok-builder.vercel.app/",
+    walk: "rapier-cct",
+    controller: "R3F <Physics> + Rapier 0.19 (edit Orbit / play CCT)",
+    notes: "Host pin SSOT: three 0.185.1, r3f 9.7, drei 10.7, @react-three/rapier 2.2. Vercel prebuilt + wrangler worker."
   }
 ];
 function productionPlaytestUrl() {
   return PLAYTEST_WITH_CONTROLLER[0].url;
 }
 
+// src/hostStack.ts
+var HOST_STACK = {
+  source: "grok-builder",
+  sourceUrl: "https://grok-builder.vercel.app",
+  three: "^0.185.1",
+  typesThree: "^0.185.4",
+  rapierCompat: "^0.19.3",
+  r3f: "^9.7.0",
+  drei: "^10.7.8",
+  r3fRapier: "^2.2.0",
+  zustand: "^5.0.3",
+  react: "^19.2.0"
+};
+var IMPERATIVE_HOST_DEPS = {
+  three: HOST_STACK.three,
+  "@dimforge/rapier3d-compat": HOST_STACK.rapierCompat,
+  "three-mesh-bvh": "^0.9.0"
+};
+var R3F_HOST_DEPS = {
+  three: HOST_STACK.three,
+  "@react-three/fiber": HOST_STACK.r3f,
+  "@react-three/drei": HOST_STACK.drei,
+  "@react-three/rapier": HOST_STACK.r3fRapier,
+  zustand: HOST_STACK.zustand
+};
+
 // src/quality.ts
 var RUNTIME_3D_REQUIREMENTS = {
-  three: "^0.185",
+  three: HOST_STACK.three,
+  typesThree: HOST_STACK.typesThree,
   physics: ["@dimforge/rapier3d-compat", "@react-three/rapier"],
+  rapierCompat: HOST_STACK.rapierCompat,
+  r3f: HOST_STACK.r3f,
+  drei: HOST_STACK.drei,
+  r3fRapier: HOST_STACK.r3fRapier,
   optionalBvh: "three-mesh-bvh",
   walk: "rapier-cct",
   pick: "three-mesh-bvh",
@@ -267,15 +315,65 @@ var RUNTIME_3D_REQUIREMENTS = {
     "@grudge-studio/deploy"
   ]
 };
+function looksLike185(range) {
+  if (!range) return false;
+  return /0\.185/.test(range);
+}
 function assertRuntimeHints(pkg) {
   const all = { ...pkg.devDependencies, ...pkg.dependencies };
   const missing = [];
   if (!all.three) missing.push("three");
+  else if (!looksLike185(all.three)) missing.push("three@^0.185 (stale pin)");
+  const types = all["@types/three"];
+  if (types && /0\.17[0-9]/.test(types)) missing.push("@types/three@^0.185.4 (0.170 defs are wrong for r185)");
   const hasRapier = !!all["@dimforge/rapier3d-compat"] || !!all["@react-three/rapier"] || !!all["@dimforge/rapier3d"];
   if (!hasRapier) missing.push("rapier");
   return { ok: missing.length === 0, missing };
 }
 
-export { HUMAN_CCT, PHYSICS_DEFAULTS, PHYSICS_FLEET_SURFACES, PHYS_LAYERS, PLAYTEST_WITH_CONTROLLER, RUNTIME_3D_REQUIREMENTS, applyGamepadDeadzone, assertRuntimeHints, capsuleCenterOffset, configureRapierCharacterController, createDefaultManifest, createEngineBoot, productionPlaytestUrl, readPhysicsDebugGate, sampleHeightmap };
+// src/worldDeploy.ts
+var WORLD_PHYSICS = {
+  gravity: [0, -9.81, 0],
+  timeStep: 1 / 60,
+  oneWorld: true,
+  walk: "rapier-cct",
+  pick: "three-mesh-bvh",
+  ground: "heightfield-or-fixed-cuboid-or-fixed-trimesh",
+  playerShape: "capsule",
+  ban: ["convex-hull-on-modular-hero", "dynamic-trimesh", "second-physics-world", "orbit-writing-play-camera"]
+};
+var WORLD_R3F = {
+  canvas: "<Canvas shadows dpr={[1,2]} gl={{ antialias: true }}>",
+  physics: "<Physics gravity={[0,-9.81,0]} timeStep={1/60} debug={physicsDebug}>",
+  helpers: ["AdaptiveDpr", "Environment", "ContactShadows", "Grid 1m"],
+  editCamera: "OrbitControls only while !playMode"
+};
+var WORLD_DEPLOY_HOSTS = {
+  spa: "Vercel prebuilt (.vercel/output \u2192 prod alias)",
+  worker: "wrangler deploy (AI / search only \u2014 no physics on the Worker)",
+  binaries: "https://assets.grudge-studio.com",
+  definitions: "https://objectstore.grudge-studio.com / https://info.grudge-studio.com",
+  player: "Railway Postgres",
+  editor: "https://forge.grudge-studio.com",
+  grokBuilder: "https://grok-builder.vercel.app"
+};
+var WORLD_DEPLOY_CHECKLIST = [
+  "[ ] three@^0.185.1 + @types/three@^0.185.4 (not 0.170 defs)",
+  "[ ] Rapier: @dimforge/rapier3d-compat@^0.19.3 and/or @react-three/rapier@^2.2",
+  "[ ] R3F world: @react-three/fiber@^9.7 + @react-three/drei@^10.7",
+  "[ ] Single Physics world, fixed 1/60, gravity SI",
+  "[ ] Player capsule CCT \u2014 not convex hull, not Meshy/capsule-hero mesh",
+  "[ ] Ground = heightfield OR fixed cuboid OR fixed trimesh; same sample as feet",
+  "[ ] Play camera sole writer; Orbit gated to edit",
+  "[ ] One mixer; stripPositionTracks on grounded kits",
+  "[ ] CDN binaries; ObjectStore/info definitions JSON; Railway player SSOT",
+  "[ ] SPA: Vercel prebuilt; Worker: wrangler (no Rapier WASM on the edge)",
+  "[ ] ?physicsDebug=1 gated \u2014 never forced on prod"
+];
+function worldDeployChecklist() {
+  return WORLD_DEPLOY_CHECKLIST;
+}
+
+export { COLLIDER_CLASSES, HOST_STACK, HUMAN_CCT, IMPERATIVE_HOST_DEPS, PHYSICS_DEFAULTS, PHYSICS_FLEET_SURFACES, PHYS_LAYERS, PLAYTEST_WITH_CONTROLLER, R3F_HOST_DEPS, RUNTIME_3D_REQUIREMENTS, WORLD_DEPLOY_CHECKLIST, WORLD_DEPLOY_HOSTS, WORLD_PHYSICS, WORLD_R3F, applyGamepadDeadzone, assertRuntimeHints, capsuleCenterOffset, configureRapierCharacterController, createDefaultManifest, createEngineBoot, productionPlaytestUrl, readPhysicsDebugGate, sampleHeightmap, worldDeployChecklist };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

@@ -73,6 +73,9 @@ type RapierCharacterController = {
     enableSnapToGround: (dist: number) => void;
     setApplyImpulsesToDynamicBodies: (on: boolean) => void;
 };
+/** Play collider classes — Casting / Island3D SSOT. Do not invent a second library. */
+declare const COLLIDER_CLASSES: readonly ["cct", "heightfield", "convex", "trimesh", "followConvex", "sensor", "hurtbox"];
+type ColliderClass = (typeof COLLIDER_CLASSES)[number];
 declare const HUMAN_CCT: {
     /** SI metres — Open PLAYER_CAPSULE / Island3D addCharacterCapsule */
     readonly radius: 0.35;
@@ -203,15 +206,28 @@ declare const PLAYTEST_WITH_CONTROLLER: readonly [{
     readonly walk: "kinematic-preview";
     readonly controller: "PlayRuntime (SceneEngine, no Rapier)";
     readonly notes: "Desktop preview. Not production CCT.";
+}, {
+    readonly id: "grok-builder";
+    readonly label: "Grok Builder world";
+    readonly url: "https://grok-builder.vercel.app/";
+    readonly walk: "rapier-cct";
+    readonly controller: "R3F <Physics> + Rapier 0.19 (edit Orbit / play CCT)";
+    readonly notes: "Host pin SSOT: three 0.185.1, r3f 9.7, drei 10.7, @react-three/rapier 2.2. Vercel prebuilt + wrangler worker.";
 }];
 declare function productionPlaytestUrl(): string;
 
 /**
  * Runtime 3D host expectations (pairs with @grudge-studio/deploy QUALITY_SYSTEM).
+ * Pins match Grok Builder + fleet SSOT (three 0.185, Rapier 0.19).
  */
 declare const RUNTIME_3D_REQUIREMENTS: {
-    readonly three: "^0.185";
+    readonly three: "^0.185.1";
+    readonly typesThree: "^0.185.4";
     readonly physics: readonly ["@dimforge/rapier3d-compat", "@react-three/rapier"];
+    readonly rapierCompat: "^0.19.3";
+    readonly r3f: "^9.7.0";
+    readonly drei: "^10.7.8";
+    readonly r3fRapier: "^2.2.0";
     readonly optionalBvh: "three-mesh-bvh";
     readonly walk: "rapier-cct";
     readonly pick: "three-mesh-bvh";
@@ -227,4 +243,69 @@ declare function assertRuntimeHints(pkg: {
     missing: string[];
 };
 
-export { type EngineBootState, type EngineManifest, HUMAN_CCT, PHYSICS_DEFAULTS, PHYSICS_FLEET_SURFACES, PHYS_LAYERS, PLAYTEST_WITH_CONTROLLER, type PhysicsDebugGate, type PlaytestSurface, RUNTIME_3D_REQUIREMENTS, type RapierCharacterController, applyGamepadDeadzone, assertRuntimeHints, capsuleCenterOffset, configureRapierCharacterController, createDefaultManifest, createEngineBoot, productionPlaytestUrl, readPhysicsDebugGate, sampleHeightmap };
+/**
+ * Host npm pins harvested from Grok Builder (`F:\GitHub\grok-builder` package.json).
+ * Fleet SSOT stays three ^0.185 — do not invent a second renderer pin.
+ * WASM Rapier still lives in the host; this package only declares versions.
+ */
+declare const HOST_STACK: {
+    readonly source: "grok-builder";
+    readonly sourceUrl: "https://grok-builder.vercel.app";
+    readonly three: "^0.185.1";
+    readonly typesThree: "^0.185.4";
+    readonly rapierCompat: "^0.19.3";
+    readonly r3f: "^9.7.0";
+    readonly drei: "^10.7.8";
+    readonly r3fRapier: "^2.2.0";
+    readonly zustand: "^5.0.3";
+    readonly react: "^19.2.0";
+};
+type HostStackId = keyof typeof HOST_STACK;
+/** Imperative Three host (Island3D / Open / Dev Tool Play). */
+declare const IMPERATIVE_HOST_DEPS: {
+    readonly three: "^0.185.1";
+    readonly "@dimforge/rapier3d-compat": "^0.19.3";
+    readonly "three-mesh-bvh": "^0.9.0";
+};
+/** R3F + Rapier host (Forge / Grok Builder / warcamp). */
+declare const R3F_HOST_DEPS: {
+    readonly three: "^0.185.1";
+    readonly "@react-three/fiber": "^9.7.0";
+    readonly "@react-three/drei": "^10.7.8";
+    readonly "@react-three/rapier": "^2.2.0";
+    readonly zustand: "^5.0.3";
+};
+
+/**
+ * World deploy contract — harvested from Grok Builder GAME_SYSTEMS + STACK_HELPERS + DEPLOY.md.
+ * Extend this file; do not invent a second deploy catalog in Dev Tool.
+ */
+declare const WORLD_PHYSICS: {
+    readonly gravity: readonly [0, -9.81, 0];
+    readonly timeStep: number;
+    readonly oneWorld: true;
+    readonly walk: "rapier-cct";
+    readonly pick: "three-mesh-bvh";
+    readonly ground: "heightfield-or-fixed-cuboid-or-fixed-trimesh";
+    readonly playerShape: "capsule";
+    readonly ban: readonly ["convex-hull-on-modular-hero", "dynamic-trimesh", "second-physics-world", "orbit-writing-play-camera"];
+};
+declare const WORLD_R3F: {
+    readonly canvas: "<Canvas shadows dpr={[1,2]} gl={{ antialias: true }}>";
+    readonly physics: "<Physics gravity={[0,-9.81,0]} timeStep={1/60} debug={physicsDebug}>";
+    readonly helpers: readonly ["AdaptiveDpr", "Environment", "ContactShadows", "Grid 1m"];
+    readonly editCamera: "OrbitControls only while !playMode";
+};
+declare const WORLD_DEPLOY_HOSTS: {
+    readonly spa: "Vercel prebuilt (.vercel/output → prod alias)";
+    readonly worker: "wrangler deploy (AI / search only — no physics on the Worker)";
+    readonly binaries: "https://assets.grudge-studio.com";
+    readonly definitions: "https://objectstore.grudge-studio.com / https://info.grudge-studio.com";
+    readonly player: "Railway Postgres";
+    readonly editor: "https://forge.grudge-studio.com";
+    readonly grokBuilder: "https://grok-builder.vercel.app";
+};
+declare const WORLD_DEPLOY_CHECKLIST: readonly string[];
+declare function worldDeployChecklist(): readonly string[];
+
+export { COLLIDER_CLASSES, type ColliderClass, type EngineBootState, type EngineManifest, HOST_STACK, HUMAN_CCT, type HostStackId, IMPERATIVE_HOST_DEPS, PHYSICS_DEFAULTS, PHYSICS_FLEET_SURFACES, PHYS_LAYERS, PLAYTEST_WITH_CONTROLLER, type PhysicsDebugGate, type PlaytestSurface, R3F_HOST_DEPS, RUNTIME_3D_REQUIREMENTS, type RapierCharacterController, WORLD_DEPLOY_CHECKLIST, WORLD_DEPLOY_HOSTS, WORLD_PHYSICS, WORLD_R3F, applyGamepadDeadzone, assertRuntimeHints, capsuleCenterOffset, configureRapierCharacterController, createDefaultManifest, createEngineBoot, productionPlaytestUrl, readPhysicsDebugGate, sampleHeightmap, worldDeployChecklist };
