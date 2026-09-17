@@ -29,10 +29,10 @@ export default defineConfig(({ mode }) => {
   return {
     resolve: {
       alias: {
-        "@grudge-studio/animator": resolve(__dirname, "../GrudgeStudioNPM/packages/animator/src/index.ts"),
-        "@grudge-studio/assets": resolve(__dirname, "../GrudgeStudioNPM/packages/assets/src/index.ts"),
-        "@grudge-studio/engine": resolve(__dirname, "../GrudgeStudioNPM/packages/engine/src/index.ts"),
-        "@grudge-studio/core": resolve(__dirname, "../GrudgeStudioNPM/packages/core/src/index.ts"),
+        "@grudge-studio/animator": resolve(__dirname, "vendor/@grudge-studio/animator/dist/index.js"),
+        "@grudge-studio/assets": resolve(__dirname, "vendor/@grudge-studio/assets/dist/index.js"),
+        "@grudge-studio/engine": resolve(__dirname, "vendor/@grudge-studio/engine/dist/index.js"),
+        "@grudge-studio/core": resolve(__dirname, "vendor/@grudge-studio/core/dist/index.js"),
       },
     },
     plugins: [react()],

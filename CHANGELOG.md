@@ -10,6 +10,7 @@
 - GitHub Actions workers on Agent AI + Settings `GH_TOKEN` (`fleet.githubToken`): repos, workflows, recent runs.
 - Seed `GH_TOKEN` / `GITHUB_TOKEN` / Vercel / Railway / CF tokens from env. Add `.env.example`.
 - Logs live at `%APPDATA%\grudge-dev-tool\logs\main.log` (package name, not product name).
+- Vendor `@grudge-studio` animator/assets/core/engine **dist** in-repo so CI typecheck does not need a sibling GrudgeStudioNPM checkout.
 
 ## [1.1.1] - 2026-09-07
 
