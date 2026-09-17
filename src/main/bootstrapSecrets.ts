@@ -57,6 +57,7 @@ const ENV_TO_KEYTAR: Array<{ env: string | string[]; account: string; cf?: CfAcc
   { env: "RAILWAY_TOKEN", account: "fleet.railwayToken" },
   { env: ["CF_API_TOKEN", "CLOUDFLARE_API_TOKEN"], account: "fleet.cfApiToken" },
   { env: ["GH_TOKEN", "GITHUB_TOKEN", "GITHUB_PAT"], account: "fleet.githubToken" },
+  { env: ["NPM_TOKEN", "NODE_AUTH_TOKEN"], account: "fleet.npmToken" },
 ];
 
 function firstEnv(keys: string | string[]): string | undefined {

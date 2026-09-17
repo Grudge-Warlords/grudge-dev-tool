@@ -74,6 +74,8 @@ const KEY_TO_ACCOUNT = {
   GH_TOKEN:                     "fleet.githubToken",
   GITHUB_TOKEN:                 "fleet.githubToken",
   GITHUB_PAT:                   "fleet.githubToken",
+  NPM_TOKEN:                    "fleet.npmToken",
+  NODE_AUTH_TOKEN:              "fleet.npmToken",
 };
 
 /** Reject values that would break production (Worker URL as R2 S3, deprecated auth host). */
