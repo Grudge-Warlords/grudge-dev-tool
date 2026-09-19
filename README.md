@@ -4,9 +4,11 @@
 
 | Surface | Role |
 |---------|------|
-| **Home** | Fleet health · admin systems · primary actions |
-| **Local Files** | Disk browser · kind chips · 3D double-click → **ThreePipe editor** · media → Elite |
+| **Home** | Fleet health · **All tools** (every `ADMIN_SURFACES` route) · primary actions |
+| **Local Files** | Disk browser · kind chips · 3D double-click → **Elite viewer** · media → Elite |
+| **ThreeFlow** | Live `threeflow.vercel.app/editor` embed (Terrain = `?tab=terrain`) |
 | **Assets** | R2 / ObjectStore · `>query` · pop-out Elite · explicit Open in ThreeFlow / Forge |
+| **GrudgeLoader** | Tray overlay · **Containers** tab (fleet R2 prefixes) · Browse / Upload |
 | **Skeleton** | Mixamo-25 author → Toon Bip001 play bind → convert → CDN |
 | **Forge** | Production `forge.grudge-studio.com` embed (R3F + Rapier deploy) |
 | **Preview** | Open · client · water · GRUDOX · **Multiverse** playtests (webview) |
@@ -24,7 +26,7 @@
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **Desktop app** | **v1.1.3** | Windows tray · main window always opens · Elite 3D · GitHub Actions workers · Forge live · auto-update |
+| **Desktop app** | **v1.1.5** | Windows tray · scrollable nav · GrudgeLoader Containers · Elite viewer · Forge / ThreeFlow · auto-update |
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
@@ -35,26 +37,23 @@
 
 ---
 
-## What's new in 1.1.0
+## What's new in 1.1.5
 
-1. **ThreePipe editor** — Explorer / Local Files double-click opens **one** ThreePipe window (`threeflow.vercel.app/view?asset=`). Extra GLB/FBX/OBJ reuse that window. Vue ThreeFlow stays **Edit in ThreeFlow**.  
-2. **Send to R2 + D1** — pipeline Actions waits for R2 PUT, then seeds the ObjectStore/D1 index. CDN key `models/pipeline/<file>`.  
-3. **SI 2 m measure** — select a mesh, **Shift+Ctrl+LMB drag** a span that should be 2 metres, release. Uniform scale. 1 unit = 1 m.  
-ThreeFlow remains **Edit in ThreeFlow** (explicit). Media stays Elite. Never Forge by default.
+1. **Nav + scroll** — **More tools** opens by default (persisted); UUID listed; sidebar / content / Elite panels scroll so every surface and control is reachable.  
+2. **Home → All tools** — one-click map of every `ADMIN_SURFACES` route (Docs, Store, View Mode, UI, UUID, …).  
+3. **GrudgeLoader Containers** — fleet R2 prefixes from `STORE_CATEGORIES` + core paths (`prod/gltf/`, `models/`, `textures/`, …). Browse / pin / open in Elite.  
+4. **Elite viewer** — left scene tree scrolls; right controls scroll; text/PDF scroll; accept `.gfscene` / `.json` / `.bin`.  
+5. **Editors (unchanged trio)** — Explorer / Local Files **3D → Elite** (`gltfProdLoader`). Vue ThreeFlow `/editor` and ThreePipe `/view` stay **explicit**. Never invent a fourth editor.
+
+### Recent
+
+| Tag | Highlights |
+|-----|------------|
+| **1.1.4** | FBX 6100 → Blender convert · ThreeFlow tab = live `/editor` only |
+| **1.1.3** | Main window always opens · plugin host before file-open · vendored `@grudge-studio` dist |
+| **1.1.0** | Pipeline Send to R2+D1 · SI 2 m measure · Pipeline Review worker |
 
 Docs: <https://grudge-warlords.github.io/grudge-dev-tool/>
-
-### After 1.1.0 (unreleased)
-
-v1.1.0 still left three things manual. They now sit on the **existing** AI worker stack (not a new editor):
-
-| Gap | What we automated |
-|-----|-------------------|
-| Convert + magic + CDN HEAD | **Send to R2 + D1** converts DCC → GLB, magic-bytes, PUTs, then HEADs `assets.grudge-studio.com` |
-| File-defaults / play-kit doctor | Packaged first launch registers HKCU types. Doctor HEADs Toon `human.glb` |
-| No pipeline AI worker | **Pipeline Review** — same pattern as Scene Completion. Button in the pipeline window |
-
-Earlier: **1.0.11** ThreeFlow pop-out · **1.0.10** Elite viewport · **1.0.9** editor trio · **1.0.8** r185 loaders.
 
 ---
 
@@ -80,7 +79,7 @@ https://client.grudge-studio.com
 4. Account files / `*.puter.site` → [puter-space](https://ai.grudge-studio.com/puter-space). Railway still owns bag / characters / wallet.  
 5. Admin allowlist (`grudachain` / `molochdadev`) → GRUDACHAIN Ollama agentic stack.  
 6. Optional: `npm run secret:import path\to\secrets.txt` for R2 / CF AI / Legion keys.  
-7. **Settings → Set as default for all asset types** — Explorer: 3D → ThreePipe editor; media → Elite. Vue ThreeFlow is an explicit action. Never Forge by default.
+7. **Settings → Set as default for all asset types** — Explorer: 3D → **Elite viewer**; media → Elite. Vue ThreeFlow / ThreePipe are explicit actions. Never Forge by default.
 
 ### CLI
 
@@ -98,13 +97,16 @@ grudge-dev plugin status   # dest-tool must be running (127.0.0.1:17380)
 | Action | Result |
 |--------|--------|
 | **Local Files → click** | Inline preview (verts/tris for 3D). **Show in list** jumps the left pane to that file |
-| **Local Files → double-click / Pop-out** | **3D / scene → ThreePipe editor** (`/view?asset=`). Images / audio / video / text / PDF → Elite |
+| **Local Files → double-click / Pop-out** | **3D / scene → Elite viewer** (`gltfProdLoader` + SceneEngine). Images / audio / video / text / PDF → Elite |
+| **Edit in ThreeFlow** | Explicit — Vue `threeflow.vercel.app/editor?asset=` (CDN or loopback) |
+| **ThreePipe `/view`** | Explicit inspect / classify HUD — public CDN `?asset=` only |
 | Audio / video | Streamed via `grudge-media://` (no full-file RAM blob) |
 | Kind chips | Filter Audio · Video · 3D · Image while browsing packs |
-| Explorer **Open with** / double-click | Same split after **Settings → Set as default for all asset types** |
+| Explorer **Open with** / double-click | Same Elite/media split after **Settings → Set as default for all asset types** |
 | **System open** | OS default app (Blender / Photoshop / Photos / …) |
 | **AI card** | Clipboard markdown: kind, path, Pipeline/ThreeFlow hints, GLB inspect. Vision caption = images only |
 | ObjectStore / Assets tab | Preview CDN assets; **Open in ThreeFlow** / **Forge live** are explicit |
+| **GrudgeLoader → Containers** | One-click browse of fleet R2 prefixes (`src/shared/r2Containers.ts`) |
 
 SSOT: `src/shared/mediaTypes.ts` · open: `openFileBridge` · stream: `mediaProtocol` · AI: `assetUnderstand` (`asset:understand`).
 
