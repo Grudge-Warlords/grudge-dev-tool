@@ -1506,6 +1506,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
         <div className="elite-body">
             <aside className="elite-left">
                 <div className="elite-left-title">Scene</div>
+                <div className="elite-left-tree">
                 {items.length === 0 && (
                     <div style={{ padding: "4px 12px 10px", color: "var(--elite-muted)", fontSize: 11 }}>
                         Empty studio — drop a GLB or click Add
@@ -1520,6 +1521,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
                         <span style={{ opacity: it.visible ? 1 : 0.4 }}>{it.name}</span>
                     </div>
                 ))}
+                </div>
                 <div className="elite-left-actions">
                     <button
                         type="button"
@@ -1545,7 +1547,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
             ref={fileInputRef}
             type="file"
             multiple
-            accept=".glb,.gltf,.fbx,.obj,.stl,.ply,.dae,.3mf,.vrm"
+            accept=".glb,.gltf,.fbx,.obj,.stl,.ply,.dae,.3mf,.vrm,.gfscene,.json,.bin"
             style={{ display: "none" }}
             onChange={(e) => {
                 if (e.target.files?.length) void addFilesFromList(e.target.files);
@@ -2031,8 +2033,13 @@ function disposeTree(root: THREE.Object3D): void {
 // ---------------------------------------------------------------------------
 
 function FlatViewer({ asset, kind }: { asset: AssetRef; kind: AssetKind }) {
+    const scrollKinds = kind === "text" || kind === "pdf" || kind === "design" || kind === "unknown";
     const wrapStyle: React.CSSProperties = {
-        flex: 1, overflow: "hidden", display: "flex", flexDirection: "column",
+        flex: 1,
+        minHeight: 0,
+        overflow: scrollKinds ? "auto" : "hidden",
+        display: "flex",
+        flexDirection: "column",
         background: "var(--bg-0)",
     };
     switch (kind) {

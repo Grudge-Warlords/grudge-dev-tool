@@ -139,10 +139,10 @@ const NAV: NavEntry[] = [
   { route: "/legion", label: "Legion Chat", Icon: Bot, adminOnly: true },
   { route: "/docs", label: "Docs", Icon: BookOpen },
   { route: "/accounts", label: "Account", Icon: User },
+  { route: "/uuid", label: "UUID", Icon: Fingerprint },
   // Alias-only pages (still in VALID_ROUTES + lazy mounts; not listed in sidebar)
   { route: "/search", label: "Search", Icon: SearchIcon, hidden: true },
   { route: "/request", label: "Request URL", Icon: Link2, adminOnly: true, hidden: true },
-  { route: "/uuid", label: "UUID", Icon: Fingerprint, hidden: true },
 ];
 
 interface Session {
@@ -185,8 +185,11 @@ const FULL_HEIGHT_ROUTES = new Set<string>([
   "/ai",
   "/legion",
   "/preview",
+  "/play",
+  "/prompt3d",
   "/browser",
   "/upload",
+  "/blenderkit",
 ]);
 
 const APP_VERSION =
@@ -220,10 +223,13 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [moreOpen, setMoreOpen] = useState(() => {
-    const saved = readMirror().route;
-    const r = resolveRoute(saved);
-    const entry = NAV.find((n) => n.route === r);
-    return Boolean(entry && !entry.primary);
+    try {
+      const savedPref = localStorage.getItem("grudge.nav.moreOpen");
+      if (savedPref === "0") return false;
+      if (savedPref === "1") return true;
+    } catch { /* ignore */ }
+    // Default open so Docs / Store / UUID / View Mode stay one click away.
+    return true;
   });
 
   const refreshSession = useCallback(async () => {
@@ -281,6 +287,17 @@ export default function App() {
 
   useEffect(() => {
     void persistRoute(route);
+  }, [route]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("grudge.nav.moreOpen", moreOpen ? "1" : "0");
+    } catch { /* ignore */ }
+  }, [moreOpen]);
+
+  useEffect(() => {
+    const entry = NAV.find((n) => n.route === route);
+    if (entry && !entry.primary && !entry.hidden) setMoreOpen(true);
   }, [route]);
 
   async function signOut() {

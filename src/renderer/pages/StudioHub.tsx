@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { FLEET_URLS, TRUTH_HEALTH_THRESHOLD, buildTruthProbes, type TruthProbe } from "../../shared/fleet";
 import { FLEET_GAMES, type FleetGame } from "../../shared/fleetGames";
+import { ADMIN_SURFACES } from "../../shared/adminSurfaces";
 
 /** Daily production admin loop — matches primary nav (no dead chips). */
 const PRIMARY: Array<{
@@ -39,7 +40,7 @@ const PRIMARY: Array<{
   {
     id: "local",
     label: "Local Files",
-    desc: "Disk · 3D → multi-asset studio · media → Elite",
+    desc: "Disk · 3D → Elite viewer · media",
     route: "/local",
     Icon: FolderSearch,
   },
@@ -49,6 +50,13 @@ const PRIMARY: Array<{
     desc: "R2 · search · open in View Mode",
     route: "/browser",
     Icon: FolderTree,
+  },
+  {
+    id: "threeflow",
+    label: "ThreeFlow",
+    desc: "threeflow.vercel.app/editor · Warlords scene",
+    route: "/threeflow",
+    Icon: Package,
   },
   {
     id: "skeleton",
@@ -104,6 +112,13 @@ const PRIMARY: Array<{
     Icon: Bot,
   },
 ];
+
+/** Every admin surface once — Home must reach Docs, Store, UUID, UI, View Mode, … */
+const ALL_TOOL_ROUTES = Array.from(
+  new Map(
+    ADMIN_SURFACES.filter((s) => s.route.startsWith("/")).map((s) => [s.route, s]),
+  ).values(),
+);
 
 /** Core production playables pinned on Home. */
 const FEATURED_IDS = [
@@ -286,6 +301,24 @@ export default function StudioHub({
               <a.Icon size={22} className="text-gold shrink-0" />
               <span className="hub-action-title">{a.label}</span>
               <span className="hub-action-desc">{a.desc}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="hub-section">
+        <h2 className="hub-section-title">All tools</h2>
+        <div className="hub-actions">
+          {ALL_TOOL_ROUTES.filter((s) => admin || !s.adminOnly).map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className="hub-action"
+              onClick={() => onNavigate?.(s.route)}
+              title={s.description}
+            >
+              <span className="hub-action-title">{s.label}</span>
+              <span className="hub-action-desc">{s.description}</span>
             </button>
           ))}
         </div>

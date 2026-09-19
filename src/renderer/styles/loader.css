@@ -109,8 +109,12 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 100px;
+  flex: 0 1 40%;
+  min-height: 72px;
+  max-height: 45%;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .loader-folder-row {
   display: flex;
@@ -186,12 +190,69 @@
 .copy-btn.danger { color: var(--danger); }
 
 .loader-list {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding-right: 2px;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.loader-containers {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.loader-container-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: var(--text);
+  font-size: 11px;
+}
+.loader-container-row:hover {
+  border-color: var(--gold-deep);
+}
+.loader-container-row .loader-link {
+  flex: 1;
+  min-width: 0;
+}
+.loader-container-row .loader-link:hover {
+  color: var(--gold);
+}
+.loader-container-meta {
+  flex: 1;
+  min-width: 0;
+}
+.loader-container-label {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.loader-container-prefix {
+  font-family: monospace;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .loader-asset {
   display: flex;

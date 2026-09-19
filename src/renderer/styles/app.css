@@ -37,6 +37,9 @@ body {
   display: flex;
   flex-direction: column;
   padding: 14px 10px;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 .brand {
   display: flex;
@@ -51,13 +54,16 @@ body {
 .brand-sub { color: var(--muted); font-size: 11px; }
 
 .sidebar-nav-scroll {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-right: 2px;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 .nav-group { display: flex; flex-direction: column; gap: 2px; }
 .nav-group-label {
@@ -105,11 +111,20 @@ body {
 }
 .nav-item--sub.active { padding-left: 12px; }
 .nav-icon { width: 20px; text-align: center; }
-.sidebar-footer { color: var(--muted); padding: 10px 6px 0; border-top: 1px solid var(--line); font-size: 11px; }
+.sidebar-footer {
+  color: var(--muted);
+  padding: 10px 6px 0;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  flex-shrink: 0;
+}
 
 .content {
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 20px 28px;
+  min-height: 0;
+  min-width: 0;
 }
 .content.content--full {
   /* Zero padding so editor surfaces (Skeleton, Forge, Preview) fill the shell */
@@ -125,7 +140,7 @@ body {
 }
 
 /* —— Studio Hub —— */
-.hub { max-width: 960px; margin: 0 auto; padding-bottom: 24px; }
+.hub { max-width: 960px; margin: 0 auto; padding-bottom: 48px; }
 .hub-hero {
   display: flex;
   flex-wrap: wrap;

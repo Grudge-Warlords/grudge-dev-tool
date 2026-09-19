@@ -8,10 +8,12 @@ import StatusBar from "./components/StatusBar";
 import DemoModeBanner from "./components/DemoModeBanner";
 import { pathsFromFileList } from "./lib/filePaths";
 import { isImagePath, isModelPath } from "../shared/mediaTypes";
+import { defaultPinnedPrefixes, listR2Containers } from "../shared/r2Containers";
 
-type Tab = "pinned" | "browse" | "upload";
+type Tab = "pinned" | "containers" | "browse" | "upload";
 
-const DEFAULT_PINNED = ["asset-packs/", "user-uploads/", "shared/"];
+const DEFAULT_PINNED = defaultPinnedPrefixes();
+const R2_CONTAINERS = listR2Containers();
 
 function buildCmdFormats(cdnBase: string) {
   const base = cdnBase.replace(/\/$/, "");
@@ -292,6 +294,7 @@ export default function LoaderApp() {
         <StatusBar compact />
         <div className="loader-tab-row ml-auto">
           <button type="button" className={tab === "pinned" ? "active" : ""} onClick={() => setTab("pinned")}>Pinned</button>
+          <button type="button" className={tab === "containers" ? "active" : ""} onClick={() => setTab("containers")}>Containers</button>
           <button type="button" className={tab === "browse" ? "active" : ""} onClick={() => browse(prefix)}>Browse</button>
           <button type="button" className={tab === "upload" ? "active" : ""} onClick={() => setTab("upload")}>Upload</button>
         </div>
@@ -305,7 +308,8 @@ export default function LoaderApp() {
 
         {tab === "pinned" && (
           <div className="loader-section">
-            <div className="loader-hint">Quick folders — click to browse, ⧉ copies the prefix path.</div>
+            <div className="loader-hint">Quick folders — click to browse, ⧉ copies the prefix path. Use Containers for the full R2 map.</div>
+            <div className="loader-containers">
             {pinned.map((p) => (
               <div className="loader-row" key={p}>
                 <Folder size={14} className="text-gold shrink-0" />
@@ -316,6 +320,7 @@ export default function LoaderApp() {
                 )}
               </div>
             ))}
+            </div>
             <div className="loader-row">
               <input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="prefix to pin" />
               <button type="button" className="loader-pin-btn" onClick={pinHere}>＋ pin</button>
@@ -323,10 +328,48 @@ export default function LoaderApp() {
           </div>
         )}
 
+        {tab === "containers" && (
+          <div className="loader-section">
+            <div className="loader-hint">
+              All fleet R2 / CDN containers ({R2_CONTAINERS.length}). Click to browse; pin keeps a shortcut.
+            </div>
+            <div className="loader-containers">
+              {R2_CONTAINERS.map((c) => (
+                <div className="loader-container-row" key={`${c.id}:${c.prefix}`}>
+                  <button
+                    type="button"
+                    className="loader-link"
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: 0 }}
+                    title={`Browse ${c.prefix}`}
+                    onClick={() => browse(c.prefix)}
+                  >
+                    <Folder size={14} className="text-gold shrink-0" />
+                    <span className="loader-container-meta">
+                      <span className="loader-container-label">{c.label}</span>
+                      <span className="loader-container-prefix">{c.prefix}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="copy-btn"
+                    title="Pin this container"
+                    onClick={() => {
+                      setPinned((prev) => (prev.includes(c.prefix) ? prev : [...prev, c.prefix]));
+                      toast.success("Pinned", { description: c.prefix });
+                    }}
+                  >
+                    ＋
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {tab === "browse" && (
           <div className="loader-section">
             <Breadcrumb prefix={prefix} onSelect={(p) => browse(p)} />
-            <div className="loader-hint">Click a mesh → ThreeFlow editor. Images/audio/video → Elite. Path copies the R2 key.</div>
+            <div className="loader-hint">Click a file → Elite Asset Viewer. Models use gltfProdLoader. Path copies the R2 key.</div>
             <div className="loader-bar">
               <input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="prefix" />
               <button type="button" onClick={() => browse(prefix)}>Go</button>
