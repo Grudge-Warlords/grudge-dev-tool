@@ -163,6 +163,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.1.5] — 2026-09-19
+
+### Changed
+- v1.1.5: More tools open by default + UUID; Home All tools from ADMIN_SURFACES; GrudgeLoader Containers tab (fleet R2 prefixes); sidebar/content/Elite scroll; Elite left/right panels scroll; Local 3D stays Elite (ThreeFlow/ThreePipe explicit).
+
 ## [1.1.2] — 2026-09-07
 
 ### Fixed
@@ -484,3 +489,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [1.0.9]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.9
 [1.0.10]:     https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.10
 [1.0.11]:     https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.11
+[1.1.5]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.1.5
