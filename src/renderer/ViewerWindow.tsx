@@ -597,6 +597,9 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
                     fixDefaultYellow: true as const,
                     whiteWhenMapped: true as const,
                 };
+                // Elite shows the opened file — never silently swap to Toon human.
+                // Clip-only bind stays in Skeleton Studio / explicit preview hosts.
+                const loadOpts = { sanitize, skipGenericPreview: true as const };
                 // Local elite open: diskPath + grudge-media so relative textures/MTL/TGA resolve.
                 // CDN/blob: fetch URL (embedded maps only).
                 let loaded;
@@ -607,7 +610,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
                             : localFileUrl(asset.localPath);
                     loaded = await loadModelFromUrl(diskUrl, fname, {
                         diskPath: asset.localPath,
-                        sanitize,
+                        ...loadOpts,
                     });
                 } else {
                     const res = await fetch(asset.url);
@@ -615,7 +618,7 @@ function Model3DViewerFull({ asset }: { asset: AssetRef | null }) {
                     const blob = await res.blob();
                     if (cancelled) return;
                     const file = new File([blob], fname, { type: blob.type || "application/octet-stream" });
-                    loaded = await loadModel(file, { sanitize });
+                    loaded = await loadModel(file, loadOpts);
                 }
                 if (cancelled || !engineRef.current) return;
 

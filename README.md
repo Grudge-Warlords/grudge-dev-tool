@@ -26,7 +26,7 @@
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **Desktop app** | **v1.1.5** | Windows tray · scrollable nav · GrudgeLoader Containers · Elite viewer · Forge / ThreeFlow · auto-update |
+| **Desktop app** | **v1.1.6** | Windows tray · Elite shows opened mesh (no silent Toon human swap) · Containers · Forge / ThreeFlow · auto-update |
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
@@ -37,21 +37,19 @@
 
 ---
 
-## What's new in 1.1.5
+## What's new in 1.1.6
 
-1. **Nav + scroll** — **More tools** opens by default (persisted); UUID listed; sidebar / content / Elite panels scroll so every surface and control is reachable.  
-2. **Home → All tools** — one-click map of every `ADMIN_SURFACES` route (Docs, Store, View Mode, UI, UUID, …).  
-3. **GrudgeLoader Containers** — fleet R2 prefixes from `STORE_CATEGORIES` + core paths (`prod/gltf/`, `models/`, `textures/`, …). Browse / pin / open in Elite.  
-4. **Elite viewer** — left scene tree scrolls; right controls scroll; text/PDF scroll; accept `.gfscene` / `.json` / `.bin`.  
-5. **Editors (unchanged trio)** — Explorer / Local Files **3D → Elite** (`gltfProdLoader`). Vue ThreeFlow `/editor` and ThreePipe `/view` stay **explicit**. Never invent a fourth editor.
+1. **No silent Toon human** — Elite / Model3DViewer never replace an opened GLB with `human.glb`. Clip-only bind stays opt-in (Skeleton Studio).  
+2. **`isAnimWithoutMesh` gate** — requires **no** SkinnedMesh **and** &lt;32 mesh tris (was `||`, which swapped cars/creatures with animations).  
+3. **Play kit memory** — last Toon race persisted; infer race from `WK_/ELF_/ORC_/…` prefixes instead of always assuming human.
 
 ### Recent
 
 | Tag | Highlights |
 |-----|------------|
+| **1.1.5** | Nav scroll · Home All tools · GrudgeLoader Containers · Elite panel scroll |
 | **1.1.4** | FBX 6100 → Blender convert · ThreeFlow tab = live `/editor` only |
 | **1.1.3** | Main window always opens · plugin host before file-open · vendored `@grudge-studio` dist |
-| **1.1.0** | Pipeline Send to R2+D1 · SI 2 m measure · Pipeline Review worker |
 
 Docs: <https://grudge-warlords.github.io/grudge-dev-tool/>
 

@@ -893,11 +893,18 @@ export async function loadModel(file: File, opts: LoadModelOptions = {}): Promis
   try {
     const { bindGenericPreviewHost, isAnimWithoutMesh } = await import("./genericPreview");
     if (isAnimWithoutMesh(loaded) && !opts.skipGenericPreview) {
+      const beforeName = loaded.object?.name || "(unnamed)";
       loaded = await bindGenericPreviewHost(loaded);
       const stats = tallyStats(loaded.object);
       loaded.triangles = stats.triangles;
       loaded.vertices = stats.vertices;
       loaded.bones = stats.bones;
+      console.info(
+        "[loadModel] clip-only file → Toon preview host",
+        beforeName,
+        "→",
+        loaded.object?.name,
+      );
     }
   } catch (e) {
     console.warn("[loadModel] generic preview host failed", e);

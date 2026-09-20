@@ -17,14 +17,29 @@ type PreviewLoaded = {
   format: string;
 };
 
+/**
+ * True only for clip-only / bones-only animation files (no real body mesh).
+ * Must NOT fire for cars, creatures, or props that use Mesh (not SkinnedMesh)
+ * or for low-poly skinned kits — those used to get replaced by Toon human.
+ */
 export function isAnimWithoutMesh(loaded: PreviewLoaded): boolean {
   if (!loaded.animations?.length) return false;
   let skinned = 0;
+  let meshTris = 0;
   loaded.object.traverse((n) => {
     const sm = n as THREE.SkinnedMesh;
     if (sm.isSkinnedMesh && sm.visible !== false) skinned++;
+    const mesh = n as THREE.Mesh;
+    if (mesh.isMesh && mesh.geometry) {
+      const pos = mesh.geometry.getAttribute("position");
+      if (pos?.count) {
+        const g = mesh.geometry as THREE.BufferGeometry;
+        meshTris += g.index ? g.index.count / 3 : pos.count / 3;
+      }
+    }
   });
-  return skinned === 0 || loaded.triangles < 32;
+  // Both: no skinned body AND no meaningful mesh geometry.
+  return skinned === 0 && meshTris < 32;
 }
 
 function meshKey(name: string): string {
@@ -225,6 +240,26 @@ export function looksLikeToonKit(root: THREE.Object3D): boolean {
   return hit;
 }
 
+/** Infer Toon race from mesh prefixes — never assume human when ELF_/ORC_/… are present. */
+export function inferToonRace(root: THREE.Object3D): string | null {
+  const map: Record<string, string> = {
+    wk: "human",
+    brb: "barbarian",
+    elf: "elf",
+    dwf: "dwarf",
+    orc: "orc",
+    ud: "undead",
+  };
+  let found: string | null = null;
+  root.traverse((n) => {
+    if (found) return;
+    const m = n.name.match(/^(WK|BRB|ELF|DWF|ORC|UD)_/i);
+    if (!m) return;
+    found = map[m[1].toLowerCase()] ?? null;
+  });
+  return found;
+}
+
 /** Load a Warlords Toon race kit (Bip001) for Skeleton Studio / Native Play. */
 export async function loadToonPlayKit(race = "human"): Promise<{
   object: THREE.Object3D;
@@ -258,17 +293,27 @@ export function rematchClipsToHost(
 }
 
 /**
- * Bind clip-only / bones-only animation files onto the generic Toon human unarmed kit.
+ * Bind clip-only / bones-only animation files onto a Toon race kit (default human).
+ * Elite / Local Files should pass skipGenericPreview — do not silently replace user meshes.
  */
-export async function bindGenericPreviewHost<T extends PreviewLoaded>(loaded: T): Promise<T> {
+export async function bindGenericPreviewHost<T extends PreviewLoaded>(
+  loaded: T,
+  race = "human",
+): Promise<T> {
   if (!isAnimWithoutMesh(loaded)) return loaded;
-  const host = await loadHostKit("human");
+  const safeRace = TOON_PLAY_KITS[race] ? race : "human";
+  const host = await loadHostKit(safeRace);
   const clips = rematchClipsToHost(loaded.animations, host);
-  host.name = GENERIC_GRUDGE_PREVIEW.id;
+  host.name = `toon-${safeRace}-unarmed`;
   host.userData.genericPreviewHost = {
     ...GENERIC_GRUDGE_PREVIEW,
+    id: `toon-${safeRace}-unarmed`,
+    race: safeRace,
+    kitUrl: toonKitUrl(safeRace),
+    unarmedMeshIds: unarmedMeshIdsForRace(safeRace),
     sourceClips: loaded.animations.map((c) => c.name),
     rematchedTracks: clips.reduce((n, c) => n + c.tracks.length, 0),
+    borrowedPreview: true,
   };
   loaded.object = host;
   loaded.animations = clips.length ? clips : loaded.animations;

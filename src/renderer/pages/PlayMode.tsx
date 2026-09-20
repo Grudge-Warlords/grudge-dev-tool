@@ -24,6 +24,7 @@ import { TOON_PLAY_KITS, CDN_BASE } from "../../shared/prodPackages";
 import { FLEET_PLAYTEST_LINKS } from "../lib/forge/studioQuality";
 import {
   applyUnarmedVisibility,
+  inferToonRace,
   loadToonPlayKit,
   loadToonPlayPackClips,
   looksLikeToonKit,
@@ -38,10 +39,25 @@ import {
 import { measureObjectSi } from "../lib/forge/siMeasure";
 
 const G = () => (window as any).grudge;
+const PLAY_KIT_KEY = "grudge.play.lastKit";
 
 function toonUrl(id: string): string {
   const kit = TOON_PLAY_KITS[id] ?? TOON_PLAY_KITS.human;
   return `${CDN_BASE}/${kit.r2Key}`;
+}
+
+function readLastKit(): string {
+  try {
+    const k = localStorage.getItem(PLAY_KIT_KEY);
+    if (k && TOON_PLAY_KITS[k]) return k;
+  } catch { /* ignore */ }
+  return "human";
+}
+
+function rememberKit(id: string) {
+  try {
+    if (TOON_PLAY_KITS[id]) localStorage.setItem(PLAY_KIT_KEY, id);
+  } catch { /* ignore */ }
 }
 
 export default function PlayMode() {
@@ -52,7 +68,7 @@ export default function PlayMode() {
   const videoRef = useRef<HTMLInputElement | null>(null);
 
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("Loading Toon human…");
+  const [status, setStatus] = useState("Loading play kit…");
   const [hud, setHud] = useState(true);
   const [help, setHelp] = useState(false);
   const [clipName, setClipName] = useState("—");
@@ -65,7 +81,7 @@ export default function PlayMode() {
   );
   const [log, setLog] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
-  const [kit, setKit] = useState("human");
+  const [kit, setKit] = useState(() => readLastKit());
 
   const appendLog = useCallback((msg: string) => {
     setLog((prev) => `${prev}${prev ? "\n" : ""}${msg}`.slice(-4000));
@@ -108,10 +124,14 @@ export default function PlayMode() {
         animations = loaded.animations;
         bones = loaded.bones;
         if (looksLikeToonKit(object)) {
-          const race = raceId || "human";
+          const race = raceId || inferToonRace(object) || kit || "human";
           applyUnarmedVisibility(object, race);
           plantPlayKitSi(object, TOON_PLAY_KITS[race]?.heightM ?? 1.8);
           if (!animations.length) animations = await loadToonPlayPackClips(object);
+          if (TOON_PLAY_KITS[race]) {
+            setKit(race);
+            rememberKit(race);
+          }
         }
       }
       engine.scene.add(object);
@@ -148,8 +168,14 @@ export default function PlayMode() {
         return {};
       }
     })();
-    const id = q.kit && TOON_PLAY_KITS[q.kit] ? q.kit : "human";
+    const id =
+      q.kit && TOON_PLAY_KITS[q.kit]
+        ? q.kit
+        : q.glb
+          ? readLastKit()
+          : readLastKit();
     setKit(id);
+    rememberKit(id);
     const url = q.glb || toonUrl(id);
     void bootKit(url, q.glb ? "custom" : `${id}.glb`);
     return () => {
@@ -334,6 +360,7 @@ export default function PlayMode() {
           onChange={(e) => {
             const id = e.target.value;
             setKit(id);
+            rememberKit(id);
             void bootKit(toonUrl(id), `${id}.glb`);
           }}
         >

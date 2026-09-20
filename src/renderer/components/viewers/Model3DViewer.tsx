@@ -272,7 +272,8 @@ export default function Model3DViewer({
         const loaded = await loadModelFromUrl(asset.url, nameHint, {
           diskPath: asset.localPath || undefined,
           materialPolicy: preserveAuthoredMaterials ? "preserve-authored" : "normalize",
-          skipGenericPreview: preserveAuthoredMaterials,
+          // Never silently replace the opened asset with Toon human.
+          skipGenericPreview: true,
           ...(preserveAuthoredMaterials
             ? {}
             : { sanitize: { toonStyle: true, fixDefaultYellow: true, whiteWhenMapped: true } }),
