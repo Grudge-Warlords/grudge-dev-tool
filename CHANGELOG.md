@@ -163,6 +163,11 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.1.6] — 2026-09-20
+
+### Changed
+- Manual release.
+
 ## [1.1.5] — 2026-09-19
 
 ### Changed
@@ -490,3 +495,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [1.0.10]:     https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.10
 [1.0.11]:     https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.11
 [1.1.5]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.1.5
+[1.1.6]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.1.6
