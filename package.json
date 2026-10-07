@@ -127,13 +127,13 @@
     "react-dom": "^18.3.1",
     "sharp": "^0.33.5",
     "sonner": "^1.5.0",
-    "three": "^0.185.1"
+    "three": "^0.185.1",
+    "@grudge-studio/animator": "file:vendor/@grudge-studio/animator",
+    "@grudge-studio/assets": "file:vendor/@grudge-studio/assets",
+    "@grudge-studio/core": "file:vendor/@grudge-studio/core",
+    "@grudge-studio/engine": "file:vendor/@grudge-studio/engine"
   },
   "devDependencies": {
-    "@grudge-studio/animator": "file:../GrudgeStudioNPM/packages/animator",
-    "@grudge-studio/assets": "file:../GrudgeStudioNPM/packages/assets",
-    "@grudge-studio/core": "file:../GrudgeStudioNPM/packages/core",
-    "@grudge-studio/engine": "file:../GrudgeStudioNPM/packages/engine",
     "@tanstack/react-query-devtools": "^5.51.1",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.3",

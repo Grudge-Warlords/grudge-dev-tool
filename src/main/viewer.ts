@@ -758,7 +758,7 @@ export async function saveExportedBytes(
     const buf = Buffer.from(raw instanceof ArrayBuffer ? new Uint8Array(raw) : raw);
     if (!buf.byteLength) return { ok: false, error: "Empty export" };
     const defaultName = (args.defaultName || "asset.glb").replace(/[<>:"/\\|?*]+/g, "_");
-    const r = await dialog.showSaveDialog(parent && !parent.isDestroyed() ? parent : (undefined as any), {
+    const r = await appDialogs.showSaveDialog(parent && !parent.isDestroyed() ? parent : (undefined as any), {
       title: "Save as new asset",
       defaultPath: defaultName.endsWith(".glb") ? defaultName : `${defaultName}.glb`,
       filters: [
