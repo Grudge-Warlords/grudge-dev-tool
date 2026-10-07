@@ -2493,12 +2493,13 @@ export class Prompt3DService extends EventEmitter {
     assertPrompt3DOutputSpace(this.root, hardware.disk.freeBytes, "texture");
     const provider = localProvider("hunyuan3d-2");
     const paintCompliance = evaluatePrompt3DCompliance(provider, hardware, this.root, "pre-run", { ...job.baseSpec, generateTextures: true });
+    if (!paintCompliance.canRun) throw new Error(`${paintCompliance.state}: ${paintCompliance.reasons.join(" ")}`);
+    await this.updateFinish(job, "compliance", 5, "Hardware ready · verifying the signed Hunyuan installation and every model file before Paint.");
     const integrity = await this.installer.verify("hunyuan3d-2", true);
     if (this.finishCancelled(job)) return;
     if (!integrity.ok) throw new Error(`setup-required: ${integrity.reason}`);
     job.providerVerification = await this.captureProviderVerification("hunyuan3d-2", integrity.reason);
     if (this.finishCancelled(job)) return;
-    if (!paintCompliance.canRun) throw new Error(`${paintCompliance.state}: ${paintCompliance.reasons.join(" ")}`);
     const executionProfile = paintCompliance.executionProfile;
     if (!executionProfile) throw new Error("Hunyuan Paint compliance did not select a runnable texture profile.");
     const paintSettings = hunyuanExecutionSettings(executionProfile, "texture");

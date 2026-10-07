@@ -7,6 +7,7 @@
  */
 
 import { aiChat } from "./aiWorkerManager";
+import { localJsonPlan } from "../prompt3d/planner";
 import {
   SCENE_COMPLETION_BEST_PRACTICES,
   SCENE_COMPLETION_OPS,
@@ -83,7 +84,11 @@ export async function planSceneCompletion(
     .join("\n");
 
   try {
-    const res = await aiChat({
+    const local = !req.providerHint || req.providerHint === "ollama";
+    const started = Date.now();
+    const res = local ? await localJsonPlan(SYSTEM_PROMPT, user).then(result => ({
+      text: JSON.stringify(result.proposal), provider: "ollama", model: result.model, latencyMs: Date.now() - started,
+    })) : await aiChat({
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: user },

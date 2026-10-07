@@ -249,6 +249,7 @@ export default function ForgeStudio() {
         {/* Electron <webview> — attrs not fully typed in React DOM */}
         {bootSrc &&
           React.createElement("webview", {
+          "data-app-action-embedded": "forge",
             ref: wvRef as unknown as React.RefObject<HTMLElement>,
             src: bootSrc,
             className: "absolute inset-0 w-full h-full",

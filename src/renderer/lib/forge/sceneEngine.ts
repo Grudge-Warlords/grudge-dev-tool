@@ -1,3 +1,4 @@
+import { VIEWPORT_NAVIGATION_HELP } from "./viewportNavigation";
 import * as THREE from "three";
 import { DEFAULT_EDITOR_VIEWPORT } from "./viewportColor";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -23,7 +24,7 @@ import { createInfiniteGrid } from "./infiniteGrid";
 import { attachBoneNameLabels, disposeBoneLabelGroup } from "./skeletonOverlay";
 import { measureObjectSi, type SiBounds } from "./siMeasure";
 import { bindSceneMeasure } from "./measureScale";
-import { applyViewportNavigation } from "./viewportNavigation";
+import { applyViewportNavigation, perspectiveSphereFitDistance } from "./viewportNavigation";
 
 export type GizmoMode = "translate" | "rotate" | "scale";
 export type StudioView = "persp" | "front" | "right" | "top";
@@ -203,6 +204,14 @@ export class SceneEngine {
     this.controls.dampingFactor = 0.08;
     this.controls.target.set(0, 0.5, 0);
     applyViewportNavigation(this.controls);
+    this.renderer.domElement.setAttribute("aria-label", "Scene canvas");
+    this.renderer.domElement.setAttribute("aria-description", VIEWPORT_NAVIGATION_HELP);
+    const reportCamera = () => {
+      const values = (v: THREE.Vector3) => v.toArray().map(n => Number(n.toFixed(4))).join(", ");
+      this.renderer.domElement.setAttribute("data-app-action-state", `Camera position: ${values(this.controls.object.position)}; target: ${values(this.controls.target)}; zoom: ${Number((this.controls.object as THREE.PerspectiveCamera).zoom.toFixed(4))}`);
+    };
+    this.controls.addEventListener("change", reportCamera);
+    reportCamera();
     this.bindViewHelper();
 
     this.transform = new TransformControls(this.camera, this.renderer.domElement);
@@ -514,7 +523,7 @@ export class SceneEngine {
     if (this.activeCamera instanceof THREE.OrthographicCamera) {
       const dist = Math.max(2, maxDim * paddingFactor);
       this.activeCamera.position.copy(center).addScaledVector(dir, dist);
-      this.syncOrthoFrustum(maxDim, paddingFactor);
+      this.syncOrthoFrustum(Math.max(.05, size.length()), paddingFactor);
       this.controls.target.copy(center);
       this.controls.minDistance = Math.max(0.01, maxDim * 0.05);
       this.controls.maxDistance = Math.max(50, dist * 8);
@@ -523,9 +532,7 @@ export class SceneEngine {
     }
 
     const fov = THREE.MathUtils.degToRad(this.camera.fov);
-    const fitH = maxDim / (2 * Math.tan(fov / 2));
-    const fitW = maxDim / (2 * Math.tan(fov / 2) * aspect);
-    const dist = Math.max(fitH, fitW) * paddingFactor;
+    const dist = perspectiveSphereFitDistance(size.length() / 2, fov, aspect, Math.max(1.05, paddingFactor / 1.2));
     this.camera.position.copy(center).addScaledVector(dir, dist);
     this.camera.near = Math.max(0.001, maxDim / 500);
     this.camera.far = Math.max(this.camera.near * 100, dist * 20 + maxDim * 10);

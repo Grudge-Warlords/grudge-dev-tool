@@ -44,11 +44,21 @@ export function perspectiveFitDistance(
   verticalFovRadians: number,
   aspect: number,
   margin = 1.18,
+  projectedDepth = 0,
 ): number {
   const safeFov = Math.max(0.01, Math.min(Math.PI - 0.01, verticalFovRadians));
   const safeAspect = Math.max(0.1, aspect);
   const safeMargin = Math.max(1, margin);
   const vertical = Math.max(0.05, projectedHeight) / (2 * Math.tan(safeFov / 2));
   const horizontal = Math.max(0.05, projectedWidth) / (2 * Math.tan(safeFov / 2) * safeAspect);
-  return Math.max(vertical, horizontal) * safeMargin;
+  // The near face must fit too: measuring only from the bounds centre can
+  // put the camera inside a deep object or crop its front face.
+  return Math.max(vertical, horizontal) * safeMargin + Math.max(0, projectedDepth) / 2;
+}
+
+/** Fit an enclosing sphere so near corners remain visible from any orbit angle. */
+export function perspectiveSphereFitDistance(radius: number, verticalFovRadians: number, aspect: number, margin = 1.18): number {
+  const halfVertical = Math.max(.01, Math.min(Math.PI - .01, verticalFovRadians)) / 2;
+  const halfHorizontal = Math.atan(Math.tan(halfVertical) * Math.max(.1, aspect));
+  return Math.max(.025, radius) / Math.sin(Math.min(halfVertical, halfHorizontal)) * Math.max(1, margin);
 }

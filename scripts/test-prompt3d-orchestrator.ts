@@ -13,13 +13,13 @@ const context = (overrides: Partial<Prompt3DUnifiedContext> = {}): Prompt3DUnifi
 });
 
 const quality = compilePrompt3DUnifiedPlan({ prompt: "Create a detailed hand-painted fantasy chest", context: context() });
-assert.equal(quality.selectedRoute, "hunyuan3d-2", "automatic creation must prefer the highest-capability eligible route");
+assert.equal(quality.selectedRoute, "original-procedural", "ordinary requests use existing tools even when Hunyuan is ready");
 assert.equal(quality.planner.preferredModel, "grudge-dev");
 assert.equal(quality.planner.contacted, false);
 assert.equal(quality.externalProviderContact, false);
-assert.deepEqual(quality.stages.map((stage) => stage.executor), ["prompt3d.start", "prompt3d.finishStart", "prompt3d.workflowValidateAndSave"]);
+assert.ok(quality.stages.every(stage => stage.executor === "creation.submit"));
 
-const fullChain = compilePrompt3DUnifiedPlan({ prompt: "Create a hand-painted humanoid, texture it, rig it, animate a walk in place, then complete the scene", context: context({ category: "character" }) });
+const fullChain = compilePrompt3DUnifiedPlan({ prompt: "Create a hand-painted humanoid, texture it, rig it, animate a walk in place, then complete the scene", context: context({ category: "character" }), override: "hunyuan3d-2" });
 assert.deepEqual(fullChain.stages.map((stage) => stage.executor), [
   "prompt3d.start", "prompt3d.finishStart", "prompt3d.finishStart", "sceneCompletion.existing", "prompt3d.workflowValidateAndSave",
 ]);
@@ -32,11 +32,11 @@ const blockedLeader = compilePrompt3DUnifiedPlan({
     { id: "hy-motion-1", ready: false, reason: "optional" },
   ] }),
 });
-assert.equal(blockedLeader.strongestCapability, "hunyuan3d-2");
-assert.equal(blockedLeader.selectedRoute, "trellis");
-assert.match(blockedLeader.strongestCapabilityBlockedReason ?? "", /not installed/);
-assert.equal(blockedLeader.nextBestEligible, "trellis");
-assert.deepEqual(blockedLeader.stages.map((stage) => stage.executor), ["prompt3d.start", "prompt3d.retainedGeneration"]);
+assert.equal(blockedLeader.strongestCapability, "original-procedural");
+assert.equal(blockedLeader.selectedRoute, "original-procedural");
+assert.equal(blockedLeader.strongestCapabilityBlockedReason, undefined);
+assert.equal(blockedLeader.nextBestEligible, undefined);
+assert.ok(blockedLeader.stages.every(stage => stage.executor === "creation.submit"));
 
 const explicitTrellisChain = compilePrompt3DUnifiedPlan({
   prompt: "Create a textured stone golem, animate it walking, then complete the scene",
@@ -48,18 +48,18 @@ assert.deepEqual(explicitTrellisChain.stages.map((stage) => stage.route), [
 ]);
 assert.equal(explicitTrellisChain.stages.some((stage) => stage.route === "hunyuan-paint-refine"), false, "TRELLIS must not silently cross-route to Hunyuan Paint");
 
-const override = compilePrompt3DUnifiedPlan({ prompt: "Create a basic sword", context: context(), override: "original-procedural" });
+const override = compilePrompt3DUnifiedPlan({ prompt: "Create a basic sword", context: context(), override: "hunyuan3d-2" });
 assert.equal(override.overrideApplied, true);
-assert.equal(override.automaticRecommendation, "hunyuan3d-2");
-assert.equal(override.selectedRoute, "original-procedural");
+assert.equal(override.automaticRecommendation, "original-procedural");
+assert.equal(override.selectedRoute, "hunyuan3d-2");
 const retained = prompt3DOrchestrationRecord(override, override.stages.map((stage) => stage.id));
 assert.equal(retained.overrideApplied, true);
-assert.equal(retained.selectedRoute, "original-procedural");
+assert.equal(retained.selectedRoute, "hunyuan3d-2");
 assert.equal(retained.externalProviderContact, false);
 
 const current = context({ mode: "revise-current", currentRevision: { id: "revision-1", sha256: "a".repeat(64), path: "E:\\asset.glb", method: "hunyuan-workflow" } });
 const crystalPrompt = "Create one upright faceted crystal prop, color it violet, then make it float gently and spin slowly in place.";
-const crystal = compilePrompt3DUnifiedPlan({ prompt: crystalPrompt, context: context() });
+const crystal = compilePrompt3DUnifiedPlan({ prompt: crystalPrompt, context: context(), override: "hunyuan3d-2" });
 assert.deepEqual(crystal.stages.map(stage => stage.route), ["hunyuan3d-2", "hunyuan-paint-refine", "cpu-rig-animation", "validate-save"]);
 for (const action of ["float gently", "spin slowly", "bob up and down", "hover", "rotate in place", "swim", "slither"]) {
   assert.equal(compilePrompt3DUnifiedPlan({ prompt: `Make it ${action}`, context: current }).selectedRoute, "cpu-rig-animation");
@@ -98,3 +98,12 @@ assert.equal(noCurrent.stages[0].readiness, "blocked");
 assert.match(noCurrent.stages[0].readinessReason, /exact retained revision/);
 
 console.log("typed Prompt-to-3D orchestrator quality, override, readiness and provenance tests passed");
+
+for (const prompt of ["Create a dragon", "Create a bench and save it", "Create a sword without Hunyuan", "Create a model. Do not use Hunyuan or TRELLIS."]) {
+  const offline = compilePrompt3DUnifiedPlan({ prompt, context: context({ providers: [] }) });
+  assert.equal(offline.selectedRoute, "original-procedural");
+  assert.equal(offline.stages[0].readiness, "ready");
+  assert.ok(offline.stages.every(stage => !stage.route.startsWith("hunyuan")));
+}
+assert.equal(compilePrompt3DUnifiedPlan({ prompt: "Create a dragon with Hunyuan", context: context({ providers: [] }) }).stages[0].readiness, "blocked");
+assert.equal(compilePrompt3DUnifiedPlan({ prompt: "Paint it red", context: current }).selectedRoute, "forge-local");

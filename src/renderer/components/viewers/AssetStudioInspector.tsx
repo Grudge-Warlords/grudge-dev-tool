@@ -1,3 +1,4 @@
+import { promptApp } from "../../lib/appDialogs";
 /**
  * Elite viewer inspector — Scene / Object / Material / Rig / Anim.
  * Reuses sceneGraph, inspectSceneRig, editorTools, animApply, mixamo25 libraries.
@@ -216,7 +217,7 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
     const target = selected ?? root;
     if (!target) return;
     const suggested = (target.name || asset.name || "mesh").replace(/[^\w.-]+/g, "_");
-    const name = window.prompt("Save this node (and children) as new asset", suggested);
+    const name = await promptApp("Save this node (and children) as", suggested);
     if (!name) return;
     setSaveBusy(true);
     try {
@@ -296,6 +297,7 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
           <button
             key={id}
             type="button"
+            aria-pressed={tab === id}
             onClick={() => setTab(id)}
             style={tabBtn(tab === id)}
           >
@@ -323,6 +325,8 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
                 >
                   <button
                     type="button"
+                    aria-label={`Select object ${it.name}`}
+                    aria-pressed={selectedItemId === it.id}
                     onClick={() => onSelectItem?.(it.id)}
                     style={{
                       flex: 1, textAlign: "left", border: "none", background: "transparent",
@@ -333,11 +337,11 @@ export default function AssetStudioInspector(props: AssetStudioInspectorProps) {
                   >
                     {it.name}{it.bones ? ` · ${it.bones}b` : ""}
                   </button>
-                  <button type="button" title="Hide" onClick={() => onToggleItemVisible?.(it.id)} style={miniBtn}>
+                  <button type="button" title={`Toggle visibility of ${it.name}`} aria-pressed={it.visible} onClick={() => onToggleItemVisible?.(it.id)} style={miniBtn}>
                     {it.visible ? "●" : "○"}
                   </button>
-                  <button type="button" title="Duplicate" onClick={() => onDuplicateItem?.(it.id)} style={miniBtn}>⧉</button>
-                  <button type="button" title="Remove" onClick={() => onRemoveItem?.(it.id)} style={miniBtn}>×</button>
+                  <button type="button" title={`Duplicate object ${it.name}`} onClick={() => onDuplicateItem?.(it.id)} style={miniBtn}>⧉</button>
+                  <button type="button" title={`Remove object ${it.name}`} onClick={() => onRemoveItem?.(it.id)} style={miniBtn}>×</button>
                 </div>
               ))}
             </div>
@@ -544,6 +548,8 @@ function GraphRow({
             else onSelect(node.uuid, node.object);
           }}
           title="Click select · Alt+click parent selected node here"
+          aria-label={`Select node ${node.name}`}
+          aria-pressed={selectedUuid === node.uuid}
           style={{
             flex: 1,
             textAlign: "left",
@@ -683,6 +689,7 @@ function Num({
       {label}
       <input
         type="range"
+        aria-label={label}
         min={min}
         max={max}
         step={0.01}

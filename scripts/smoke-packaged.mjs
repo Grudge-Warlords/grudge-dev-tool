@@ -207,6 +207,22 @@ try {
     assert.equal(granted.result?.value?.enabled, true, "packaged local controls could not be enabled for the isolated smoke window");
     await cdp.send("Page.reload", { ignoreCache: true });
 
+    // Even retained pending Hunyuan history must not take over the default page.
+    let defaultPage;
+    for (let i = 0; i < 100; i++) {
+      const observed = await cdp.send("Runtime.evaluate", { expression: `({ prompt: Boolean(document.querySelector('[aria-label="Grudge Dev prompt"]')), neural: Boolean(document.querySelector('[data-app-action-context="Optional neural generation"]')), run: [...document.querySelectorAll('button')].some(b => b.textContent === 'Run with Grudge') })`, returnByValue: true });
+      defaultPage = observed.result?.value;
+      if (defaultPage?.prompt) break;
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    assert.equal(defaultPage?.prompt, true, "default page must expose the automatic Grudge prompt");
+    assert.equal(defaultPage?.run, true);
+    assert.equal(defaultPage?.neural, false, "pending Hunyuan history must not gate the default workspace");
+    const simple = await cdp.send("Runtime.evaluate", { expression: `({ inputs: [...document.querySelectorAll('[data-testid="simple-grudge-workspace"] textarea')].filter(e => e.getClientRects().length && !e.closest('details:not([open])')).map(e=>e.getAttribute('aria-label')), toolsOpen: document.querySelector('[data-testid="grudge-tools"]').open, extrasOpen: document.querySelector('[data-testid="hunyuan-extras"]').open, extrasSelected: [...document.querySelectorAll('[data-testid="hunyuan-extras"] input')].some(e=>e.checked), result: Boolean(document.querySelector('[data-testid="grudge-result"]')) })`, returnByValue: true });
+    assert.deepEqual(simple.result.value, { inputs: ['Grudge Dev prompt'], toolsOpen: false, extrasOpen: false, extrasSelected: false, result: false }, 'startup must have one prompt and no empty workspace or selected enhancement');
+    await cdp.send("Runtime.evaluate", { expression: `document.querySelector('[data-testid="grudge-tools"] > summary').click()` });
+    await cdp.send("Runtime.evaluate", { expression: `[...document.querySelectorAll('button')].find(b => b.textContent === 'Optional Hunyuan enhancement').click()` });
+
     let value;
     const deadline = Date.now() + 45_000;
     while (Date.now() < deadline) {
@@ -277,6 +293,18 @@ try {
     assert.ok(!value.bodyText.includes("Something went wrong"), "renderer reached the top-level error boundary");
     assert.ok(!value.bodyText.includes("Cannot read properties of undefined"), "renderer repeated the missing preload bridge failure");
 
+    const embeddedBridge = await cdp.send("Runtime.evaluate", { expression: `(async () => {
+      const api = window.grudge.embeddedActions;
+      if (!api?.observe || !api?.execute) return { exposed: false };
+      let invalidGuest = '', invalidReceipt = '';
+      try { await api.observe({ surface: 'forge', webContentsId: -1 }); } catch (e) { invalidGuest = String(e); }
+      try { await api.execute({ token: 'not-an-observation', prompt: 'Change a setting', decision: {} }); } catch (e) { invalidReceipt = String(e); }
+      return { exposed: true, invalidGuest, invalidReceipt };
+    })()`, awaitPromise: true, returnByValue: true });
+    assert.equal(embeddedBridge.result?.value?.exposed, true, "packaged embedded bridge is missing");
+    assert.match(embeddedBridge.result.value.invalidGuest, /does not belong|Invalid embedded/, "packaged embedded bridge accepted an unrelated target");
+    assert.match(embeddedBridge.result.value.invalidReceipt, /expired/, "packaged embedded bridge accepted an invented observation");
+
     const startedNewAsset = await cdp.send("Runtime.evaluate", {
       expression: `(() => {
         const button = Array.from(document.querySelectorAll("button")).find((candidate) => candidate.textContent?.includes("Start new asset"));
@@ -336,7 +364,7 @@ try {
             generatedSourceShown: bodyText.includes("Starting image: Generate with local HunyuanDiT"),
             hasPromptSettings: bodyText.includes("Subject prompt") && Boolean(document.querySelector('[data-testid="prompt3d-optional-settings"]')),
             optionalSettingsCollapsed: document.querySelector('[data-testid="prompt3d-optional-settings"]')?.open === false,
-            primaryInputCount: Array.from(document.querySelectorAll("textarea,input,select")).filter((element) => element.getClientRects().length && !element.closest('details:not([open])') && !element.closest('[data-testid="prompt3d-initial-image-source"]')).filter((element) => element.tagName === "TEXTAREA").length,
+            primaryInputCount: Array.from(document.querySelector('[data-app-action-context="Optional neural generation"]').querySelectorAll("textarea,input,select")).filter((element) => element.getClientRects().length && !element.closest('details:not([open])') && !element.closest('[data-testid="prompt3d-initial-image-source"]')).filter((element) => element.tagName === "TEXTAREA").length,
           };
         })()`,
         returnByValue: true,

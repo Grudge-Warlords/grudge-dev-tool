@@ -106,13 +106,6 @@ function provider(context: Prompt3DUnifiedContext, id: Prompt3DProviderReadiness
   return context.providers.find((entry) => entry.id === id) ?? { id, ready: false, reason: "Readiness has not been checked in the existing provider controls." };
 }
 
-function proceduralFit(prompt: string, category: AssetCategory): boolean {
-  if (/\b(box|cube|sphere|cylinder|cone|plane|torus)\b/i.test(prompt)) return true;
-  return category === "prop" || category === "character"
-    ? /\b(sword|blade|gun|firearm|character|person|human|humanoid)\b/i.test(prompt)
-    : false;
-}
-
 function routeReadiness(route: Prompt3DUnifiedRoute, context: Prompt3DUnifiedContext): { readiness: Prompt3DStageReadiness; reason: string } {
   if (!["hunyuan3d-2", "trellis", "original-procedural"].includes(route) && !context.currentRevision) {
     return { readiness: "blocked", reason: "Choose an exact retained revision before using this route." };
@@ -138,30 +131,17 @@ function routeReadiness(route: Prompt3DUnifiedRoute, context: Prompt3DUnifiedCon
   return { readiness: "ready", reason: "Uses an existing in-app service or editor handoff." };
 }
 
-function strongestNewRoute(prompt: string, context: Prompt3DUnifiedContext): { strongest: Prompt3DUnifiedRoute; automatic: Prompt3DUnifiedRoute; blocked?: string; next?: Prompt3DUnifiedRoute } {
-  if (/\bhunyuan\b/i.test(prompt)) return {strongest:"hunyuan3d-2",automatic:"hunyuan3d-2"};
-  if (/\b(box|cube|sphere|cylinder|cone|plane|torus)\b/i.test(prompt)) return {strongest:"original-procedural",automatic:"original-procedural"};
-  const candidates: Prompt3DUnifiedRoute[] = context.category === "character"
-    ? ["hunyuan3d-2", "original-procedural"]
-    : ["hunyuan3d-2", "trellis", "original-procedural"];
-  const supported = candidates.filter((route) => route !== "original-procedural" || proceduralFit(prompt, context.category));
-  const strongest = supported[0] ?? "hunyuan3d-2";
-  const eligible = supported.find((route) => routeReadiness(route, context).readiness === "ready");
-  if (eligible) {
-    const strongestState = routeReadiness(strongest, context);
-    return {
-      strongest,
-      automatic: eligible,
-      ...(eligible !== strongest ? { blocked: strongestState.reason, next: eligible } : {}),
-    };
-  }
-  return { strongest, automatic: strongest, blocked: routeReadiness(strongest, context).reason };
+function strongestNewRoute(prompt: string, _context: Prompt3DUnifiedContext): { strongest: Prompt3DUnifiedRoute; automatic: Prompt3DUnifiedRoute; blocked?: string; next?: Prompt3DUnifiedRoute } {
+  const route: Prompt3DUnifiedRoute = hasAffirmativePromptMatch(prompt, /\bhunyuan\b/i) ? "hunyuan3d-2"
+    : hasAffirmativePromptMatch(prompt, /\btrellis\b/i) ? "trellis" : "original-procedural";
+  return { strongest: route, automatic: route };
 }
 
 function automaticExistingRoute(prompt: string): Prompt3DUnifiedRoute {
   if (/\b(scene|environment|level|populate|assembly|assemble|composition|complete)\b/i.test(prompt)) return "scene-completion";
   if (/\b(skeleton|bone|joint|retarget|marker|rig\s*(?:repair|correct|fix))\b/i.test(prompt)) return "skeleton-studio";
-  if (/\b(textur(?:e|ed|ing)|material|paint|surface|colour|color|roughness|metallic)\b/i.test(prompt)) return "hunyuan-paint-refine";
+  if (hasAffirmativePromptMatch(prompt, /\bhunyuan\b/i)) return "hunyuan-paint-refine";
+  if (/\b(textur(?:e|ed|ing)|material|paint|surface|colour|color|roughness|metallic)\b/i.test(prompt)) return "forge-local";
   if (requestsAnimation(prompt)) return "cpu-rig-animation";
   if (/\b(validate|verify|save|export|reopen|package)\b/i.test(prompt)) return "validate-save";
   return "forge-local";
@@ -215,7 +195,7 @@ function stageFor(route: Prompt3DUnifiedRoute, context: Prompt3DUnifiedContext, 
     case "hy-motion-optional": return { ...base, label: "Animate with optional HY-Motion", method: "Pinned HY-Motion plus local skin binding", resource: "Existing HY-Motion installation and verified GPU profile", revisionEffect: "create-immutable-sibling", approval: "Explicit provider override and full motion review", executor: "prompt3d.finishStart" };
     case "skeleton-studio": return { ...base, label: "Correct skeleton", method: "Contextual Skeleton Studio marker and retarget tools", resource: "Existing Skeleton Studio and local animation libraries", revisionEffect: "review-only", approval: "All 22 canonical markers before returning a correction", executor: "skeleton.contextualReview" };
     case "forge-local": return { ...base, label: "Refine in Forge", method: "Contextual local Forge workbench handoff", resource: "Existing local Forge tools", revisionEffect: "review-only", approval: "Manual review; no automatic replacement of the retained revision", executor: "forge.contextualRefinement" };
-    case "scene-completion": return { ...base, label: "Complete scene", method: "Existing Scene Completion inside local Forge", resource: "Existing Scene Completion service and scene context", revisionEffect: "create-immutable-sibling", approval: "Scene composition and play-test review", executor: "sceneCompletion.existing" };
+    case "scene-completion": return { ...base, label: "Repair selected scene asset", method: "Existing mesh repair and rig preparation inside local Forge", resource: "Existing Scene Completion service and selected model", revisionEffect: "create-immutable-sibling", approval: "Mesh and rig review; this does not construct a world", executor: "sceneCompletion.existing" };
     case "retain-reopen": return { ...base, label: "Retain and reopen", method: "Immutable Prompt-to-3D generation history with exact preview, reveal and Forge handoff", resource: "Existing local generation store", revisionEffect: "save-exact-revision", approval: "Exact geometry visual approval before downstream use", executor: "prompt3d.retainedGeneration" };
     case "validate-save": return { ...base, label: "Validate and save", method: "Existing workflow validation, approval, managed save and portable export", resource: "Local workflow store", revisionEffect: "save-exact-revision", approval: "Exact-revision visual approval remains mandatory", executor: "prompt3d.workflowValidateAndSave" };
   }
@@ -261,7 +241,7 @@ export function compilePrompt3DUnifiedPlan(input: {
     if (wantsScene) add("scene-completion");
     add("retain-reopen");
   } else if (existing && selectedRoute!=="original-procedural") {
-    if (wantsTexture) add("hunyuan-paint-refine");
+    if (wantsTexture) add(selectedRoute === "hunyuan-paint-refine" ? "hunyuan-paint-refine" : "forge-local");
     if (wantsSkeletonCorrection) add("skeleton-studio");
     if (wantsAnimation) add(selectedRoute === "hy-motion-optional" ? "hy-motion-optional" : "cpu-rig-animation");
     if (wantsScene) add("scene-completion");
@@ -281,10 +261,7 @@ export function compilePrompt3DUnifiedPlan(input: {
     if (additions.length) stages.splice(Math.max(1, stages.length - 1), 0, ...additions);
   }
   if (selectedRoute === "original-procedural") stages=stages.map(stage=>stage.route==="validate-save"?{...stage,method:"Exact local working revision and managed library copy",executor:"creation.submit",approval:"Visual review of the actual model; no Hunyuan concept or paint gate",readiness:input.context.localControlsEnabled?"ready":"blocked",readinessReason:"Uses the existing local creation store."}:stage);
-  if (selectedRoute === "original-procedural" && !existing && !proceduralFit(prompt, input.context.category)) {
-    stages[0] = { ...stages[0], readiness: "blocked", readinessReason: "The original procedural creator currently supports box, sphere, cylinder, cone, plane, torus, sword, cosmetic game-gun, and segmented person briefs." };
-  }
-  const summary = `${ROUTE_LABELS[selectedRoute]} · ${selectedReadiness.readiness}. ${overrideApplied ? `User override recorded; automatic recommendation was ${ROUTE_LABELS[automaticResult.automatic]}.` : `Automatic quality-first recommendation.`}`;
+  const summary = `${ROUTE_LABELS[selectedRoute]} · ${selectedReadiness.readiness}. ${overrideApplied ? `User override recorded; automatic recommendation was ${ROUTE_LABELS[automaticResult.automatic]}.` : `Automatic existing-tool recommendation; neural enhancement is opt-in.`}`;
   return {
     version: PROMPT3D_ORCHESTRATOR_VERSION,
     prompt,

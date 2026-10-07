@@ -20,6 +20,11 @@ const subscriptions = [];
 const removals = [];
 const electron = {
   contextBridge: {
+    executeInMainWorld({ func }) {
+      const page = Object.fromEntries(exposed);
+      vm.runInNewContext(`(${func.toString()})()`, page);
+      assert.equal(typeof page.prompt, "function", "Embedded text prompt adapter is missing");
+    },
     exposeInMainWorld(name, value) {
       exposed.set(name, value);
     },
@@ -55,6 +60,9 @@ vm.runInNewContext(source, {
 }, { filename: preloadPath });
 
 const api = exposed.get("grudge");
+for (const key of ["begin", "end", "dialog", "browse", "answer", "request"]) assert.equal(typeof api.appNative[key], "function");
+assert.equal(typeof api.embeddedActions.windows, "function");
+assert.equal(typeof exposed.get("grudgeTextDialog"), "function");
 assert.ok(api, "preload must expose window.grudge");
 assert.equal(typeof api.auth?.getSession, "function", "auth bridge is missing");
 assert.equal(typeof api.appRuntime, "function", "appRuntime bridge is missing");
@@ -83,6 +91,9 @@ assert.equal(typeof api.prompt3d?.batchRetry, "function", "Prompt-to-3D batch-re
 assert.equal(typeof api.prompt3d?.batchExport, "function", "Prompt-to-3D batch-export bridge is missing");
 assert.equal(typeof api.prompt3d?.onBatchProgress, "function", "Prompt-to-3D batch-progress bridge is missing");
 assert.equal(typeof api.creation?.submit, "function", "Original creation bridge is missing");
+assert.equal(typeof api.appActions?.plan, "function", "App-wide local action planner bridge is missing");
+assert.equal(typeof api.embeddedActions?.observe, "function", "Embedded observation bridge is missing");
+assert.equal(typeof api.embeddedActions?.execute, "function", "Embedded execution bridge is missing");
 assert.equal(typeof api.creation?.history, "function", "Retained creation history bridge is missing");
 assert.equal(typeof api.creation?.reopen, "function", "Local replay bridge is missing");
 assert.equal(typeof api.forge?.saveExport, "function", "Forge native-save bridge is missing");

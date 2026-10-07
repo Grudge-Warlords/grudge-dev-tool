@@ -196,11 +196,11 @@ function canonicalParents(): number[] {
   });
 }
 
-function createWeights(point: Vec3, joints: Vec3[], parents: number[]): { indices: number[]; weights: number[] } {
+export function createWeights(point: Vec3, joints: Vec3[], parents: number[], allowed?: number[]): { indices: number[]; weights: number[] } {
   const distances = joints.map((joint, index) => ({
     index,
     distance: index === 0 ? Math.hypot(point[0] - joint[0], point[1] - joint[1], point[2] - joint[2]) ** 2 : segmentDistanceSquared(point, joints[parents[index]], joint),
-  })).sort((a, b) => a.distance - b.distance || a.index - b.index).slice(0, 4);
+  })).filter(entry=>!allowed||allowed.includes(entry.index)).sort((a, b) => a.distance - b.distance || a.index - b.index).slice(0, 4);
   const inverse = distances.map((entry) => 1 / Math.max(1e-8, entry.distance));
   const total = inverse.reduce((sum, value) => sum + value, 0);
   if (!finite(total) || total <= 0) throw new Error("Skin weighting produced a non-finite normalization total.");

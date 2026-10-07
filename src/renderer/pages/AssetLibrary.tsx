@@ -45,7 +45,7 @@ export default function AssetLibrary() {
         </div>
       </div>
       {error && <div className="card status-bad text-xs">{error}</div>}
-      <div className="grid">
+      <div className="asset-tile-grid">
         {results.map((r) => (
           <div className="tile" key={r.id ?? r.assetBaseId ?? r.name}>
             {r.thumbnail && (

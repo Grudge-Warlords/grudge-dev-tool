@@ -5,6 +5,18 @@ import type { StudioLightState } from "./sceneEngine";
 
 export const FORGE_SCENE_VERSION = 1 as const;
 
+/** Runtime mixers/helpers contain cycles and are rebuilt when the scene loads. */
+function retainedObjectJson(object: THREE.Object3D): ReturnType<THREE.Object3D["toJSON"]> {
+  const restored: Array<{object:THREE.Object3D;data:Record<string,unknown>}> = [];
+  object.traverse(node => {
+    restored.push({object:node,data:node.userData});
+    node.userData = Object.fromEntries(Object.entries(node.userData).filter(([key,value]) =>
+      !["grudgeMixer","grudgeSkeletonRoot","grudgeSkeletonHelper"].includes(key) && !(value instanceof THREE.Object3D) && !(value instanceof THREE.AnimationMixer)));
+  });
+  try { return object.toJSON(); }
+  finally { for(const row of restored) row.object.userData=row.data; }
+}
+
 export interface ForgeEntityRecord {
   id: string;
   name: string;
@@ -14,6 +26,9 @@ export interface ForgeEntityRecord {
   matrix: number[];
   bodyMorph?: BodyMorphConfig;
   visible: boolean;
+  /** Exact edited geometry/materials, including primitives without a disk path. */
+  embedded?: ReturnType<THREE.Object3D["toJSON"]>;
+  clips?: ReturnType<THREE.AnimationClip["toJSON"]>[];
 }
 
 export interface ForgeSceneDocument {
@@ -51,6 +66,7 @@ export function serializeScene(opts: {
     object: THREE.Object3D;
     diskPath: string | null;
     bodyMorph: BodyMorphConfig;
+    animations?: THREE.AnimationClip[];
   }>;
   background: number;
   showHelpers: boolean;
@@ -85,6 +101,8 @@ export function serializeScene(opts: {
         matrix: matrixToArray(e.object.matrixWorld),
         bodyMorph: e.bodyMorph,
         visible: e.object.visible,
+        embedded: retainedObjectJson(e.object),
+        clips: (e.animations ?? []).map(clip => clip.toJSON()),
       };
     }),
   };

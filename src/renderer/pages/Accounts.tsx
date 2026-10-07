@@ -1,3 +1,4 @@
+import { promptApp } from "../lib/appDialogs";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   User, Wallet, Coins, ShieldCheck, ExternalLink, Copy, RefreshCw,
@@ -302,7 +303,7 @@ export default function Accounts() {
 
   async function saveToolPath(key: "blender" | "ffmpeg" | "blenderkit" | "fbx2gltf") {
     const current = toolPaths[key] ?? "";
-    const next = prompt(`Path to ${key} executable/folder:`, current) ?? null;
+    const next = await promptApp(`Path to ${key} executable/folder:`, current) ?? null;
     if (next === null) return;
     await window.grudge.accounts.setToolPath(key, next.trim() || null);
     toast.success(`${key} path saved`);

@@ -1,3 +1,4 @@
+import AppDialogPanel from "./components/AppDialogPanel";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "sonner";
@@ -8,6 +9,6 @@ import "./styles/elite-editor.css";
 createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
     <Toaster position="top-right" richColors />
-    <ViewerWindow />
+    <ViewerWindow /><AppDialogPanel />
 </React.StrictMode>
 );

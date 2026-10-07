@@ -1,3 +1,4 @@
+import { confirmApp } from "./lib/appDialogs";
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   FolderTree,
@@ -65,6 +66,7 @@ const UiStudio = React.lazy(() => import("./pages/UiStudio"));
 
 import Login from "./pages/Login";
 import StatusBar from "./components/StatusBar";
+import AppPrompt, { AppPromptProvider } from "./components/AppPrompt";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { isAdmin, isOpenMode } from "./lib/admin";
 import { hydrateFromMain, persistRoute, readMirror } from "./lib/workspace";
@@ -132,7 +134,7 @@ const NAV: NavEntry[] = [
   { route: "/upload", label: "Upload", Icon: UploadIcon, adminOnly: true },
   { route: "/view", label: "View Mode", Icon: Eye, adminOnly: true },
   { route: "/forge-local", label: "Local Forge", Icon: Hammer, adminOnly: true },
-  { route: "/builder", label: "Grok Builder", Icon: Hammer },
+  { route: "/builder", label: "Grok Builder (lab)", Icon: Hammer },
   { route: "/coder", label: "Coder", Icon: Code2, adminOnly: true },
   { route: "/library", label: "Store", Icon: Store },
   { route: "/blenderkit", label: "BlenderKit", Icon: Boxes, adminOnly: true },
@@ -196,14 +198,14 @@ const APP_VERSION =
   typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "1.0.1";
 
 function resolveRoute(raw: string | undefined | null): Route {
-  if (!raw) return "/studio";
+  if (!raw) return "/prompt3d";
   // Allow /preview?url=… style deep-links from Forge Play test
   const pathOnly = raw.split("?")[0].split("#")[0] || raw;
   if (ROUTE_ALIASES[pathOnly]) return ROUTE_ALIASES[pathOnly];
   if (VALID_ROUTES.has(pathOnly)) return pathOnly as Route;
   if (ROUTE_ALIASES[raw]) return ROUTE_ALIASES[raw];
   if (VALID_ROUTES.has(raw)) return raw as Route;
-  return "/studio";
+  return "/prompt3d";
 }
 
 /** Persist query params when navigating with ?key= (e.g. Preview play handoff). */
@@ -301,7 +303,7 @@ export default function App() {
   }, [route]);
 
   async function signOut() {
-    if (!confirm("Sign out of Grudge?")) return;
+    if (!await confirmApp("Sign out of Grudge?")) return;
     try {
       await window.grudge.auth.clearSession();
       clearHandoffCache();
@@ -374,7 +376,8 @@ export default function App() {
   );
 
   return (
-    <div className="app">
+    <AppPromptProvider route={route}><div className="app">
+      <AppPrompt route={route}/>
       <aside className="sidebar">
         <div className="brand">
           <img src="./logo-256.png" alt="Grudge" width={36} height={36} />
@@ -428,6 +431,7 @@ export default function App() {
                 key={n.route}
                 type="button"
                 className={"nav-item" + (route === n.route ? " active" : "")}
+                aria-current={route === n.route ? "page" : undefined}
                 onClick={() => go(n.route)}
               >
                 <span className="nav-icon flex items-center justify-center">
@@ -473,6 +477,7 @@ export default function App() {
                     key={n.route}
                     type="button"
                     className={"nav-item nav-item--sub" + (route === n.route ? " active" : "")}
+                    aria-current={route === n.route ? "page" : undefined}
                     onClick={() => go(n.route)}
                   >
                     <span className="nav-icon flex items-center justify-center">
@@ -502,8 +507,8 @@ export default function App() {
             type="button"
             title="Quit Grudge Studio"
             className="text-muted hover:text-danger"
-            onClick={() => {
-              if (confirm("Quit Grudge Studio?")) window.grudge?.app?.quit?.();
+            onClick={async () => {
+              if (await confirmApp("Quit Grudge Studio?")) window.grudge?.app?.quit?.();
             }}
           >
             <Power size={14} />
@@ -554,8 +559,8 @@ export default function App() {
             </React.Suspense>
           </ErrorBoundary>
         </div>
-        <StatusBar admin={admin} />
+        <StatusBar admin={admin} compact={route==="/prompt3d"} />
       </main>
-    </div>
+    </div></AppPromptProvider>
   );
 }

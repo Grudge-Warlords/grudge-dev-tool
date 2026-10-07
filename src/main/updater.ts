@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog } from "electron";
+import { appDialogs } from "./agent/appDialogs";
+import { app, BrowserWindow } from "electron";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { autoUpdater } from "electron-updater";
@@ -66,7 +67,7 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
     if (phase === "ready" || installing) return;
     log.info("[updater] downloaded", info?.version);
     sendStatus({ phase: "ready", version: info?.version });
-    dialog.showMessageBox({
+    appDialogs.showMessageBox({
       type: "info",
       buttons: ["Restart now", "Later"],
       defaultId: 1,

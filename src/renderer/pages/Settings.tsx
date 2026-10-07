@@ -1,3 +1,4 @@
+import { confirmApp, promptApp } from "../lib/appDialogs";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { FolderOpen, RefreshCcw, Power, Cloud, Bot, User, LogIn, LogOut, KeyRound, Save, Trash2, Download, Upload, Link2, ShieldCheck, FileCheck2, ExternalLink } from "lucide-react";
@@ -120,7 +121,7 @@ export default function Settings() {
   }
 
   async function clearFileDefaults() {
-    if (!confirm("Remove Grudge ProgIDs for elite viewer types?")) return;
+    if (!await confirmApp("Remove Grudge ProgIDs for elite viewer types?")) return;
     setDefaultsBusy(true);
     try {
       const r = await window.grudge.fileDefaults?.clear?.();
@@ -177,7 +178,7 @@ export default function Settings() {
   }
 
   async function importWorkspace() {
-    const raw = prompt("Paste workspace JSON export:");
+    const raw = await promptApp("Paste workspace JSON export:");
     if (!raw?.trim()) return;
     try {
       await window.grudge.workspace.import(raw);
@@ -189,7 +190,7 @@ export default function Settings() {
   }
 
   async function resetWorkspace() {
-    if (!confirm("Reset saved route, Legion chat, and UI memory?")) return;
+    if (!await confirmApp("Reset saved route, Legion chat, and UI memory?")) return;
     await window.grudge.workspace.reset();
     clearMirror();
     toast.success("Workspace memory reset");

@@ -9,12 +9,14 @@ import {
   buildEmbedUrl,
 } from "../../shared/fleetAuthHandoff";
 import { isCanonicalAdmin } from "../../shared/adminAllowlist";
+import { embeddedUrlAllowed, type EmbeddedSurface } from "../../shared/embeddedActions";
 
 export type WebviewLike = {
   executeJavaScript?: (code: string, userGesture?: boolean) => Promise<unknown>;
   addEventListener: (type: string, listener: (e: Event) => void) => void;
   removeEventListener: (type: string, listener: (e: Event) => void) => void;
   getURL?: () => string;
+  getAttribute?: (name: string) => string | null;
   src?: string;
 };
 
@@ -98,6 +100,11 @@ export async function injectSessionIntoWebview(
   handoff?: FleetHandoffPayload | null,
 ): Promise<boolean> {
   if (!wv?.executeJavaScript) return false;
+  const surface = wv.getAttribute?.("data-app-action-embedded") as EmbeddedSurface;
+  let targetUrl: string;
+  try { targetUrl = wv.getURL?.() || ""; } catch { return false; }
+  const localCoder = surface === "coder" ? await window.grudge.coder.status().catch(() => null) : null;
+  if (!embeddedUrlAllowed(surface, targetUrl, localCoder?.running ? localCoder.url : null)) return false;
   const h = handoff ?? (await loadHandoff());
   if (!h.signedIn && !h.token) return false;
 
@@ -114,6 +121,7 @@ export async function injectSessionIntoWebview(
 
   const code = `(() => {
     try {
+      if (location.href !== ${JSON.stringify(targetUrl)}) return false;
       const p = ${JSON.stringify(payload)};
       window.__GRUDGE_DEV_TOOL__ = p;
       if (p.token) {
@@ -143,8 +151,7 @@ export async function injectSessionIntoWebview(
   })()`;
 
   try {
-    await wv.executeJavaScript(code, false);
-    return true;
+    return await wv.executeJavaScript(code, false) === true;
   } catch {
     return false;
   }

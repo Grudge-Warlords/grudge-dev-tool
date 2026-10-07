@@ -29,6 +29,7 @@ function Vec3Input({
         <input
           key={a}
           type="number"
+          aria-label={`${label === "Pos" ? "Position" : label === "Rot°" ? "Rotation degrees" : "Scale"} ${a.toUpperCase()}`}
           step={step}
           value={Number(values[i].toFixed(4))}
           onChange={(e) => onChange(a, Number(e.target.value))}
@@ -52,6 +53,7 @@ export default function ForgeTransformPanel({ object, onChange }: Props) {
   }
 
   function patch(mode: Mode, axis: Axis, value: number) {
+    if (!Number.isFinite(value)) return;
     if (mode === "position") object!.position[axis] = value;
     else if (mode === "rotation") object!.rotation[axis] = THREE.MathUtils.degToRad(value);
     else object!.scale[axis] = value;

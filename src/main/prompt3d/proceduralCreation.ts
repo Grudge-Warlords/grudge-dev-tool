@@ -2,6 +2,8 @@ import * as THREE from "three";
 import sharp from "sharp";
 import { createHash } from "node:crypto";
 import type { CreationKind, CreationPlan } from "../../shared/creationFlow";
+import { validateCreationComponent, type CreationComponent } from "../../shared/creationFlow";
+import { hasAffirmativePromptMatch } from "../../shared/promptedMotionIntent";
 
 const { Document, NodeIO } = require("@gltf-transform/core");
 const { ALL_EXTENSIONS } = require("@gltf-transform/extensions");
@@ -44,12 +46,32 @@ function author(document: Doc) {
   return {mesh,joint,material};
 }
 
+export function appendCreationComponents(doc: Doc, parent: Node, parts: CreationComponent[], style = "low-poly") {
+  if (!Array.isArray(parts) || !parts.length || parts.length > 64) throw new Error("Add 1–64 components at a time.");
+  const components = parts.map(validateCreationComponent), names = new Set(doc.getRoot().listNodes().map((n: Node) => n.getName().toLowerCase()));
+  for (const c of components) { if (names.has(c.name.toLowerCase())) throw new Error(`Part “${c.name}” already exists.`); names.add(c.name.toLowerCase()); }
+  if (names.size > 512) throw new Error("This edit would exceed 512 scene nodes.");
+  const { mesh, material } = author(doc), sides = style === "low-poly" ? 8 : 20;
+  for (const c of components) {
+    const [x, y, z] = c.size;
+    const shapes: Record<string, () => THREE.BufferGeometry> = {
+      box: () => new THREE.BoxGeometry(x, y, z), sphere: () => new THREE.SphereGeometry(.5, sides, Math.max(6, sides / 2)).scale(x, y, z),
+      cylinder: () => new THREE.CylinderGeometry(.5, .5, 1, sides).scale(x, y, z), cone: () => new THREE.ConeGeometry(.5, 1, sides).scale(x, y, z),
+      plane: () => new THREE.PlaneGeometry(x, z).rotateX(-Math.PI / 2), torus: () => new THREE.TorusGeometry(.35, .15, 8, sides).rotateX(Math.PI / 2).scale(x, y, z),
+    };
+    const role = `component-${doc.getRoot().listMaterials().length}-${c.name}`, color = new THREE.Color(c.color);
+    material(role).setBaseColorFactor([color.r, color.g, color.b, 1]);
+    const node=mesh(parent, c.name, shapes[c.shape](), role, c.position);
+    if(c.rotation)node.setRotation(new THREE.Quaternion().setFromEuler(new THREE.Euler(...c.rotation.map(n=>n*Math.PI/180) as [number,number,number])).toArray());
+  }
+}
+
 export function createOriginalGeometry(plan: CreationPlan, style: string): Doc {
   const doc = new Document(); doc.createBuffer();
   const scene = doc.createScene("Original creation");
   const root = doc.createNode("GrudgeAssetRoot").setExtras({grudgeCreation:{method:"original-procedural",kind:plan.kind,style,borrowedInputs:[]}});
   scene.addChild(root); doc.getRoot().setDefaultScene(scene);
-  const {mesh,joint} = author(doc);
+  const {mesh,joint,material} = author(doc);
   const sides = style === "low-poly" ? 8 : 20;
   const sphere = (r: number) => new THREE.SphereGeometry(r,sides,Math.max(6,sides/2));
   const box = (x:number,y:number,z:number) => new THREE.BoxGeometry(x,y,z);
@@ -115,7 +137,10 @@ export function createOriginalGeometry(plan: CreationPlan, style: string): Doc {
       mesh(knee,`${tag}Boot`,box(.125,.10,.22),"rubber",[0,-.405, .045]);
     }
   }
-  if (!["sword","game-gun","person"].includes(plan.kind)) {
+  if (plan.kind === "assembly") {
+    appendCreationComponents(doc, root, plan.components ?? [], style);
+    root.setExtras({...root.getExtras(),localWorkingRoot:true,assembly:true});
+  } else if (!["sword","game-gun","person"].includes(plan.kind)) {
     const shapes: Record<string,()=>THREE.BufferGeometry> = {
       box:()=>box(1,1,1), sphere:()=>sphere(.5), cylinder:()=>new THREE.CylinderGeometry(.5,.5,1,sides),
       cone:()=>new THREE.ConeGeometry(.5,1,sides), plane:()=>new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2),
@@ -135,26 +160,75 @@ const palettes: Record<string, [number,number,number,string,number,number]> = {
 };
 
 export async function applyOriginalTextures(doc: Doc, style: string, prompt: string) {
-  const red=/\bred\b/i.test(prompt), blue=/\bblue\b/i.test(prompt), green=/\bgreen\b/i.test(prompt);
-  for(const material of doc.getRoot().listMaterials()){
+  const colors:Record<string,number[]>={red:[190,39,44],blue:[30,90,185],green:[40,155,88],brown:[139,69,19],grey:[128,128,128],gray:[128,128,128],yellow:[240,210,30],purple:[128,50,180],orange:[230,120,20],white:[240,240,240],black:[20,20,20],gold:[210,160,40],silver:[185,190,200],pink:[230,100,170],cyan:[20,200,210],magenta:[200,30,200]};
+  const named=Object.keys(colors).find(name=>hasAffirmativePromptMatch(prompt,new RegExp(`\\b${name}\\b`,"i")));
+  const hex=prompt.match(/#[0-9a-f]{6}\b/i)?.[0];
+  const requestedColor=hex&&hasAffirmativePromptMatch(prompt,new RegExp(hex,"i"))?[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)):named?colors[named]:undefined;
+  const usedMaterials=new Set(doc.getRoot().listNodes().flatMap((n:any)=>n.getMesh()?.listPrimitives().map((p:any)=>p.getMaterial()).filter(Boolean)??[]));
+  for(const material of doc.getRoot().listMaterials().filter((m:any)=>usedMaterials.has(m))){
     const role=material.getExtras().role ?? material.getName();
     if(role === "projectile")continue;
-    const [r,g,b,pattern,metal,rough]=palettes[role] ?? palettes.paint;
-    const color=(!palettes[role]||role==="paint"||role==="fabric") ? (red?[190,39,44]:blue?[30,90,185]:green?[40,155,88]:[r,g,b]):[r,g,b];
+    const component=String(role).startsWith("component-");
+    const retained=material.getExtras().authoredSurfaceColor;
+    const base=new THREE.Color().setRGB(...material.getBaseColorFactor().slice(0,3) as [number,number,number]).convertLinearToSRGB();
+    const componentColor=Array.isArray(retained)&&retained.length===3?retained:[base.r,base.g,base.b].map(n=>Math.round(n*255));
+    let [r,g,b,pattern,metal,rough]=palettes[role] ?? (component?[...componentColor,"grain",0,.8]:palettes.paint) as [number,number,number,string,number,number];
+    const reptile=component&&(hasAffirmativePromptMatch(prompt,/\b(alligator|crocodile|reptile|reptilian|lizard|scales|scaled|scaly)\b/i)||material.getExtras().authoredSurfacePattern==="spatial-scales");
+    if(reptile){
+      const part=String(role).toLowerCase();
+      [r,g,b]=/tooth|teeth|claw/.test(part)?[222,218,178]:/pupil|nostril/.test(part)?[30,26,14]:/eye/.test(part)?[184,170,80]:/belly|jaw|chest/.test(part)?[143,157,90]:[71,101,49];
+      pattern=/tooth|teeth|claw|eye|pupil|nostril/.test(part)?"solid":"scales";
+      metal=0;rough=.78;
+    }
+    const globalColor=!component||hasAffirmativePromptMatch(prompt,/\b(?:paint|colou?r|make)\s+(?:it|everything|the\s+(?:whole|entire)\s+(?:model|asset|character))\b/i);
+    const color=(!palettes[role]||role==="paint"||role==="fabric") ? ((globalColor?requestedColor:undefined)??[r,g,b]):[r,g,b];
+    if(material.getExtras().unifiedCharacterSurface&&reptile){
+      // A cylindrical atlas stretches around fused limbs. Sample a spatial
+      // cell pattern into the existing vertices instead; positions, UVs,
+      // topology and skin weights remain exactly as authored.
+      const body=doc.getRoot().listNodes().find((n:any)=>n.getExtras().unifiedCharacterSurface);
+      const landmarks=doc.getRoot().getExtras().characterLandmarks as Record<string,number[]>;
+      const unit=(landmarks.Head[1]-landmarks.Hips[1])/.97,cell=.055*unit;
+      const hash=(x:number,y:number,z:number,seed=0)=>(((Math.imul(x+seed,73856093)^Math.imul(y-seed,19349663)^Math.imul(z+seed*3,83492791))>>>0)%65521)/65521;
+      for(const primitive of body.getMesh().listPrimitives()){
+        const positions=primitive.getAttribute("POSITION").getArray(),paint=new Float32Array(positions.length),rgb=new THREE.Color();
+        for(let i=0;i<positions.length;i+=3){
+          const x=positions[i]/unit,y=positions[i+1]/unit,z=positions[i+2]/unit,px=positions[i]/cell,py=positions[i+1]/cell,pz=positions[i+2]/cell;
+          const ix=Math.floor(px),iy=Math.floor(py),iz=Math.floor(pz);let first=Infinity,second=Infinity,tone=.5;
+          for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)for(let c=-1;c<=1;c++){
+            const gx=ix+a,gy=iy+b,gz=iz+c,noise=hash(gx,gy,gz),distance=(px-gx-.2-.6*noise)**2+(py-gy-.2-.6*hash(gx,gy,gz,7))**2+(pz-gz-.2-.6*hash(gx,gy,gz,19))**2;
+            if(distance<first){second=first;first=distance;tone=noise;}else if(distance<second)second=distance;
+          }
+          const edge=second-first<.045?.80:1,shade=(.77+.19*tone)*edge;
+          const belly=!requestedColor&&z>.07&&y>.85&&y<1.57?Math.max(0,1-Math.abs(x)/.20)*Math.min(1,(z-.07)*12):0;
+          const jaw=!requestedColor&&z>.22&&y>1.60&&y<1.755?.65:0,light=Math.max(belly*.65,jaw);
+          const channels=color.map((v:number,c:number)=>((v*(1-light)+[143,151,92][c]*light)*shade)/255);
+          rgb.setRGB(channels[0],channels[1],channels[2]).convertSRGBToLinear();paint.set(rgb.toArray(),i);
+        }
+        primitive.setAttribute("COLOR_0",doc.createAccessor("Spatial reptile scales").setType("VEC3").setArray(paint).setBuffer(doc.getRoot().listBuffers()[0]));
+      }
+      material.setBaseColorTexture(null).setBaseColorFactor([1,1,1,1]).setMetallicFactor(0).setRoughnessFactor(.83).setExtras({...material.getExtras(),authoredSurfaceColor:color,authoredSurfacePattern:"spatial-scales",surfaceMethod:"world-space cellular vertex paint"});
+      continue;
+    }
     const pixels=Buffer.alloc(256*256*4);
     for(let y=0;y<256;y++)for(let x=0;x<256;x++){
       const noise=((x*73856093^y*19349663)>>>0)%17-8;
-      const detail=pattern==="weave"?((x%8<2||y%8<2)?-25:5):pattern==="brushed"?(y%7-3)*3:pattern==="grip"?((x+y)%32<8?-25:8):pattern==="panel"?(x%64<3||y%64<3?-30:8):pattern==="grain"?noise:0;
+      const sx=(x+(Math.floor(y/16)%2)*12)%24,sy=y%16;
+      const scaleEdge=(sx-12)**2/144+(sy-8)**2/64;
+      const detail=pattern==="scales"?(scaleEdge>.78?-29:10*(1-scaleEdge)+noise*.35):pattern==="weave"?((x%8<2||y%8<2)?-25:5):pattern==="brushed"?(y%7-3)*3:pattern==="grip"?((x+y)%32<8?-25:8):pattern==="panel"?(x%64<3||y%64<3?-30:8):pattern==="grain"?noise:0;
       const shade=style==="hand-painted"?detail+18*Math.sin(x/60):detail;
       const i=(y*256+x)*4;for(let c=0;c<3;c++)pixels[i+c]=Math.max(0,Math.min(255,color[c]+shade));pixels[i+3]=255;
     }
     const png=await sharp(pixels,{raw:{width:256,height:256,channels:4}}).png().toBuffer();
     const texture=doc.createTexture(`Original ${role} ${pattern}`).setImage(png).setMimeType("image/png").setExtras({method:"authored-pixel-pattern",pattern,sourceAssets:[]});
     material.setBaseColorTexture(texture).setBaseColorFactor([1,1,1,1]).setMetallicFactor(style==="hand-painted"?metal*.4:metal).setRoughnessFactor(rough);
+    material.setExtras({...material.getExtras(),authoredSurfaceColor:color});
   }
+  for(const material of [...doc.getRoot().listMaterials()])if(!usedMaterials.has(material))material.dispose();
+  for(const texture of [...doc.getRoot().listTextures()])if(texture.listParents().every((p:any)=>p.propertyType==="Root"))texture.dispose();
 }
 
-function transformMesh(doc:Doc,name:string,scale:[number,number,number],curveDelta=0){
+function transformMesh(doc:Doc,name:string,scale:[number,number,number],curveDelta=0,anchorBase=false){
   const node=doc.getRoot().listNodes().find((n:Node)=>n.getName()===name),mesh=node?.getMesh();
   if(!mesh)throw new Error(`Required authored part ${name} is missing.`);
   for(const primitive of mesh.listPrimitives()){
@@ -163,7 +237,7 @@ function transformMesh(doc:Doc,name:string,scale:[number,number,number],curveDel
     for(let i=1;i<positions.length;i+=3){minY=Math.min(minY,positions[i]);maxY=Math.max(maxY,positions[i]);}
     for(let i=0;i<positions.length;i+=3){
       const y=positions[i+1],t=maxY>minY?(y-minY)/(maxY-minY):0;
-      positions[i]=positions[i]*scale[0]+curveDelta*t*t;positions[i+1]*=scale[1];positions[i+2]*=scale[2];
+      positions[i]=positions[i]*scale[0]+curveDelta*t*t;positions[i+1]=anchorBase?minY+(y-minY)*scale[1]:y*scale[1];positions[i+2]*=scale[2];
     }
     position.setArray(positions);
     const normal=primitive.getAttribute("NORMAL"),normals=normal?.getArray() as Float32Array|undefined;
@@ -177,14 +251,30 @@ function scaleTranslation(doc:Doc,name:string,scale:[number,number,number]){
 }
 
 /** Adds newly authored decorative geometry to the existing original asset. */
+function swordInlayGeometry(doc:Doc):THREE.BufferGeometry{
+  const blade=doc.getRoot().listNodes().find((n:Node)=>n.getName()==="Blade")?.getMesh()?.listPrimitives()[0]?.getAttribute("POSITION");
+  if(!blade)throw new Error("The sword blade is missing.");
+  const points:THREE.Vector3[]=[],p=blade.getArray() as Float32Array;
+  // The authored blade has eight vertices per cross-section and a final tip.
+  // Derive the decoration from its current surface, including earlier edits.
+  const rows=Math.floor((blade.getCount()-1)/8);
+  for(let row=2;row<rows-3;row++){
+    let x=0,y=0,z=-Infinity;
+    for(let i=0;i<8;i++){const offset=(row*8+i)*3;x+=p[offset];y+=p[offset+1];z=Math.max(z,p[offset+2]);}
+    points.push(new THREE.Vector3(x/8,y/8,z+.0008));
+  }
+  if(points.length<2)throw new Error("The sword blade has no usable inlay surface.");
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),40,.0018,6,false);
+}
+
 export function enhanceOriginalGeometry(doc:Doc,plan:CreationPlan){
   const root=doc.getRoot(),nodes=root.listNodes(),find=(name:string)=>{const n=nodes.find((x:Node)=>x.getName()===name);if(!n)throw new Error(`Required authored part ${name} is missing.`);return n;};
   const assetRoot=find("GrudgeAssetRoot"),assetExtras=assetRoot.getExtras(),pass=(assetExtras.cosmeticDetailPasses??0)+1,{mesh}=author(doc);
   const detail=(parent:Node,name:string,geometry:THREE.BufferGeometry,role:string,position:number[]=[0,0,0])=>{const n=mesh(parent,`${name}Detail${pass}`,geometry,role,position);n.setExtras({...n.getExtras(),cosmeticDetail:true,detailPass:pass});n.getMesh().setExtras({...n.getMesh().getExtras(),cosmeticDetail:true,detailPass:pass});return n;};
   const sides=16,box=(x:number,y:number,z:number)=>new THREE.BoxGeometry(x,y,z),sphere=(r:number)=>new THREE.SphereGeometry(r,sides,8);
   if(plan.kind==="sword"){
-    const body=find("SwordBody"),curve=new THREE.CubicBezierCurve3(new THREE.Vector3(.005,.34,.013),new THREE.Vector3(.04,.62,.013),new THREE.Vector3(.20,1.02,.013),new THREE.Vector3(.235,1.22,.013));
-    detail(body,"BladeFullerInlay",new THREE.TubeGeometry(curve,30,.0035,6,false),"brass");
+    const body=find("SwordBody");
+    detail(body,"BladeFullerInlay",swordInlayGeometry(doc),"brass");
     detail(body,"RicassoCollar",box(.115,.025,.028),"brass",[.005,.305,0]);
     for(const side of [-1,1])detail(body,side<0?"GuardCapLeft":"GuardCapRight",sphere(.025).scale(1.3,.75,1),"brass",[side*.158,.28,0]);
     detail(body,"PommelInlay",new THREE.TorusGeometry(.030,.004,6,sides).rotateX(Math.PI/2),"steel",[0,.043,.035]);
@@ -219,7 +309,15 @@ export function adjustOriginalGeometry(doc:Doc,plan:CreationPlan){
     wrapper.setScale(scale); return;
   }
   if(plan.kind==="sword"){
-    transformMesh(doc,"Blade",[a.bladeWidth??1,a.bladeLength??1,1],a.curveDelta??0);
+    transformMesh(doc,"Blade",[a.bladeWidth??1,a.bladeLength??1,1],a.curveDelta??0,true);
+    const root=doc.getRoot(),body=root.listNodes().find((n:Node)=>n.getName()==="SwordBody");
+    for(const inlay of root.listNodes().filter((n:Node)=>/^BladeFullerInlayDetail/.test(n.getName()))){
+      const previous=inlay.getMesh(),replacement=author(doc).mesh(body,"Refitted blade inlay",swordInlayGeometry(doc),"brass");
+      const updated=replacement.getMesh();
+      updated.setExtras(previous.getExtras());
+      updated.listPrimitives()[0].setMaterial(previous.listPrimitives()[0].getMaterial());
+      inlay.setMesh(updated);replacement.dispose();previous.dispose();
+    }
     if(a.guardWidth)transformMesh(doc,"Guard",[a.guardWidth,1,1]);
   }else if(plan.kind==="game-gun"){
     if(a.propLength){for(const name of ["GamePropBody","BarrelShroud","SidePanelLeft","SidePanelRight","TriggerGuardBottom"])transformMesh(doc,name,[1,1,a.propLength]);
@@ -241,9 +339,11 @@ export function adjustOriginalGeometry(doc:Doc,plan:CreationPlan){
 }
 
 export function addOriginalMotion(doc: Doc, plan: CreationPlan) {
+  if(plan.operation==="idle"&&doc.getRoot().listSkins().length){require("./characterRig").authorCharacterSkinIdle(doc);return;}
   const nodes=doc.getRoot().listNodes(),find=(name:string)=>{const node=nodes.find((n:Node)=>n.getName()===name);if(!node)throw new Error(`Required authored joint ${name} is missing.`);return node;};
   const buffer=doc.getRoot().listBuffers()[0];
-  const animation=doc.createAnimation(plan.operation==="dance"?"Original articulated dance":plan.operation==="projectile"?"Cosmetic projectile from muzzle":plan.operation==="swipe"?"Sword side-to-side swipe":"Turntable");
+  if(plan.operation==="idle"&&plan.kind==="assembly"&&!nodes.some((n:Node)=>/^(?:torso|chest|body)$/i.test(n.getName())))throw new Error("This assembly has no identifiable torso for a character idle. Name the body parts before animating; no substitute motion was added.");
+  const animation=doc.createAnimation(plan.operation==="idle"?"Original character idle":plan.operation==="dance"?"Original articulated dance":plan.operation==="projectile"?"Cosmetic projectile from muzzle":plan.operation==="swipe"?"Sword side-to-side swipe":"Turntable");
   const duration=plan.operation==="projectile"?2:4;
   const times=Float32Array.from({length:65},(_,i)=>i*duration/64);
   const input=doc.createAccessor().setType("SCALAR").setArray(times).setBuffer(buffer);
@@ -258,6 +358,23 @@ export function addOriginalMotion(doc: Doc, plan: CreationPlan) {
     const values:number[]=[],scales:number[]=[];
     for(let i=0;i<65;i++){const t=i/64;const phase=t<.8?t/.8:0;values.push(position[0],position[1],position[2]+phase*1.2);const visible=t<.78?1:.0001;scales.push(visible,visible,visible);}
     track(effect,"translation",3,values);track(effect,"scale",3,scales);
+  } else if(plan.operation==="idle") {
+    if(plan.kind==="person"){
+      rotation("TorsoJoint",t=>[.012*Math.sin(t*Math.PI*2),0,0]);
+      rotation("HeadJoint",t=>[0,.025*Math.sin(t*Math.PI*2),0]);
+    }else{
+      for(const node of nodes.filter((n:Node)=>n.getMesh()&&/head|torso|chest|body|tail/i.test(n.getName()))){
+        const origin=node.getTranslation(),values:number[]=[];
+        for(let i=0;i<65;i++){const t=i/64;values.push(origin[0],origin[1]+(/head/i.test(node.getName())?.005:.003)*Math.sin(t*Math.PI*2),origin[2]);}
+        track(node,"translation",3,values);
+        if(/tail/i.test(node.getName())){
+          const base=new THREE.Quaternion().fromArray(node.getRotation()),rotations:number[]=[];
+          for(let i=0;i<65;i++){const q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),.045*Math.sin(i/64*Math.PI*2)).multiply(base);rotations.push(...q.toArray());}
+          track(node,"rotation",4,rotations);
+        }
+      }
+    }
+    animation.setExtras({method:"authored-segmented-idle",description:"Subtle in-place body breathing and tail sway; no neural motion or skin deformation"});
   } else if(plan.operation==="dance") {
     rotation("PelvisJoint",t=>[0,.15*Math.sin(t*Math.PI*2),.09*Math.sin(t*Math.PI*4)]);
     rotation("TorsoJoint",t=>[.05*Math.cos(t*Math.PI*4),0,.12*Math.sin(t*Math.PI*2)]);
@@ -281,7 +398,12 @@ export function validateOriginal(doc: Doc, expectedHash?: string, expectChange=f
     const index=p.getIndices();if(index&&Array.from(index.getArray() as number[]).some(v=>v>=pos.getCount()))throw new Error("Invalid triangle indices.");triangles+=(index?.getCount()??pos.getCount())/3;
     if(!reused&&!p.getMaterial())throw new Error("A generated primitive has no material.");
   }
-  if(!triangles||!root.listScenes().length)throw new Error("The model has no renderable scene geometry.");
+  // Count instances in the active scene, not detached meshes retained in the
+  // resource graph after editing. A shared mesh may be drawn multiple times.
+  triangles=0;
+  const activeScene=root.getDefaultScene()??root.listScenes()[0];
+  activeScene?.traverse((node:Node)=>{const mesh=node.getMesh();if(mesh)for(const primitive of mesh.listPrimitives())triangles+=(primitive.getIndices()?.getCount()??primitive.getAttribute("POSITION")?.getCount()??0)/3;});
+  if(!triangles||!activeScene)throw new Error("The model has no renderable scene geometry.");
   const geometryPreserved=!expectedHash||originalGeometryHash(doc)===expectedHash;
   if(expectChange&&geometryPreserved)throw new Error("The requested geometry adjustment made no measurable alteration; the revision was not accepted.");
   if(!expectChange&&!geometryPreserved)throw new Error("Follow-up changed the original mesh geometry; the revision was not accepted.");

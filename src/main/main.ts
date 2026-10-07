@@ -1,4 +1,9 @@
-import { app, BrowserWindow, ipcMain, shell, nativeImage, session, crashReporter, dialog } from "electron";
+import { APP_NATIVE_CHANNELS } from "../shared/appNative";
+import { embeddedUrlAllowed } from "../shared/embeddedActions";
+import { appDialogs } from "./agent/appDialogs";
+import { app, BrowserWindow, ipcMain, shell, nativeImage, session, crashReporter } from "electron";
+import { EmbeddedActionBridge } from "./agent/embeddedActionBridge";
+import { EMBEDDED_ACTION_CHANNELS, type EmbeddedObserveRequest, type EmbeddedExecuteRequest } from "../shared/embeddedActions";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
@@ -107,6 +112,9 @@ import {
 import { CREATION_CHANNELS, type CreationRequest } from "../shared/creationFlow";
 import { UPDATER_CHANNELS } from "../shared/ipc";
 import { creationHistory, creationLibrary, reopenCreation, saveCreationToLibrary, submitCreation } from "./prompt3d/creationService";
+import { submitCreationPrompt } from "./prompt3d/creationPrompt";
+import { APP_ACTION_CHANNELS, type AppActionRequest } from "../shared/ipc";
+import { planAppAction } from "./agent/appActionPlanner";
 import { planAssetRefinement, saveAssetRefinement } from "./prompt3d/refinement";
 import { startCpuPlanner, stopOwnedCpuPlanner } from "./prompt3d/plannerRuntime";
 import { recordWorkflowExport, verifyWorkflowArtifact, workflowExportHistory } from "./prompt3d/artifactVerification";
@@ -253,13 +261,13 @@ async function createMainWindow() {
     if (permission === "media") callback(true);
     else callback(false);
   });
-  // Lock down every <webview> the renderer attaches: no preload, no node,
+  // Lock down every <webview>: only our text-dialog preload, no node,
   // sandboxed, context-isolated. We don't prevent attach (the Preview page
   // needs it) but we force-strip anything risky the renderer could request.
   // `will-attach-webview` fires before the guest is created, so this is the
   // only event where mutating webPreferences actually does anything.
   mainWindow.webContents.on("will-attach-webview", (_event, webPreferences) => {
-    delete webPreferences.preload;
+    webPreferences.preload = join(__dirname, "..", "preload", "guestDialogs.js");
     delete (webPreferences as { preloadURL?: string }).preloadURL;
     webPreferences.nodeIntegration = false;
     webPreferences.nodeIntegrationInSubFrames = false;
@@ -560,7 +568,7 @@ function registerIpc() {
   ipcMain.handle(PROMPT3D_CHANNELS.saveRevision, (event, request) => { prompt3d.assertCapability(prompt3dCapabilityFor(event)); return saveAssetRefinement(prompt3d.getRoot(), request); });
   ipcMain.handle(PROMPT3D_CHANNELS.chooseRoot, async (event) => {
     const token = prompt3dCapabilityFor(event);
-    const result = await dialog.showOpenDialog(mainWindow!, { title: "Choose local 3D generator storage", defaultPath: prompt3d.getRoot(), properties: ["openDirectory", "createDirectory"] });
+    const result = await appDialogs.showOpenDialog(mainWindow!, { title: "Choose local 3D generator storage", defaultPath: prompt3d.getRoot(), properties: ["openDirectory", "createDirectory"] });
     if (result.canceled || !result.filePaths[0]) return null;
     const overview = await prompt3d.setRoot(token, result.filePaths[0]);
     await workspaceStore.saveWorkspace({ prompt3dRoot: prompt3d.getRoot() });
@@ -568,7 +576,7 @@ function registerIpc() {
   });
   ipcMain.handle(PROMPT3D_CHANNELS.chooseReferenceImage, async (event) => {
     prompt3dCapabilityFor(event);
-    const result = await dialog.showOpenDialog(mainWindow!, {
+    const result = await appDialogs.showOpenDialog(mainWindow!, {
       title: "Choose a local reference image",
       properties: ["openFile"],
       filters: [
@@ -580,7 +588,7 @@ function registerIpc() {
   });
   ipcMain.handle(PROMPT3D_CHANNELS.chooseReferenceImages, async (event) => {
     prompt3dCapabilityFor(event);
-    const result = await dialog.showOpenDialog(mainWindow!, {
+    const result = await appDialogs.showOpenDialog(mainWindow!, {
       title: "Choose one to four Hunyuan reference views",
       properties: ["openFile", "multiSelections"],
       filters: [
@@ -598,9 +606,46 @@ function registerIpc() {
   ipcMain.handle(PROMPT3D_CHANNELS.rejectConcept, (event, request: Prompt3DRejectConceptRequest) => prompt3d.rejectConcept(prompt3dCapabilityFor(event), request));
   ipcMain.handle(PROMPT3D_CHANNELS.regenerateConcept, (event, id: string) => prompt3d.regenerateConcept(prompt3dCapabilityFor(event), id));
   ipcMain.handle(CREATION_CHANNELS.history, (event) => { assertPrompt3DSender(event); return creationHistory(prompt3d.getRoot()); });
+  ipcMain.handle(APP_ACTION_CHANNELS.plan, (event, request: AppActionRequest) => { assertPrompt3DSender(event); return planAppAction(request); });
+  const appWindowAllowed = (contents: Electron.WebContents) => {
+    if (!BrowserWindow.fromWebContents(contents) || contents.isDestroyed()) return false;
+    const url = contents.getURL().split("#", 1)[0];
+    const local = app.isPackaged
+      ? ["index.html", "viewer.html", "loader.html"].some(name => url === pathToFileURL(join(__dirname, "..", "renderer", name)).href)
+      : (() => { try { const u = new URL(url); return u.origin === new URL(RENDERER_DEV_URL).origin && ["/", "/index.html", "/viewer.html", "/loader.html"].includes(u.pathname); } catch { return false; } })();
+    return local || viewer.isAppActionWindow(contents) && embeddedUrlAllowed("threeflow", contents.getURL());
+  };
+  const assertAppDialogSender = (event: Electron.IpcMainInvokeEvent) => {
+    if (event.senderFrame !== event.sender.mainFrame || !appWindowAllowed(event.sender)) throw new Error("Dialog controls belong to an owned app window.");
+  };
+  const embeddedActions = new EmbeddedActionBridge(() => { const status = coder.getStatus(); return status.running ? status.url : null; }, appWindowAllowed);
+  ipcMain.handle(EMBEDDED_ACTION_CHANNELS.windows, event => { assertPrompt3DSender(event); return embeddedActions.windows(event.sender); });
+  ipcMain.handle(APP_NATIVE_CHANNELS.begin, async event => { assertPrompt3DSender(event); appDialogs.begin(event.sender); embeddedActions.native.begin(); await embeddedActions.native.watch(event.sender); });
+  ipcMain.handle(APP_NATIVE_CHANNELS.end, async event => { assertPrompt3DSender(event); appDialogs.end(event.sender); await embeddedActions.native.end(); });
+  ipcMain.handle(APP_NATIVE_CHANNELS.dialog, event => { assertAppDialogSender(event); return appDialogs.observe(event.sender); });
+  ipcMain.handle(APP_NATIVE_CHANNELS.status, event => { assertPrompt3DSender(event); return appDialogs.status(event.sender); });
+  ipcMain.handle(APP_NATIVE_CHANNELS.mkdir, (event, id, path, name) => { assertAppDialogSender(event); return appDialogs.mkdir(event.sender, id, path, name); });
+  ipcMain.handle(APP_NATIVE_CHANNELS.browse, (event, id, path, offset) => { assertAppDialogSender(event); return appDialogs.browse(event.sender, id, path, offset); });
+  ipcMain.handle(APP_NATIVE_CHANNELS.answer, (event, answer) => { assertAppDialogSender(event); return appDialogs.answer(event.sender, answer); });
+  ipcMain.on(APP_NATIVE_CHANNELS.syncText, (event, message, value) => {
+    const owner = mainWindow?.webContents;
+    const guest = event.sender;
+    const allowedGuest = owner && guest.hostWebContents === owner && guest.getType() === "webview" && ["builder", "forge", "coder", "threeflow", "preview"].some(surface => embeddedUrlAllowed(surface as import("../shared/embeddedActions").EmbeddedSurface, guest.getURL(), coder.getStatus().url));
+    // A synchronous prompt in the owner would block its dialog panel. All owner
+    // call sites use the async helper; guest callers retain their original API.
+    if (!owner || guest === owner || event.senderFrame !== guest.mainFrame || !(allowedGuest || appWindowAllowed(guest))) { event.returnValue = null; return; }
+    if (!appDialogs.isActive()) { mainWindow?.show(); mainWindow?.focus(); }
+    void appDialogs.request("text", message, value, owner).then(answer => { event.returnValue = answer; }, () => { event.returnValue = null; });
+  });
+  ipcMain.handle(APP_NATIVE_CHANNELS.request, (event, kind, message, value) => {
+    if (event.senderFrame !== event.sender.mainFrame || !appWindowAllowed(event.sender) || !mainWindow || mainWindow.isDestroyed()) throw new Error("Dialogs are restricted to an owned app window.");
+    return appDialogs.request(kind, message, value, event.sender);
+  });
+  ipcMain.handle(EMBEDDED_ACTION_CHANNELS.observe, (event, request: EmbeddedObserveRequest) => { assertPrompt3DSender(event); return embeddedActions.observe(event.sender, request); });
+  ipcMain.handle(EMBEDDED_ACTION_CHANNELS.execute, (event, request: EmbeddedExecuteRequest) => { assertPrompt3DSender(event); return embeddedActions.execute(event.sender, request); });
   ipcMain.handle(PROMPT3D_CHANNELS.inspectDeformation, (event, id: string) => prompt3d.inspectDeformation(prompt3dCapabilityFor(event), id));
   ipcMain.handle(PROMPT3D_CHANNELS.previewDeformation, (event, edit: import("../shared/deformationRegions").DeformationEdit) => prompt3d.previewDeformation(prompt3dCapabilityFor(event), edit));
-  ipcMain.handle(CREATION_CHANNELS.submit, (event, request: CreationRequest) => { prompt3d.assertCapability(prompt3dCapabilityFor(event)); return submitCreation(prompt3d.getRoot(), request); });
+  ipcMain.handle(CREATION_CHANNELS.submit, (event, request: CreationRequest) => { prompt3d.assertCapability(prompt3dCapabilityFor(event)); return submitCreationPrompt(prompt3d.getRoot(), request); });
   ipcMain.handle(CREATION_CHANNELS.reopen, (event, id: string) => { assertPrompt3DSender(event); return reopenCreation(prompt3d.getRoot(), id); });
   ipcMain.handle(CREATION_CHANNELS.library, (event) => { assertPrompt3DSender(event); return creationLibrary(prompt3d.getRoot()); });
   ipcMain.handle(CREATION_CHANNELS.save, async (event, id: string) => {
@@ -642,7 +687,7 @@ function registerIpc() {
     const variant = source?.kind === "generation" && Number.isInteger(source.variantIndex)
       ? `-variant-${Number(source.variantIndex) + 1}`
       : "";
-    const result = await dialog.showSaveDialog(mainWindow!, {
+    const result = await appDialogs.showSaveDialog(mainWindow!, {
       title: "Export finished Prompt-to-3D asset",
       defaultPath: join(app.getPath("documents"), `grudge-${safeJobId || "asset"}${variant}.glb`),
       filters: [{ name: "glTF Binary", extensions: ["glb"] }],
@@ -674,7 +719,7 @@ function registerIpc() {
     const token = prompt3dCapabilityFor(event);
     const batch = prompt3d.batchStatus(token, id);
     if (!batch || batch.state !== "complete") throw new Error("Finish the serial Prompt-to-3D batch before exporting its outputs.");
-    const result = await dialog.showOpenDialog(mainWindow!, {
+    const result = await appDialogs.showOpenDialog(mainWindow!, {
       title: "Export all finished Prompt-to-3D batch assets",
       defaultPath: app.getPath("documents"),
       properties: ["openDirectory", "createDirectory"],
@@ -995,7 +1040,7 @@ function registerIpc() {
         : lw && !lw.isDestroyed()
           ? lw
           : undefined;
-    const r = await dialog.showOpenDialog(parent ?? (undefined as any), {
+    const r = await appDialogs.showOpenDialog(parent ?? (undefined as any), {
       properties: ["openFile", "multiSelections"],
       filters: [
         {
@@ -1308,7 +1353,7 @@ function registerIpc() {
   ipcMain.handle("coder:status", () => coder.getStatus());
   ipcMain.handle("coder:open", () => { coder.openInBrowser(); });
   ipcMain.handle("coder:pickProjectDir", async () => {
-    const r = await dialog.showOpenDialog(mainWindow ?? (undefined as any), {
+    const r = await appDialogs.showOpenDialog(mainWindow ?? (undefined as any), {
       title: "Select Coder workspace folder",
       properties: ["openDirectory"],
     });
@@ -1334,7 +1379,7 @@ function registerIpc() {
   // back to the renderer, which loads it into a sandboxed <webview>.
   ipcMain.handle("preview:openHtmlDialog", async () => {
     if (!mainWindow) return { canceled: true, url: null, path: null };
-    const r = await dialog.showOpenDialog(mainWindow, {
+    const r = await appDialogs.showOpenDialog(mainWindow, {
       title: "Open local HTML file",
       properties: ["openFile"],
       filters: [

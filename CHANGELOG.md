@@ -18,6 +18,77 @@
 - Seed `GH_TOKEN` / `GITHUB_TOKEN` / Vercel / Railway / CF tokens from env. Add `.env.example`.
 - Logs live at `%APPDATA%\grudge-dev-tool\logs\main.log` (package name, not product name).
 - Vendor `@grudge-studio` animator/assets/core/engine **dist** in-repo so CI typecheck does not need a sibling GrudgeStudioNPM checkout.
+## 2026-09-11 — prompt-only character refinement
+
+- Add connected skin unification and repeat smoothing to the immutable prompt runner; expose skeleton fitting, skin binding, jaw-bone insertion and bounded named-bone shifts in Skeleton Studio.
+- Keep follow-up prompts tied to the exact loaded revision. Confirm saved-model reloads and named clip playback; give the viewport more room alongside the studio panels.
+- Preserve skin geometry during rig changes, retained animation during rebinding, and rig attributes during smoothing. Use spatial surface colour for fine reptile patterns on fused limbs, avoiding a stretched cylindrical texture.
+- Bundle the CPU surface author's Three utilities into the packaged main process. The prompt-only campaign found the missing runtime dependency and verified its repair in the app.
+- Four original prompts and the complete seven-edit refinement sequence pass in packaged runs. Read-only viewport samples verify skin deformation and stationary feet. The final appearance/repaint replay is recorded in `docs/character-refinement-20260911.md`.
+
+## 2026-09-11 — structural correction feedback
+
+- Feed rejected geometry and measured anatomical faults back into bounded planning retries; retain proposals and correction decisions locally. Propose and revalidate a procedural humanoid layout when default proportions fail.
+- Report observed creation errors instead of invented body-part selection requests; hide prior-model examples for new creations.
+- Separate completed-model handoffs to Skeleton Studio from geometry instructions, load the exact saved file, and require a confirmed model load before completion.
+- Keep the prompt panel expanded in Skeleton Studio and bind follow-up model revisions to the loaded source, returning the revised model to the studio.
+
+## 2026-09-10 — manual-testing character repairs
+
+- Isolate new creation requests from the selected asset, reject collapsed primitive assemblies, and validate basic humanoid placement with bounded component rotations.
+- Preserve component colours during texturing; add authored reptile scale patterns and a modest segmented character idle for appropriate-animation requests.
+- Clear previous errors/results for new requests and distinguish new-model intent from the retained prior selection. Build and focused checks pass; the new local package is open for manual acceptance.
+
+## 2026-09-10 — single-prompt workspace
+
+- Start with one prompt and Run with Grudge; provide collapsed, opt-in Hunyuan 3D and Paint choices on that same request.
+- Collapse manual utilities, history and route planning under Tools & saved work. Show one result panel after creation and load the viewer/neural interface only when needed.
+- Let Grudge reveal the original tools automatically, restore retained models for editor handoff, fill the native Hunyuan subject prompt and report its provider setup independently.
+- Bind named scene input to the observed scene canvas and enforce the permitted next-action choices after model decoding. Keep the native dialog and original editor transport.
+
+## 2026-09-10 — native dialogs and complete input transport
+
+- Continue app prompts through file/folder selection, directory creation, multiple files, save/overwrite, confirmations and text prompts. Preserve the original handlers and cancellation results.
+- Add native keyboard/text/pointer input, code and scroll surfaces, owned pop-out selection, browser file choosers and browser/blob export saving. Observe actual camera and saved-file results.
+- Keep document/element/owner checks and the original permission boundaries. All new transport is independent of Hunyuan.
+- Add real Electron native-dialog/input tests alongside the existing embedded-control and packaged checks. Detailed acceptance: `docs/native-app-controls-20260910.md`.
+
+## 2026-09-10 — automatic Grudge prompt, optional Hunyuan
+
+- Make the primary Prompt to 3D field invoke local grudge-dev analysis and the existing app action controller on submission, with shared progress, stopping and history across navigation. Keep direct manual creation controls available.
+- Default to existing creation/editing/animation/save utilities regardless of provider readiness or retained neural history. Open Hunyuan only by explicit request or its optional enhancement control.
+- Separate compound asset instructions from trailing app handoffs, and retain observed save evidence when continuing in another editor.
+- Start the installed loopback CPU planner when needed without downloading weights, replacing the requested model or contacting an external provider.
+
+## 2026-09-09 — local prompt execution and end-to-end repair
+
+- Extend Ask Grudge into Builder, Forge, Coder, ThreeFlow and Preview using fixed isolated control code, owned-guest and origin checks, expiring one-use observations, stale-document protection, semantic ARIA controls and exact text validation. Bound session handoff to supported origins.
+- Correct ThreeFlow's terrain starter covering its live editor. Expose existing tool tabs and catalog drag/drop, recover from a covering command palette, reach scroll-clipped sources and use exposed viewport areas. Confirm placement through hierarchy growth or a changed public selected-object caption; select Camera before repeated same-type placement when needed. Native live placement and palette recovery pass.
+- Expose ThreeFlow's existing property and axis labels. Bind literal field identities even before the panel opens, open Properties for its fields, and reject unrelated inputs/buttons or early completion. Native rename plus Position X now passes from the Material tab. Preserve selected-object context during property edits.
+- Make the existing Builder lab reachable under More tools, wait through guest startup and complete explicit click-once requests without repeating the action. Native Builder +Box passes. Retain normal admin access rules and report the actual session-injection outcome.
+- Bind click-once completion wording to the actual activation, correcting an invented Save result. Support ThreeFlow's explicit selected-object marker and existing palette Close button.
+- Prepare a separate, unapplied upstream ThreeFlow patch after live reload lost lighting. Local build/browser checks pass for restored lighting, immediate hierarchy updates, name/position persistence and clean helper lifecycle; snapshot checks preserve authored particles and pending transforms. Patch and reproduction notes are in `docs/patches/threeflow-embedded-20260909.md`. No upstream deployment is claimed.
+- Add an optional real-editor integration check requiring an explicit loopback build. Installed Grudge completes three separate create, compound-property and click-once prompts through the isolated bridge; fresh-document reload verifies retained name and position. Preserve the first test's reload race and corrected rerun evidence.
+
+- Complete previously blocked native Forge framing, cross-page component save/reopen and numeric editor checks after controller recovery; retain actual model/texture/animation evidence.
+- Preserve the current Forge scene when a prompted path fails; report the actual missing file instead of a generic planner explanation.
+- Add exact local folder/model path actions through existing Local Files and Forge handlers, with visible completion/failure instead of an unhandled picker.
+- Bind every understood literal setting in compound prompts; preserve quoted multiline values and significant spaces, reduce irrelevant planner context, and repair legacy boolean status text. Keep completion tied to observed results.
+
+- Add Ask Grudge across signed-in app routes, with real local control planning, existing-control execution, result checks, retained actions and Stop. Bind basic creation requests to the compound runner and preserve explicit optional-provider selection.
+- Add immutable component addition, duplication, renaming and removal, including exact later-target preflight and animation-preserving copies. Nine real edit-chain cases pass, including two expected rejections.
+- Repair control identity during React updates, closed-panel visibility, select labels, editor field/selection accessibility and invalid-input dispatch. Keep applied actions visible even when subsequent verification fails.
+- Bind current-model Forge handoff, explicit cross-page creation edits and disabled planner recovery; preserve numeric field equivalence and constrain new components to the existing scene. Retain the final native-controller blockage explicitly in the campaign report.
+- Correct renderer-only Grudge package classification so directory builds no longer report missing sibling runtime dependencies. See the campaign report for exact native results and remaining coverage limits.
+- Extend compound prompts to static placement, rotation, exact proportional scaling, named-part colors and removal of animation. Bind literal units, directions, ratios, exact part names and the selected asset kind; retain geometry, skins and unrelated surfaces in separate revisions.
+- Reject missing targets and unresolved requested edits before building, remove invented actions from negated/plain prompts, constrain each model action to its required parameters and allow one recorded planning correction. Keep failures visible in the creation workspace.
+- Repair brown/other named colors and grounded bench/mixed-scene defaults. Thirteen expanded live Grudge cases pass, including two expected rejections; see the campaign report for package and native evidence.
+- Prefer installed Grudge for local action planning and execute compound create, surface, detail, adjustment, supported motion and save requests through existing immutable revision services. Retain actual prompt/model/action receipts and truthful unsupported-action failures.
+- Build basic component/world assemblies with bounded placements, requested part counts and connected default trees/archways. Keep these labelled primitive blockouts.
+- Preserve edited scene objects, materials and clips across Forge scene save/load, including source-less primitives; retain prompt context on editor handoff.
+- Repair merged build fragments, global grid-style collisions, cropped depth/diagonal camera framing and neural preview sizing. Report unavailable Hunyuan Paint hardware before expensive integrity checks.
+- Keep sword blades seated during resizing and refit decorative inlays to the current blade surface; a real replay exposed the previous floating detail.
+- Verify nine representative real Grudge prompt builds, native creation/save/reopen/world scene recovery, a real four-side-inspected Hunyuan crate, focused checks and a Windows directory package. Paint remains blocked by free GPU memory; universal actions and complete neural finishing are not claimed. See `docs/prompt-e2e-20260909.md`.
 
 ## [1.1.1] - 2026-09-07
 
