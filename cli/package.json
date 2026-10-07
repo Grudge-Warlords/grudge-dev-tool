@@ -13,11 +13,13 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Build-Workspace.ps1\" -PackageRelative \"cli\" -Script \"build\" -NoLaunchPrompt",
     "dev": "tsx src/cli.ts",
     "prepublishOnly": "npm run build",
     "doctor": "node dist/cli.js doctor",
-    "setup": "node dist/cli.js setup"
+    "setup": "node dist/cli.js setup",
+    "workspace:build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Build-Workspace.ps1\"",
+    "workspace:menu": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Project-Console.ps1\""
   },
   "engines": {
     "node": ">=22"

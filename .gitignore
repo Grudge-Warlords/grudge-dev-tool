@@ -42,3 +42,6 @@ backups/
 __pycache__/
 *.py[cod]
 /.local-test-profile
+
+# This device only; public installers collect their own drive choices.
+.storage/device.json

@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Build-Workspace.ps1\" -PackageRelative \"templates/r3f-boilerplate\" -Script \"build\" -NoLaunchPrompt",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "workspace:build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Build-Workspace.ps1\"",
+    "workspace:menu": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Project-Console.ps1\""
   },
   "dependencies": {
     "@react-three/drei": "^9.108.4",

@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "project": "grudgegit/grudge-dev-tool",
+  "name": "grudge-dev-tool",
+  "roles": [
+    {
+      "id": "application",
+      "label": "Installed application",
+      "requiredBytes": 0,
+      "recommendedBytes": 0,
+      "performance": "Read mostly; SSD improves cold start."
+    },
+    {
+      "id": "runtime",
+      "label": "Live data / database indexes",
+      "requiredBytes": 268435456,
+      "recommendedBytes": 2147483648,
+      "performance": "SSD preferred for random reads and writes."
+    },
+    {
+      "id": "scratch",
+      "label": "Temporary work and caches",
+      "requiredBytes": 268435456,
+      "recommendedBytes": 10737418240,
+      "performance": "SSD preferred; separate from retained data."
+    },
+    {
+      "id": "bulk",
+      "label": "Media / assets / retained datasets",
+      "requiredBytes": 0,
+      "recommendedBytes": 20000000000,
+      "performance": "HDD suitable for sequential reads and writes; grows with imports."
+    },
+    {
+      "id": "models",
+      "label": "Optional active AI models",
+      "requiredBytes": 3000000000,
+      "recommendedBytes": 100000000000,
+      "performance": "SSD preferred for model loading. Actual model manifest size takes precedence."
+    },
+    {
+      "id": "backup",
+      "label": "Backup destination",
+      "requiredBytes": 0,
+      "recommendedBytes": 0,
+      "performance": "Separate physical drive preferred; capacity depends on retained data."
+    }
+  ],
+  "payloadBytes": null,
+  "storeMarker": null,
+  "sizeBasis": "Payload bytes are measured after a future build. Required data/scratch values are operational allowances; recommendations are growth scenarios, not preallocated storage or measured requirements.",
+  "usage": "While actively used; closing may leave tray/owned service",
+  "aiModels": "Ollama grudge-dev/llama3.2; optional Hunyuan3D/TRELLIS provider weights; cloud Workers AI has no PC weights",
+  "releaseRepository": "Grudge-Warlords/grudge-dev-tool",
+  "publication": "Only installer/release artifacts; no personal paths, databases, keys, media or private source.",
+  "requirements": {
+    "app": [
+      "Node.js",
+      "Electron builder",
+      "NSIS"
+    ],
+    "cli": [
+      "Node.js and project package manager"
+    ],
+    "deploy-observatory": [
+      "Node.js and Wrangler"
+    ]
+  },
+  "environmentRoles": {}
+}
