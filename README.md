@@ -1,5 +1,9 @@
 # Grudge Dev Tool
 
+## Current device storage — 7 October 2026
+
+See [.storage/README.md](.storage/README.md) and [.storage/layout.json](.storage/layout.json) for the current C: source target, D: build/model/index paths and E: release paths. This dated contract supersedes older storage instructions; source and persistent-data migration remains pending. Historical evidence retains the paths used when it was recorded.
+
 **Best-in-class Grudge Studio admin shell** — Elite Three.js studio (local preview), ObjectStore/R2 browser, Forge embed, Preview playtests, Skeleton Studio, Agent AI, and **single-login SSO (Grudge ID)** across all tabs against ONE TRUTH (Railway · CDN · ObjectStore · [puter-space](https://ai.grudge-studio.com/puter-space) · fleet hosts).
 
 | Surface | Role |
