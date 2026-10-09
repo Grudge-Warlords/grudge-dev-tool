@@ -1,7 +1,7 @@
 {
   "name": "grudge-dev-tool",
   "version": "0.5.0",
-  "description": "Grudge Studio developer CLI — fleet health, auth, and asset-pack uploads for ONE TRUTH wiring.",
+  "description": "Companion CLI for Grudge Dev Tool desktop — ONE TRUTH doctor, auth, asset-pack uploads (not a tray substitute).",
   "type": "module",
   "license": "MIT",
   "bin": {
@@ -13,13 +13,11 @@
     "README.md"
   ],
   "scripts": {
-    "build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Build-Workspace.ps1\" -PackageRelative \"cli\" -Script \"build\" -NoLaunchPrompt",
+    "build": "tsc",
     "dev": "tsx src/cli.ts",
     "prepublishOnly": "npm run build",
     "doctor": "node dist/cli.js doctor",
-    "setup": "node dist/cli.js setup",
-    "workspace:build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Build-Workspace.ps1\"",
-    "workspace:menu": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Project-Console.ps1\""
+    "setup": "node dist/cli.js setup"
   },
   "engines": {
     "node": ">=22"

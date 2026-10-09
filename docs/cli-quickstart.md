@@ -5,8 +5,11 @@ nav_order: 2
 ---
 # CLI Quickstart
 
-The `grudge-dev` CLI autonomously wires into the Grudge Studio **ONE TRUTH** fleet.  
-API base: **`https://client.grudge-studio.com`**. Same `/api/objectstore/*` contract as the desktop admin shell.
+The `grudge-dev` CLI is the **headless companion** to the [Grudge Dev Tool](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) desktop admin shell (**v1.1.7+**). It wires into the same **ONE TRUTH** fleet.
+
+API base: **`https://client.grudge-studio.com`**. Same `/api/objectstore/*` contract as the tray app.
+
+Desktop first → [Download installer](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest). Growth cadence: [AI · Spawn · growth](ai-spawn-growth-cadence.md) · repo `npm run growth:check`.
 
 Host map: [Systems & APIs](systems-api.md) · [ONE TRUTH](one-truth.md).
 

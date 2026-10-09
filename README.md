@@ -31,7 +31,7 @@ See [.storage/README.md](.storage/README.md) and [.storage/layout.json](.storage
 | Package | Version | What it is |
 |---------|---------|------------|
 | **Desktop app** | **v1.1.7** | Windows tray · AI · Spawn · free-AI **growth cadence** · Elite (no silent Toon swap) · Forge / ThreeFlow · auto-update |
-| **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
+| **`grudge-dev` CLI** | v0.5.0 | Companion to desktop — `setup` · `doctor` · `login` · `upload-pack` · `plugin` — [`cli/`](cli/) · [cli README](cli/README.md) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
 · [AI · Spawn · growth cadence](docs/ai-spawn-growth-cadence.md) (`npm run growth:check`) · [Systems & APIs](docs/systems-api.md) · [ONE TRUTH](docs/one-truth.md) · [Databases · backups](docs/database-backups-sharing.md) · [AI · Workers](docs/ai-workers-d1-r2-stream.md) · [Admin architecture](docs/admin-architecture.md)  

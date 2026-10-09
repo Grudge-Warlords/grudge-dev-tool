@@ -1,12 +1,24 @@
-# grudge-dev-tool
+# grudge-dev (CLI)
 
-Grudge Studio developer CLI (v0.5.0). Upgraded from the v0.4.0 Windows tray concept with a **fully autonomous CLI** that wires into ONE TRUTH fleet endpoints used by `grudge-builder`.
+Companion CLI for **[Grudge Dev Tool](https://github.com/Grudge-Warlords/grudge-dev-tool)** — the Windows desktop admin shell (**v1.1.7+**).
+
+This package is **not** a replacement for the tray app. Install the desktop from [Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest); use `grudge-dev` for setup, CI doctor, pack upload, and plugin-host checks against the same **ONE TRUTH** fleet (`https://client.grudge-studio.com`).
+
+| Surface | Role |
+|---------|------|
+| **Desktop** | Home · Assets · Elite · Forge · Preview · Agent AI · growth cadence |
+| **CLI (`grudge-dev`)** | `setup` · `doctor` · `login` · `upload-pack` · `fleet` · `plugin` |
+
+Docs: [CLI quickstart](https://grudge-warlords.github.io/grudge-dev-tool/cli-quickstart.html) · [Growth cadence](https://grudge-warlords.github.io/grudge-dev-tool/ai-spawn-growth-cadence/) · [Systems & APIs](https://grudge-warlords.github.io/grudge-dev-tool/systems-api.html)
 
 ## Quick start
 
 ```powershell
+# From repo
+cd cli
+npm install
+npm run build
 npm install -g .
-# or: npx grudge-dev-tool setup
 
 grudge-dev setup
 grudge-dev doctor
@@ -14,18 +26,21 @@ grudge-dev login --admin-password <your ADMIN_PASSWORD>
 grudge-dev upload-pack --root "C:\packs\Classic64" --pack-id classic64 --version 0.6 --dry-run
 ```
 
-Config lives at `%USERPROFILE%\.grudge-dev\config.json`. Credentials use **keytar** when available, else `auth.json`.
+Config: `%USERPROFILE%\.grudge-dev\config.json`. Credentials use **keytar** when available, else `auth.json`.
+
+Desktop growth smoke (repo root, not this package): `npm run growth:check`.
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
-| `setup` | Auto-detect `client.grudge-studio.com` or local dev API + grudge-builder repo |
-| `doctor` | ONE TRUTH probes (manifest, auth, objectstore JSON, icons) |
+| `setup` | Auto-detect `client.grudge-studio.com` or local API + GrudgeBuilder checkout |
+| `doctor` | ONE TRUTH probes (manifest, auth, objectstore JSON, icons). `--json` for CI |
 | `login` | Save JWT or admin password for `/api/objectstore/*` |
 | `fleet` | Canonical URLs + live `/api/fleet/manifest` |
 | `upload-pack` | Asset pack ingestion → presigned uploads + manifest |
 | `search` | Query `asset-packs/*/manifest.json` catalogs |
+| `plugin` | Local plugin host (`127.0.0.1:17380`) status when desktop is running |
 | `status` | Print saved config |
 
 ## Environment
@@ -35,18 +50,18 @@ Config lives at `%USERPROFILE%\.grudge-dev\config.json`. Credentials use **keyta
 | `GRUDGE_API_BASE` | Override API (e.g. `https://client.grudge-studio.com`) |
 | `GRUDGE_AUTH_TOKEN` | Bearer JWT (skips keytar) |
 | `GRUDGE_ADMIN_PASSWORD` | Admin upload password |
-| `GRUDGE_BUILDER_ROOT` | Preferred grudge-builder path for setup |
+| `GRUDGE_BUILDER_ROOT` | Preferred GrudgeBuilder path for `setup` |
 
-## grudge-builder integration
+## GrudgeBuilder integration
 
-From grudge-builder:
+From a GrudgeBuilder checkout (when wired):
 
 ```powershell
 npm run upload-pack -- --root "C:\packs\MyPack" --pack-id my-pack --dry-run
 ```
 
-Backend routes: `server/integrations/object_storage/devToolRoutes.ts` (`/api/objectstore/*`).
+Backend routes live on the fleet API as `/api/objectstore/*` (client → Railway / ObjectStore). Prefer **Grudge ID** for product login; admin password is for upload automation.
 
-## Tray UI
+## Desktop (current)
 
-The Windows system-tray browser app remains planned for v0.6. This release focuses on autonomous CLI setup and CI-friendly `doctor --json`.
+The Windows tray / Electron admin shell **ships today** (latest **v1.1.7**): Elite viewer, Forge embed, Agent AI, free-AI / Spawn growth cadence. This CLI stays the headless / CI companion — it does not replace the installer.
