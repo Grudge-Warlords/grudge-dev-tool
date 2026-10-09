@@ -1,0 +1,145 @@
+{
+  "$schema": "./growth-cadence.schema.json",
+  "schemaVersion": 1,
+  "id": "grudge-ai-spawn-growth",
+  "title": "AI · Free AI · Spawn · game improvement cadence",
+  "updated": "2026-10-09",
+  "brain": "https://ai.grudge-studio.com",
+  "docs": {
+    "devTool": "docs/ai-spawn-growth-cadence.md",
+    "legion": "https://ai.grudge-studio.com/v1/ssot",
+    "freeAiJoin": "https://github.com/MolochDaGod/grudge-ai-hub/blob/main/docs/FREE_AI_JOIN_SSOT.md",
+    "dailyMaintenance": "docs/daily-maintenance.md"
+  },
+  "principles": [
+    "One public brain: ai.grudge-studio.com — Forge free-ai / Catsot / Telegram / Hermes attach",
+    "Extend existing SSOT — never a second router, bag DB, or play hero loader",
+    "Spawn worlds are git: clone with SPAWN_TOKEN, read AGENTS.md + Tome section, push to main",
+    "Railway is player SSOT; Spawn player.state is mirror only",
+    "Cheap → paid AI order: Groq tools → Legion → Forge free-ai → optional Railway → xAI/Puter last",
+    "Daily maintenance (config/maintenance.policy.json) stays fail-closed until owner-approved"
+  ],
+  "lanes": {
+    "daily": {
+      "label": "Daily (ops + free AI health)",
+      "owner": "Dev Tool Agent AI · Telegram · n8n optional",
+      "checks": [
+        {
+          "id": "legion-health",
+          "url": "https://ai.grudge-studio.com/v1/health",
+          "expect": "200 json ok"
+        },
+        {
+          "id": "forge-free-ai",
+          "url": "https://forge.grudge-studio.com/api/free-ai/status",
+          "expect": "200 legionBinding guestLegionKey"
+        },
+        {
+          "id": "spawn-llms",
+          "url": "https://www.spawn.co/llms.txt",
+          "expect": "200 text"
+        },
+        {
+          "id": "one-truth-fleet",
+          "cmd": "npm run fleet:probe",
+          "expect": "score >= 70"
+        }
+      ],
+      "improve": [
+        "Pick one live game friction from Home Featured / Spawn room chat",
+        "Ship the smallest wire/fix — no invented systems",
+        "Smoke the live URL before calling it done"
+      ]
+    },
+    "weekly": {
+      "label": "Weekly (game + Spawn growth)",
+      "owner": "Dev Tool · Legion companion · Spawn editor agents",
+      "checks": [
+        {
+          "id": "play-kit-health",
+          "url": "https://casting.grudge.studio/api/play-kit-health",
+          "expect": "200 { ok: true } when Casting is in scope"
+        },
+        {
+          "id": "free-ai-join",
+          "cmd": "npm run growth:check",
+          "expect": "all critical free-AI + Spawn doors green"
+        },
+        {
+          "id": "spawn-worlds-review",
+          "note": "For each editor world in GET spawn /me worlds: AGENTS.md current, one player-facing push, chat listener healthy"
+        }
+      ],
+      "improve": [
+        "One Warlords / Open / Nemesis / Spawn world improvement that players feel",
+        "Cook definitions from info.* when recipes change — never second bag",
+        "Ask survival/racalvin: join game vs help build when a Spawn invite lands"
+      ]
+    },
+    "monthly": {
+      "label": "Monthly (best-practice hardening)",
+      "owner": "Owner + Dev Tool maintenance + Legion deploy",
+      "checks": [
+        {
+          "id": "maintenance-policy",
+          "cmd": "npm run maintenance:check",
+          "expect": "policy valid; schedule still owner-gated"
+        },
+        {
+          "id": "legion-deploy-smoke",
+          "note": "From grudge-ai-hub: npm run smoke after any hub deploy"
+        },
+        {
+          "id": "secret-rotation-review",
+          "note": "GRUDGE_AI_KEY on Catsot; Telegram Hermes env; SPAWN_TOKEN reconnect if revoked — never paste sak_"
+        }
+      ],
+      "improve": [
+        "Retire one stale host/dep from DEPRECATED_HOSTS or unused npm",
+        "Refresh free-waterfall model list in Legion if CF/Groq change",
+        "Review growth-cadence.json lanes against live fleet"
+      ]
+    }
+  },
+  "spawnWorldsPriority": [
+    {
+      "address": "@survival/nexus-nemesis-season-1",
+      "name": "Nexus Nemesis: Season 1",
+      "focus": "TCG season play + account bridge; player.state mirror only"
+    },
+    {
+      "address": "@racalvin/grudge-warlords",
+      "name": "Grudge Warlords",
+      "focus": "Open-world craft/hunt; Railway bag SSOT"
+    },
+    {
+      "address": "@molochdadev/game-2",
+      "name": "New Game",
+      "focus": "Character onboarding Hall → Warlords portal; @@vexer editor"
+    }
+  ],
+  "freeAiAttach": {
+    "order": ["groq-tools", "legion", "forge-free-ai", "railway-optional", "xai-puter-last"],
+    "surfaces": {
+      "legion": "https://ai.grudge-studio.com",
+      "forgeFreeAi": "https://forge.grudge-studio.com/api/free-ai/",
+      "catsot": "https://grok-builder-agent.grudge.workers.dev",
+      "telegram": "@grudagamebot",
+      "hermes": "https://hermes-agent.0umigil.cserverhost.cloud",
+      "n8n": "https://n8n.0umigil.cserverhost.cloud"
+    }
+  },
+  "devTool": {
+    "route": "/ai",
+    "presets": [
+      "Growth check (free AI + Spawn)",
+      "Fleet health + doctor",
+      "Spawn world improve (AGENTS.md → Tome → push)"
+    ],
+    "commands": {
+      "growthCheck": "npm run growth:check",
+      "fleetProbe": "npm run fleet:probe",
+      "maintenanceCheck": "npm run maintenance:check"
+    }
+  }
+}

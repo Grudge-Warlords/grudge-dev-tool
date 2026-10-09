@@ -307,6 +307,37 @@ export default function StudioHub({
       </section>
 
       <section className="hub-section">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h2 className="hub-section-title mb-0">Growth cadence</h2>
+          <button
+            type="button"
+            className="btn ghost text-xs"
+            onClick={() => onNavigate?.("/ai")}
+            title="Agent AI · Growth check preset"
+          >
+            Agent AI
+          </button>
+        </div>
+        <p className="text-[11px] text-muted mb-2 max-w-2xl">
+          Free AI · Legion · Spawn · game improvements on a daily / weekly / monthly loop. Brain stays{" "}
+          <span className="font-mono">ai.grudge-studio.com</span>. Run{" "}
+          <span className="font-mono">npm run growth:check</span> · docs{" "}
+          <span className="font-mono">ai-spawn-growth-cadence</span>.
+        </p>
+        <div className="hub-systems">
+          <SystemChip
+            Icon={Bot}
+            label="Legion AI"
+            url={FLEET_URLS.ai}
+            ok={probes.find((p) => p.id === "ai-hub" || p.id === "ai-health")?.ok}
+          />
+          <SystemChip Icon={Hammer} label="Forge free-ai" url={FLEET_URLS.forgeFreeAiStatus} />
+          <SystemChip Icon={Globe} label="Spawn llms" url={FLEET_URLS.spawnLlms} />
+          <SystemChip Icon={Bot} label="Growth SSOT" url={FLEET_URLS.aiGrowthSsot} />
+        </div>
+      </section>
+
+      <section className="hub-section">
         <h2 className="hub-section-title">All tools</h2>
         <div className="hub-actions">
           {ALL_TOOL_ROUTES.filter((s) => admin || !s.adminOnly).map((s) => (

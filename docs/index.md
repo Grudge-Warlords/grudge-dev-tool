@@ -63,6 +63,8 @@ Assets (CDN / ObjectStore)
     → Agent AI / Upload (grudge-convert → R2 → D1 seed)
 ```
 
+**Growth cadence (AI · free AI · Spawn · games):** [AI · Spawn · growth cadence](ai-spawn-growth-cadence.md) · `npm run growth:check`.
+
 Details: [Admin architecture](admin-architecture.md) · [AI · D1 · R2 · Stream](ai-workers-d1-r2-stream.md).
 
 ---

@@ -36,6 +36,16 @@ const VIS_ICON: Record<string, React.ReactNode> = {
 /** One-click agentic tasks for make / deploy against ONE TRUTH fleet */
 const DEPLOY_PRESETS: Array<{ label: string; task: string }> = [
   {
+    label: "Growth check (free AI + Spawn)",
+    task:
+      "Run the AI·Spawn growth cadence: npm run growth:check in grudge-dev-tool. Probe ai.grudge-studio.com/v1/health, /v1/ssot growth field, forge free-ai/status, spawn.co/llms.txt. Report critical score and the next daily/weekly improve item from config/growth-cadence.json. Do not invent a second AI router.",
+  },
+  {
+    label: "Spawn world improve",
+    task:
+      "Help build on a Spawn editor world from growth-cadence spawnWorldsPriority (Nemesis S1, Warlords, or New Game). Use SPAWN_TOKEN from ~/.spawn/token (never print). Clone, read AGENTS.md, GET agent/docs?section= for the shape you will edit, push one player-facing change to main. Ask the linked human join vs build if unclear.",
+  },
+  {
     label: "Deploy GLB pack to R2",
     task:
       "Convert and optimize all GLB/FBX in the current workspace for web, then upload to assets.grudge-studio.com via objectstore upload-url. Report CDN paths.",

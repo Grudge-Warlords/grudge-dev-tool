@@ -129,6 +129,17 @@ export const FLEET_URLS = {
   voxelStudio: "https://grudox.grudge-studio.com/studio/",
   /** Deprecated — do not use for new auth or game-data */
   deprecatedApi: "https://api.grudge-studio.com",
+  /**
+   * Spawn multiplayer worlds (git-live). Agent token at ~/.spawn/token — never commit.
+   * Growth cadence: docs/ai-spawn-growth-cadence.md · npm run growth:check
+   */
+  spawn: "https://www.spawn.co",
+  spawnLlms: "https://www.spawn.co/llms.txt",
+  /** Forge free-ai hands → Legion binding (no browser provider keys). */
+  forgeFreeAi: "https://forge.grudge-studio.com/api/free-ai/",
+  forgeFreeAiStatus: "https://forge.grudge-studio.com/api/free-ai/status",
+  /** Machine growth pointers (lanes daily/weekly/monthly). */
+  aiGrowthSsot: "https://ai.grudge-studio.com/v1/ssot",
 } as const;
 
 /**

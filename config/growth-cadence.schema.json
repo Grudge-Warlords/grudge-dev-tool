@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://grudge-studio.com/schemas/growth-cadence.json",
+  "title": "Grudge AI · Spawn · game growth cadence",
+  "type": "object",
+  "required": ["schemaVersion", "id", "lanes", "brain"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "updated": { "type": "string" },
+    "brain": { "type": "string", "format": "uri" },
+    "docs": { "type": "object" },
+    "principles": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "lanes": {
+      "type": "object",
+      "required": ["daily", "weekly", "monthly"],
+      "properties": {
+        "daily": { "$ref": "#/$defs/lane" },
+        "weekly": { "$ref": "#/$defs/lane" },
+        "monthly": { "$ref": "#/$defs/lane" }
+      }
+    },
+    "spawnWorldsPriority": { "type": "array" },
+    "freeAiAttach": { "type": "object" },
+    "devTool": { "type": "object" }
+  },
+  "$defs": {
+    "lane": {
+      "type": "object",
+      "required": ["label", "checks", "improve"],
+      "properties": {
+        "label": { "type": "string" },
+        "owner": { "type": "string" },
+        "checks": { "type": "array" },
+        "improve": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
