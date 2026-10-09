@@ -18,7 +18,7 @@ See [.storage/README.md](.storage/README.md) and [.storage/layout.json](.storage
 | **Preview** | Open · client · water · GRUDOX · **Multiverse** playtests (webview) |
 | **Play** | Native Three.js — Toon kit, WASD, one mixer, video, scripts |
 | **Games** | Fleet catalog launcher |
-| **Agent AI** | Make & deploy · Ollama / Legion / Workers AI |
+| **Agent AI** | Make & deploy · Growth check / Spawn improve · Ollama / Legion / Workers AI |
 | **Settings** | ONE TRUTH · Grudge ID matrix · R2/CF · toolchain · defaults |
 
 [![Release](https://img.shields.io/github/v/release/Grudge-Warlords/grudge-dev-tool?display_name=tag&sort=semver)](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest)
@@ -30,27 +30,31 @@ See [.storage/README.md](.storage/README.md) and [.storage/layout.json](.storage
 
 | Package | Version | What it is |
 |---------|---------|------------|
-| **Desktop app** | **v1.1.6** | Windows tray · Elite shows opened mesh (no silent Toon human swap) · Containers · Forge / ThreeFlow · auto-update |
+| **Desktop app** | **v1.1.7** | Windows tray · AI · Spawn · free-AI **growth cadence** · Elite (no silent Toon swap) · Forge / ThreeFlow · auto-update |
 | **`grudge-dev` CLI** | v0.5.0 | `setup` · `doctor` · `login` · `upload-pack` — [`cli/`](cli/) |
 
 📚 **Docs:** <https://grudge-warlords.github.io/grudge-dev-tool/>  
-· [Systems & APIs](docs/systems-api.md) · [ONE TRUTH](docs/one-truth.md) · [Databases · backups](docs/database-backups-sharing.md) (`npm run backup:postgres` · `npm run restore:postgres -- --docker`) · [AI · Workers](docs/ai-workers-d1-r2-stream.md) · [Pipeline Review](docs/pipeline-review-ai-worker.md) · [Admin architecture](docs/admin-architecture.md)  
-· **Account cloud:** <https://ai.grudge-studio.com/puter-space> (never bag/roster)
+· [AI · Spawn · growth cadence](docs/ai-spawn-growth-cadence.md) (`npm run growth:check`) · [Systems & APIs](docs/systems-api.md) · [ONE TRUTH](docs/one-truth.md) · [Databases · backups](docs/database-backups-sharing.md) · [AI · Workers](docs/ai-workers-d1-r2-stream.md) · [Admin architecture](docs/admin-architecture.md)  
+· **Account cloud:** <https://ai.grudge-studio.com/puter-space> (never bag/roster) · **Legion:** <https://ai.grudge-studio.com/v1/ssot> (`growth` field)
 
 ⬇ **Installer (latest):** [GitHub Releases](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest) · Windows x64 · NSIS · **electron-updater**
 
 ---
 
-## What's new in 1.1.6
+## What's new in 1.1.7
 
-1. **No silent Toon human** — Elite / Model3DViewer never replace an opened GLB with `human.glb`. Clip-only bind stays opt-in (Skeleton Studio).  
-2. **`isAnimWithoutMesh` gate** — requires **no** SkinnedMesh **and** &lt;32 mesh tris (was `||`, which swapped cars/creatures with animations).  
-3. **Play kit memory** — last Toon race persisted; infer race from `WK_/ELF_/ORC_/…` prefixes instead of always assuming human.
+1. **Growth cadence** — daily / weekly / monthly best practices for free AI, Legion (`ai.grudge-studio.com`), Spawn worlds, and game improvements. Machine SSOT: [`config/growth-cadence.json`](config/growth-cadence.json).  
+2. **`npm run growth:check`** — smokes Legion health/ssot, Forge free-ai, Spawn `llms.txt` (+ Hermes / n8n / Catsot info). Wired into `ci:live`.  
+3. **Home + Agent AI** — Growth cadence strip; presets **Growth check** and **Spawn world improve**.  
+4. **Fleet URLs** — `spawn`, `forgeFreeAi*`, `aiGrowthSsot` on the admin host map.
+
+Legion mirror: `GET https://ai.grudge-studio.com/v1/ssot` → `growth` · daily cron → KV `growth:last-check`. Docs: [ai-spawn-growth-cadence](docs/ai-spawn-growth-cadence.md).
 
 ### Recent
 
 | Tag | Highlights |
 |-----|------------|
+| **1.1.6** | No silent Toon human swap · `isAnimWithoutMesh` AND gate · Play kit race memory |
 | **1.1.5** | Nav scroll · Home All tools · GrudgeLoader Containers · Elite panel scroll |
 | **1.1.4** | FBX 6100 → Blender convert · ThreeFlow tab = live `/editor` only |
 | **1.1.3** | Main window always opens · plugin host before file-open · vendored `@grudge-studio` dist |

@@ -14,25 +14,26 @@ Desktop **admin** shell for Grudge Studio — **Elite** Three.js studio, Assets,
 [⬇ Download latest installer →](https://github.com/Grudge-Warlords/grudge-dev-tool/releases/latest){: .btn .btn-primary .fs-5 .mb-2 .mr-2 }
 [Systems & APIs →](systems-api.md){: .btn .fs-5 .mb-2 .mr-2 }
 [Admin architecture →](admin-architecture.md){: .btn .fs-5 .mb-2 .mr-2 }
+[AI · Spawn growth →](ai-spawn-growth-cadence.md){: .btn .fs-5 .mb-2 .mr-2 }
 [Production deployment →](production-deployment.md){: .btn .fs-5 .mb-2 }
 
 ## Production tray (current package)
 
-Windows x64 NSIS · **v1.0.11** · electron-updater · Local Files 3D → ThreeFlow · Elite media · Forge embed · Preview · Agent AI.
+Windows x64 NSIS · **v1.1.7** · electron-updater · Elite (no silent Toon swap) · Growth cadence · Forge / ThreeFlow · Agent AI.
 
 | Surface | Role |
 |---------|------|
-| **Home** | Fleet health + admin systems (client, info.*, ENGINE, open, GRUDOX, Forge, Coder, puter-space) |
-| **Local Files** | Disk browser. Click = preview. Double-click 3D → **ThreeFlow**. Media → Elite. |
-| **Elite** | Images / audio / video / text / PDF pop-out. Not the 3D editor. |
-| **Assets** | R2/ObjectStore · `>query` · Elite pop-out for media · explicit Open in ThreeFlow / Forge |
-| **ThreeFlow** | Warlords scene editor (`threeflow.vercel.app?asset=` or local loopback) |
+| **Home** | Fleet health · **Growth cadence** strip · All tools · featured games |
+| **Local Files** | Disk browser. Click = preview. Double-click 3D → **Elite viewer**. Media → Elite. |
+| **Elite** | Images / audio / video / text / PDF / 3D pop-out (`gltfProdLoader`). |
+| **Assets** | R2/ObjectStore · `>query` · Elite pop-out · explicit Open in ThreeFlow / Forge |
+| **ThreeFlow** | Live `threeflow.vercel.app/editor` (Terrain = `?tab=terrain`) |
 | **Forge** | **Same source as https://forge.grudge-studio.com** — R3F + Rapier + AI Worker |
-| **Preview** | Play-mode clients (open · client · water · GRUDOX · Multiverse) after Forge |
+| **Preview** | Open · client · water · GRUDOX · Multiverse playtests |
 | **Coder** | Embed coder.grudge-studio.com + optional local PTY |
-| **Skeleton** | Mixamo-25 → T-pose → retarget → grudge-convert → CDN |
+| **Skeleton** | Mixamo-25 → Toon Bip001 play bind → convert → CDN |
 | **Store / BlenderKit / UUID / Legion** | Catalogs, ingest, IDs, fleet AI chat |
-| **Agent AI** | Make & deploy · convert · upload · Forge handoff |
+| **Agent AI** | Make & deploy · **Growth check** / Spawn improve presets · Ollama / Legion |
 | **Plugin host** | `127.0.0.1:17380` — VS Code / standalone / viewer / agentic attach |
 | **Docs** | Same `docs/` Markdown as this GitHub Pages site |
 
