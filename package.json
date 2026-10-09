@@ -1,7 +1,7 @@
 {
   "name": "grudge-dev-tool",
-  "version": "1.1.6",
-  "description": "Grudge Dev Tool \u2014 Grudge Three Pipeline (multi-asset 3D opener), Elite media, ONE TRUTH admin, Forge live + ThreeFlow handoff.",
+  "version": "1.1.7",
+  "description": "Grudge Dev Tool — Grudge Three Pipeline (multi-asset 3D opener), Elite media, ONE TRUTH admin, Forge live + ThreeFlow handoff.",
   "private": true,
   "homepage": "https://grudge-warlords.github.io/grudge-dev-tool/",
   "repository": {
@@ -28,12 +28,12 @@
     "dev:tsc": "tsc -p tsconfig.main.json --watch --preserveWatchOutput",
     "dev:electron": "wait-on tcp:5173 && electron .",
     "dev:main": "npm run dev:tsc",
-    "build:icons": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Build-Workspace.ps1\" -PackageRelative \".\" -Script \"build:icons\" -NoLaunchPrompt",
+    "build:icons": "node scripts/build-icons.mjs",
     "prebuild": "npm run build:icons",
-    "build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Build-Workspace.ps1\" -PackageRelative \".\" -Script \"build\" -NoLaunchPrompt",
-    "build:renderer": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Build-Workspace.ps1\" -PackageRelative \".\" -Script \"build:renderer\" -NoLaunchPrompt",
-    "build:main": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Build-Workspace.ps1\" -PackageRelative \".\" -Script \"build:main\" -NoLaunchPrompt",
-    "build:preload": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Build-Workspace.ps1\" -PackageRelative \".\" -Script \"build:preload\" -NoLaunchPrompt",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:renderer": "vite build",
+    "build:main": "tsc -p tsconfig.main.json && npm run build:preload",
+    "build:preload": "node scripts/build-preload.mjs && npm run test:preload",
     "package": "npm run build && electron-builder --win nsis",
     "package:ci": "npm run build && electron-builder --win nsis --publish never",
     "package:dir": "npm run build && electron-builder --dir",
@@ -104,8 +104,8 @@
     "publish:manual:minor": "node scripts/publish-manual.mjs --bump minor",
     "publish:manual:major": "node scripts/publish-manual.mjs --bump major",
     "publish:manual:dry": "node scripts/publish-manual.mjs --bump patch --dry-run",
-    "workspace:build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Build-Workspace.ps1\"",
-    "workspace:menu": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\grudgegit\\grudge-dev-tool/Project-Console.ps1\""
+    "workspace:build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"./Build-Workspace.ps1\"",
+    "workspace:menu": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"./Project-Console.ps1\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.658.1",

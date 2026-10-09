@@ -234,6 +234,17 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 
 ## [Unreleased]
 
+## [1.1.7] — 2026-10-09
+
+### Added
+- AI · Spawn · free-AI **growth cadence** (`config/growth-cadence.json`, `docs/ai-spawn-growth-cadence.md`).
+- `npm run growth:check` smoke for Legion, Forge free-ai, and Spawn doors (also in `ci:live`).
+- Home **Growth cadence** strip and Agent AI presets **Growth check** / **Spawn world improve**.
+- Fleet URLs: `spawn`, `forgeFreeAi*`, `aiGrowthSsot`.
+
+### Fixed
+- Restored local `npm run build` / `build:icons` scripts (recovery path had pointed at missing `C:\grudgegit\…\Build-Workspace.ps1`).
+
 ## [1.1.6] — 2026-09-20
 
 ### Changed
@@ -567,3 +578,4 @@ All notable changes to **grudge-dev-tool** are documented here. The format is ba
 [1.0.11]:     https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.0.11
 [1.1.5]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.1.5
 [1.1.6]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.1.6
+[1.1.7]:      https://github.com/Grudge-Warlords/grudge-dev-tool/releases/tag/v1.1.7
