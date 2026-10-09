@@ -15,6 +15,7 @@ Desktop **admin** shell for Grudge Studio — **Elite** Three.js studio, Assets,
 [Systems & APIs →](systems-api.md){: .btn .fs-5 .mb-2 .mr-2 }
 [Admin architecture →](admin-architecture.md){: .btn .fs-5 .mb-2 .mr-2 }
 [AI · Spawn growth →](ai-spawn-growth-cadence.md){: .btn .fs-5 .mb-2 .mr-2 }
+[Daily maintenance →](daily-maintenance.md){: .btn .fs-5 .mb-2 .mr-2 }
 [Production deployment →](production-deployment.md){: .btn .fs-5 .mb-2 }
 
 ## Production tray (current package)
@@ -65,6 +66,8 @@ Assets (CDN / ObjectStore)
 ```
 
 **Growth cadence (AI · free AI · Spawn · games):** [AI · Spawn · growth cadence](ai-spawn-growth-cadence.md) · `npm run growth:check`.
+
+**Desktop maintenance (fail-closed):** [Daily maintenance](daily-maintenance.md) · `npm run maintenance:check` · `npm run maintenance:daily`.
 
 Details: [Admin architecture](admin-architecture.md) · [AI · D1 · R2 · Stream](ai-workers-d1-r2-stream.md).
 

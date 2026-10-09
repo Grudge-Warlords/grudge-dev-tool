@@ -11,7 +11,7 @@ permalink: /ai-spawn-growth-cadence/
 **Machine SSOT:** [`config/growth-cadence.json`](../config/growth-cadence.json)  
 **Live pointers:** `GET https://ai.grudge-studio.com/v1/ssot` → `growth`  
 **Free-AI attach:** [FREE_AI_JOIN_SSOT](https://github.com/MolochDaGod/grudge-ai-hub/blob/main/docs/FREE_AI_JOIN_SSOT.md) (Legion hub)  
-**Desktop maintenance (separate, fail-closed):** [daily-maintenance.md](daily-maintenance.md)
+**Desktop maintenance (separate, fail-closed):** [Daily maintenance](daily-maintenance.md) · <https://grudge-warlords.github.io/grudge-dev-tool/daily-maintenance/>
 
 This is the **operator + agent schedule** for continued growth. It extends Legion, Forge free-ai, Catsot, Telegram, Hermes/n8n, and Spawn — it does **not** invent a second AI brain or bag DB.
 

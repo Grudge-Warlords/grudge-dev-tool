@@ -1,4 +1,20 @@
+---
+layout: default
+title: Daily maintenance
+nav_order: 11
+description: Governed fail-closed daily maintenance for Grudge Dev Tool — observer runs, policy digest approval, and Codex scheduled tasks.
+permalink: /daily-maintenance/
+---
+
 # Governed daily maintenance
+
+{: .fs-6 .fw-300 }
+Fail-closed desktop maintenance for the **Grudge Dev Tool** checkout. Separate from the fleet [AI · Spawn · growth cadence](ai-spawn-growth-cadence.md) (`npm run growth:check`).
+{: .fs-3 }
+
+**Policy:** [`config/maintenance.policy.json`](https://github.com/Grudge-Warlords/grudge-dev-tool/blob/main/config/maintenance.policy.json)  
+**Codex prompt:** [daily-maintenance-prompt](daily-maintenance-prompt.md)  
+**Live page:** <https://grudge-warlords.github.io/grudge-dev-tool/daily-maintenance/>
 
 This system separates observation, isolated staging, and adoption. The default policy is intentionally useful but non-authoritative: a manual run records the repository baseline, dependency-lock integrity, platform-icon coverage, version inventory, disk headroom, GPU processes by PID, an SPDX SBOM, explicit evidence classes, and a resource/decision ledger. It does not contact a network, run a build, modify source, install anything, stop a process, promote a package, publish, or create a schedule.
 

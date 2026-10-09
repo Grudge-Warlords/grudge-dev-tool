@@ -1,4 +1,15 @@
+---
+layout: default
+title: Daily maintenance prompt
+nav_order: 11
+parent: Daily maintenance
+description: Codex scheduled-task prompt for Grudge Dev Tool governed daily maintenance (use only after policy digest approval).
+permalink: /daily-maintenance-prompt/
+---
+
 # Codex scheduled-task prompt: Grudge Dev Tool daily maintenance
+
+Parent doc: [Daily maintenance](daily-maintenance.md).
 
 Use this prompt only after the owner has chosen the schedule, budgets, notification behavior, and unattended authority and has approved the exact policy digest in `config/maintenance.policy.json`.
 
